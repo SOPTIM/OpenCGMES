@@ -24,8 +24,6 @@ import java.io.Writer;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 import org.apache.jena.riot.RiotException;
-import org.apache.jena.riot.system.ErrorHandler;
-import org.apache.jena.riot.system.ErrorHandlerFactory;
 import org.apache.jena.riot.system.PrefixMap;
 import org.codehaus.stax2.XMLOutputFactory2;
 import org.codehaus.stax2.XMLStreamWriter2;
@@ -51,29 +49,14 @@ public class WriterCIMXML_StAX_SR {
 
   public static boolean TRACE = false;
 
-  public final ErrorHandler errorHandler;
-
-  public WriterCIMXML_StAX_SR() {
-    this(ErrorHandlerFactory.errorHandlerStd);
-  }
-
-  public WriterCIMXML_StAX_SR(ErrorHandler errorHandler) {
-    this.errorHandler = errorHandler;
-  }
-
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph) {
     write(out, cimDatasetGraph, null);
   }
 
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap) {
-    write(out, cimDatasetGraph, prefixMap, null);
-  }
-
-  public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
-      String baseURI) {
     try {
       var xmlStreamWriter = (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out);
-      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, baseURI);
+      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap);
     } catch (XMLStreamException ex) {
       throw new RiotException("Failed to create the XMLStreamWriter", ex);
     }
@@ -84,22 +67,21 @@ public class WriterCIMXML_StAX_SR {
   }
 
   public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap) {
-    write(out, cimDatasetGraph, prefixMap, null);
-  }
-
-  public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
-      String baseURI) {
     try {
       var xmlStreamWriter = (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out);
-      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, baseURI);
+      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap);
     } catch (XMLStreamException ex) {
       throw new RiotException("Failed to create the XMLStreamWriter", ex);
     }
   }
 
   private void serialize(XMLStreamWriter2 xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
-      PrefixMap prefixMap, String baseURI) {
-    //TODO
-    // var serializer = new TBD
+      PrefixMap prefixMap) {
+    var serializer = new SerializerCIMXML_StAX_SR(xmlStreamWriter, cimDatasetGraph, prefixMap);
+    try {
+      serializer.serialize();
+    } catch (XMLStreamException e) {
+      throw new RiotException(e);
+    }
   }
 }
