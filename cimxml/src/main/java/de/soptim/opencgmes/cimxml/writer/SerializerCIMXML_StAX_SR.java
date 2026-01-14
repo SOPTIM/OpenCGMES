@@ -2,6 +2,7 @@ package de.soptim.opencgmes.cimxml.writer;
 
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
 import javax.xml.stream.XMLStreamException;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.ResIterator;
 import org.apache.jena.rdf.model.Resource;
@@ -13,7 +14,6 @@ import org.codehaus.stax2.XMLStreamWriter2;
 
 public class SerializerCIMXML_StAX_SR {
 
-
   private static final String rdfUri = RDF.uri;
   private static final String cimModelDescriptionUri = "http://iec.ch/TC57/61970-552/ModelDescription/1#";
   private static final String differenceModelNamespaceUri = "http://iec.ch/TC57/61970-552/DifferenceModel/1#";
@@ -22,6 +22,7 @@ public class SerializerCIMXML_StAX_SR {
 
   private static final String cimxmlStandard = "iec61970-552";
   private static final String cimxmlVersionString = "version=\"2.0\"";
+  private static final String about = "about";
 
   private final XMLStreamWriter2 xmlStreamWriter;
   private final CimDatasetGraph cimDatasetGraph;
@@ -79,6 +80,7 @@ public class SerializerCIMXML_StAX_SR {
     var model = ModelFactory.createModelForGraph(modelHeader);
     var fullModelNode = modelHeader.getModel();
     var fullModelResource = model.getResource(fullModelNode.getURI());
+    xmlStreamWriter.writeAttribute(rdfUri, about, fullModelResource.getURI());
     var propertyIterator = fullModelResource.listProperties();
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
@@ -91,7 +93,7 @@ public class SerializerCIMXML_StAX_SR {
   private void writeDefinitionElement(Resource subjectNode) throws XMLStreamException {
     var typeResource = subjectNode.getProperty(RDF.type).getResource();
     xmlStreamWriter.writeStartElement(typeResource.getNameSpace(), typeResource.getLocalName());
-    xmlStreamWriter.writeAttribute(rdfUri, "about", replaceUrnUuidWithHash(subjectNode.getURI()));
+    xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
     var propertyIterator = subjectNode.listProperties();
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
@@ -102,7 +104,7 @@ public class SerializerCIMXML_StAX_SR {
   // Section 7.2.3.6 Description element
   private void writeDescriptionElement(Resource subjectNode) throws XMLStreamException {
     xmlStreamWriter.writeStartElement(rdfUri, "Description");
-    xmlStreamWriter.writeAttribute(rdfUri, "about", replaceUrnUuidWithHash(subjectNode.getURI()));
+    xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
     var propertyIterator = subjectNode.listProperties();
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
@@ -148,8 +150,51 @@ public class SerializerCIMXML_StAX_SR {
     }
   }
 
-  private void serializeDifferenceModel() {
+  private void serializeDifferenceModel() throws XMLStreamException {
+    xmlStreamWriter.writeStartDocument();
+    xmlStreamWriter.writeProcessingInstruction(cimxmlStandard, cimxmlVersionString);
+    xmlStreamWriter.writeStartElement(rdfUri, "RDF");
+    xmlStreamWriter.writeNamespace("rdf", rdfUri);
+    xmlStreamWriter.writeNamespace("cim", prefixMap.get("cim"));
+    xmlStreamWriter.writeNamespace("dm", differenceModelNamespaceUri);
+    xmlStreamWriter.writeAttribute(xmlNS, "base", baseUri);
+    writeDifferenceModelElement();
+    xmlStreamWriter.writeEndElement();
+    xmlStreamWriter.writeEndDocument();
+  }
 
+  private void writeDifferenceModelElement() throws XMLStreamException {
+    xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, "DifferenceModel");
+    var modelHeader = cimDatasetGraph.getModelHeader();
+    var model = ModelFactory.createModelForGraph(modelHeader);
+    var differenceModelNode = modelHeader.getModel();
+    var differenceModelResource = model.getResource(differenceModelNode.getURI());
+    xmlStreamWriter.writeAttribute(rdfUri, about, differenceModelResource.getURI());
+    var propertyIterator = differenceModelResource.listProperties();
+    while (propertyIterator.hasNext()) {
+      writeProperty(propertyIterator.next());
+    }
+    writeDifferenceModelSubgraph("preconditions", cimDatasetGraph.getPreconditions());
+    writeDifferenceModelSubgraph("forwardDifferences", cimDatasetGraph.getForwardDifferences());
+    writeDifferenceModelSubgraph("reverseDifferences", cimDatasetGraph.getReverseDifferences());
+    xmlStreamWriter.writeEndElement();
+  }
+
+  private void writeDifferenceModelSubgraph(String graphName, Graph graph)
+      throws XMLStreamException {
+    xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, graphName);
+    xmlStreamWriter.writeAttribute(rdfUri, "parseType", "Statements");
+    var model = ModelFactory.createModelForGraph(graph);
+    ResIterator subjectIterator = model.listSubjects();
+    while (subjectIterator.hasNext()) {
+      var currentSubject = subjectIterator.next();
+      if (currentSubject.hasProperty(RDF.type)) {
+        writeDefinitionElement(currentSubject);
+      } else {
+        writeDescriptionElement(currentSubject);
+      }
+    }
+    xmlStreamWriter.writeEndElement();
   }
 
   private static String replaceUrnUuidWithHash(String uri) {
