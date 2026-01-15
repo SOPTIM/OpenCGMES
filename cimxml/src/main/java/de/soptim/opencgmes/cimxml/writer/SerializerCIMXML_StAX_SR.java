@@ -19,16 +19,24 @@
 package de.soptim.opencgmes.cimxml.writer;
 
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.ResIterator;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.Statement;
+import org.apache.jena.rdf.model.StmtIterator;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.system.PrefixMap;
 import org.apache.jena.vocabulary.RDF;
-import org.codehaus.stax2.XMLStreamWriter2;
 
 public class SerializerCIMXML_StAX_SR {
 
@@ -42,15 +50,17 @@ public class SerializerCIMXML_StAX_SR {
   private static final String cimxmlVersionString = "version=\"2.0\"";
   private static final String about = "about";
 
-  private final XMLStreamWriter2 xmlStreamWriter;
+  private final XMLStreamWriter xmlStreamWriter;
   private final CimDatasetGraph cimDatasetGraph;
   private final PrefixMap prefixMap;
+  private final boolean sorted;
 
-  public SerializerCIMXML_StAX_SR(XMLStreamWriter2 xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
-      PrefixMap prefixMap) {
+  public SerializerCIMXML_StAX_SR(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
+      PrefixMap prefixMap, boolean sorted) {
     this.xmlStreamWriter = xmlStreamWriter;
     this.cimDatasetGraph = cimDatasetGraph;
     this.prefixMap = prefixMap == null ? cimDatasetGraph.prefixes() : prefixMap;
+    this.sorted = sorted;
   }
 
   void serialize() throws XMLStreamException {
@@ -84,7 +94,7 @@ public class SerializerCIMXML_StAX_SR {
     xmlStreamWriter.writeAttribute(xmlNS, "base", baseUri);
     writeFullModelElement();
     var model = ModelFactory.createModelForGraph(cimDatasetGraph.getBody());
-    ResIterator subjectIterator = model.listSubjects();
+    var subjectIterator = getResourceIterator(model);
     while (subjectIterator.hasNext()) {
       writeDefinitionElement(subjectIterator.next());
     }
@@ -99,7 +109,7 @@ public class SerializerCIMXML_StAX_SR {
     var fullModelNode = modelHeader.getModel();
     var fullModelResource = model.getResource(fullModelNode.getURI());
     xmlStreamWriter.writeAttribute(rdfUri, about, fullModelResource.getURI());
-    var propertyIterator = fullModelResource.listProperties();
+    var propertyIterator = getStatementIterator(fullModelResource);
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
     }
@@ -112,7 +122,7 @@ public class SerializerCIMXML_StAX_SR {
     var typeResource = subjectNode.getProperty(RDF.type).getResource();
     xmlStreamWriter.writeStartElement(typeResource.getNameSpace(), typeResource.getLocalName());
     xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
-    var propertyIterator = subjectNode.listProperties();
+    var propertyIterator = getStatementIterator(subjectNode);
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
     }
@@ -123,7 +133,7 @@ public class SerializerCIMXML_StAX_SR {
   private void writeDescriptionElement(Resource subjectNode) throws XMLStreamException {
     xmlStreamWriter.writeStartElement(rdfUri, "Description");
     xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
-    var propertyIterator = subjectNode.listProperties();
+    var propertyIterator = getStatementIterator(subjectNode);
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
     }
@@ -134,7 +144,7 @@ public class SerializerCIMXML_StAX_SR {
   private void writeCompoundElement(Resource subjectNode) throws XMLStreamException {
     var typeResource = subjectNode.getProperty(RDF.type).getResource();
     xmlStreamWriter.writeStartElement(typeResource.getNameSpace(), typeResource.getLocalName());
-    var propertyIterator = subjectNode.listProperties();
+    var propertyIterator = getStatementIterator(subjectNode);
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
     }
@@ -199,7 +209,7 @@ public class SerializerCIMXML_StAX_SR {
     var differenceModelNode = modelHeader.getModel();
     var differenceModelResource = model.getResource(differenceModelNode.getURI());
     xmlStreamWriter.writeAttribute(rdfUri, about, differenceModelResource.getURI());
-    var propertyIterator = differenceModelResource.listProperties();
+    var propertyIterator = getStatementIterator(differenceModelResource);
     while (propertyIterator.hasNext()) {
       writeProperty(propertyIterator.next());
     }
@@ -214,7 +224,7 @@ public class SerializerCIMXML_StAX_SR {
     xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, graphName);
     xmlStreamWriter.writeAttribute(rdfUri, "parseType", "Statements");
     var model = ModelFactory.createModelForGraph(graph);
-    ResIterator subjectIterator = model.listSubjects();
+    var subjectIterator = getDifferenceModelResourceIterator(model);
     while (subjectIterator.hasNext()) {
       var currentSubject = subjectIterator.next();
       if (currentSubject.hasProperty(RDF.type)) {
@@ -224,6 +234,47 @@ public class SerializerCIMXML_StAX_SR {
       }
     }
     xmlStreamWriter.writeEndElement();
+  }
+
+  private Iterator<Statement> getStatementIterator(Resource resource) {
+    Iterator<Statement> propertyIterator = resource.listProperties();
+    if (sorted) {
+      var stmtList = ((StmtIterator) propertyIterator).toList();
+      stmtList.sort(Comparator.<Statement, String>comparing(
+              statement -> statement.getPredicate().getURI())
+          .thenComparing(statement -> statement.getObject().toString()));
+      propertyIterator = stmtList.iterator();
+    }
+    return propertyIterator;
+  }
+
+  private Iterator<Resource> getResourceIterator(Model model) {
+    Iterator<Resource> resourceIterator = model.listSubjects();
+    if (sorted) {
+      var resList = ((ResIterator) resourceIterator).toList();
+      resList.sort(Comparator.<Resource, String>comparing(
+              resource -> resource.getProperty(RDF.type).getResource().getURI())
+          .thenComparing(Resource::getURI));
+      resourceIterator = resList.iterator();
+    }
+    return resourceIterator;
+  }
+
+  private Iterator<Resource> getDifferenceModelResourceIterator(Model model) {
+    Iterator<Resource> resourceIterator = model.listSubjects();
+    if (sorted) {
+      Map<Boolean, List<Resource>> typePartitions = ((ResIterator) resourceIterator).toList()
+          .stream()
+          .collect(Collectors.partitioningBy(resource -> resource.hasProperty(RDF.type)));
+      typePartitions.get(true).sort(Comparator.<Resource, String>comparing(
+              resource -> resource.getProperty(RDF.type).getResource().getURI())
+          .thenComparing(Resource::getURI));
+      typePartitions.get(false).sort(Comparator.comparing(Resource::getURI));
+      var resList = Stream.concat(typePartitions.get(true).stream(),
+          typePartitions.get(false).stream()).toList();
+      resourceIterator = resList.iterator();
+    }
+    return resourceIterator;
   }
 
   private static String replaceUrnUuidWithHash(String uri) {

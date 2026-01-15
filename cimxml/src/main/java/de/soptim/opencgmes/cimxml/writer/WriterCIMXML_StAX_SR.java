@@ -39,21 +39,20 @@ import org.codehaus.stax2.XMLStreamWriter2;
  */
 public class WriterCIMXML_StAX_SR {
 
-  public static XMLOutputFactory2 createXMLOutputFactory() {
+  public static XMLOutputFactory createXMLOutputFactory() {
     var factory = new com.fasterxml.aalto.stax.OutputFactoryImpl();
     factory.configureForSpeed();
     return factory;
   }
 
-  private static final XMLOutputFactory2 xmlOutputFactory = createXMLOutputFactory();
-
-  public static boolean TRACE = false;
+  private static final XMLOutputFactory xmlOutputFactory = createXMLOutputFactory();
 
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph) {
-    write(out, cimDatasetGraph, null);
+    write(out, cimDatasetGraph, null, false);
   }
 
-  public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap) {
+  public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
+      boolean sorted) {
     try {
       var xmlStreamWriter = (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out);
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap);
@@ -63,10 +62,11 @@ public class WriterCIMXML_StAX_SR {
   }
 
   public void write(Writer out, CimDatasetGraph cimDatasetGraph) {
-    write(out, cimDatasetGraph, null);
+    write(out, cimDatasetGraph, null, false);
   }
 
-  public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap) {
+  public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
+      boolean sorted) {
     try {
       var xmlStreamWriter = (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out);
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap);
@@ -75,9 +75,10 @@ public class WriterCIMXML_StAX_SR {
     }
   }
 
-  private void serialize(XMLStreamWriter2 xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
-      PrefixMap prefixMap) {
-    var serializer = new SerializerCIMXML_StAX_SR(xmlStreamWriter, cimDatasetGraph, prefixMap);
+  private void serialize(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
+      PrefixMap prefixMap, boolean sorted) {
+    var serializer = new SerializerCIMXML_StAX_SR(xmlStreamWriter, cimDatasetGraph, prefixMap,
+        sorted);
     try {
       serializer.serialize();
     } catch (XMLStreamException e) {
