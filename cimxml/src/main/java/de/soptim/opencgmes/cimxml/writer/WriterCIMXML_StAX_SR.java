@@ -24,16 +24,25 @@ import java.io.OutputStream;
 import java.io.Writer;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.system.PrefixMap;
 
 /**
- * CIMXML parser. This implementation is based on the RDF/XML reader ReaderRDFXML_StAX_SR in Apache
- * Jena, originally. It has been adapted to the CIMXML needs.
+ * IEC 61970-552 CIMXML writer for OpenCGMES.
+ *
+ * <p> This writer creates a Common Information Model (CIM) XML file for a {@link CimDatasetGraph}
+ * and writes it into a {@link Writer} or an {@link OutputStream}. It handles special features
+ * unique to CIMXML such as:
+ *
+ * <ul>
+ *   <li>Replacing urn:uuid: with underscores</li>
+ *   <li>Removing datatype information from the output file</li>
+ *   <li>Support for FullModel and DifferenceModel structures</li>
+ * </ul>
+ * This implementation uses StAX via {@link XMLStreamWriter}.
  * <p>
- * This implementation uses StAX via {@link XMLStreamReader}.
+ * Optionally, the output may also be sorted.
  *
  * @see <a
  * href="https://webstore.iec.ch/en/publication/25939">https://webstore.iec.ch/en/publication/25939</a>
@@ -48,10 +57,26 @@ public class WriterCIMXML_StAX_SR {
 
   private static final XMLOutputFactory xmlOutputFactory = createXMLOutputFactory();
 
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given OutputStream.
+   *
+   * @param out             the OutputStream receiving the CIMXML
+   * @param cimDatasetGraph the input CIM Dataset Graph
+   */
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph) {
     write(out, cimDatasetGraph, null, false);
   }
 
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given OutputStream.
+   *
+   * @param out             the OutputStream receiving the CIMXML
+   * @param cimDatasetGraph the input CIM Dataset Graph
+   * @param prefixMap       the prefixMap to be used in the CIMXML - uses prefixes from the CIM
+   *                        Dataset Graph if null
+   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
+   *                        decrease performance
+   */
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
     try {
@@ -63,10 +88,26 @@ public class WriterCIMXML_StAX_SR {
     }
   }
 
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given Writer.
+   *
+   * @param out             the Writer receiving the CIMXML
+   * @param cimDatasetGraph the input CIM Dataset Graph
+   */
   public void write(Writer out, CimDatasetGraph cimDatasetGraph) {
     write(out, cimDatasetGraph, null, false);
   }
 
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given Writer.
+   *
+   * @param out             the Writer receiving the CIMXML
+   * @param cimDatasetGraph the input CIM Dataset Graph
+   * @param prefixMap       the prefixMap to be used in the CIMXML - uses prefixes from the CIM
+   *                        Dataset Graph if null
+   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
+   *                        decrease performance
+   */
   public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
     try {
