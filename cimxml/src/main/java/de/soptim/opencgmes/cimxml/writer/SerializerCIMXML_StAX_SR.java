@@ -82,13 +82,14 @@ public class SerializerCIMXML_StAX_SR {
   }
 
   private void verifyNamespacesAndSetPrefixes() throws XMLStreamException {
-    if (!prefixMap.get("rdf").equals(rdfUri)) {
+    if (!prefixMap.getOrDefault("rdf", "").equals(rdfUri)) {
       throw new RiotException("The rdf prefix must be set correctly!");
     }
-    if (!prefixMap.get("md").equals(cimModelDescriptionUri)) {
+    if (!prefixMap.getOrDefault("md", "").equals(cimModelDescriptionUri)) {
       throw new RiotException("The md prefix must be set correctly!");
     }
-    if (isDifferenceModel && !prefixMap.get("dm").equals(differenceModelNamespaceUri)) {
+    if (isDifferenceModel && !prefixMap.getOrDefault("dm", "")
+        .equals(differenceModelNamespaceUri)) {
       throw new RiotException("The dm prefix must be set correctly in a DifferenceModel!");
     }
     if (!prefixMap.containsKey("cim")) {
