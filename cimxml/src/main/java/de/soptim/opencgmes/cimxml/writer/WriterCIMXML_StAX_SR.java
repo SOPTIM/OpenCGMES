@@ -55,7 +55,7 @@ public class WriterCIMXML_StAX_SR {
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
     try {
-      var xmlStreamWriter = new com.sun.xml.txw2.output.IndentingXMLStreamWriter(
+      var xmlStreamWriter = new IndentingXMLStreamWriter(
           xmlOutputFactory.createXMLStreamWriter(out));
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
     } catch (XMLStreamException ex) {

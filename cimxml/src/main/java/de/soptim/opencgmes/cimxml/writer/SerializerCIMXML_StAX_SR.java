@@ -30,6 +30,7 @@ import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.ResIterator;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.Statement;
@@ -52,33 +53,53 @@ public class SerializerCIMXML_StAX_SR {
 
   private final XMLStreamWriter xmlStreamWriter;
   private final CimDatasetGraph cimDatasetGraph;
-  private final PrefixMap prefixMap;
+  private final Map<String, String> prefixMap;
   private final boolean sorted;
+
+  private boolean isDifferenceModel;
 
   public SerializerCIMXML_StAX_SR(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
     this.xmlStreamWriter = xmlStreamWriter;
     this.cimDatasetGraph = cimDatasetGraph;
-    this.prefixMap = prefixMap == null ? cimDatasetGraph.prefixes() : prefixMap;
+    this.prefixMap =
+        prefixMap == null ? cimDatasetGraph.prefixes().getMapping() : prefixMap.getMapping();
     this.sorted = sorted;
   }
 
   void serialize() throws XMLStreamException {
-    for (var entry : prefixMap.getMapping().entrySet()) {
-      xmlStreamWriter.setPrefix(entry.getKey(), entry.getValue());
-    }
     if (cimDatasetGraph.isFullModel()) {
-      serializeFullModel();
+      isDifferenceModel = false;
     } else if (cimDatasetGraph.isDifferenceModel()) {
-      serializeDifferenceModel();
+      isDifferenceModel = true;
     } else {
       throw new RiotException(
           "Dataset must be either a FullModel or a DifferenceModel!"
       );
     }
+    verifyNamespacesAndSetPrefixes();
+    serializeModel();
   }
 
-  private void serializeFullModel() throws XMLStreamException {
+  private void verifyNamespacesAndSetPrefixes() throws XMLStreamException {
+    if (!prefixMap.get("rdf").equals(rdfUri)) {
+      throw new RiotException("The rdf prefix must be set correctly!");
+    }
+    if (!prefixMap.get("md").equals(cimModelDescriptionUri)) {
+      throw new RiotException("The md prefix must be set correctly!");
+    }
+    if (isDifferenceModel && !prefixMap.get("dm").equals(differenceModelNamespaceUri)) {
+      throw new RiotException("The dm prefix must be set correctly in a DifferenceModel!");
+    }
+    if (!prefixMap.containsKey("cim")) {
+      throw new RiotException("The cim prefix must be set!");
+    }
+    for (var entry : prefixMap.entrySet()) {
+      xmlStreamWriter.setPrefix(entry.getKey(), entry.getValue());
+    }
+  }
+
+  private void serializeModel() throws XMLStreamException {
     xmlStreamWriter.writeStartDocument();
     xmlStreamWriter.writeProcessingInstruction(cimxmlStandard, cimxmlVersionString);
     writeDocumentElement();
@@ -88,15 +109,19 @@ public class SerializerCIMXML_StAX_SR {
   // Section 7.2.3.3 Document element
   private void writeDocumentElement() throws XMLStreamException {
     xmlStreamWriter.writeStartElement(rdfUri, "RDF");
-    xmlStreamWriter.writeNamespace("rdf", rdfUri);
-    xmlStreamWriter.writeNamespace("cim", prefixMap.get("cim"));
-    xmlStreamWriter.writeNamespace("md", cimModelDescriptionUri);
+    for (var entry : prefixMap.entrySet()) {
+      xmlStreamWriter.writeNamespace(entry.getKey(), entry.getValue());
+    }
     xmlStreamWriter.writeAttribute(xmlNS, "base", baseUri);
-    writeFullModelElement();
-    var model = ModelFactory.createModelForGraph(cimDatasetGraph.getBody());
-    var subjectIterator = getResourceIterator(model);
-    while (subjectIterator.hasNext()) {
-      writeDefinitionElement(subjectIterator.next());
+    if (isDifferenceModel) {
+      writeDifferenceModelElement();
+    } else {
+      writeFullModelElement();
+      var model = ModelFactory.createModelForGraph(cimDatasetGraph.getBody());
+      var subjectIterator = getResourceIterator(model);
+      while (subjectIterator.hasNext()) {
+        writeDefinitionElement(subjectIterator.next());
+      }
     }
     xmlStreamWriter.writeEndElement();
   }
@@ -151,55 +176,39 @@ public class SerializerCIMXML_StAX_SR {
     xmlStreamWriter.writeEndElement();
   }
 
-  // Section 7.2.3.8 Literal-Property element
-  private void writeLiteralPropertyElement(Statement property) throws XMLStreamException {
-    xmlStreamWriter.writeStartElement(property.getPredicate().getNameSpace(),
-        property.getPredicate().getLocalName());
-    xmlStreamWriter.writeCharacters(property.getLiteral().getValue().toString());
-    xmlStreamWriter.writeEndElement();
-  }
-
-  // Section 7.2.3.9 Compound-Property element
-  private void writeCompoundPropertyElement(Statement property) throws XMLStreamException {
-    xmlStreamWriter.writeStartElement(property.getPredicate().getNameSpace(),
-        property.getPredicate().getLocalName());
-    writeCompoundElement(property.getResource());
-    xmlStreamWriter.writeEndElement();
-  }
-
-  // Section 7.2.3.10 Resource-Property element
-  private void writeResourcePropertyElement(Statement property) throws XMLStreamException {
-    xmlStreamWriter.writeStartElement(property.getPredicate().getNameSpace(),
-        property.getPredicate().getLocalName());
-    xmlStreamWriter.writeAttribute(rdfUri, "resource",
-        replaceUrnUuidWithHash(property.getResource().getURI()));
-    xmlStreamWriter.writeEndElement();
-  }
-
+  // Section 7.2.3.8-10 Property element
   private void writeProperty(Statement property) throws XMLStreamException {
     if (property.getPredicate().equals(RDF.type)) {
       return;
     }
-    if (property.getObject().isURIResource()) {
-      writeResourcePropertyElement(property);
-    } else if (property.getObject().isLiteral()) {
-      writeLiteralPropertyElement(property);
+    xmlStreamWriter.writeStartElement(property.getPredicate().getNameSpace(),
+        property.getPredicate().getLocalName());
+    switch (getPropertyType(property.getObject())) {
+      case LITERAL_PROPERTY -> xmlStreamWriter.writeCharacters(
+          property.getLiteral().getValue().toString()); // Section 7.2.3.8 Literal-Property element
+      case COMPOUND_PROPERTY ->
+          writeCompoundElement(property.getResource()); // Section 7.2.3.9 Compound-Property element
+      case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
+          replaceUrnUuidWithHash(
+              property.getResource().getURI())); // Section 7.2.3.10 Resource-Property element
+    }
+    xmlStreamWriter.writeEndElement();
+  }
+
+  private PropertyType getPropertyType(RDFNode propertyObject) {
+    if (propertyObject.isURIResource()) {
+      return PropertyType.RESOURCE_PROPERTY;
+    } else if (propertyObject.isLiteral()) {
+      return PropertyType.LITERAL_PROPERTY;
     } else { // isAnon
-      writeCompoundPropertyElement(property);
+      return PropertyType.COMPOUND_PROPERTY;
     }
   }
 
-  private void serializeDifferenceModel() throws XMLStreamException {
-    xmlStreamWriter.writeStartDocument();
-    xmlStreamWriter.writeProcessingInstruction(cimxmlStandard, cimxmlVersionString);
-    xmlStreamWriter.writeStartElement(rdfUri, "RDF");
-    xmlStreamWriter.writeNamespace("rdf", rdfUri);
-    xmlStreamWriter.writeNamespace("cim", prefixMap.get("cim"));
-    xmlStreamWriter.writeNamespace("dm", differenceModelNamespaceUri);
-    xmlStreamWriter.writeAttribute(xmlNS, "base", baseUri);
-    writeDifferenceModelElement();
-    xmlStreamWriter.writeEndElement();
-    xmlStreamWriter.writeEndDocument();
+  private enum PropertyType {
+    LITERAL_PROPERTY,
+    COMPOUND_PROPERTY,
+    RESOURCE_PROPERTY
   }
 
   private void writeDifferenceModelElement() throws XMLStreamException {
