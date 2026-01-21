@@ -186,7 +186,7 @@ public class SerializerCIMXML_StAX_SR {
         property.getPredicate().getLocalName());
     switch (getPropertyType(property.getObject())) {
       case LITERAL_PROPERTY -> xmlStreamWriter.writeCharacters(
-          property.getLiteral().getValue().toString()); // Section 7.2.3.8 Literal-Property element
+          property.getLiteral().getLexicalForm()); // Section 7.2.3.8 Literal-Property element
       case COMPOUND_PROPERTY ->
           writeCompoundElement(property.getResource()); // Section 7.2.3.9 Compound-Property element
       case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
