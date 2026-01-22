@@ -50,6 +50,12 @@ public class SerializerCIMXML_StAX_SR {
   private boolean isDifferenceModel;
   private Graph currentGraph;
 
+  private enum PropertyType {
+    LITERAL_PROPERTY,
+    COMPOUND_PROPERTY,
+    RESOURCE_PROPERTY
+  }
+
   public SerializerCIMXML_StAX_SR(XMLStreamWriter xmlStreamWriter,
       CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
@@ -203,12 +209,6 @@ public class SerializerCIMXML_StAX_SR {
     }
   }
 
-  private enum PropertyType {
-    LITERAL_PROPERTY,
-    COMPOUND_PROPERTY,
-    RESOURCE_PROPERTY
-  }
-
   private void writeDifferenceModelElement() throws XMLStreamException {
     xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, "DifferenceModel");
     var modelHeader = cimDatasetGraph.getModelHeader();
@@ -239,7 +239,7 @@ public class SerializerCIMXML_StAX_SR {
           triple -> triple.getPredicate().getURI()
       ).thenComparing(triple -> triple.getObject().toString()));
     }
-    tripleStream.forEach(this::writeProperty);
+    tripleStream.forEachOrdered(this::writeProperty);
   }
 
   private void writeDefinitionElements() {

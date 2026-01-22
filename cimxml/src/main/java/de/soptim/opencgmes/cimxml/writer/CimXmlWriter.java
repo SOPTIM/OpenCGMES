@@ -2,10 +2,10 @@ package de.soptim.opencgmes.cimxml.writer;
 
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
 import java.io.BufferedOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class CimXmlWriter {
@@ -58,7 +58,7 @@ public class CimXmlWriter {
   public void writeCimModel(final Path resultFilePath, final CimDatasetGraph cimDatasetGraph,
       final boolean sorted) throws IOException {
     try (BufferedOutputStream outputStream = new BufferedOutputStream(
-        new FileOutputStream(resultFilePath.toFile()), MAX_BUFFER_SIZE)) {
+        Files.newOutputStream(resultFilePath), MAX_BUFFER_SIZE)) {
       this.writer.write(outputStream, cimDatasetGraph, null, sorted);
     }
   }
