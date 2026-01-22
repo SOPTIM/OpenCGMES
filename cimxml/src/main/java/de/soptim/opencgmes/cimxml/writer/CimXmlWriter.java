@@ -26,8 +26,8 @@ public class CimXmlWriter {
    *
    * @param writer          the Writer receiving the CIMXML
    * @param cimDatasetGraph the input CIM Dataset Graph
-   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
-   *                        decrease performance
+   * @param sorted          whether the resulting CIMXML should be sorted. This may impact
+   *                        performance
    */
   public void writeCimModel(final Writer writer, final CimDatasetGraph cimDatasetGraph,
       final boolean sorted) {
@@ -39,8 +39,8 @@ public class CimXmlWriter {
    *
    * @param outputStream    the OutputStream receiving the CIMXML
    * @param cimDatasetGraph the input CIM Dataset Graph
-   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
-   *                        decrease performance
+   * @param sorted          whether the resulting CIMXML should be sorted. This may impact
+   *                        performance
    */
   public void writeCimModel(final OutputStream outputStream, final CimDatasetGraph cimDatasetGraph,
       final boolean sorted) {
@@ -52,8 +52,8 @@ public class CimXmlWriter {
    *
    * @param resultFilePath  the filePath of the resulting CIMXML file
    * @param cimDatasetGraph the input CIM Dataset Graph
-   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
-   *                        decrease performance
+   * @param sorted          whether the resulting CIMXML should be sorted. This may impact
+   *                        performance
    */
   public void writeCimModel(final Path resultFilePath, final CimDatasetGraph cimDatasetGraph,
       final boolean sorted) throws IOException {

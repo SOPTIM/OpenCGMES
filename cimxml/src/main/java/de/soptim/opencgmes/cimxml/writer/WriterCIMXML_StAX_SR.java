@@ -74,8 +74,8 @@ public class WriterCIMXML_StAX_SR {
    * @param cimDatasetGraph the input CIM Dataset Graph
    * @param prefixMap       the prefixMap to be used in the CIMXML - uses prefixes from the CIM
    *                        Dataset Graph if null
-   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
-   *                        decrease performance
+   * @param sorted          whether the resulting CIMXML should be sorted. This may impact
+   *                        performance
    */
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
@@ -105,8 +105,8 @@ public class WriterCIMXML_StAX_SR {
    * @param cimDatasetGraph the input CIM Dataset Graph
    * @param prefixMap       the prefixMap to be used in the CIMXML - uses prefixes from the CIM
    *                        Dataset Graph if null
-   * @param sorted          whether the resulting CIMXML should be sorted. This will significantly
-   *                        decrease performance
+   * @param sorted          whether the resulting CIMXML should be sorted. This may impact
+   *                        performance
    */
   public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
