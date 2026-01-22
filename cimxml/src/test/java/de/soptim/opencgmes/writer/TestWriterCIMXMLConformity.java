@@ -78,7 +78,7 @@ public class TestWriterCIMXMLConformity {
             <md:Model.profile>http://example.org/MyCustom/1/1</md:Model.profile>
           </md:FullModel>
           <cim:ClassA rdf:about="#_49f26e7a-2ea9-4763-ba5f-560694d880fa">
-            <cim:ClassA.floatProperty>8.15</cim:ClassA.floatProperty>
+            <cim:ClassA.floatProperty>08.15</cim:ClassA.floatProperty>
             <cim:ClassA.textProperty>My Text B</cim:ClassA.textProperty>
           </cim:ClassA>
           <cim:ClassA rdf:about="#_594bb6e5-8da5-45c2-892e-59a648f2f862">
@@ -91,7 +91,7 @@ public class TestWriterCIMXMLConformity {
     final var writer = new WriterCIMXML_StAX_SR();
     var byteArrayOutputStream = new ByteArrayOutputStream();
     writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
-    assertEquals(byteArrayOutputStream.toString(), cimxmlInstanceData);
+    assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
   }
 
   @Test
@@ -250,6 +250,6 @@ public class TestWriterCIMXMLConformity {
     final var writer = new WriterCIMXML_StAX_SR();
     var byteArrayOutputStream = new ByteArrayOutputStream();
     writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
-    assertEquals(byteArrayOutputStream.toString(), cimxmlInstanceData);
+    assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
   }
 }

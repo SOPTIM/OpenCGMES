@@ -121,11 +121,12 @@ public class WriterCIMXML_StAX_SR {
 
   private void serialize(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
-    var serializer = new SerializerCIMXML_StAX_SR(xmlStreamWriter, cimDatasetGraph, prefixMap,
+    var serializer = new SerializerCIMXML_StAX_SR(xmlStreamWriter, cimDatasetGraph,
+        prefixMap,
         sorted);
     try {
       serializer.serialize();
-    } catch (XMLStreamException e) {
+    } catch (Exception e) {
       throw new RiotException(e);
     }
   }

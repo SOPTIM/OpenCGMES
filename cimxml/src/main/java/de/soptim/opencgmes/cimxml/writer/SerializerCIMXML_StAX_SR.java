@@ -28,13 +28,12 @@ import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Triple;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
-import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.ResIterator;
 import org.apache.jena.rdf.model.Resource;
-import org.apache.jena.rdf.model.Statement;
-import org.apache.jena.rdf.model.StmtIterator;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.system.PrefixMap;
 import org.apache.jena.vocabulary.RDF;
@@ -57,8 +56,10 @@ public class SerializerCIMXML_StAX_SR {
   private final boolean sorted;
 
   private boolean isDifferenceModel;
+  private Graph currentGraph;
 
-  public SerializerCIMXML_StAX_SR(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
+  public SerializerCIMXML_StAX_SR(XMLStreamWriter xmlStreamWriter,
+      CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
     this.xmlStreamWriter = xmlStreamWriter;
     this.cimDatasetGraph = cimDatasetGraph;
@@ -118,11 +119,8 @@ public class SerializerCIMXML_StAX_SR {
       writeDifferenceModelElement();
     } else {
       writeFullModelElement();
-      var model = ModelFactory.createModelForGraph(cimDatasetGraph.getBody());
-      var subjectIterator = getResourceIterator(model);
-      while (subjectIterator.hasNext()) {
-        writeDefinitionElement(subjectIterator.next());
-      }
+      currentGraph = cimDatasetGraph.getBody();
+      writeDefinitionElements();
     }
     xmlStreamWriter.writeEndElement();
   }
@@ -131,77 +129,80 @@ public class SerializerCIMXML_StAX_SR {
   private void writeFullModelElement() throws XMLStreamException {
     xmlStreamWriter.writeStartElement(cimModelDescriptionUri, "FullModel");
     var modelHeader = cimDatasetGraph.getModelHeader();
-    var model = ModelFactory.createModelForGraph(modelHeader);
+    currentGraph = modelHeader;
     var fullModelNode = modelHeader.getModel();
-    var fullModelResource = model.getResource(fullModelNode.getURI());
-    xmlStreamWriter.writeAttribute(rdfUri, about, fullModelResource.getURI());
-    var propertyIterator = getStatementIterator(fullModelResource);
-    while (propertyIterator.hasNext()) {
-      writeProperty(propertyIterator.next());
-    }
+    xmlStreamWriter.writeAttribute(rdfUri, about, fullModelNode.getURI());
+    writeProperties(fullModelNode);
     xmlStreamWriter.writeEndElement();
   }
 
   // Section 7.2.3.5 Definition element
   // Only supports rdf:about variant
-  private void writeDefinitionElement(Resource subjectNode) throws XMLStreamException {
-    var typeResource = subjectNode.getProperty(RDF.type).getResource();
-    xmlStreamWriter.writeStartElement(typeResource.getNameSpace(), typeResource.getLocalName());
-    xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
-    var propertyIterator = getStatementIterator(subjectNode);
-    while (propertyIterator.hasNext()) {
-      writeProperty(propertyIterator.next());
+  private void writeDefinitionElement(Triple typeTriple) {
+    try {
+      var typeNode = typeTriple.getObject();
+      var subjectNode = typeTriple.getSubject();
+      xmlStreamWriter.writeStartElement(typeNode.getNameSpace(), typeNode.getLocalName());
+      xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
+      writeProperties(subjectNode);
+      xmlStreamWriter.writeEndElement();
+    } catch (XMLStreamException e) {
+      throw new RuntimeException(e);
     }
-    xmlStreamWriter.writeEndElement();
   }
 
   // Section 7.2.3.6 Description element
-  private void writeDescriptionElement(Resource subjectNode) throws XMLStreamException {
+  private void writeDescriptionElement(Node subjectNode) throws XMLStreamException {
     xmlStreamWriter.writeStartElement(rdfUri, "Description");
     xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
-    var propertyIterator = getStatementIterator(subjectNode);
-    while (propertyIterator.hasNext()) {
-      writeProperty(propertyIterator.next());
-    }
+    writeProperties(subjectNode);
     xmlStreamWriter.writeEndElement();
   }
 
   // Section 7.2.3.7 Compound element
-  private void writeCompoundElement(Resource subjectNode) throws XMLStreamException {
-    var typeResource = subjectNode.getProperty(RDF.type).getResource();
-    xmlStreamWriter.writeStartElement(typeResource.getNameSpace(), typeResource.getLocalName());
-    var propertyIterator = getStatementIterator(subjectNode);
-    while (propertyIterator.hasNext()) {
-      writeProperty(propertyIterator.next());
+  private void writeCompoundElement(Node subjectNode) throws XMLStreamException {
+    var typeTripleOpt = currentGraph.stream(subjectNode, RDF.type.asNode(), Node.ANY).findFirst();
+    if (typeTripleOpt.isPresent()) {
+      var typeTriple = typeTripleOpt.get();
+      var typeNode = typeTriple.getObject();
+      xmlStreamWriter.writeStartElement(typeNode.getNameSpace(), typeNode.getLocalName());
+      writeProperties(subjectNode);
+      xmlStreamWriter.writeEndElement();
+    } else {
+      throw new RiotException("A compound element is missing a type triple!");
     }
-    xmlStreamWriter.writeEndElement();
   }
 
   // Section 7.2.3.8-10 Property element
-  private void writeProperty(Statement property) throws XMLStreamException {
-    if (property.getPredicate().equals(RDF.type)) {
-      return;
+  private void writeProperty(Triple propertyTriple) {
+    try {
+      if (propertyTriple.getPredicate().equals(RDF.type.asNode())) {
+        return;
+      }
+      xmlStreamWriter.writeStartElement(propertyTriple.getPredicate().getNameSpace(),
+          propertyTriple.getPredicate().getLocalName());
+      switch (getPropertyType(propertyTriple.getObject())) {
+        case LITERAL_PROPERTY -> xmlStreamWriter.writeCharacters(
+            propertyTriple.getObject()
+                .getLiteralLexicalForm()); // Section 7.2.3.8 Literal-Property element
+        case COMPOUND_PROPERTY -> writeCompoundElement(
+            propertyTriple.getObject()); // Section 7.2.3.9 Compound-Property element
+        case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
+            replaceUrnUuidWithHash(
+                propertyTriple.getObject().getURI())); // Section 7.2.3.10 Resource-Property element
+      }
+      xmlStreamWriter.writeEndElement();
+    } catch (XMLStreamException e) {
+      throw new RuntimeException(e);
     }
-    xmlStreamWriter.writeStartElement(property.getPredicate().getNameSpace(),
-        property.getPredicate().getLocalName());
-    switch (getPropertyType(property.getObject())) {
-      case LITERAL_PROPERTY -> xmlStreamWriter.writeCharacters(
-          property.getLiteral().getLexicalForm()); // Section 7.2.3.8 Literal-Property element
-      case COMPOUND_PROPERTY ->
-          writeCompoundElement(property.getResource()); // Section 7.2.3.9 Compound-Property element
-      case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
-          replaceUrnUuidWithHash(
-              property.getResource().getURI())); // Section 7.2.3.10 Resource-Property element
-    }
-    xmlStreamWriter.writeEndElement();
   }
 
-  private PropertyType getPropertyType(RDFNode propertyObject) {
-    if (propertyObject.isURIResource()) {
+  private PropertyType getPropertyType(Node propertyObject) {
+    if (propertyObject.isURI()) {
       return PropertyType.RESOURCE_PROPERTY;
     } else if (propertyObject.isLiteral()) {
       return PropertyType.LITERAL_PROPERTY;
-    } else { // isAnon
+    } else { // isBlank
       return PropertyType.COMPOUND_PROPERTY;
     }
   }
@@ -215,14 +216,10 @@ public class SerializerCIMXML_StAX_SR {
   private void writeDifferenceModelElement() throws XMLStreamException {
     xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, "DifferenceModel");
     var modelHeader = cimDatasetGraph.getModelHeader();
-    var model = ModelFactory.createModelForGraph(modelHeader);
+    currentGraph = modelHeader;
     var differenceModelNode = modelHeader.getModel();
-    var differenceModelResource = model.getResource(differenceModelNode.getURI());
-    xmlStreamWriter.writeAttribute(rdfUri, about, differenceModelResource.getURI());
-    var propertyIterator = getStatementIterator(differenceModelResource);
-    while (propertyIterator.hasNext()) {
-      writeProperty(propertyIterator.next());
-    }
+    xmlStreamWriter.writeAttribute(rdfUri, about, differenceModelNode.getURI());
+    writeProperties(differenceModelNode);
     writeDifferenceModelSubgraph("preconditions", cimDatasetGraph.getPreconditions());
     writeDifferenceModelSubgraph("forwardDifferences", cimDatasetGraph.getForwardDifferences());
     writeDifferenceModelSubgraph("reverseDifferences", cimDatasetGraph.getReverseDifferences());
@@ -231,43 +228,40 @@ public class SerializerCIMXML_StAX_SR {
 
   private void writeDifferenceModelSubgraph(String graphName, Graph graph)
       throws XMLStreamException {
+    currentGraph = graph;
     xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, graphName);
     xmlStreamWriter.writeAttribute(rdfUri, "parseType", "Statements");
-    var model = ModelFactory.createModelForGraph(graph);
+    var model = ModelFactory.createModelForGraph(currentGraph);
     var subjectIterator = getDifferenceModelResourceIterator(model);
     while (subjectIterator.hasNext()) {
       var currentSubject = subjectIterator.next();
       if (currentSubject.hasProperty(RDF.type)) {
-        writeDefinitionElement(currentSubject);
+        writeDefinitionElement(currentSubject.getProperty(RDF.type).asTriple());
       } else {
-        writeDescriptionElement(currentSubject);
+        writeDescriptionElement(currentSubject.asNode());
       }
     }
     xmlStreamWriter.writeEndElement();
   }
 
-  private Iterator<Statement> getStatementIterator(Resource resource) {
-    Iterator<Statement> propertyIterator = resource.listProperties();
+  private void writeProperties(Node subjectNode) {
+    var tripleStream = currentGraph.stream(subjectNode, Node.ANY, Node.ANY);
     if (sorted) {
-      var stmtList = ((StmtIterator) propertyIterator).toList();
-      stmtList.sort(Comparator.<Statement, String>comparing(
-              statement -> statement.getPredicate().getURI())
-          .thenComparing(statement -> statement.getObject().toString()));
-      propertyIterator = stmtList.iterator();
+      tripleStream = tripleStream.sorted(Comparator.<Triple, String>comparing(
+          triple -> triple.getPredicate().getURI()
+      ).thenComparing(triple -> triple.getObject().toString()));
     }
-    return propertyIterator;
+    tripleStream.forEach(this::writeProperty);
   }
 
-  private Iterator<Resource> getResourceIterator(Model model) {
-    Iterator<Resource> resourceIterator = model.listSubjects();
+  private void writeDefinitionElements() {
+    var tripleStream = currentGraph.stream(Node.ANY, RDF.type.asNode(), Node.ANY);
     if (sorted) {
-      var resList = ((ResIterator) resourceIterator).toList();
-      resList.sort(Comparator.<Resource, String>comparing(
-              resource -> resource.getProperty(RDF.type).getResource().getURI())
-          .thenComparing(Resource::getURI));
-      resourceIterator = resList.iterator();
+      tripleStream = tripleStream.sorted(Comparator.<Triple, String>comparing(
+          triple -> triple.getObject().getURI()
+      ).thenComparing(triple -> triple.getSubject().getURI()));
     }
-    return resourceIterator;
+    tripleStream.forEachOrdered(this::writeDefinitionElement);
   }
 
   private Iterator<Resource> getDifferenceModelResourceIterator(Model model) {
