@@ -7,6 +7,14 @@ A Java library for parsing CIMXML files into RDF graphs using Apache Jena.
 It supports both full models and difference models as defined in IEC 61970-552.
 see [CimXmlParser](cimxml/README.md)
 
+## sparql-validation
+
+Static SPARQL query validation against RDFS / CIM profile schemas — answers
+*"does this query make sense for the schema I'm working with?"* without
+executing the query and without requiring any RDF data. Useful in unit tests,
+build pipelines and query editors.
+see [sparql-validation](sparql-validation/README.md)
+
 ## Coming soon: QueryAndValidationUI
 
 A web application for uploading RDF Schema, SHACL shapes, and CIM XML files,
