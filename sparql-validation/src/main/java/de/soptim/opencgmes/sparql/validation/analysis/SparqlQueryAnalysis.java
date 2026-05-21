@@ -38,6 +38,7 @@ public record SparqlQueryAnalysis(
         List<ClassReference> classes,
         List<PropertyReference> properties,
         List<GraphReference> graphs,
+        List<PathChainReference> pathChains,
         boolean dynamicPredicate,
         boolean dynamicClass
 ) {
@@ -49,5 +50,6 @@ public record SparqlQueryAnalysis(
         classes = List.copyOf(classes);
         properties = List.copyOf(properties);
         graphs = List.copyOf(graphs);
+        pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
     }
 }

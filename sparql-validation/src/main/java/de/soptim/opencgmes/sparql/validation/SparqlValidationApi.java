@@ -22,10 +22,17 @@ import de.soptim.opencgmes.sparql.validation.analysis.GraphReference;
 import de.soptim.opencgmes.sparql.validation.analysis.SparqlQueryAnalysis;
 import de.soptim.opencgmes.sparql.validation.schema.SchemaIndex;
 import de.soptim.opencgmes.sparql.validation.schema.ValidationScope;
+import de.soptim.opencgmes.sparql.validation.shacl.EmbeddedSparql;
+import de.soptim.opencgmes.sparql.validation.shacl.ShaclEmbeddedQueryResult;
+import de.soptim.opencgmes.sparql.validation.shacl.ShaclSparqlExtractor;
+import de.soptim.opencgmes.sparql.validation.shacl.ShaclValidationResult;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,6 +57,7 @@ import java.util.Objects;
 public final class SparqlValidationApi {
 
     private final SparqlQueryValidator validator;
+    private final ShaclSparqlExtractor shaclExtractor = new ShaclSparqlExtractor();
 
     public SparqlValidationApi(SchemaIndex schemaIndex) {
         this.validator = new SparqlQueryValidator(Objects.requireNonNull(schemaIndex, "schemaIndex"));
@@ -190,5 +198,114 @@ public final class SparqlValidationApi {
             }
         }
         return out;
+    }
+
+    // ========================================================================================
+    // SHACL — Phase 2
+    // ========================================================================================
+
+    /**
+     * Validate every SPARQL fragment embedded in {@code shapesGraph} against the entire schema
+     * index. Convenience for {@code validateShacl(shapesGraph, schemaIndex().getAllProfiles())}.
+     */
+    public ShaclValidationResult validateShacl(Graph shapesGraph) {
+        return validateShacl(shapesGraph, new ValidationScope.AllProfilesScope());
+    }
+
+    /**
+     * Validate every SPARQL fragment embedded in {@code shapesGraph} against the supplied
+     * profile list. ENTSO-E shapes don't use named graphs, so a single profile-list scope
+     * applies to every fragment found in the shapes graph.
+     */
+    public ShaclValidationResult validateShacl(Graph shapesGraph, Collection<VersionIri> profiles) {
+        return validateShacl(shapesGraph, new ValidationScope.ProfileListScope(profiles));
+    }
+
+    private ShaclValidationResult validateShacl(Graph shapesGraph, ValidationScope scope) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
+        var results = new ArrayList<ShaclEmbeddedQueryResult>();
+        for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
+            var r = validator.validate(q.renderedQuery(), scope);
+            results.add(new ShaclEmbeddedQueryResult(q, r));
+        }
+        return new ShaclValidationResult(results);
+    }
+
+    /**
+     * Aggregate class IRIs used by all SPARQL fragments embedded in the shapes graph.
+     * Unparseable fragments are skipped silently — use {@link #validateShacl(Graph)} for
+     * diagnostics.
+     */
+    public Collection<Node> getShaclClassDependencies(Graph shapesGraph) {
+        var out = new LinkedHashSet<Node>();
+        for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
+            try {
+                var a = validator.analyze(q.renderedQuery());
+                a.classes().forEach(c -> out.add(c.classNode()));
+            } catch (InvalidQueryException ignored) {
+                /* skip unparseable fragment */
+            }
+        }
+        return out;
+    }
+
+    /** Aggregate property IRIs used by all SPARQL fragments embedded in the shapes graph. */
+    public Collection<Node> getShaclPropertyDependencies(Graph shapesGraph) {
+        var out = new LinkedHashSet<Node>();
+        for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
+            try {
+                var a = validator.analyze(q.renderedQuery());
+                a.properties().forEach(p -> out.add(p.propertyNode()));
+            } catch (InvalidQueryException ignored) {
+                /* skip unparseable fragment */
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Profiles needed by the shapes graph: every profile that declares at least one class or
+     * property used by an embedded SPARQL fragment. Considers <em>every</em> known profile,
+     * regardless of which ones the caller intends to validate against — this is the
+     * "what does this shape need?" question, not the "is this shape valid against X?" one.
+     */
+    public Collection<VersionIri> getShaclProfileDependencies(Graph shapesGraph) {
+        return shaclProfileDeps(shapesGraph, null);
+    }
+
+    /**
+     * Profiles needed by the shapes graph, restricted to the supplied profile list. Useful when
+     * checking whether a shape only needs a subset of profiles.
+     */
+    public Collection<VersionIri> getShaclProfileDependencies(
+            Graph shapesGraph, Collection<VersionIri> profiles) {
+        return shaclProfileDeps(shapesGraph, profiles);
+    }
+
+    private Collection<VersionIri> shaclProfileDeps(Graph shapesGraph, Collection<VersionIri> restrict) {
+        var out = new LinkedHashSet<VersionIri>();
+        for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
+            try {
+                var a = validator.analyze(q.renderedQuery());
+                for (var c : a.classes()) {
+                    for (VersionIri v : validator.schemaIndex().findClass(c.classNode())) {
+                        if (restrict == null || restrict.contains(v)) out.add(v);
+                    }
+                }
+                for (var p : a.properties()) {
+                    for (VersionIri v : validator.schemaIndex().findProperty(p.propertyNode())) {
+                        if (restrict == null || restrict.contains(v)) out.add(v);
+                    }
+                }
+            } catch (InvalidQueryException ignored) {
+                /* skip unparseable fragment */
+            }
+        }
+        return out;
+    }
+
+    /** Expose the extractor for callers that want to introspect SHACL fragments themselves. */
+    public List<EmbeddedSparql> extractShaclSparql(Graph shapesGraph) {
+        return shaclExtractor.extract(shapesGraph);
     }
 }

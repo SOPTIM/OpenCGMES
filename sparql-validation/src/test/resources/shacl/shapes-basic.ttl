@@ -1,0 +1,60 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex:   <http://example.org/shapes#> .
+@prefix cim:  <http://iec.ch/TC57/CIM100#> .
+
+# --- Ontology that declares the prefixes used by sh:select / sh:ask queries below ---
+ex:
+    a rdfs:Resource ;
+    sh:declare [ sh:prefix "cim" ; sh:namespace "http://iec.ch/TC57/CIM100#"^^xsd:anyURI ] ;
+    sh:declare [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ] .
+
+# --- sh:SPARQLTarget: query selects focus nodes ---------------------------------------
+ex:ACLineSegmentShape
+    a sh:NodeShape ;
+    sh:target [
+        a sh:SPARQLTarget ;
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT ?this WHERE { ?this a cim:ACLineSegment }
+        """ ;
+    ] ;
+    sh:property [
+        sh:path cim:ACLineSegment.r ;
+        sh:datatype xsd:double ;
+    ] .
+
+# --- sh:SPARQLConstraint inside sh:sparql ---------------------------------------------
+ex:VoltageLevelShape
+    a sh:NodeShape ;
+    sh:targetClass cim:VoltageLevel ;
+    sh:sparql [
+        a sh:SPARQLConstraint ;
+        sh:prefixes ex: ;
+        sh:message "Voltage level must have nominalVoltage and a name." ;
+        sh:select """
+            SELECT $this WHERE {
+                $this a cim:VoltageLevel .
+                FILTER NOT EXISTS { $this cim:VoltageLevel.nominalVoltage ?nv . }
+            }
+        """ ;
+    ] .
+
+# --- sh:SPARQLAskValidator: an ASK validator referenced by a constraint component -----
+ex:HasNameAsk
+    a sh:SPARQLAskValidator ;
+    sh:prefixes ex: ;
+    sh:ask """
+        ASK { $this cim:IdentifiedObject.name ?n }
+    """ .
+
+# --- SHACL Rule: sh:construct (SPARQLRule) --------------------------------------------
+ex:LineSegmentRule
+    a sh:SPARQLRule ;
+    sh:prefixes ex: ;
+    sh:construct """
+        CONSTRUCT { ?this rdf:type cim:ACLineSegment }
+        WHERE     { ?this cim:ACLineSegment.r ?r }
+    """ .

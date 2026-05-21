@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,6 +64,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
     private static final Node OWL_DATATYPE_PROPERTY = OWL2.DatatypeProperty.asNode();
     private static final Node RDFS_DOMAIN = RDFS.domain.asNode();
     private static final Node RDFS_RANGE = RDFS.range.asNode();
+    private static final Node RDFS_SUBCLASS_OF = RDFS.subClassOf.asNode();
+    private static final Node RDFS_DATATYPE = RDFS.Datatype.asNode();
 
     private final Map<VersionIri, ProfileSchema> profiles;
     private final Map<Node, List<VersionIri>> classToProfiles;
@@ -135,10 +138,77 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         return profiles;
     }
 
+    // ---- Phase 3 semantic lookups ----------------------------------------------------------
+
+    @Override
+    public Set<Node> domainsOf(Node propertyUri, Collection<VersionIri> scope) {
+        return unionAcrossScope(scope, ps -> ps.propertyDomain().get(propertyUri));
+    }
+
+    @Override
+    public Set<Node> rangesOf(Node propertyUri, Collection<VersionIri> scope) {
+        return unionAcrossScope(scope, ps -> ps.propertyRange().get(propertyUri));
+    }
+
+    @Override
+    public Set<Node> superClassesOf(Node classUri, Collection<VersionIri> scope) {
+        if (classUri == null || !classUri.isURI()) return Set.of();
+        var out = new java.util.LinkedHashSet<Node>();
+        out.add(classUri);
+        var queue = new java.util.ArrayDeque<Node>();
+        queue.add(classUri);
+        while (!queue.isEmpty()) {
+            Node cur = queue.poll();
+            Set<Node> direct = unionAcrossScope(scope, ps -> ps.subClassOf().get(cur));
+            for (Node sup : direct) {
+                if (out.add(sup)) queue.add(sup);
+            }
+        }
+        return Set.copyOf(out);
+    }
+
+    @Override
+    public boolean isSubClassOf(Node sub, Node sup, Collection<VersionIri> scope) {
+        if (sub == null || sup == null) return false;
+        if (sub.equals(sup)) return true;
+        // Inline BFS to avoid building the full closure when an early hit is enough.
+        var seen = new java.util.HashSet<Node>();
+        var queue = new java.util.ArrayDeque<Node>();
+        seen.add(sub);
+        queue.add(sub);
+        while (!queue.isEmpty()) {
+            Node cur = queue.poll();
+            Set<Node> direct = unionAcrossScope(scope, ps -> ps.subClassOf().get(cur));
+            for (Node n : direct) {
+                if (n.equals(sup)) return true;
+                if (seen.add(n)) queue.add(n);
+            }
+        }
+        return false;
+    }
+
+    /** Union of profile-local sets retrieved via {@code lookup}, over every profile in scope. */
+    private Set<Node> unionAcrossScope(
+            Collection<VersionIri> scope,
+            java.util.function.Function<ProfileSchema, Set<Node>> lookup) {
+        Collection<VersionIri> effective = (scope == null) ? profiles.keySet() : scope;
+        var out = new java.util.LinkedHashSet<Node>();
+        for (VersionIri v : effective) {
+            ProfileSchema ps = profiles.get(v);
+            if (ps == null) continue;
+            Set<Node> sub = lookup.apply(ps);
+            if (sub != null) out.addAll(sub);
+        }
+        return out.isEmpty() ? Set.of() : Set.copyOf(out);
+    }
+
     /** Indexes one graph as the contents of profile {@code versionIri}. */
     public static ProfileSchema indexGraph(VersionIri versionIri, Graph graph) {
         var classes = new HashSet<Node>();
         var properties = new HashSet<Node>();
+        var propertyDomain = new LinkedHashMap<Node, Set<Node>>();
+        var propertyRange = new LinkedHashMap<Node, Set<Node>>();
+        var subClassOf = new LinkedHashMap<Node, Set<Node>>();
         var it = graph.find(Node.ANY, Node.ANY, Node.ANY);
         try {
             while (it.hasNext()) {
@@ -148,7 +218,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
                 Node o = t.getObject();
 
                 if (RDF_TYPE.equals(p) && o.isURI()) {
-                    if (RDFS_CLASS.equals(o) || OWL_CLASS.equals(o)) {
+                    if (RDFS_CLASS.equals(o) || OWL_CLASS.equals(o) || RDFS_DATATYPE.equals(o)) {
                         if (s.isURI()) classes.add(s);
                     } else if (RDF_PROPERTY.equals(o)
                             || OWL_OBJECT_PROPERTY.equals(o)
@@ -156,17 +226,36 @@ public final class RdfsSchemaIndex implements SchemaIndex {
                         if (s.isURI()) properties.add(s);
                     }
                 } else if (RDFS_DOMAIN.equals(p)) {
-                    if (s.isURI()) properties.add(s);
+                    if (s.isURI()) {
+                        properties.add(s);
+                        if (o.isURI()) {
+                            propertyDomain.computeIfAbsent(s, k -> new HashSet<>()).add(o);
+                        }
+                    }
                     if (o.isURI()) classes.add(o);
                 } else if (RDFS_RANGE.equals(p)) {
-                    if (s.isURI()) properties.add(s);
+                    if (s.isURI()) {
+                        properties.add(s);
+                        if (o.isURI()) {
+                            propertyRange.computeIfAbsent(s, k -> new HashSet<>()).add(o);
+                        }
+                    }
                     if (o.isURI()) classes.add(o);
+                } else if (RDFS_SUBCLASS_OF.equals(p)) {
+                    if (s.isURI()) {
+                        classes.add(s);
+                        if (o.isURI()) {
+                            classes.add(o);
+                            subClassOf.computeIfAbsent(s, k -> new HashSet<>()).add(o);
+                        }
+                    }
                 }
             }
         } finally {
             it.close();
         }
-        return new ProfileSchema(versionIri, classes, properties);
+        return new ProfileSchema(versionIri, classes, properties,
+                propertyDomain, propertyRange, subClassOf);
     }
 
     public static Builder builder() {
@@ -178,6 +267,14 @@ public final class RdfsSchemaIndex implements SchemaIndex {
      *
      * <p>Each CIM profile may declare multiple {@code owl:versionIRI}s. We register each
      * version IRI as its own logical profile, sharing the same underlying graph index.</p>
+     *
+     * <p>For each profile we run {@link #indexGraph} for the generic baseline (classes,
+     * {@code rdfs:subClassOf}, etc.) and then overlay the CIM-specific
+     * {@link CimProfileRegistry.PropertyInfo} map. The overlay is the only source of property
+     * <em>range</em> information for CIM profiles, because CIM uses {@code cims:dataType}
+     * (which the registry resolves to an XSD {@link org.apache.jena.datatypes.RDFDatatype})
+     * rather than {@code rdfs:range}. Without this step, {@code DATATYPE_MISMATCH} cannot
+     * fire on real CIM data.</p>
      */
     public static RdfsSchemaIndex fromCimRegistry(CimProfileRegistry registry) {
         var b = builder();
@@ -185,11 +282,65 @@ public final class RdfsSchemaIndex implements SchemaIndex {
             if (profile.isHeaderProfile()) {
                 continue; // header profiles are not addressable by version IRI
             }
-            for (Node iriNode : profile.getOwlVersionIRIs()) {
-                b.addProfile(new VersionIri(iriNode), profile);
+            Set<Node> versionIris = profile.getOwlVersionIRIs();
+            Map<Node, CimProfileRegistry.PropertyInfo> infos =
+                    registry.getPropertiesAndDatatypes(versionIris);
+            for (Node iriNode : versionIris) {
+                VersionIri v = new VersionIri(iriNode);
+                ProfileSchema baseline = indexGraph(v, profile);
+                b.addProfile(enrichWithCimPropertyInfo(v, baseline, infos));
             }
         }
         return b.build();
+    }
+
+    /**
+     * Merge the generic {@link #indexGraph} baseline with the CIM property-info map. Adds
+     * domain assertions (from {@link CimProfileRegistry.PropertyInfo#rdfType()}) and range
+     * assertions (from {@link CimProfileRegistry.PropertyInfo#primitiveType()} as an XSD URI
+     * or {@link CimProfileRegistry.PropertyInfo#referenceType()} as a class URI).
+     */
+    private static ProfileSchema enrichWithCimPropertyInfo(
+            VersionIri v,
+            ProfileSchema baseline,
+            Map<Node, CimProfileRegistry.PropertyInfo> infos) {
+
+        if (infos == null || infos.isEmpty()) return baseline;
+
+        var classes = new LinkedHashSet<>(baseline.classes());
+        var properties = new LinkedHashSet<>(baseline.properties());
+        var propertyDomain = mutableCopy(baseline.propertyDomain());
+        var propertyRange  = mutableCopy(baseline.propertyRange());
+
+        for (var info : infos.values()) {
+            Node prop = info.property();
+            if (prop == null) continue;
+            properties.add(prop);
+
+            if (info.rdfType() != null && info.rdfType().isURI()) {
+                propertyDomain.computeIfAbsent(prop, k -> new LinkedHashSet<>())
+                        .add(info.rdfType());
+                classes.add(info.rdfType());
+            }
+
+            if (info.primitiveType() != null) {
+                Node xsd = NodeFactory.createURI(info.primitiveType().getURI());
+                propertyRange.computeIfAbsent(prop, k -> new LinkedHashSet<>()).add(xsd);
+            } else if (info.referenceType() != null && info.referenceType().isURI()) {
+                propertyRange.computeIfAbsent(prop, k -> new LinkedHashSet<>())
+                        .add(info.referenceType());
+                classes.add(info.referenceType());
+            }
+        }
+
+        return new ProfileSchema(v, classes, properties,
+                propertyDomain, propertyRange, baseline.subClassOf());
+    }
+
+    private static Map<Node, Set<Node>> mutableCopy(Map<Node, Set<Node>> in) {
+        var out = new LinkedHashMap<Node, Set<Node>>(in.size());
+        for (var e : in.entrySet()) out.put(e.getKey(), new LinkedHashSet<>(e.getValue()));
+        return out;
     }
 
     /** Builder for adding raw profile graphs. */
@@ -208,7 +359,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
 
         public Builder addProfile(String iri, Set<Node> classes, Set<Node> properties) {
             var v = VersionIri.of(iri);
-            profiles.put(v, new ProfileSchema(v, classes, properties));
+            profiles.put(v, ProfileSchema.minimal(v, classes, properties));
             return this;
         }
 
@@ -218,8 +369,40 @@ public final class RdfsSchemaIndex implements SchemaIndex {
             var p = new HashSet<Node>();
             for (String s : classes) c.add(NodeFactory.createURI(s));
             for (String s : properties) p.add(NodeFactory.createURI(s));
-            profiles.put(v, new ProfileSchema(v, c, p));
+            profiles.put(v, ProfileSchema.minimal(v, c, p));
             return this;
+        }
+
+        /**
+         * Rich addProfile for tests / programmatic schema construction with explicit
+         * domain, range and subClassOf maps.
+         */
+        public Builder addProfile(
+                String iri,
+                Iterable<String> classes,
+                Iterable<String> properties,
+                Map<String, ? extends Iterable<String>> propertyDomain,
+                Map<String, ? extends Iterable<String>> propertyRange,
+                Map<String, ? extends Iterable<String>> subClassOf) {
+            var v = VersionIri.of(iri);
+            var c = new HashSet<Node>();
+            var p = new HashSet<Node>();
+            for (String s : classes) c.add(NodeFactory.createURI(s));
+            for (String s : properties) p.add(NodeFactory.createURI(s));
+            profiles.put(v, new ProfileSchema(v, c, p,
+                    toNodeMap(propertyDomain), toNodeMap(propertyRange), toNodeMap(subClassOf)));
+            return this;
+        }
+
+        private static Map<Node, Set<Node>> toNodeMap(Map<String, ? extends Iterable<String>> in) {
+            if (in == null) return Map.of();
+            var out = new LinkedHashMap<Node, Set<Node>>();
+            for (var e : in.entrySet()) {
+                var set = new HashSet<Node>();
+                for (String s : e.getValue()) set.add(NodeFactory.createURI(s));
+                out.put(NodeFactory.createURI(e.getKey()), set);
+            }
+            return out;
         }
 
         public RdfsSchemaIndex build() {

@@ -1,0 +1,250 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package de.soptim.opencgmes.sparql.validation;
+
+import de.soptim.opencgmes.sparql.validation.schema.RdfsSchemaIndex;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.*;
+
+/**
+ * Phase 3 — semantic check tests: domain/range, subClassOf relaxation, datatype mismatch,
+ * implied type, property path chain compatibility.
+ */
+public class SemanticValidationTest {
+
+    private static final String CIM = "http://iec.ch/TC57/CIM100#";
+    private static final String XSD = "http://www.w3.org/2001/XMLSchema#";
+
+    // ----- class hierarchy ------------------------------------------------------------------
+    // IdentifiedObject
+    //   └─ Equipment
+    //       └─ ConductingEquipment
+    //           └─ ACLineSegment
+    // Substation
+    //   └─ VoltageLevel
+
+    private static final String CLASS_IDENTIFIED  = CIM + "IdentifiedObject";
+    private static final String CLASS_EQUIPMENT   = CIM + "Equipment";
+    private static final String CLASS_CONDUCTING  = CIM + "ConductingEquipment";
+    private static final String CLASS_AC_LINE     = CIM + "ACLineSegment";
+    private static final String CLASS_VOLTAGE     = CIM + "VoltageLevel";
+    private static final String CLASS_SUBSTATION  = CIM + "Substation";
+
+    private static final String PROP_NAME         = CIM + "IdentifiedObject.name";        // domain=IdentifiedObject, range=xsd:string
+    private static final String PROP_R            = CIM + "ACLineSegment.r";              // domain=ACLineSegment,   range=xsd:double
+    private static final String PROP_LENGTH       = CIM + "Conductor.length";             // domain=ConductingEquipment, range=xsd:double
+    private static final String PROP_NOMINAL_V    = CIM + "VoltageLevel.nominalVoltage";  // domain=VoltageLevel,    range=xsd:double
+    private static final String PROP_EQ_CONTAINER = CIM + "Equipment.EquipmentContainer"; // domain=Equipment,       range=VoltageLevel
+    private static final String PROP_VL_SUB       = CIM + "VoltageLevel.Substation";      // domain=VoltageLevel,    range=Substation
+
+    private static final String PROFILE = "http://example.org/profile/CIM/1.0";
+
+    private static final String PREAMBLE =
+            "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n"
+            + "PREFIX cim: <" + CIM + ">\n"
+            + "PREFIX xsd: <" + XSD + ">\n";
+
+    private SparqlValidationApi api;
+
+    @Before
+    public void setUp() {
+        var classes = List.of(
+                CLASS_IDENTIFIED, CLASS_EQUIPMENT, CLASS_CONDUCTING, CLASS_AC_LINE,
+                CLASS_VOLTAGE, CLASS_SUBSTATION);
+        var properties = List.of(
+                PROP_NAME, PROP_R, PROP_LENGTH, PROP_NOMINAL_V,
+                PROP_EQ_CONTAINER, PROP_VL_SUB);
+        Map<String, List<String>> domains = Map.of(
+                PROP_NAME,         List.of(CLASS_IDENTIFIED),
+                PROP_R,            List.of(CLASS_AC_LINE),
+                PROP_LENGTH,       List.of(CLASS_CONDUCTING),
+                PROP_NOMINAL_V,    List.of(CLASS_VOLTAGE),
+                PROP_EQ_CONTAINER, List.of(CLASS_EQUIPMENT),
+                PROP_VL_SUB,       List.of(CLASS_VOLTAGE)
+        );
+        Map<String, List<String>> ranges = Map.of(
+                PROP_NAME,         List.of(XSD + "string"),
+                PROP_R,            List.of(XSD + "double"),
+                PROP_LENGTH,       List.of(XSD + "double"),
+                PROP_NOMINAL_V,    List.of(XSD + "double"),
+                PROP_EQ_CONTAINER, List.of(CLASS_VOLTAGE),
+                PROP_VL_SUB,       List.of(CLASS_SUBSTATION)
+        );
+        Map<String, List<String>> subClassOf = Map.of(
+                CLASS_EQUIPMENT,  List.of(CLASS_IDENTIFIED),
+                CLASS_CONDUCTING, List.of(CLASS_EQUIPMENT),
+                CLASS_AC_LINE,    List.of(CLASS_CONDUCTING),
+                CLASS_VOLTAGE,    List.of(CLASS_IDENTIFIED),
+                CLASS_SUBSTATION, List.of(CLASS_IDENTIFIED)
+        );
+
+        RdfsSchemaIndex index = RdfsSchemaIndex.builder()
+                .addProfile(PROFILE, classes, properties, domains, ranges, subClassOf)
+                .build();
+        api = new SparqlValidationApi(index);
+    }
+
+    // -- subClassOf relaxation accepts polymorphic property use -----------------------------
+
+    @Test
+    public void subClassOfRelaxationAcceptsParentProperty() {
+        // cim:IdentifiedObject.name has domain IdentifiedObject; ACLineSegment ⊑ IdentifiedObject.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:IdentifiedObject.name ?n . }");
+        assertNoErrors(r);
+    }
+
+    // -- direct-domain match ---------------------------------------------------------------
+
+    @Test
+    public void directDomainMatchAccepted() {
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?x . }");
+        assertNoErrors(r);
+    }
+
+    // -- PROPERTY_NOT_ALLOWED_FOR_CLASS on wrong-class usage --------------------------------
+
+    @Test
+    public void propertyNotAllowedForWrongClass() {
+        // VoltageLevel.nominalVoltage is for VoltageLevel; subject is ACLineSegment.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:VoltageLevel.nominalVoltage ?v . }");
+        var a = expectSingle(r, SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS);
+        assertEquals(SparqlValidationSeverity.ERROR, a.severity());
+        assertTrue("message names the bad property",
+                a.message().contains("VoltageLevel.nominalVoltage"));
+        assertTrue("message names the subject class",
+                a.message().contains("ACLineSegment"));
+    }
+
+    // -- QUERY_IMPLIED_TYPE INFO when subject has no explicit type --------------------------
+
+    @Test
+    public void impliedTypeInfoForUntypedSubject() {
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s cim:ACLineSegment.r ?x . }");
+        var a = expectSingle(r, SparqlValidationCode.QUERY_IMPLIED_TYPE);
+        assertEquals(SparqlValidationSeverity.INFO, a.severity());
+        assertEquals(CLASS_AC_LINE, a.term().getURI());
+        assertTrue(a.message().contains("ACLineSegment.r"));
+    }
+
+    // -- DATATYPE_MISMATCH WARN when literal does not match range ---------------------------
+
+    @Test
+    public void datatypeMismatchWarning() {
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:ACLineSegment.r \"abc\" . }");
+        var a = expectSingle(r, SparqlValidationCode.DATATYPE_MISMATCH);
+        assertEquals(SparqlValidationSeverity.WARN, a.severity());
+        assertTrue(a.message().contains("xsd:string") || a.message().contains("string"));
+    }
+
+    @Test
+    public void numericLiteralAcceptedForXsdDouble() {
+        // "5"^^xsd:int is in the numeric family; range is xsd:double — compatible.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:ACLineSegment.r \"5\"^^xsd:int . }");
+        long mismatch = r.annotations().stream()
+                .filter(an -> an.code() == SparqlValidationCode.DATATYPE_MISMATCH).count();
+        assertEquals("xsd:int should be compatible with xsd:double", 0, mismatch);
+    }
+
+    @Test
+    public void classRangeDoesNotTriggerDatatypeCheck() {
+        // PROP_EQ_CONTAINER has range VoltageLevel (a class, not a datatype). A literal object
+        // would be questionable but Phase 3 is intentionally lenient on IRI-vs-literal — no WARN.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:Equipment.EquipmentContainer \"foo\" . }");
+        long mismatch = r.annotations().stream()
+                .filter(an -> an.code() == SparqlValidationCode.DATATYPE_MISMATCH).count();
+        assertEquals(0, mismatch);
+    }
+
+    // -- Property path chain checks ---------------------------------------------------------
+
+    @Test
+    public void compatiblePropertyPathChain() {
+        // range(Equipment.EquipmentContainer) = VoltageLevel = domain(VoltageLevel.nominalVoltage)
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; "
+                + "  cim:Equipment.EquipmentContainer/cim:VoltageLevel.nominalVoltage ?v . }");
+        long chainErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS
+                        && a.message().contains("chain"))
+                .count();
+        assertEquals(0, chainErrors);
+    }
+
+    @Test
+    public void incompatiblePropertyPathChain() {
+        // range(VoltageLevel.Substation) = Substation; domain(ACLineSegment.r) = ACLineSegment.
+        // Substation is not in the ACLineSegment hierarchy — chain should error.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s cim:VoltageLevel.Substation/cim:ACLineSegment.r ?x . }");
+        boolean found = r.annotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS
+                        && a.message().contains("chain"));
+        assertTrue("expected path-chain error, got: " + r.annotations(), found);
+    }
+
+    // -- silence on incomplete schemas ------------------------------------------------------
+
+    @Test
+    public void noErrorWhenDomainIsUnknown() {
+        // Use a property that the schema declares but with no domain — checker stays silent.
+        RdfsSchemaIndex index = RdfsSchemaIndex.builder()
+                .addProfile(PROFILE,
+                        List.of(CLASS_AC_LINE),
+                        List.of(PROP_R),
+                        Map.of(),   // no domains
+                        Map.of(),
+                        Map.of())
+                .build();
+        var quietApi = new SparqlValidationApi(index);
+        var r = quietApi.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?x . }");
+        assertNoErrors(r);
+    }
+
+    // ---- helpers --------------------------------------------------------------------------
+
+    private static void assertNoErrors(SparqlValidationResult r) {
+        var errors = r.annotations().stream()
+                .filter(a -> a.severity() == SparqlValidationSeverity.ERROR)
+                .toList();
+        assertTrue("expected no ERROR annotations, got: " + errors, errors.isEmpty());
+    }
+
+    private static SparqlValidationAnnotation expectSingle(
+            SparqlValidationResult r, SparqlValidationCode code) {
+        var matches = r.annotations().stream()
+                .filter(a -> a.code() == code)
+                .toList();
+        assertEquals("expected exactly one annotation with code " + code + ", got: "
+                + r.annotations(), 1, matches.size());
+        return matches.get(0);
+    }
+}

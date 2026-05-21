@@ -26,6 +26,7 @@ import de.soptim.opencgmes.sparql.validation.analysis.SparqlQueryAnalyzer;
 import de.soptim.opencgmes.sparql.validation.explain.QueryPlanFormatter;
 import de.soptim.opencgmes.sparql.validation.schema.SchemaIndex;
 import de.soptim.opencgmes.sparql.validation.schema.ValidationScope;
+import de.soptim.opencgmes.sparql.validation.semantic.SemanticChecks;
 import org.apache.jena.graph.Node;
 
 import java.util.ArrayList;
@@ -114,6 +115,8 @@ public final class SparqlQueryValidator {
                     null, scopeProfiles(scope, null), List.of(), null));
         }
 
+        org.apache.jena.shared.PrefixMapping prefixes = a.query().getPrefixMapping();
+
         // 3. Classes.
         for (ClassReference c : a.classes()) {
             Collection<VersionIri> selected = scopeProfiles(scope, c.graph());
@@ -128,6 +131,7 @@ public final class SparqlQueryValidator {
                     selected,
                     elsewhereOutOfScope,
                     original,
+                    prefixes,
                     formatClassMessage(c.classNode(), c.graph(), selected, elsewhereOutOfScope)));
         }
 
@@ -145,8 +149,13 @@ public final class SparqlQueryValidator {
                     selected,
                     elsewhereOutOfScope,
                     original,
+                    prefixes,
                     formatPropertyMessage(p.propertyNode(), p.graph(), selected, elsewhereOutOfScope)));
         }
+
+        // 5. Phase 3 — domain/range/datatype/path-chain semantics.
+        annotations.addAll(SemanticChecks.run(
+                a, schemaIndex, g -> scopeProfiles(scope, g), original, prefixes));
 
         return annotations;
     }
@@ -239,8 +248,9 @@ public final class SparqlQueryValidator {
             Collection<VersionIri> selected,
             Collection<VersionIri> elsewhere,
             String original,
+            org.apache.jena.shared.PrefixMapping prefixes,
             String message) {
-        var loc = SourceLocator.locate(original, term);
+        var loc = SourceLocator.locate(original, term, prefixes);
         return new SparqlValidationAnnotation(
                 severity,
                 loc.line(),

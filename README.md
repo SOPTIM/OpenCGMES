@@ -1,6 +1,19 @@
 # OpenCGMES
 Suite of tools for CGMES / CIM (IEC 61970) RDF - RDFS, SHACL and CIMXML
 
+## Build
+
+The repository ships an aggregator pom at the root. From a fresh checkout:
+
+```bash
+mvn test                                # build & test every module
+mvn install                             # install every module into ~/.m2
+mvn -pl sparql-validation -am verify    # build sparql-validation + its dependencies only
+```
+
+Each module also still builds standalone (`mvn -f cimxml/pom.xml verify` etc.); the
+release workflows operate on the module poms directly.
+
 ## CimXml
 
 A Java library for parsing CIMXML files into RDF graphs using Apache Jena. 

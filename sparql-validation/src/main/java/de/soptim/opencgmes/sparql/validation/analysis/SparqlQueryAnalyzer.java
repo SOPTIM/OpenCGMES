@@ -81,6 +81,7 @@ public final class SparqlQueryAnalyzer {
                 visitor.classes(),
                 visitor.properties(),
                 graphs,
+                visitor.pathChains(),
                 visitor.dynamicPredicate(),
                 visitor.dynamicClass()
         );

@@ -57,6 +57,12 @@ CimProfileRegistry registry = new CimProfileRegistryStd();
 SparqlValidationApi api = new SparqlValidationApi(RdfsSchemaIndex.fromCimRegistry(registry));
 ```
 
+`fromCimRegistry` overlays the registry's `PropertyInfo` map (domain class from
+`rdfs:domain`, range from `cims:dataType → cim:Primitive → xsd:*`) on top of the
+generic RDFS scan, so every Phase 3 check (`PROPERTY_NOT_ALLOWED_FOR_CLASS`,
+`QUERY_IMPLIED_TYPE`, `DATATYPE_MISMATCH`) fires against real CIM profiles
+without any extra wiring on the caller's side.
+
 ### Three scope behaviours
 
 | Overload                                                          | Schema scope used to validate                                      | `FROM` / `FROM NAMED` / `GRAPH` in the query |
@@ -105,38 +111,104 @@ Collection<VersionIri> profiles = api.getProfileDependencies(query);
 
 Each of these has the same three scope overloads as `validateSparql`.
 
-## Current limitations (Phase 1)
+## SHACL support (Phase 2)
 
-* Validates class and property existence only; no domain/range or
-  property-on-class checks (planned for Phase 3).
-* Variable predicates (`?s ?p ?o`) and variable class IRIs (`?s a ?c`)
-  emit an `UNSUPPORTED_DYNAMIC_PROPERTY` warning instead of a hard error.
+The same engine validates SPARQL fragments embedded in SHACL shapes graphs.
+The extractor recognises:
+
+* `sh:SPARQLTarget` — `sh:select` queries that pick focus nodes.
+* `sh:SPARQLConstraint` — `sh:select` queries that return violations.
+* `sh:SPARQLAskValidator` — `sh:ask` queries used inside constraint components.
+* `sh:SPARQLSelectValidator` — `sh:select` queries used inside constraint components.
+* `sh:SPARQLRule` — `sh:construct` queries used as SHACL rules.
+
+SHACL-declared prefixes (`sh:prefixes → sh:declare → sh:prefix/sh:namespace`) are
+resolved and prepended to each query before parsing, so a query written as
+
+```turtle
+ex:S sh:sparql [
+    sh:prefixes ex: ;
+    sh:select "SELECT $this WHERE { $this a cim:ACLineSegment }"
+] .
+ex: sh:declare [ sh:prefix "cim" ; sh:namespace "http://iec.ch/TC57/CIM100#"^^xsd:anyURI ] .
+```
+
+is analyzed as if the user had written `PREFIX cim: <http://iec.ch/TC57/CIM100#>` at the
+top of the query.
+
+```java
+Graph shapes = RDFDataMgr.loadGraph("my-shapes.ttl");
+
+ShaclValidationResult r = api.validateShacl(shapes);
+ShaclValidationResult rScoped = api.validateShacl(shapes, List.of(VersionIri.of("…/EQ/1")));
+
+// "Which profiles does this shape file actually need?"
+Collection<VersionIri> profiles = api.getShaclProfileDependencies(shapes);
+Collection<Node>       classes  = api.getShaclClassDependencies(shapes);
+Collection<Node>       props    = api.getShaclPropertyDependencies(shapes);
+
+// Raw access to the extracted fragments.
+List<EmbeddedSparql> fragments = api.extractShaclSparql(shapes);
+```
+
+ENTSO-E `application-profiles-library` shapes do not use named graphs, so a single
+profile scope applies to the whole shapes graph — see [`testing/entsoe/`](testing/entsoe/)
+for how to wire that library in as a drop-in test fixture.
+
+## Semantic checks (Phase 3)
+
+On top of the existence checks the validator runs four additional rules whenever the
+underlying `SchemaIndex` carries the relevant relations (`rdfs:domain`, `rdfs:range`,
+`rdfs:subClassOf`):
+
+| Code                                | Severity | Triggers when                                                                                  |
+| ----------------------------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `PROPERTY_NOT_ALLOWED_FOR_CLASS`    | ERROR    | A property is used on a subject whose declared `rdf:type` is not a subclass of any domain.     |
+| `PROPERTY_NOT_ALLOWED_FOR_CLASS`    | ERROR    | A property-path segment's range is disjoint from the next segment's domain (chain check).      |
+| `QUERY_IMPLIED_TYPE`                | INFO     | Subject has no explicit `rdf:type` and the property has exactly one domain — type implied.     |
+| `DATATYPE_MISMATCH`                 | WARN     | Literal object's datatype is not compatible with the property's `rdfs:range` datatype.         |
+
+### Lenience policy
+
+These checks bail out silently whenever the schema is silent:
+
+* No `rdfs:domain` declared → no `PROPERTY_NOT_ALLOWED_FOR_CLASS` and no `QUERY_IMPLIED_TYPE`.
+* No `rdfs:range` declared → no `DATATYPE_MISMATCH`.
+* Range is a class (not an XSD datatype) → no `DATATYPE_MISMATCH` (the validator does not
+  reason about IRI-reference shape in Phase 3).
+* Path component uses inverse / alt / mod / neg → chain check is skipped for that component.
+
+Datatype compatibility is bucketed: every numeric XSD type counts as one bucket, every
+string-ish XSD type as another. Exact-match within `xsd:int` vs `xsd:short` is deliberately
+ignored. `rdf:langString` is compatible with `xsd:string`.
+
+`rdfs:subClassOf` traversal is transitive and cycle-safe; it operates across the union of
+profiles in the current validation scope (so a subclass declared in profile A and a parent
+in profile B still resolve when both are in scope).
+
+## Current limitations
+
+* Variable predicates (`?s ?p ?o`) and variable class IRIs (`?s a ?c`) emit an
+  `UNSUPPORTED_DYNAMIC_PROPERTY` warning instead of a hard error.
 * `SERVICE { ... }` blocks are skipped — the remote endpoint has its own
   schema we cannot inspect.
 * Line/column information is best-effort: the locator searches the original
-  query string for the offending IRI in `<...>` form. Prefixed names are not
-  yet matched (the `message` field always contains the full IRI).
+  query string for the offending term in three forms — `<full-IRI>`, then any
+  `prefix:local` resolved from the query's `PrefixMapping`, then the `a`
+  shorthand when the term is `rdf:type`. The earliest match wins. False
+  positives inside string literals are possible but rare.
 * The query plan is produced via Jena's SSE serialization. It is stable across
   runs but not identical to `arq.query --explain` (which adds optimizer
   intermediate steps).
 
 ## Roadmap
 
-### Phase 2 — SHACL support (planned)
+Phases 1–3 are landed. Known follow-ups that are explicitly out of scope today:
 
-* Analyze SPARQL embedded in `sh:SPARQLTarget` shapes.
-* Add the [ENTSO-E Application Profiles Library](https://github.com/entsoe/application-profiles-library)
-  shapes to the test suite.
-* Use property/class dependency analysis to infer the relevant profiles for a
-  shape that doesn't carry an explicit graph or profile annotation.
-
-### Phase 3 — Advanced semantic checks (planned)
-
-* `QUERY_IMPLIED_TYPE` info annotations for inferred `rdf:type`.
-* `DATATYPE_MISMATCH` warnings for literal datatype incompatibilities.
-* `PROPERTY_NOT_ALLOWED_FOR_CLASS` errors using `rdfs:domain` chains.
-* Property path compatibility across consecutive segments.
-
-The Phase 1 API is designed to extend cleanly: new codes already live in
-[`SparqlValidationCode`](src/main/java/de/soptim/opencgmes/sparql/validation/SparqlValidationCode.java),
-and the annotation record carries all structured fields these checks need.
+* **Inverse / alt / mod path chain semantics.** Today only pure forward
+  `p1/p2/p3` sequences participate in chain compatibility checks.
+* **Sub-byte numeric precision.** All XSD numeric types are bucketed as one; a future
+  pass could narrow this.
+* **`a` keyword false-positives inside string literals.** The source locator is
+  textual; an `a` token inside a quoted SPARQL literal could be mis-matched.
+  Acceptable for best-effort `line`/`column` reporting; tighten if needed.

@@ -78,6 +78,7 @@ public final class AlgebraAnalysisVisitor {
     private final Set<ClassRefKey> seenClasses = new LinkedHashSet<>();
     private final Set<PropertyRefKey> seenProperties = new LinkedHashSet<>();
     private final Set<Node> seenGraphBlocks = new LinkedHashSet<>();
+    private final List<PathChainReference> pathChains = new ArrayList<>();
     private final Deque<Node> graphStack = new ArrayDeque<>();
 
     private boolean dynamicPredicate;
@@ -114,6 +115,11 @@ public final class AlgebraAnalysisVisitor {
     /** Distinct concrete graph URI nodes encountered in {@code GRAPH <g>} blocks / quad patterns. */
     public Set<Node> graphBlocks() {
         return seenGraphBlocks;
+    }
+
+    /** Simple forward-only property-path chains (length >= 2). */
+    public List<PathChainReference> pathChains() {
+        return pathChains;
     }
 
     private Node currentGraph() {
@@ -211,6 +217,26 @@ public final class AlgebraAnalysisVisitor {
                         ? RDF_TYPE // placeholder; only used for context, never validated
                         : tp.getPredicate(), tp.getObject()), graph));
         collectPathUris(tp.getPath(), graph);
+
+        // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for Phase 3 chain checks.
+        var chain = new ArrayList<Node>();
+        if (collectSimpleSeq(tp.getPath(), chain) && chain.size() >= 2) {
+            pathChains.add(new PathChainReference(chain, graph));
+        }
+    }
+
+    /** True iff {@code path} is a tree of {@code P_Seq} with {@code P_Link} URI leaves only. */
+    private static boolean collectSimpleSeq(Path path, List<Node> out) {
+        if (path instanceof P_Seq seq) {
+            return collectSimpleSeq(seq.getLeft(), out) && collectSimpleSeq(seq.getRight(), out);
+        }
+        if (path instanceof P_Link link) {
+            Node n = link.getNode();
+            if (n == null || !n.isURI()) return false;
+            out.add(n);
+            return true;
+        }
+        return false;
     }
 
     private void collectPathUris(Path path, Node graph) {
