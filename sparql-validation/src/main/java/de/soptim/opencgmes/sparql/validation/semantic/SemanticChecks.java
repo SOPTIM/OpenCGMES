@@ -106,7 +106,7 @@ public final class SemanticChecks {
 
         var ctx = new Ctx(schemaIndex, scopeResolver, originalText, prefixes);
         var annotations = new ArrayList<SparqlValidationAnnotation>();
-        Map<Node, Set<Node>> subjectTypes = SubjectTypeInference.infer(triples);
+        Map<Integer, Map<Node, Set<Node>>> scopedTypes = SubjectTypeInference.inferScoped(triples);
 
         for (TriplePatternReference t : triples) {
             Node s = t.triple().getSubject();
@@ -119,7 +119,8 @@ public final class SemanticChecks {
             Set<Node> domains = schemaIndex.domainsOf(p, scope);
             Set<Node> ranges  = schemaIndex.rangesOf(p, scope);
 
-            checkDomain(annotations, ctx, scope, subjectTypes, s, p, t.graph(), domains);
+            Set<Node> declared = SubjectTypeInference.typesFor(s, t.scopeGroup(), scopedTypes);
+            checkDomain(annotations, ctx, scope, declared, s, p, t.graph(), domains);
             checkLiteralRange(annotations, ctx, scope, p, o, t.graph(), ranges);
         }
 
@@ -176,13 +177,11 @@ public final class SemanticChecks {
             List<SparqlValidationAnnotation> out,
             Ctx ctx,
             Collection<VersionIri> scope,
-            Map<Node, Set<Node>> subjectTypes,
+            Set<Node> declared,
             Node subject, Node property, Node graph,
             Set<Node> domains) {
 
         if (domains.isEmpty()) return;
-
-        Set<Node> declared = subjectTypes.getOrDefault(subject, Set.of());
         if (declared.isEmpty()) {
             // No explicit type → can't fault, but we can hint when the domain is unambiguous.
             if (domains.size() == 1) {

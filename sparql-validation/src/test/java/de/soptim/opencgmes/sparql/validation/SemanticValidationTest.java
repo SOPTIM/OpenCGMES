@@ -210,6 +210,66 @@ public class SemanticValidationTest {
         assertTrue("expected path-chain error, got: " + r.annotations(), found);
     }
 
+    // -- Scope-aware type inference: UNION branches are independent -------------------------
+
+    @Test
+    public void unionBranchTypesDoNotCrossContaminate() {
+        // Branch 1 declares ?s as ACLineSegment; branch 2 uses nominalVoltage (domain=VoltageLevel).
+        // The ACLineSegment type must NOT suppress an error in branch 2 — the branches are
+        // alternatives and ?s in branch 2 has no declared type.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?r } "
+                + "  UNION "
+                + "  { ?s cim:VoltageLevel.nominalVoltage ?v } "
+                + "}");
+        // Branch 2's ?s has no type in scope 2 → implied-type INFO fires (not PROPERTY_NOT_ALLOWED).
+        // The old code would incorrectly inherit ACLineSegment from branch 1 and fire an ERROR.
+        long domainErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS)
+                .count();
+        assertEquals("type from UNION branch 1 must not produce domain error in branch 2", 0, domainErrors);
+    }
+
+    @Test
+    public void correctUnionUsageHasNoError() {
+        // Both branches use the same property correctly within their own typed contexts.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?r } "
+                + "  UNION "
+                + "  { ?s a cim:VoltageLevel ; cim:VoltageLevel.nominalVoltage ?v } "
+                + "}");
+        assertNoErrors(r);
+    }
+
+    @Test
+    public void optionalTypesDoNotPoisonRequiredPart() {
+        // The required part uses ACLineSegment.r. An OPTIONAL block asserts ?s is VoltageLevel.
+        // The old code would use VoltageLevel as the type for ?s and fire a domain error.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  ?s cim:ACLineSegment.r ?r . "
+                + "  OPTIONAL { ?s a cim:VoltageLevel } "
+                + "}");
+        long domainErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS)
+                .count();
+        assertEquals("OPTIONAL type must not poison domain check in required part", 0, domainErrors);
+    }
+
+    @Test
+    public void rootTypePropagatesIntoOptional() {
+        // The required part types ?s as ACLineSegment; the OPTIONAL uses ACLineSegment.r.
+        // The root type must still reach the OPTIONAL body so domain check passes.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  ?s a cim:ACLineSegment . "
+                + "  OPTIONAL { ?s cim:ACLineSegment.r ?r } "
+                + "}");
+        assertNoErrors(r);
+    }
+
     // -- silence on incomplete schemas ------------------------------------------------------
 
     @Test

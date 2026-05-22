@@ -27,11 +27,13 @@ import org.apache.jena.sparql.algebra.op.Op2;
 import org.apache.jena.sparql.algebra.op.OpBGP;
 import org.apache.jena.sparql.algebra.op.OpFilter;
 import org.apache.jena.sparql.algebra.op.OpGraph;
+import org.apache.jena.sparql.algebra.op.OpLeftJoin;
 import org.apache.jena.sparql.algebra.op.OpN;
 import org.apache.jena.sparql.algebra.op.OpPath;
 import org.apache.jena.sparql.algebra.op.OpQuadBlock;
 import org.apache.jena.sparql.algebra.op.OpQuadPattern;
 import org.apache.jena.sparql.algebra.op.OpService;
+import org.apache.jena.sparql.algebra.op.OpUnion;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.sparql.core.TriplePath;
 import org.apache.jena.sparql.expr.Expr;
@@ -90,6 +92,11 @@ public final class AlgebraAnalysisVisitor {
 
     private boolean dynamicPredicate;
     private boolean dynamicClass;
+
+    /** Scope group assigned to triples currently being visited (0 = root conjunctive clause). */
+    private int currentScopeGroup = 0;
+    /** Counter used to mint fresh scope group IDs for UNION branches and OPTIONAL bodies. */
+    private int nextScopeGroup = 1;
 
     public void walk(Op op) {
         analyze(op);
@@ -175,6 +182,25 @@ public final class AlgebraAnalysisVisitor {
             case OpService ignored -> {
                 // Do not descend into SERVICE — remote endpoint has its own schema.
             }
+            case OpUnion union -> {
+                // Each UNION branch is an independent alternative — types from one branch must
+                // not bleed into the other, so assign a fresh scope group to each branch.
+                int saved = currentScopeGroup;
+                currentScopeGroup = nextScopeGroup++;
+                analyze(union.getLeft());
+                currentScopeGroup = nextScopeGroup++;
+                analyze(union.getRight());
+                currentScopeGroup = saved;
+            }
+            case OpLeftJoin leftJoin -> {
+                // Required part stays in the current scope; the optional body gets its own scope
+                // so its type assertions don't poison domain checks in the required part.
+                analyze(leftJoin.getLeft());
+                int saved = currentScopeGroup;
+                currentScopeGroup = nextScopeGroup++;
+                analyze(leftJoin.getRight());
+                currentScopeGroup = saved;
+            }
             case Op1 op1 -> analyze(op1.getSubOp());
             case Op2 op2 -> {
                 analyze(op2.getLeft());
@@ -212,7 +238,7 @@ public final class AlgebraAnalysisVisitor {
     }
 
     void processTriple(Triple t, Node graph) {
-        triples.add(new TriplePatternReference(t, graph));
+        triples.add(new TriplePatternReference(t, graph, currentScopeGroup));
         Node p = t.getPredicate();
         if (p.isURI()) {
             if (RDF_TYPE.equals(p)) {
@@ -238,7 +264,7 @@ public final class AlgebraAnalysisVisitor {
         triples.add(new TriplePatternReference(
                 Triple.create(tp.getSubject(),
                         tp.getPredicate() == null ? PATH_PRED_PLACEHOLDER : tp.getPredicate(),
-                        tp.getObject()), graph));
+                        tp.getObject()), graph, currentScopeGroup));
         collectPathUris(tp.getPath(), graph);
 
         // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for path-chain checks.
