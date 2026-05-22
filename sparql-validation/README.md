@@ -199,13 +199,20 @@ Collection<VersionIri> shaclProfiles = api.getShaclProfileDependencies(shapes);
 
 ### Profile scope
 
-Every `validateSparql` and `validateShacl` overload comes in three scope flavours:
+`validateSparql` overloads:
 
 | Overload | Schema scope |
 | --- | --- |
 | `validateSparql(query)` | All profiles in the index |
 | `validateSparql(query, Collection<VersionIri>)` | Only the supplied profiles |
 | `validateSparql(query, Map<Node, Collection<VersionIri>>)` | Per-`GRAPH` block; graphs not in the map produce `GRAPH_NOT_CONFIGURED` |
+
+`validateShacl` overloads:
+
+| Overload | Schema scope |
+| --- | --- |
+| `validateShacl(shapes)` | All profiles in the index |
+| `validateShacl(shapes, Collection<VersionIri>)` | Only the supplied profiles |
 
 ## Validation checks
 

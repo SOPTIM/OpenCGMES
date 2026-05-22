@@ -288,6 +288,74 @@ public class SparqlUpdateValidationTest {
         assertEquals("CREATE GRAPH should produce one management ref", 1, mgmtGraphs);
     }
 
+    // ---- WITH graph scope (P1 fix) ---------------------------------------------------------
+
+    @Test
+    public void withGraphScopeAppliedToWhereAndTemplates() {
+        // Two-profile setup: eq graph → EQ profile (ACLineSegment), tp graph → TP profile (VoltageLevel).
+        String profileEq = PROFILE_EQ;
+        String profileTp = "http://example.org/profile/Topology/1.0";
+        String classVl   = CIM + "VoltageLevel";
+        RdfsSchemaIndex twoProfileIndex = RdfsSchemaIndex.builder()
+                .addProfile(profileEq, List.of(CLASS_AC_LINE), List.of(PROP_NAME, PROP_R))
+                .addProfile(profileTp, List.of(classVl),       List.of())
+                .build();
+        SparqlValidationApi twoApi = new SparqlValidationApi(twoProfileIndex);
+
+        Node eqGraph = NodeFactory.createURI("urn:graph:eq");
+        java.util.Map<Node, Collection<VersionIri>> scope = java.util.Map.of(
+                eqGraph, List.of(VersionIri.of(profileEq)));
+
+        // WITH <urn:graph:eq> scopes to EQ; VoltageLevel lives only in TP → UNKNOWN_CLASS.
+        var r = twoApi.validateSparql(PREAMBLE
+                + "WITH <urn:graph:eq>\n"
+                + "DELETE { ?s a cim:ACLineSegment }\n"
+                + "INSERT { ?s a cim:VoltageLevel }\n"
+                + "WHERE  { ?s a cim:ACLineSegment }", scope);
+        boolean foundUnknownClass = r.annotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_CLASS
+                        && a.term().getURI().equals(classVl));
+        assertTrue("VoltageLevel must be unknown in WITH <eq> scope, got: " + r.annotations(),
+                foundUnknownClass);
+    }
+
+    @Test
+    public void withGraphValidTermsProduceNoErrors() {
+        Node eqGraph = NodeFactory.createURI("urn:graph:eq");
+        java.util.Map<Node, Collection<VersionIri>> scope = java.util.Map.of(
+                eqGraph, List.of(VersionIri.of(PROFILE_EQ)));
+        var r = api.validateSparql(PREAMBLE
+                + "WITH <urn:graph:eq>\n"
+                + "DELETE { ?s cim:ACLineSegment.r ?old }\n"
+                + "INSERT { ?s cim:ACLineSegment.r \"0.02\"^^xsd:float }\n"
+                + "WHERE  { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?old }", scope);
+        assertNoErrors(r);
+    }
+
+    // ---- Graph dependency tracking: CLEAR, LOAD, COPY/MOVE/ADD (P2 fix) -------------------
+
+    @Test
+    public void clearGraphReferenceIsTracked() throws InvalidQueryException {
+        Collection<Node> graphs = api.getUpdateGraphDependencies(
+                "CLEAR GRAPH <http://example.com/g>");
+        assertTrue(graphs.contains(NodeFactory.createURI("http://example.com/g")));
+    }
+
+    @Test
+    public void loadIntoGraphReferenceIsTracked() throws InvalidQueryException {
+        Collection<Node> graphs = api.getUpdateGraphDependencies(
+                "LOAD <http://example.com/data.ttl> INTO GRAPH <http://example.com/dest>");
+        assertTrue(graphs.contains(NodeFactory.createURI("http://example.com/dest")));
+    }
+
+    @Test
+    public void copyGraphReferencesAreTracked() throws InvalidQueryException {
+        Collection<Node> graphs = api.getUpdateGraphDependencies(
+                "COPY GRAPH <http://example.com/src> TO GRAPH <http://example.com/dst>");
+        assertTrue(graphs.contains(NodeFactory.createURI("http://example.com/src")));
+        assertTrue(graphs.contains(NodeFactory.createURI("http://example.com/dst")));
+    }
+
     // ---- helpers ---------------------------------------------------------------------------
 
     private static void assertNoErrors(SparqlValidationResult r) {

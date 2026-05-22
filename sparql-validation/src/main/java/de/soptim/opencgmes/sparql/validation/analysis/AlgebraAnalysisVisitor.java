@@ -225,16 +225,41 @@ public final class AlgebraAnalysisVisitor {
     }
 
     /**
+     * Analyzes {@code op} as if all default-graph (non-GRAPH-wrapped) patterns belong to
+     * {@code graphNode}. Used for SPARQL Update {@code WITH <g>} — the WITH IRI acts as the
+     * implicit graph for the WHERE clause and INSERT/DELETE templates when no explicit
+     * {@code GRAPH} block overrides it.
+     */
+    public void walkInGraph(Op op, Node graphNode) {
+        graphStack.push(graphNode);
+        try {
+            analyze(op);
+        } finally {
+            graphStack.pop();
+        }
+    }
+
+    /**
      * Walks an iterable of {@link Quad}s — used for INSERT/DELETE templates and
      * {@code DELETE WHERE} patterns in SPARQL Update analysis.
      *
      * <p>Quads whose graph node is the Jena default-graph sentinel are treated as having no
-     * named-graph context (graph = {@code null}).</p>
+     * named-graph context (graph = {@code null}). Use {@link #walkQuads(Iterable, Node)} when
+     * a {@code WITH <g>} clause provides an implicit default graph.</p>
      */
     public void walkQuads(Iterable<Quad> quads) {
+        walkQuads(quads, null);
+    }
+
+    /**
+     * Like {@link #walkQuads(Iterable)} but substitutes {@code defaultGraph} for quads whose
+     * graph node is the Jena default-graph sentinel. Pass the {@code WITH} IRI here so that
+     * triple patterns not inside an explicit {@code GRAPH} block are attributed to the right graph.
+     */
+    public void walkQuads(Iterable<Quad> quads, Node defaultGraph) {
         for (Quad q : quads) {
             Node g = q.getGraph();
-            Node effectiveGraph = (g != null && g.isURI() && !Quad.isDefaultGraph(g)) ? g : null;
+            Node effectiveGraph = (g != null && g.isURI() && !Quad.isDefaultGraph(g)) ? g : defaultGraph;
             if (effectiveGraph != null) trackGraphRef(effectiveGraph);
             processTriple(q.asTriple(), effectiveGraph);
         }

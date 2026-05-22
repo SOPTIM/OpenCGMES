@@ -30,7 +30,7 @@ import java.util.Set;
  * Pre-computed index for one profile, keyed by its {@link VersionIri}.
  *
  * <p>The {@link #classes()} and {@link #properties()} sets are always indexed. The three
- * semantic maps ({@link #domains()}, {@link #ranges()}, {@link #subClassOf()}) are optional
+ * semantic maps ({@link #propertyDomain()}, {@link #propertyRange()}, {@link #subClassOf()}) are optional
  * — callers that only need existence checks can use
  * {@link #minimal(VersionIri, Set, Set)} to skip them.</p>
  *

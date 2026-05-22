@@ -26,11 +26,16 @@ import org.apache.jena.query.QueryException;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.QueryParseException;
 import org.apache.jena.sparql.algebra.Algebra;
+import org.apache.jena.sparql.algebra.Op;
+import org.apache.jena.sparql.modify.request.Target;
+import org.apache.jena.sparql.modify.request.UpdateBinaryOp;
+import org.apache.jena.sparql.modify.request.UpdateClear;
 import org.apache.jena.sparql.modify.request.UpdateCreate;
 import org.apache.jena.sparql.modify.request.UpdateDataDelete;
 import org.apache.jena.sparql.modify.request.UpdateDataInsert;
 import org.apache.jena.sparql.modify.request.UpdateDeleteWhere;
 import org.apache.jena.sparql.modify.request.UpdateDrop;
+import org.apache.jena.sparql.modify.request.UpdateLoad;
 import org.apache.jena.sparql.modify.request.UpdateModify;
 import org.apache.jena.sparql.syntax.Element;
 import org.apache.jena.update.Update;
@@ -123,8 +128,9 @@ public final class SparqlQueryAnalyzer {
                     visitor.walkQuads(del.getQuads());
 
                 case UpdateModify mod -> {
-                    if (mod.getWithIRI() != null) {
-                        graphRefs.add(new GraphReference(mod.getWithIRI(), GraphReference.Source.UPDATE_WITH));
+                    Node withIRI = mod.getWithIRI();
+                    if (withIRI != null) {
+                        graphRefs.add(new GraphReference(withIRI, GraphReference.Source.UPDATE_WITH));
                     }
                     for (Node u : mod.getUsing()) {
                         if (u != null && u.isURI()) {
@@ -136,15 +142,22 @@ public final class SparqlQueryAnalyzer {
                             graphRefs.add(new GraphReference(u, GraphReference.Source.FROM_NAMED));
                         }
                     }
+                    // WITH <g> makes <g> the implicit graph for patterns not inside an explicit
+                    // GRAPH block — pass it as the default-graph context for the WHERE and templates.
                     Element where = mod.getWherePattern();
                     if (where != null) {
-                        visitor.walk(Algebra.compile(where));
+                        Op whereOp = Algebra.compile(where);
+                        if (withIRI != null) {
+                            visitor.walkInGraph(whereOp, withIRI);
+                        } else {
+                            visitor.walk(whereOp);
+                        }
                     }
                     if (mod.hasInsertClause()) {
-                        visitor.walkQuads(mod.getInsertQuads());
+                        visitor.walkQuads(mod.getInsertQuads(), withIRI);
                     }
                     if (mod.hasDeleteClause()) {
-                        visitor.walkQuads(mod.getDeleteQuads());
+                        visitor.walkQuads(mod.getDeleteQuads(), withIRI);
                     }
                 }
 
@@ -152,6 +165,15 @@ public final class SparqlQueryAnalyzer {
                     Node g = create.getGraph();
                     if (g != null && g.isURI()) {
                         graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                    }
+                }
+
+                case UpdateClear clear -> {
+                    if (clear.isOneGraph()) {
+                        Node g = clear.getGraph();
+                        if (g != null && g.isURI()) {
+                            graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                        }
                     }
                 }
 
@@ -164,7 +186,33 @@ public final class SparqlQueryAnalyzer {
                     }
                 }
 
-                default -> { /* LOAD, COPY, MOVE, ADD, CLEAR — no schema-relevant terms */ }
+                case UpdateLoad load -> {
+                    // LOAD <src> INTO <dest> — record the destination graph if named.
+                    Node g = load.getDest();
+                    if (g != null && g.isURI()) {
+                        graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                    }
+                }
+
+                case UpdateBinaryOp bin -> {
+                    // COPY, MOVE, ADD — record graph IRIs from src and dest targets.
+                    Target src = bin.getSrc();
+                    if (src.isOneNamedGraph()) {
+                        Node g = src.getGraph();
+                        if (g != null && g.isURI()) {
+                            graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                        }
+                    }
+                    Target dst = bin.getDest();
+                    if (dst.isOneNamedGraph()) {
+                        Node g = dst.getGraph();
+                        if (g != null && g.isURI()) {
+                            graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                        }
+                    }
+                }
+
+                default -> { /* no schema-relevant terms or graph IRIs */ }
             }
         }
 
