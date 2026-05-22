@@ -259,7 +259,14 @@ public final class AlgebraAnalysisVisitor {
     public void walkQuads(Iterable<Quad> quads, Node defaultGraph) {
         for (Quad q : quads) {
             Node g = q.getGraph();
-            Node effectiveGraph = (g != null && g.isURI() && !Quad.isDefaultGraph(g)) ? g : defaultGraph;
+            Node effectiveGraph;
+            if (g != null && g.isURI() && !Quad.isDefaultGraph(g)) {
+                effectiveGraph = g;             // concrete named graph — use as-is
+            } else if (g == null || Quad.isDefaultGraph(g)) {
+                effectiveGraph = defaultGraph;  // true default-graph sentinel → apply WITH IRI
+            } else {
+                effectiveGraph = null;          // variable/blank-node graph → dynamic, union scope
+            }
             if (effectiveGraph != null) trackGraphRef(effectiveGraph);
             processTriple(q.asTriple(), effectiveGraph);
         }

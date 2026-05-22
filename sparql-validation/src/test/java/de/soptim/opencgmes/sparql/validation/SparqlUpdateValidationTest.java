@@ -320,6 +320,39 @@ public class SparqlUpdateValidationTest {
     }
 
     @Test
+    public void withGraphDoesNotScopeExplicitVariableGraphTemplates() {
+        // WITH <eq> must not be applied to GRAPH ?g { ... } templates — variable graphs are
+        // dynamic and should fall back to union scope, not be attributed to the WITH IRI.
+        // The repro: VoltageLevel lives only in TP; the template targets GRAPH ?g (not EQ).
+        // Before the fix, VoltageLevel was incorrectly reported as UNKNOWN_CLASS in EQ scope.
+        String profileTp = "http://example.org/profile/Topology/1.0";
+        String classVl   = CIM + "VoltageLevel";
+        RdfsSchemaIndex twoProfileIndex = RdfsSchemaIndex.builder()
+                .addProfile(PROFILE_EQ, List.of(CLASS_AC_LINE), List.of(PROP_NAME, PROP_R))
+                .addProfile(profileTp,  List.of(classVl),       List.of())
+                .build();
+        SparqlValidationApi twoApi = new SparqlValidationApi(twoProfileIndex);
+
+        Node eqGraph = NodeFactory.createURI("urn:graph:eq");
+        Node tpGraph = NodeFactory.createURI("urn:graph:tp");
+        java.util.Map<Node, Collection<VersionIri>> scope = java.util.Map.of(
+                eqGraph, List.of(VersionIri.of(PROFILE_EQ)),
+                tpGraph, List.of(VersionIri.of(profileTp)));
+
+        // GRAPH ?g in the INSERT template is a variable graph — must NOT be attributed to
+        // the WITH IRI and must NOT produce a false UNKNOWN_CLASS for VoltageLevel.
+        var r = twoApi.validateSparql(PREAMBLE
+                + "WITH <urn:graph:eq>\n"
+                + "INSERT { GRAPH ?g { ?s a cim:VoltageLevel } }\n"
+                + "WHERE  { BIND(<urn:graph:tp> AS ?g) . ?s a cim:ACLineSegment }", scope);
+        long unknownClassErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.UNKNOWN_CLASS)
+                .count();
+        assertEquals("GRAPH ?g template must not be attributed to WITH scope; got: "
+                + r.annotations(), 0, unknownClassErrors);
+    }
+
+    @Test
     public void withGraphValidTermsProduceNoErrors() {
         Node eqGraph = NodeFactory.createURI("urn:graph:eq");
         java.util.Map<Node, Collection<VersionIri>> scope = java.util.Map.of(
