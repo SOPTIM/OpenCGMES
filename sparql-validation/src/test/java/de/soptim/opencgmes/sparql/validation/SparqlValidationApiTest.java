@@ -297,6 +297,50 @@ public class SparqlValidationApiTest {
         assertTrue(profiles.contains(VersionIri.of(PROFILE_TP)));
     }
 
+    // 17. CONSTRUCT template terms are validated and tracked.
+    @Test
+    public void constructTemplateUnknownClassEmitsError() {
+        var r = api.validateSparql(PREAMBLE
+                + "CONSTRUCT { ?s a cim:DoesNotExist } WHERE { ?s a cim:ACLineSegment }");
+        SparqlValidationAnnotation a = expectSingle(r, SparqlValidationCode.UNKNOWN_CLASS);
+        assertEquals(CIM + "DoesNotExist", a.term().getURI());
+        assertFalse(r.isValid());
+    }
+
+    @Test
+    public void constructTemplateUnknownPropertyEmitsError() {
+        var r = api.validateSparql(PREAMBLE
+                + "CONSTRUCT { ?s cim:doesNotExist ?o } WHERE { ?s cim:ACLineSegment.r ?o }");
+        SparqlValidationAnnotation a = expectSingle(r, SparqlValidationCode.UNKNOWN_PROPERTY);
+        assertEquals(CIM + "doesNotExist", a.term().getURI());
+    }
+
+    @Test
+    public void constructTemplateDependenciesAreTracked() throws InvalidQueryException {
+        Collection<Node> classes = api.getClassDependencies(PREAMBLE
+                + "CONSTRUCT { ?s a cim:ACLineSegment } WHERE { ?s a cim:VoltageLevel }");
+        // Both the WHERE class and the CONSTRUCT template class must be reported.
+        assertTrue(classes.contains(NodeFactory.createURI(CLASS_AC_LINE)));
+        assertTrue(classes.contains(NodeFactory.createURI(CLASS_VOLTAGE_LEVEL)));
+    }
+
+    // 18. EXISTS/NOT EXISTS inside BIND is analyzed (property dependency and unknown-property check).
+    @Test
+    public void existsInBindProducesUnknownPropertyError() {
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { BIND(EXISTS { ?s cim:doesNotExist ?o } AS ?has) }");
+        SparqlValidationAnnotation a = expectSingle(r, SparqlValidationCode.UNKNOWN_PROPERTY);
+        assertEquals(CIM + "doesNotExist", a.term().getURI());
+    }
+
+    @Test
+    public void existsInBindPropertyDependencyTracked() throws InvalidQueryException {
+        Collection<Node> props = api.getPropertyDependencies(PREAMBLE
+                + "SELECT * WHERE { BIND(EXISTS { ?s cim:ACLineSegment.r ?o } AS ?has) }");
+        assertTrue("EXISTS in BIND must contribute to property dependencies",
+                props.contains(NodeFactory.createURI(PROP_R)));
+    }
+
     // ---- helpers -------------------------------------------------------------------------
 
     private static void assertNoErrors(SparqlValidationResult r) {

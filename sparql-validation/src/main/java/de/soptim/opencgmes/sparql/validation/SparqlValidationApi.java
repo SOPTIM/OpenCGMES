@@ -65,9 +65,11 @@ public final class SparqlValidationApi {
 
     private final SparqlQueryValidator validator;
     private final ShaclSparqlExtractor shaclExtractor = new ShaclSparqlExtractor();
+    private final ShaclShapeAnalyzer shaclAnalyzer;
 
     public SparqlValidationApi(SchemaIndex schemaIndex) {
         this.validator = new SparqlQueryValidator(Objects.requireNonNull(schemaIndex, "schemaIndex"));
+        this.shaclAnalyzer = new ShaclShapeAnalyzer(schemaIndex);
     }
 
     public SchemaIndex schemaIndex() {
@@ -265,8 +267,7 @@ public final class SparqlValidationApi {
 
         // Shape-structure analysis: sh:targetClass, sh:class, sh:path.
         Collection<VersionIri> scopeProfiles = validator.scopeProfiles(scope, null);
-        var shapeAnnotations = new ShaclShapeAnalyzer(validator.schemaIndex())
-                .analyze(shapesGraph, scopeProfiles);
+        var shapeAnnotations = shaclAnalyzer.analyze(shapesGraph, scopeProfiles);
 
         // Embedded-SPARQL analysis: sh:select, sh:ask, sh:construct.
         // For each query, pass $this → sh:targetClass as a subject-type hint so that
@@ -291,7 +292,8 @@ public final class SparqlValidationApi {
      */
     public Collection<Node> getShaclClassDependencies(Graph shapesGraph) {
         Objects.requireNonNull(shapesGraph, "shapesGraph");
-        var out = new LinkedHashSet<Node>();
+        // Shape-structure terms (sh:targetClass, sh:class) plus embedded SPARQL references.
+        var out = new LinkedHashSet<>(shaclAnalyzer.extractClassDependencies(shapesGraph));
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
                 var a = validator.analyze(q.renderedQuery());
@@ -306,7 +308,8 @@ public final class SparqlValidationApi {
     /** Aggregate property IRIs used by all SPARQL fragments embedded in the shapes graph. */
     public Collection<Node> getShaclPropertyDependencies(Graph shapesGraph) {
         Objects.requireNonNull(shapesGraph, "shapesGraph");
-        var out = new LinkedHashSet<Node>();
+        // Shape-structure terms (sh:path) plus embedded SPARQL references.
+        var out = new LinkedHashSet<>(shaclAnalyzer.extractPropertyDependencies(shapesGraph));
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
                 var a = validator.analyze(q.renderedQuery());
@@ -341,6 +344,20 @@ public final class SparqlValidationApi {
 
     private Collection<VersionIri> shaclProfileDeps(Graph shapesGraph, Collection<VersionIri> restrict) {
         var out = new LinkedHashSet<VersionIri>();
+
+        // Shape-structure terms: sh:targetClass, sh:class, sh:path.
+        for (Node cls : shaclAnalyzer.extractClassDependencies(shapesGraph)) {
+            for (VersionIri v : validator.schemaIndex().findClass(cls)) {
+                if (restrict == null || restrict.contains(v)) out.add(v);
+            }
+        }
+        for (Node prop : shaclAnalyzer.extractPropertyDependencies(shapesGraph)) {
+            for (VersionIri v : validator.schemaIndex().findProperty(prop)) {
+                if (restrict == null || restrict.contains(v)) out.add(v);
+            }
+        }
+
+        // Embedded SPARQL terms: sh:select, sh:ask, sh:construct.
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
                 var a = validator.analyze(q.renderedQuery());

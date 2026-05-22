@@ -31,7 +31,9 @@ import org.apache.jena.vocabulary.RDF;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -82,6 +84,34 @@ public final class ShaclShapeAnalyzer {
         checkPathReferences(shapesGraph, scope, out);
 
         return List.copyOf(out);
+    }
+
+    // ---- Shape-structure dependency extraction (no scope / no validation) -----------------
+
+    /**
+     * Returns all class URI nodes referenced in shape-structural positions
+     * ({@code sh:targetClass}, {@code sh:class}) — regardless of whether they exist in any
+     * profile. Use this for dependency tracking without validation.
+     */
+    public Set<Node> extractClassDependencies(Graph shapesGraph) {
+        var out = new LinkedHashSet<Node>();
+        forEachObject(shapesGraph, Shacl.TARGET_CLASS, n -> { if (n.isURI()) out.add(n); });
+        forEachObject(shapesGraph, Shacl.CLASS,        n -> { if (n.isURI()) out.add(n); });
+        return out;
+    }
+
+    /**
+     * Returns all property URI nodes referenced in {@code sh:path} expressions — regardless
+     * of whether they exist in any profile. Use this for dependency tracking without validation.
+     */
+    public Set<Node> extractPropertyDependencies(Graph shapesGraph) {
+        var out = new LinkedHashSet<Node>();
+        forEachObject(shapesGraph, Shacl.PATH, pathNode -> {
+            var props = new ArrayList<Node>();
+            extractPropertyUris(shapesGraph, pathNode, props);
+            out.addAll(props);
+        });
+        return out;
     }
 
     // ---- sh:targetClass / sh:class ---------------------------------------------------------

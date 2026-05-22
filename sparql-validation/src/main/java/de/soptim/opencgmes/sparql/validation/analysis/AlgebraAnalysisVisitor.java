@@ -25,6 +25,7 @@ import org.apache.jena.sparql.algebra.Op;
 import org.apache.jena.sparql.algebra.op.Op1;
 import org.apache.jena.sparql.algebra.op.Op2;
 import org.apache.jena.sparql.algebra.op.OpBGP;
+import org.apache.jena.sparql.algebra.op.OpExtendAssign;
 import org.apache.jena.sparql.algebra.op.OpFilter;
 import org.apache.jena.sparql.algebra.op.OpGraph;
 import org.apache.jena.sparql.algebra.op.OpLeftJoin;
@@ -40,7 +41,6 @@ import org.apache.jena.sparql.core.TriplePath;
 import org.apache.jena.sparql.expr.Expr;
 import org.apache.jena.sparql.algebra.walker.Walker;
 import org.apache.jena.sparql.expr.ExprFunctionOp;
-import org.apache.jena.sparql.expr.ExprList;
 import org.apache.jena.sparql.expr.ExprVisitorBase;
 import org.apache.jena.sparql.path.P_Alt;
 import org.apache.jena.sparql.path.P_Inverse;
@@ -210,6 +210,13 @@ public final class AlgebraAnalysisVisitor {
                 analyze(minus.getLeft());
                 analyzeIsolated(minus.getRight());
             }
+            case OpExtendAssign extend -> {
+                // BIND / LET: walk the sub-op and then all binding expressions.
+                // EXISTS/NOT EXISTS embedded in a BIND expression would otherwise be skipped
+                // because the generic Op1 fallback only recurses into the sub-op.
+                analyze(extend.getSubOp());
+                walkExprs(extend.getVarExprList().getExprs().values());
+            }
             case Op1 op1 -> analyze(op1.getSubOp());
             case Op2 op2 -> {
                 analyze(op2.getLeft());
@@ -371,7 +378,7 @@ public final class AlgebraAnalysisVisitor {
         }
     }
 
-    private void walkExprs(ExprList exprs) {
+    private void walkExprs(Iterable<Expr> exprs) {
         if (exprs == null) return;
         var visitor = new ExprVisitorBase() {
             @Override

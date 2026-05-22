@@ -27,6 +27,7 @@ import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.QueryParseException;
 import org.apache.jena.sparql.algebra.Algebra;
 import org.apache.jena.sparql.algebra.Op;
+import org.apache.jena.sparql.syntax.Template;
 import org.apache.jena.sparql.modify.request.Target;
 import org.apache.jena.sparql.modify.request.UpdateBinaryOp;
 import org.apache.jena.sparql.modify.request.UpdateClear;
@@ -67,6 +68,15 @@ public final class SparqlQueryAnalyzer {
         var op = Algebra.compile(query);
         var visitor = new AlgebraAnalysisVisitor();
         visitor.walk(op);
+
+        // CONSTRUCT queries have a template that Jena's algebra compiler does not include
+        // in the Op tree — walk it separately so template terms are validated and tracked.
+        if (query.isConstructType()) {
+            Template tmpl = query.getConstructTemplate();
+            if (tmpl != null) {
+                visitor.walkQuads(tmpl.getQuads());
+            }
+        }
 
         var graphs = new ArrayList<GraphReference>();
         for (Node g : visitor.graphBlocks()) {

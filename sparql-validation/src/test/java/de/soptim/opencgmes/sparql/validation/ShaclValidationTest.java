@@ -335,6 +335,42 @@ public class ShaclValidationTest {
         assertTrue("sh:path property outside scope must be reported", found);
     }
 
+    // ---- Structural dependency API tests (P2 fix) ------------------------------------------
+
+    @Test
+    public void shaclClassDependenciesIncludesStructuralTerms() {
+        // shapes-structural-errors.ttl uses sh:targetClass / sh:class referencing CIM classes.
+        // Even without embedded SPARQL, those classes must appear in getShaclClassDependencies.
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        Collection<org.apache.jena.graph.Node> classes = api.getShaclClassDependencies(g);
+        // The structural errors file references sh:targetClass cim:ACLineSegment
+        boolean foundAcLine = classes.stream()
+                .anyMatch(n -> n.isURI() && n.getURI().equals(CLASS_AC_LINE));
+        assertTrue("getShaclClassDependencies must include sh:targetClass terms", foundAcLine);
+    }
+
+    @Test
+    public void shaclPropertyDependenciesIncludesStructuralTerms() {
+        // shapes-structural-errors.ttl uses sh:path referencing CIM properties.
+        // Those properties must appear in getShaclPropertyDependencies even without SPARQL.
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        Collection<org.apache.jena.graph.Node> props = api.getShaclPropertyDependencies(g);
+        boolean foundPropR = props.stream()
+                .anyMatch(n -> n.isURI() && n.getURI().equals(PROP_R));
+        assertTrue("getShaclPropertyDependencies must include sh:path terms", foundPropR);
+    }
+
+    @Test
+    public void shaclProfileDependenciesIncludesStructuralTerms() {
+        // A shapes graph with only structural predicates (no embedded SPARQL) must still
+        // report the profile that owns the referenced class / property.
+        // shapes-basic.ttl uses cim:ACLineSegment.r (EQ profile) in sh:path.
+        Graph g = loadShapes("shacl/shapes-basic.ttl");
+        Collection<VersionIri> profiles = api.getShaclProfileDependencies(g);
+        assertTrue("getShaclProfileDependencies must include EQ from structural sh:path terms",
+                profiles.contains(VersionIri.of(PROFILE_EQ)));
+    }
+
     // ---- helpers ----------------------------------------------------------------------------
 
     private static Graph loadShapes(String resourcePath) {
