@@ -18,22 +18,23 @@
 
 package de.soptim.opencgmes.sparql.validation.analysis;
 
-import org.apache.jena.query.Query;
-import org.apache.jena.sparql.algebra.Op;
+import org.apache.jena.update.UpdateRequest;
 
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Result of a static {@link SparqlQueryAnalyzer} pass over a SPARQL query.
+ * Result of a static {@link SparqlQueryAnalyzer} pass over a SPARQL Update request.
  *
- * <p>The collections are de-duplicated value lists in source order. A {@code dynamicPredicate}
- * flag of {@code true} means at least one triple in the query has a variable predicate, which
- * cannot be validated statically.</p>
+ * <p>A single {@code UpdateRequest} may contain multiple update operations separated by {@code ;}.
+ * All references (classes, properties, graphs) from every operation are aggregated into the
+ * collections of this record.</p>
+ *
+ * <p>The collections are de-duplicated, in source order. A {@code dynamicPredicate} flag of
+ * {@code true} means at least one template or WHERE-clause triple used a variable predicate.</p>
  */
-public record SparqlQueryAnalysis(
-        Query query,
-        Op algebra,
+public record SparqlUpdateAnalysis(
+        UpdateRequest updateRequest,
         List<TriplePatternReference> triples,
         List<ClassReference> classes,
         List<PropertyReference> properties,
@@ -43,13 +44,12 @@ public record SparqlQueryAnalysis(
         boolean dynamicClass
 ) {
 
-    public SparqlQueryAnalysis {
-        Objects.requireNonNull(query, "query");
-        Objects.requireNonNull(algebra, "algebra");
-        triples = List.copyOf(triples);
-        classes = List.copyOf(classes);
+    public SparqlUpdateAnalysis {
+        Objects.requireNonNull(updateRequest, "updateRequest");
+        triples    = List.copyOf(triples);
+        classes    = List.copyOf(classes);
         properties = List.copyOf(properties);
-        graphs = List.copyOf(graphs);
+        graphs     = List.copyOf(graphs);
         pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
     }
 }

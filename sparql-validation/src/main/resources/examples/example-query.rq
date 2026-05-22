@@ -1,18 +1,31 @@
-# SPARQL validation example — validated against CGMES 3.0 RDFS profiles.
+PREFIX cim: <http://iec.ch/TC57/CIM100#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+# SPARQL Update example — multiple operations separated by ";",
+# validated against CGMES 3.0 RDFS profiles.
 #
 # Deliberate mistakes for the validator to catch:
-#   1. cim:ACLineSegment.r applied to cim:Terminal  (wrong rdfs:domain)
-#   2. cim:DoesNotExist.property is not in any profile  (UNKNOWN_PROPERTY)
-PREFIX cim: <http://iec.ch/TC57/CIM100#>
+#   1. cim:DoesNotExist.property is not in any profile  (UNKNOWN_PROPERTY)
+#   2. cim:ACLineSegment.r applied to cim:Terminal      (PROPERTY_NOT_ALLOWED_FOR_CLASS)
 
-SELECT ?line ?name ?r ?termName
-WHERE {
-  ?line a cim:ACLineSegment ;
-        cim:IdentifiedObject.name ?name ;
-        cim:ACLineSegment.r ?r .
+INSERT DATA {
+    <urn:line1> a cim:ACLineSegment ;
+                cim:IdentifiedObject.name "Line 1" ;
+                cim:ACLineSegment.r "0.01"^^xsd:float .
+} ;
 
-  ?term a cim:Terminal ;
-        cim:IdentifiedObject.name ?termName ;
-        cim:ACLineSegment.r ?wrongDomain ;
-        cim:DoesNotExist.property ?bogus .
+DELETE WHERE {
+    ?line a cim:ACLineSegment ;
+          cim:DoesNotExist.property ?staleValue .
+} ;
+
+INSERT {
+    ?term cim:ACLineSegment.r ?wrongDomain
 }
+WHERE {
+    ?term a cim:Terminal ;
+          cim:Terminal.ConnectivityNode ?cn .
+    BIND(0.1 AS ?wrongDomain)
+} ;
+
+CREATE GRAPH <urn:example:result>

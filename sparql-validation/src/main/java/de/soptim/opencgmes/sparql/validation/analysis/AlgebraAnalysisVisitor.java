@@ -31,6 +31,7 @@ import org.apache.jena.sparql.algebra.op.OpPath;
 import org.apache.jena.sparql.algebra.op.OpQuadBlock;
 import org.apache.jena.sparql.algebra.op.OpQuadPattern;
 import org.apache.jena.sparql.algebra.op.OpService;
+import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.sparql.core.TriplePath;
 import org.apache.jena.sparql.expr.Expr;
 import org.apache.jena.sparql.algebra.walker.Walker;
@@ -166,7 +167,7 @@ public final class AlgebraAnalysisVisitor {
                 }
             }
             case OpService ignored -> {
-                // Phase 1: do not descend into SERVICE — remote endpoint has its own schema.
+                // Do not descend into SERVICE — remote endpoint has its own schema.
             }
             case Op1 op1 -> analyze(op1.getSubOp());
             case Op2 op2 -> {
@@ -182,13 +183,29 @@ public final class AlgebraAnalysisVisitor {
         }
     }
 
-    private void trackGraphRef(Node g) {
+    /**
+     * Walks an iterable of {@link Quad}s — used for INSERT/DELETE templates and
+     * {@code DELETE WHERE} patterns in SPARQL Update analysis.
+     *
+     * <p>Quads whose graph node is the Jena default-graph sentinel are treated as having no
+     * named-graph context (graph = {@code null}).</p>
+     */
+    public void walkQuads(Iterable<Quad> quads) {
+        for (Quad q : quads) {
+            Node g = q.getGraph();
+            Node effectiveGraph = (g != null && g.isURI() && !Quad.isDefaultGraph(g)) ? g : null;
+            if (effectiveGraph != null) trackGraphRef(effectiveGraph);
+            processTriple(q.asTriple(), effectiveGraph);
+        }
+    }
+
+    void trackGraphRef(Node g) {
         if (g != null && g.isURI()) {
             seenGraphBlocks.add(g);
         }
     }
 
-    private void processTriple(Triple t, Node graph) {
+    void processTriple(Triple t, Node graph) {
         triples.add(new TriplePatternReference(t, graph));
         Node p = t.getPredicate();
         if (p.isURI()) {
@@ -218,7 +235,7 @@ public final class AlgebraAnalysisVisitor {
                         : tp.getPredicate(), tp.getObject()), graph));
         collectPathUris(tp.getPath(), graph);
 
-        // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for Phase 3 chain checks.
+        // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for path-chain checks.
         var chain = new ArrayList<Node>();
         if (collectSimpleSeq(tp.getPath(), chain) && chain.size() >= 2) {
             pathChains.add(new PathChainReference(chain, graph));

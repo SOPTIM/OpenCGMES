@@ -22,6 +22,7 @@ import org.apache.jena.graph.Node;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -35,13 +36,17 @@ import java.util.TreeMap;
  * @param rawQuery        the query string as it appears in the shapes graph, <em>without</em>
  *                        SHACL-declared prefixes prepended
  * @param prefixes        prefix declarations resolved from {@code sh:prefixes}, possibly empty
+ * @param targetClasses   the {@code sh:targetClass} values of the enclosing shape(s), if
+ *                        resolvable; empty when the context is ambiguous or absent (e.g. a
+ *                        standalone {@code sh:SPARQLAskValidator} not yet linked to a shape)
  */
 public record EmbeddedSparql(
         Node container,
         Node queryPredicate,
         Kind kind,
         String rawQuery,
-        Map<String, String> prefixes
+        Map<String, String> prefixes,
+        Set<Node> targetClasses
 ) {
 
     public EmbeddedSparql {
@@ -49,7 +54,8 @@ public record EmbeddedSparql(
         Objects.requireNonNull(queryPredicate, "queryPredicate");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(rawQuery, "rawQuery");
-        prefixes = prefixes == null ? Map.of() : Map.copyOf(new TreeMap<>(prefixes));
+        prefixes     = prefixes     == null ? Map.of()  : Map.copyOf(new TreeMap<>(prefixes));
+        targetClasses = targetClasses == null ? Set.of() : Set.copyOf(targetClasses);
     }
 
     /** Returns the {@link #rawQuery() raw query} with all resolved {@link #prefixes} prepended. */

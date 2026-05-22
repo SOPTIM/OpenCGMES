@@ -31,8 +31,8 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 /**
- * Phase 1 acceptance tests for {@link SparqlValidationApi} — covers the 16 scenarios listed
- * in the module README.
+ * Acceptance tests for {@link SparqlValidationApi}: existence checks, semantic checks,
+ * scope overloads, dependency extraction.
  */
 public class SparqlValidationApiTest {
 
@@ -117,7 +117,7 @@ public class SparqlValidationApiTest {
         assertEquals(1, a.foundInOtherProfiles().size());
         assertEquals(PROFILE_TP, a.foundInOtherProfiles().iterator().next().iri());
         assertTrue("message should hint at TP",
-                a.message().contains(PROFILE_TP));
+                a.message().contains("Topology/1.0"));
     }
 
     // 6. Class exists in another profile.

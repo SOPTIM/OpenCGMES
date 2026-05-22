@@ -20,14 +20,21 @@ package de.soptim.opencgmes.sparql.validation;
 
 import de.soptim.opencgmes.sparql.validation.analysis.ClassReference;
 import de.soptim.opencgmes.sparql.validation.analysis.GraphReference;
+import de.soptim.opencgmes.sparql.validation.analysis.PathChainReference;
 import de.soptim.opencgmes.sparql.validation.analysis.PropertyReference;
 import de.soptim.opencgmes.sparql.validation.analysis.SparqlQueryAnalysis;
 import de.soptim.opencgmes.sparql.validation.analysis.SparqlQueryAnalyzer;
+import de.soptim.opencgmes.sparql.validation.analysis.SparqlUpdateAnalysis;
+import de.soptim.opencgmes.sparql.validation.analysis.TriplePatternReference;
 import de.soptim.opencgmes.sparql.validation.explain.QueryPlanFormatter;
 import de.soptim.opencgmes.sparql.validation.schema.SchemaIndex;
 import de.soptim.opencgmes.sparql.validation.schema.ValidationScope;
 import de.soptim.opencgmes.sparql.validation.semantic.SemanticChecks;
+import de.soptim.opencgmes.sparql.validation.semantic.SubjectTypeInference;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Triple;
+import org.apache.jena.shared.PrefixMapping;
+import org.apache.jena.vocabulary.RDF;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,17 +65,82 @@ public final class SparqlQueryValidator {
         return schemaIndex;
     }
 
+    private static final Node RDF_TYPE = RDF.type.asNode();
+
     /** Runs analysis + validation against {@code scope}. */
     public SparqlValidationResult validate(String query, ValidationScope scope) {
+        return validate(query, scope, Map.of());
+    }
+
+    /**
+     * Variant that injects additional subject-type hints before the semantic checks.
+     *
+     * <p>Each entry {@code variable → {class1, class2, ...}} asserts that variable's type
+     * for the purpose of domain/range checking. A hint for a subject that already has an
+     * explicit {@code rdf:type} triple in the query is silently ignored — the query-declared
+     * type takes precedence.</p>
+     *
+     * <p>The canonical use case is SHACL: the {@code $this} variable in an embedded SPARQL
+     * constraint carries the type declared by the enclosing shape's {@code sh:targetClass}.</p>
+     */
+    public SparqlValidationResult validate(String query, ValidationScope scope,
+                                           Map<Node, Set<Node>> subjectTypeHints) {
         Objects.requireNonNull(query, "query");
         Objects.requireNonNull(scope, "scope");
         try {
             SparqlQueryAnalysis a = analyzer.analyze(query);
             String plan = QueryPlanFormatter.format(a.query(), a.algebra());
-            List<SparqlValidationAnnotation> ann = validate(a, scope, query);
+            List<TriplePatternReference> triples =
+                    augmentWithTypeHints(a.triples(), subjectTypeHints);
+            List<SparqlValidationAnnotation> ann = validateReferences(
+                    a.graphs(), a.classes(), a.properties(),
+                    triples, a.pathChains(), a.dynamicPredicate(),
+                    scope, a.query().getPrefixMapping(), query);
             return new SparqlValidationResult(query, plan, ann);
         } catch (InvalidQueryException e) {
             return new SparqlValidationResult(query, null, List.of(syntaxAnnotation(e)));
+        }
+    }
+
+    /**
+     * Returns the original triple list extended with synthetic {@code ?var rdf:type <cls>}
+     * patterns for each hint entry whose subject variable has no already-declared type.
+     * Returns the original list unchanged when no injection is needed.
+     */
+    private static List<TriplePatternReference> augmentWithTypeHints(
+            List<TriplePatternReference> triples, Map<Node, Set<Node>> hints) {
+        if (hints == null || hints.isEmpty()) return triples;
+        Map<Node, Set<Node>> existing = SubjectTypeInference.infer(triples);
+        var extra = new ArrayList<TriplePatternReference>();
+        for (var entry : hints.entrySet()) {
+            if (existing.containsKey(entry.getKey())) continue; // explicit type wins
+            for (Node cls : entry.getValue()) {
+                extra.add(new TriplePatternReference(
+                        Triple.create(entry.getKey(), RDF_TYPE, cls), null));
+            }
+        }
+        if (extra.isEmpty()) return triples;
+        var augmented = new ArrayList<>(triples);
+        augmented.addAll(extra);
+        return Collections.unmodifiableList(augmented);
+    }
+
+    /**
+     * Parses and validates a SPARQL Update request (one or more operations separated by {@code ;}).
+     * The {@code queryPlan} in the result is {@code null} — update requests have no algebra plan.
+     */
+    public SparqlValidationResult validateUpdate(String updateText, ValidationScope scope) {
+        Objects.requireNonNull(updateText, "updateText");
+        Objects.requireNonNull(scope, "scope");
+        try {
+            SparqlUpdateAnalysis a = analyzer.analyzeUpdate(updateText);
+            List<SparqlValidationAnnotation> ann = validateReferences(
+                    a.graphs(), a.classes(), a.properties(),
+                    a.triples(), a.pathChains(), a.dynamicPredicate(),
+                    scope, a.updateRequest().getPrefixMapping(), updateText);
+            return new SparqlValidationResult(updateText, null, ann);
+        } catch (InvalidQueryException e) {
+            return new SparqlValidationResult(updateText, null, List.of(syntaxAnnotation(e)));
         }
     }
 
@@ -77,24 +149,40 @@ public final class SparqlQueryValidator {
         return analyzer.analyze(query);
     }
 
+    /** Returns the underlying update analysis; throws if the update text is unparseable. */
+    public SparqlUpdateAnalysis analyzeUpdate(String updateText) throws InvalidQueryException {
+        return analyzer.analyzeUpdate(updateText);
+    }
+
     // ---- internal validation ---------------------------------------------------------------
 
-    private List<SparqlValidationAnnotation> validate(
-            SparqlQueryAnalysis a, ValidationScope scope, String original) {
+    /**
+     * Core validation logic shared by both SPARQL query and SPARQL Update paths.
+     */
+    private List<SparqlValidationAnnotation> validateReferences(
+            List<GraphReference> graphs,
+            List<ClassReference> classes,
+            List<PropertyReference> properties,
+            List<TriplePatternReference> triples,
+            List<PathChainReference> pathChains,
+            boolean dynamicPredicate,
+            ValidationScope scope,
+            PrefixMapping prefixes,
+            String original) {
 
         var annotations = new ArrayList<SparqlValidationAnnotation>();
 
-        // 1. Graphs used by the query that are not configured (NamedGraphProfileScope only).
+        // 1. Graphs used but not configured (NamedGraphProfileScope only).
         if (scope instanceof ValidationScope.NamedGraphProfileScope ngs) {
             var configured = ngs.namedGraphsToProfiles().keySet();
             var seen = new LinkedHashSet<Node>();
-            for (GraphReference gr : a.graphs()) {
+            for (GraphReference gr : graphs) {
                 if (!seen.add(gr.graph())) continue;
                 if (!configured.contains(gr.graph())) {
                     annotations.add(new SparqlValidationAnnotation(
                             SparqlValidationSeverity.WARN,
                             null, null,
-                            "Graph <" + gr.graph().getURI() + "> is used by the query but no "
+                            "Graph <" + gr.graph().getURI() + "> is used but no "
                                     + "schema profiles were configured for it.",
                             SparqlValidationCode.GRAPH_NOT_CONFIGURED,
                             gr.graph(),
@@ -106,7 +194,7 @@ public final class SparqlQueryValidator {
         }
 
         // 2. Dynamic predicates/classes — informational warnings.
-        if (a.dynamicPredicate()) {
+        if (dynamicPredicate) {
             annotations.add(new SparqlValidationAnnotation(
                     SparqlValidationSeverity.WARN, null, null,
                     "Query contains triple(s) with a variable predicate; "
@@ -115,10 +203,8 @@ public final class SparqlQueryValidator {
                     null, scopeProfiles(scope, null), List.of(), null));
         }
 
-        org.apache.jena.shared.PrefixMapping prefixes = a.query().getPrefixMapping();
-
         // 3. Classes.
-        for (ClassReference c : a.classes()) {
+        for (ClassReference c : classes) {
             Collection<VersionIri> selected = scopeProfiles(scope, c.graph());
             if (schemaIndex.classExists(c.classNode(), selected)) continue;
             List<VersionIri> elsewhere = schemaIndex.findClass(c.classNode());
@@ -136,7 +222,7 @@ public final class SparqlQueryValidator {
         }
 
         // 4. Properties.
-        for (PropertyReference p : a.properties()) {
+        for (PropertyReference p : properties) {
             Collection<VersionIri> selected = scopeProfiles(scope, p.graph());
             if (schemaIndex.propertyExists(p.propertyNode(), selected)) continue;
             List<VersionIri> elsewhere = schemaIndex.findProperty(p.propertyNode());
@@ -153,9 +239,9 @@ public final class SparqlQueryValidator {
                     formatPropertyMessage(p.propertyNode(), p.graph(), selected, elsewhereOutOfScope)));
         }
 
-        // 5. Phase 3 — domain/range/datatype/path-chain semantics.
+        // 5. Semantic checks: domain/range/datatype/path-chain.
         annotations.addAll(SemanticChecks.run(
-                a, schemaIndex, g -> scopeProfiles(scope, g), original, prefixes));
+                triples, pathChains, schemaIndex, g -> scopeProfiles(scope, g), original, prefixes));
 
         return annotations;
     }
@@ -234,10 +320,17 @@ public final class SparqlQueryValidator {
         boolean first = true;
         for (VersionIri v : profiles) {
             if (!first) msg.append(", ");
-            msg.append(v.iri());
+            msg.append(shortIri(v.iri()));
             first = false;
         }
         msg.append(']');
+    }
+
+    private static String shortIri(String iri) {
+        int last = Math.max(iri.lastIndexOf('/'), iri.lastIndexOf('#'));
+        if (last < 0) return iri;
+        int prev = Math.max(iri.lastIndexOf('/', last - 1), iri.lastIndexOf('#', last - 1));
+        return prev >= 0 ? iri.substring(prev + 1) : iri.substring(last + 1);
     }
 
     private static SparqlValidationAnnotation buildAnnotation(

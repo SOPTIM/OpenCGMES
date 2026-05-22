@@ -138,7 +138,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         return profiles;
     }
 
-    // ---- Phase 3 semantic lookups ----------------------------------------------------------
+    // ---- Semantic lookups ------------------------------------------------------------------
 
     @Override
     public Set<Node> domainsOf(Node propertyUri, Collection<VersionIri> scope) {

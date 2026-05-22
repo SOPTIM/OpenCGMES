@@ -29,7 +29,6 @@ import de.soptim.opencgmes.sparql.validation.VersionIri;
 import de.soptim.opencgmes.sparql.validation.schema.RdfsSchemaIndex;
 
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -188,12 +187,6 @@ public final class SparqlValidationExample {
             if (in == null) throw new IllegalStateException("Missing classpath resource: " + name);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
-    }
-
-    private static Reader resourceReader(String name) {
-        InputStream in = SparqlValidationExample.class.getClassLoader().getResourceAsStream(name);
-        if (in == null) throw new IllegalStateException("Missing classpath resource: " + name);
-        return new InputStreamReader(in, StandardCharsets.UTF_8);
     }
 
     private static void printNumbered(String text) {

@@ -1,0 +1,77 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex:   <http://example.org/shapes#> .
+@prefix cim:  <http://iec.ch/TC57/CIM100#> .
+
+# ---- Error 1: unknown class in sh:targetClass ----------------------------------------
+ex:BadTargetClass
+    a sh:NodeShape ;
+    sh:targetClass cim:NonExistentClass .
+
+# ---- Error 2: unknown property in sh:path (simple) -----------------------------------
+ex:BadSimplePath
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:property [
+        sh:path cim:NonExistentProperty ;
+    ] .
+
+# ---- Error 3: unknown class in sh:class (value-class constraint) ---------------------
+ex:BadClassConstraint
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:property [
+        sh:path cim:ACLineSegment.r ;
+        sh:class cim:NonExistentRangeClass ;
+    ] .
+
+# ---- Error 4: unknown property inside sh:inversePath ---------------------------------
+ex:BadInversePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:inversePath cim:NonExistentInverse ] ;
+    ] .
+
+# ---- Error 5: unknown step inside a sequence path ------------------------------------
+ex:BadSequencePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path ( cim:Equipment.EquipmentContainer cim:NonExistentStep ) ;
+    ] .
+
+# ---- Error 6: unknown alternative inside sh:alternativePath --------------------------
+ex:BadAlternativePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:alternativePath ( cim:IdentifiedObject.name cim:NonExistentAlt ) ] ;
+    ] .
+
+# ---- Error 7: unknown property inside sh:zeroOrMorePath ------------------------------
+ex:BadZeroOrMorePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:zeroOrMorePath cim:NonExistentZeroPlus ] ;
+    ] .
+
+# ---- Error 8: unknown property inside sh:oneOrMorePath -------------------------------
+ex:BadOneOrMorePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:oneOrMorePath cim:NonExistentOnePlus ] ;
+    ] .
+
+# ---- Error 9: unknown property inside sh:zeroOrOnePath -------------------------------
+ex:BadZeroOrOnePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:zeroOrOnePath cim:NonExistentZeroOne ] ;
+    ] .
+
+# ---- Valid 2: known property inside sh:zeroOrMorePath — no error expected ------------
+ex:GoodZeroOrMorePath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:zeroOrMorePath cim:ACLineSegment.r ] ;
+    ] .

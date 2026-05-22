@@ -48,4 +48,37 @@ public final class Shacl {
     public static final Node PREFIX     = NodeFactory.createURI(NS + "prefix");
     /** {@code ?bnode sh:namespace "http://..."^^xsd:anyURI} — the namespace IRI. */
     public static final Node NAMESPACE  = NodeFactory.createURI(NS + "namespace");
+
+    // ---- Shape-structure predicates --------------------------------------------------------
+
+    /** {@code sh:sparql} — links a shape to a {@code sh:SPARQLConstraint} node. */
+    public static final Node SPARQL      = NodeFactory.createURI(NS + "sparql");
+    /** {@code sh:target} — links a shape to a {@code sh:SPARQLTarget} node. */
+    public static final Node TARGET      = NodeFactory.createURI(NS + "target");
+    /** {@code sh:validator} — links a constraint to a {@code sh:SPARQLAskValidator}. */
+    public static final Node VALIDATOR   = NodeFactory.createURI(NS + "validator");
+    /** {@code sh:rule} — links a shape to a {@code sh:SPARQLRule} node. */
+    public static final Node RULE        = NodeFactory.createURI(NS + "rule");
+
+    /** {@code sh:targetClass} — the class whose instances are focus nodes. */
+    public static final Node TARGET_CLASS = NodeFactory.createURI(NS + "targetClass");
+    /** {@code sh:property} — links a node shape to a property shape. */
+    public static final Node PROPERTY     = NodeFactory.createURI(NS + "property");
+    /** {@code sh:path} — the property path of a property shape. */
+    public static final Node PATH         = NodeFactory.createURI(NS + "path");
+    /** {@code sh:class} — the required class of the value nodes. */
+    public static final Node CLASS        = NodeFactory.createURI(NS + "class");
+
+    // ---- Property-path operators -----------------------------------------------------------
+
+    /** {@code sh:inversePath} — inverse property path (object → subject). */
+    public static final Node INVERSE_PATH      = NodeFactory.createURI(NS + "inversePath");
+    /** {@code sh:alternativePath} — union path; value is an RDF list of alternatives. */
+    public static final Node ALTERNATIVE_PATH  = NodeFactory.createURI(NS + "alternativePath");
+    /** {@code sh:zeroOrMorePath} — {@code *} repetition. */
+    public static final Node ZERO_OR_MORE_PATH = NodeFactory.createURI(NS + "zeroOrMorePath");
+    /** {@code sh:oneOrMorePath} — {@code +} repetition. */
+    public static final Node ONE_OR_MORE_PATH  = NodeFactory.createURI(NS + "oneOrMorePath");
+    /** {@code sh:zeroOrOnePath} — {@code ?} repetition. */
+    public static final Node ZERO_OR_ONE_PATH  = NodeFactory.createURI(NS + "zeroOrOnePath");
 }

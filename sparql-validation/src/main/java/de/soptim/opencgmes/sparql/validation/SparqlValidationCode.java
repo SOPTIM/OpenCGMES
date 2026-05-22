@@ -18,11 +18,7 @@
 
 package de.soptim.opencgmes.sparql.validation;
 
-/**
- * Stable codes for {@link SparqlValidationAnnotation}s. Phase 1 only emits the codes whose
- * documentation says so; the remaining codes are reserved for the planned Phase&nbsp;3
- * semantic checks so consumers can already pattern-match against them.
- */
+/** Stable codes emitted by {@link SparqlValidationAnnotation}. */
 public enum SparqlValidationCode {
     /** Query is not syntactically valid SPARQL. */
     SYNTAX_ERROR,
@@ -30,16 +26,16 @@ public enum SparqlValidationCode {
     UNKNOWN_CLASS,
     /** Property IRI was not found in the selected schema scope. */
     UNKNOWN_PROPERTY,
-    /** Reserved: term exists in another, non-selected profile (hint is attached to UNKNOWN_*). */
+    /** Term exists in another, non-selected profile (hint attached to UNKNOWN_*). */
     TERM_EXISTS_IN_OTHER_PROFILE,
     /** A named graph is used by the query but no profiles were configured for it. */
     GRAPH_NOT_CONFIGURED,
     /** A variable predicate / class is used and cannot be validated statically. */
     UNSUPPORTED_DYNAMIC_PROPERTY,
-    /** Reserved for Phase&nbsp;3: implied {@code rdf:type} of a constant subject/object. */
+    /** Subject has no explicit {@code rdf:type} but the property implies exactly one domain class. */
     QUERY_IMPLIED_TYPE,
-    /** Reserved for Phase&nbsp;3: literal datatype does not match the property's range. */
+    /** Literal object's datatype is incompatible with the property's {@code rdfs:range}. */
     DATATYPE_MISMATCH,
-    /** Reserved for Phase&nbsp;3: property is not allowed for the class it is used on. */
+    /** Property is used on a subject whose type is not a subclass of any declared {@code rdfs:domain}. */
     PROPERTY_NOT_ALLOWED_FOR_CLASS
 }

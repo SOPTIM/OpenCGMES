@@ -18,26 +18,41 @@
 
 package de.soptim.opencgmes.sparql.validation.shacl;
 
+import de.soptim.opencgmes.sparql.validation.SparqlValidationAnnotation;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationSeverity;
 
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Aggregated outcome of running the SPARQL validator on every embedded query found in a SHACL
- * shapes graph.
+ * Aggregated outcome of validating a SHACL shapes graph against a CIM schema.
  *
- * @param embeddedResults  one entry per discovered SPARQL fragment, in extraction order
+ * <p>Contains two complementary result sets:</p>
+ * <ul>
+ *   <li>{@link #shapeAnnotations} — errors found in the shape <em>structure</em> itself
+ *       ({@code sh:targetClass}, {@code sh:class}, {@code sh:path}), produced by
+ *       {@link ShaclShapeAnalyzer}.</li>
+ *   <li>{@link #embeddedResults} — one entry per SPARQL fragment embedded in the shapes graph
+ *       ({@code sh:select}, {@code sh:ask}, {@code sh:construct}), produced by
+ *       {@link ShaclSparqlExtractor} + the normal SPARQL validator.</li>
+ * </ul>
  */
-public record ShaclValidationResult(List<ShaclEmbeddedQueryResult> embeddedResults) {
+public record ShaclValidationResult(
+        List<SparqlValidationAnnotation> shapeAnnotations,
+        List<ShaclEmbeddedQueryResult> embeddedResults) {
 
     public ShaclValidationResult {
+        Objects.requireNonNull(shapeAnnotations, "shapeAnnotations");
         Objects.requireNonNull(embeddedResults, "embeddedResults");
-        embeddedResults = List.copyOf(embeddedResults);
+        shapeAnnotations = List.copyOf(shapeAnnotations);
+        embeddedResults  = List.copyOf(embeddedResults);
     }
 
-    /** @return {@code true} iff no embedded query produced an {@code ERROR} annotation. */
+    /** @return {@code true} iff neither shape structure nor any embedded query produced an ERROR. */
     public boolean isValid() {
+        for (var a : shapeAnnotations) {
+            if (a.severity() == SparqlValidationSeverity.ERROR) return false;
+        }
         for (var r : embeddedResults) {
             for (var a : r.result().annotations()) {
                 if (a.severity() == SparqlValidationSeverity.ERROR) return false;
@@ -46,9 +61,9 @@ public record ShaclValidationResult(List<ShaclEmbeddedQueryResult> embeddedResul
         return true;
     }
 
-    /** @return total annotation count across all embedded queries. */
+    /** @return total annotation count across shape structure and all embedded queries. */
     public int totalAnnotations() {
-        int n = 0;
+        int n = shapeAnnotations.size();
         for (var r : embeddedResults) n += r.result().annotations().size();
         return n;
     }

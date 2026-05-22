@@ -29,9 +29,9 @@ import java.util.Set;
  * Look-up structure used by the validator to decide whether a class or property IRI exists in
  * a given subset of profiles, and to compute "exists elsewhere" hints.
  *
- * <p>Phase 3 added semantic lookups ({@link #domainsOf}, {@link #rangesOf},
- * {@link #superClassesOf}, {@link #isSubClassOf}). The default implementations return empty
- * results so non-CIM Phase 1 callers keep working unchanged.</p>
+ * <p>Semantic lookups ({@link #domainsOf}, {@link #rangesOf}, {@link #superClassesOf},
+ * {@link #isSubClassOf}) have default implementations that return empty results, so
+ * callers that only need existence checks keep working without any extra wiring.</p>
  *
  * <p>Implementations are expected to be immutable and safe for concurrent reads.</p>
  */
@@ -52,7 +52,7 @@ public interface SchemaIndex {
     /** @return every profile registered in this index. */
     List<VersionIri> getAllProfiles();
 
-    // ---- Phase 3 semantic lookups ----------------------------------------------------------
+    // ---- Semantic lookups ------------------------------------------------------------------
 
     /**
      * Union of {@code rdfs:domain} classes declared for {@code propertyUri} across the scope.

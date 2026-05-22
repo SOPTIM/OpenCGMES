@@ -26,6 +26,16 @@ import org.apache.jena.query.QueryException;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.QueryParseException;
 import org.apache.jena.sparql.algebra.Algebra;
+import org.apache.jena.sparql.modify.request.UpdateCreate;
+import org.apache.jena.sparql.modify.request.UpdateDataDelete;
+import org.apache.jena.sparql.modify.request.UpdateDataInsert;
+import org.apache.jena.sparql.modify.request.UpdateDeleteWhere;
+import org.apache.jena.sparql.modify.request.UpdateDrop;
+import org.apache.jena.sparql.modify.request.UpdateModify;
+import org.apache.jena.sparql.syntax.Element;
+import org.apache.jena.update.Update;
+import org.apache.jena.update.UpdateFactory;
+import org.apache.jena.update.UpdateRequest;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -84,6 +94,113 @@ public final class SparqlQueryAnalyzer {
                 visitor.dynamicClass()
         );
     }
+
+    // ---- SPARQL Update -----------------------------------------------------------------------
+
+    /**
+     * Parses a SPARQL Update request string (possibly several operations separated by {@code ;})
+     * and analyzes all contained operations for classes, properties, and graph references.
+     */
+    public SparqlUpdateAnalysis analyzeUpdate(String updateString) throws InvalidQueryException {
+        UpdateRequest req = parseUpdate(updateString);
+        return analyzeUpdate(req);
+    }
+
+    /** Same as {@link #analyzeUpdate(String)} for an already-parsed {@link UpdateRequest}. */
+    public SparqlUpdateAnalysis analyzeUpdate(UpdateRequest req) {
+        var visitor  = new AlgebraAnalysisVisitor();
+        var graphRefs = new ArrayList<GraphReference>();
+
+        for (Update update : req) {
+            switch (update) {
+                case UpdateDataInsert ins ->
+                    visitor.walkQuads(ins.getQuads());
+
+                case UpdateDataDelete del ->
+                    visitor.walkQuads(del.getQuads());
+
+                case UpdateDeleteWhere del ->
+                    visitor.walkQuads(del.getQuads());
+
+                case UpdateModify mod -> {
+                    if (mod.getWithIRI() != null) {
+                        graphRefs.add(new GraphReference(mod.getWithIRI(), GraphReference.Source.UPDATE_WITH));
+                    }
+                    for (Node u : mod.getUsing()) {
+                        if (u != null && u.isURI()) {
+                            graphRefs.add(new GraphReference(u, GraphReference.Source.FROM));
+                        }
+                    }
+                    for (Node u : mod.getUsingNamed()) {
+                        if (u != null && u.isURI()) {
+                            graphRefs.add(new GraphReference(u, GraphReference.Source.FROM_NAMED));
+                        }
+                    }
+                    Element where = mod.getWherePattern();
+                    if (where != null) {
+                        visitor.walk(Algebra.compile(where));
+                    }
+                    if (mod.hasInsertClause()) {
+                        visitor.walkQuads(mod.getInsertQuads());
+                    }
+                    if (mod.hasDeleteClause()) {
+                        visitor.walkQuads(mod.getDeleteQuads());
+                    }
+                }
+
+                case UpdateCreate create -> {
+                    Node g = create.getGraph();
+                    if (g != null && g.isURI()) {
+                        graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                    }
+                }
+
+                case UpdateDrop drop -> {
+                    if (drop.isOneGraph()) {
+                        Node g = drop.getGraph();
+                        if (g != null && g.isURI()) {
+                            graphRefs.add(new GraphReference(g, GraphReference.Source.UPDATE_MANAGEMENT));
+                        }
+                    }
+                }
+
+                default -> { /* LOAD, COPY, MOVE, ADD, CLEAR — no schema-relevant terms */ }
+            }
+        }
+
+        // Merge GRAPH-block refs collected by the visitor (from WHERE clauses / templates).
+        for (Node g : visitor.graphBlocks()) {
+            if (graphRefs.stream().noneMatch(r -> r.graph().equals(g)
+                    && r.source() == GraphReference.Source.GRAPH_BLOCK)) {
+                graphRefs.add(new GraphReference(g, GraphReference.Source.GRAPH_BLOCK));
+            }
+        }
+
+        return new SparqlUpdateAnalysis(
+                req,
+                visitor.triples(),
+                visitor.classes(),
+                visitor.properties(),
+                graphRefs,
+                visitor.pathChains(),
+                visitor.dynamicPredicate(),
+                visitor.dynamicClass()
+        );
+    }
+
+    /** Parses a SPARQL Update string, translating parse errors into our checked exception. */
+    public UpdateRequest parseUpdate(String updateString) throws InvalidQueryException {
+        try {
+            return UpdateFactory.create(updateString);
+        } catch (QueryParseException e) {
+            throw new InvalidQueryException(
+                    e.getMessage(), e, safeLine(e.getLine()), safeCol(e.getColumn()));
+        } catch (QueryException e) {
+            throw new InvalidQueryException(e.getMessage(), e);
+        }
+    }
+
+    // ---- SPARQL Query ------------------------------------------------------------------------
 
     /** Parses the query, translating Jena's {@link QueryParseException} into our checked one. */
     public Query parse(String queryString) throws InvalidQueryException {

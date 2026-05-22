@@ -1,0 +1,75 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex:   <http://example.org/shapes#> .
+@prefix cim:  <http://iec.ch/TC57/CIM100#> .
+
+# Prefix declarations made available to all embedded SPARQL constraints below.
+ex:
+    sh:declare [ sh:prefix "cim" ; sh:namespace "http://iec.ch/TC57/CIM100#"^^xsd:anyURI ] ;
+    sh:declare [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ] .
+
+# --- Shape 1: well-formed — no validation errors expected --------------------------------
+#
+# sh:targetClass and sh:path both exist in CGMES 3.0.
+# The embedded SPARQL uses cim:ACLineSegment.r on $this, which is typed as ACLineSegment
+# by the injected target-class hint → correct domain → no PROPERTY_NOT_ALLOWED error.
+
+ex:GoodACLineShape
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:property [
+        sh:path cim:ACLineSegment.r ;
+        sh:minCount 1 ;
+    ] ;
+    sh:sparql [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT $this WHERE {
+                $this cim:ACLineSegment.r ?r .
+                FILTER(?r < 0)
+            }
+        """ ;
+    ] .
+
+# --- Shape 2: unknown target class — UNKNOWN_CLASS on sh:targetClass --------------------
+#
+# Deliberate mistake: cim:DoesNotExist is not defined in any CGMES 3.0 profile.
+# Expected: one UNKNOWN_CLASS annotation on sh:targetClass.
+
+ex:BadTargetClassShape
+    a sh:NodeShape ;
+    sh:targetClass cim:DoesNotExist ;
+    sh:property [
+        sh:path cim:IdentifiedObject.name ;
+    ] .
+
+# --- Shape 3: unknown property path — UNKNOWN_PROPERTY on sh:path ----------------------
+#
+# Deliberate mistake: cim:ACLineSegment.typo does not exist.
+# Expected: one UNKNOWN_PROPERTY annotation on sh:path.
+
+ex:BadPathShape
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:property [
+        sh:path cim:ACLineSegment.typo ;
+    ] .
+
+# --- Shape 4: wrong domain in embedded SPARQL — PROPERTY_NOT_ALLOWED_FOR_CLASS ---------
+#
+# sh:targetClass is cim:Terminal. The embedded SPARQL uses cim:ACLineSegment.r, whose
+# rdfs:domain is cim:ACLineSegment — not Terminal. After $this type injection, the
+# validator knows $this is a Terminal → domain mismatch → PROPERTY_NOT_ALLOWED_FOR_CLASS.
+
+ex:WrongDomainSparqlShape
+    a sh:NodeShape ;
+    sh:targetClass cim:Terminal ;
+    sh:sparql [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT $this WHERE {
+                $this cim:ACLineSegment.r ?r .
+            }
+        """ ;
+    ] .

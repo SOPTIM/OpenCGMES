@@ -18,12 +18,18 @@
 
 package de.soptim.opencgmes.sparql.validation;
 
+import de.soptim.opencgmes.sparql.validation.analysis.ClassReference;
 import de.soptim.opencgmes.sparql.validation.analysis.GraphReference;
+import de.soptim.opencgmes.sparql.validation.analysis.PropertyReference;
 import de.soptim.opencgmes.sparql.validation.analysis.SparqlQueryAnalysis;
+import de.soptim.opencgmes.sparql.validation.analysis.SparqlUpdateAnalysis;
 import de.soptim.opencgmes.sparql.validation.schema.SchemaIndex;
 import de.soptim.opencgmes.sparql.validation.schema.ValidationScope;
+import org.apache.jena.query.QueryException;
+import org.apache.jena.query.QueryFactory;
 import de.soptim.opencgmes.sparql.validation.shacl.EmbeddedSparql;
 import de.soptim.opencgmes.sparql.validation.shacl.ShaclEmbeddedQueryResult;
+import de.soptim.opencgmes.sparql.validation.shacl.ShaclShapeAnalyzer;
 import de.soptim.opencgmes.sparql.validation.shacl.ShaclSparqlExtractor;
 import de.soptim.opencgmes.sparql.validation.shacl.ShaclValidationResult;
 import org.apache.jena.graph.Graph;
@@ -35,6 +41,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * High-level façade exposing the three {@code validateSparql} overloads and the four dependency
@@ -69,20 +76,44 @@ public final class SparqlValidationApi {
 
     // ---- validateSparql overloads ----------------------------------------------------------
 
-    public SparqlValidationResult validateSparql(String query) {
-        return validator.validate(query, new ValidationScope.AllProfilesScope());
+    /**
+     * Validates a SPARQL statement against all known schema profiles.
+     *
+     * <p>The input is auto-detected: if it parses as a SPARQL query (SELECT / CONSTRUCT /
+     * ASK / DESCRIBE) it is validated as a query; otherwise it is attempted as a SPARQL Update
+     * request (INSERT DATA, DELETE WHERE, INSERT/DELETE … WHERE, CREATE GRAPH, DROP GRAPH, or
+     * multiple such operations separated by {@code ;}).  If neither parse succeeds, the query
+     * parse error is returned as a {@code SYNTAX_ERROR} annotation.</p>
+     */
+    public SparqlValidationResult validateSparql(String input) {
+        return validateAutoDetect(Objects.requireNonNull(input, "input"),
+                new ValidationScope.AllProfilesScope());
     }
 
-    public SparqlValidationResult validateSparql(String query, Collection<VersionIri> profiles) {
-        return validator.validate(query, new ValidationScope.ProfileListScope(profiles));
+    /** Validates against an explicit list of profiles; see {@link #validateSparql(String)}. */
+    public SparqlValidationResult validateSparql(String input, Collection<VersionIri> profiles) {
+        return validateAutoDetect(Objects.requireNonNull(input, "input"),
+                new ValidationScope.ProfileListScope(profiles));
     }
 
+    /** Validates with per-graph profile mapping; see {@link #validateSparql(String)}. */
     public SparqlValidationResult validateSparql(
-            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles) {
-        return validator.validate(query, new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
+            String input, Map<Node, Collection<VersionIri>> namedGraphsToProfiles) {
+        return validateAutoDetect(Objects.requireNonNull(input, "input"),
+                new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
     }
 
-    // ---- getProfileDependencies ------------------------------------------------------------
+    private SparqlValidationResult validateAutoDetect(String input, ValidationScope scope) {
+        // Try query first; fall back to update if the query parse fails.
+        try {
+            QueryFactory.create(input);         // lightweight probe — does not retain the Query
+            return validator.validate(input, scope);
+        } catch (QueryException ignored) {
+            return validator.validateUpdate(input, scope);
+        }
+    }
+
+    // ---- getProfileDependencies (query) ----------------------------------------------------
 
     public Collection<VersionIri> getProfileDependencies(String query) throws InvalidQueryException {
         return profileDeps(analyze(query), new ValidationScope.AllProfilesScope());
@@ -99,22 +130,47 @@ public final class SparqlValidationApi {
         return profileDeps(analyze(query), new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
     }
 
+    // ---- getProfileDependencies (update) ---------------------------------------------------
+
+    public Collection<VersionIri> getUpdateProfileDependencies(String updateText)
+            throws InvalidQueryException {
+        return updateProfileDeps(analyzeUpdate(updateText), new ValidationScope.AllProfilesScope());
+    }
+
+    public Collection<VersionIri> getUpdateProfileDependencies(
+            String updateText, Collection<VersionIri> profiles) throws InvalidQueryException {
+        return updateProfileDeps(analyzeUpdate(updateText), new ValidationScope.ProfileListScope(profiles));
+    }
+
     // ---- getGraphDependencies --------------------------------------------------------------
 
     public Collection<Node> getGraphDependencies(String query) throws InvalidQueryException {
-        return graphDeps(analyze(query));
+        return graphDeps(analyze(query).graphs());
+    }
+
+    public Collection<Node> getUpdateGraphDependencies(String updateText) throws InvalidQueryException {
+        return graphDeps(analyzeUpdate(updateText).graphs());
     }
 
     // ---- getPropertyDependencies -----------------------------------------------------------
 
     public Collection<Node> getPropertyDependencies(String query) throws InvalidQueryException {
-        return propertyDeps(analyze(query));
+        return propertyDeps(analyze(query).properties());
+    }
+
+    public Collection<Node> getUpdatePropertyDependencies(String updateText)
+            throws InvalidQueryException {
+        return propertyDeps(analyzeUpdate(updateText).properties());
     }
 
     // ---- getClassDependencies --------------------------------------------------------------
 
     public Collection<Node> getClassDependencies(String query) throws InvalidQueryException {
-        return classDeps(analyze(query));
+        return classDeps(analyze(query).classes());
+    }
+
+    public Collection<Node> getUpdateClassDependencies(String updateText) throws InvalidQueryException {
+        return classDeps(analyzeUpdate(updateText).classes());
     }
 
     // ---- internals -------------------------------------------------------------------------
@@ -123,32 +179,31 @@ public final class SparqlValidationApi {
         return validator.analyze(Objects.requireNonNull(query, "query"));
     }
 
-    private static Collection<Node> propertyDeps(SparqlQueryAnalysis a) {
+    private SparqlUpdateAnalysis analyzeUpdate(String updateText) throws InvalidQueryException {
+        return validator.analyzeUpdate(Objects.requireNonNull(updateText, "updateText"));
+    }
+
+    private static Collection<Node> propertyDeps(List<PropertyReference> props) {
         var out = new LinkedHashSet<Node>();
-        a.properties().forEach(p -> out.add(p.propertyNode()));
+        props.forEach(p -> out.add(p.propertyNode()));
         return out;
     }
 
-    private static Collection<Node> classDeps(SparqlQueryAnalysis a) {
+    private static Collection<Node> classDeps(List<ClassReference> classes) {
         var out = new LinkedHashSet<Node>();
-        a.classes().forEach(c -> out.add(c.classNode()));
+        classes.forEach(c -> out.add(c.classNode()));
         return out;
     }
 
-    private static Collection<Node> graphDeps(SparqlQueryAnalysis a) {
+    private static Collection<Node> graphDeps(List<GraphReference> refs) {
         var out = new LinkedHashSet<Node>();
-        for (GraphReference gr : a.graphs()) out.add(gr.graph());
+        for (GraphReference gr : refs) out.add(gr.graph());
         return out;
     }
 
     /**
-     * Profiles that are actually needed by the query: every profile that declares at least one
-     * class or property used by the query.
-     *
-     * <p>For {@link ValidationScope.NamedGraphProfileScope} we honour the per-graph mapping —
-     * a term inside {@code GRAPH <g>} only "needs" profiles that are mapped to {@code <g>}.
-     * For the other two scopes the result is the subset of declared schema profiles that
-     * actually contribute a class or property used by the query.</p>
+     * Profiles needed by the query: every profile that declares at least one class or property
+     * used by the query (restricted to the given scope).
      */
     private Collection<VersionIri> profileDeps(SparqlQueryAnalysis a, ValidationScope scope) {
         var out = new LinkedHashSet<VersionIri>();
@@ -167,8 +222,25 @@ public final class SparqlValidationApi {
         return out;
     }
 
+    private Collection<VersionIri> updateProfileDeps(SparqlUpdateAnalysis a, ValidationScope scope) {
+        var out = new LinkedHashSet<VersionIri>();
+        for (var c : a.classes()) {
+            Collection<VersionIri> selected = validator.scopeProfiles(scope, c.graph());
+            for (VersionIri v : validator.schemaIndex().findClass(c.classNode())) {
+                if (selected.contains(v)) out.add(v);
+            }
+        }
+        for (var p : a.properties()) {
+            Collection<VersionIri> selected = validator.scopeProfiles(scope, p.graph());
+            for (VersionIri v : validator.schemaIndex().findProperty(p.propertyNode())) {
+                if (selected.contains(v)) out.add(v);
+            }
+        }
+        return out;
+    }
+
     // ========================================================================================
-    // SHACL — Phase 2
+    // SHACL validation
     // ========================================================================================
 
     /**
@@ -190,12 +262,26 @@ public final class SparqlValidationApi {
 
     private ShaclValidationResult validateShacl(Graph shapesGraph, ValidationScope scope) {
         Objects.requireNonNull(shapesGraph, "shapesGraph");
-        var results = new ArrayList<ShaclEmbeddedQueryResult>();
+
+        // Shape-structure analysis: sh:targetClass, sh:class, sh:path.
+        Collection<VersionIri> scopeProfiles = validator.scopeProfiles(scope, null);
+        var shapeAnnotations = new ShaclShapeAnalyzer(validator.schemaIndex())
+                .analyze(shapesGraph, scopeProfiles);
+
+        // Embedded-SPARQL analysis: sh:select, sh:ask, sh:construct.
+        // For each query, pass $this → sh:targetClass as a subject-type hint so that
+        // domain/range checks fire correctly even when $this has no explicit rdf:type in the query.
+        var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
-            var r = validator.validate(q.renderedQuery(), scope);
-            results.add(new ShaclEmbeddedQueryResult(q, r));
+            Map<Node, Set<Node>> hints = q.targetClasses().isEmpty()
+                    ? Map.of()
+                    : Map.of(org.apache.jena.sparql.core.Var.alloc("this"),
+                             q.targetClasses());
+            var r = validator.validate(q.renderedQuery(), scope, hints);
+            embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
         }
-        return new ShaclValidationResult(results);
+
+        return new ShaclValidationResult(shapeAnnotations, embeddedResults);
     }
 
     /**

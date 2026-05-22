@@ -1,0 +1,80 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex:   <http://example.org/shapes#> .
+@prefix cim:  <http://iec.ch/TC57/CIM100#> .
+
+ex:
+    sh:declare [ sh:prefix "cim" ; sh:namespace "http://iec.ch/TC57/CIM100#"^^xsd:anyURI ] ;
+    sh:declare [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ] .
+
+# --- Case 1: correct property for the target class — no domain error expected ----------
+ex:CorrectDomainShape
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:sparql [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT $this WHERE {
+                $this cim:ACLineSegment.r ?r .
+            }
+        """ ;
+    ] .
+
+# --- Case 2: wrong-domain property for the target class — PROPERTY_NOT_ALLOWED expected
+ex:WrongDomainShape
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:sparql [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT $this WHERE {
+                $this cim:VoltageLevel.nominalVoltage ?v .
+            }
+        """ ;
+    ] .
+
+# --- Case 3: $this already has an explicit rdf:type in the query ----------------------
+# The injected type (cim:VoltageLevel from sh:targetClass) conflicts with the explicit
+# cim:ACLineSegment. Because the explicit type wins, the domain check uses cim:ACLineSegment
+# and reports no error for cim:ACLineSegment.r.
+ex:ExplicitTypeShape
+    a sh:NodeShape ;
+    sh:targetClass cim:VoltageLevel ;
+    sh:sparql [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT $this WHERE {
+                $this a cim:ACLineSegment .
+                $this cim:ACLineSegment.r ?r .
+            }
+        """ ;
+    ] .
+
+# --- Case 4: sh:target (SPARQLTarget) — the SELECT itself defines the focus nodes -----
+# No sh:targetClass → $this has no injected type → domain check skips.
+ex:TargetQueryShape
+    a sh:NodeShape ;
+    sh:target [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT ?this WHERE { ?this a cim:ACLineSegment }
+        """ ;
+    ] .
+
+# --- Case 5: via sh:property — target class still reaches the embedded query ----------
+ex:ViaPropShape
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:property [
+        sh:path cim:ACLineSegment.r ;
+        sh:sparql [
+            sh:prefixes ex: ;
+            sh:select """
+                SELECT $this WHERE {
+                    $this cim:VoltageLevel.nominalVoltage ?bad .
+                }
+            """ ;
+        ] ;
+    ] .

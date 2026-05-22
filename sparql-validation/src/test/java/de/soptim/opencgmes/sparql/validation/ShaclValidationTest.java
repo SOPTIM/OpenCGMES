@@ -35,7 +35,7 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * Phase 2 tests — SHACL-embedded SPARQL validation.
+ * SHACL validation tests — shape-structure and embedded SPARQL.
  */
 public class ShaclValidationTest {
 
@@ -166,6 +166,173 @@ public class ShaclValidationTest {
                         && a.foundInOtherProfiles().stream()
                                 .anyMatch(v -> v.iri().equals(PROFILE_TP)));
         assertTrue("expected hint that VoltageLevel.nominalVoltage lives in TP", hint);
+    }
+
+    // ---- Shape-structure validation (sh:targetClass / sh:class / sh:path) ------------------
+
+    @Test
+    public void validShapesGraph_noShapeAnnotations() {
+        Graph g = loadShapes("shacl/shapes-basic.ttl");
+        var r = api.validateShacl(g);
+        assertTrue("shapes-basic.ttl contains only valid CIM terms in shape positions",
+                r.shapeAnnotations().isEmpty());
+    }
+
+    @Test
+    public void unknownTargetClass_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_CLASS
+                        && a.term().getURI().equals(CIM + "NonExistentClass")
+                        && a.message().contains("sh:targetClass"));
+        assertTrue("UNKNOWN_CLASS must be reported for sh:targetClass", found);
+    }
+
+    @Test
+    public void unknownPropertyInSimplePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentProperty")
+                        && a.message().contains("sh:path"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for sh:path simple URI", found);
+    }
+
+    @Test
+    public void unknownClassInShClass_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_CLASS
+                        && a.term().getURI().equals(CIM + "NonExistentRangeClass")
+                        && a.message().contains("sh:class"));
+        assertTrue("UNKNOWN_CLASS must be reported for sh:class", found);
+    }
+
+    @Test
+    public void unknownPropertyInInversePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentInverse"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for sh:inversePath", found);
+    }
+
+    @Test
+    public void unknownPropertyInSequencePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentStep"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for every step of a sequence path", found);
+    }
+
+    @Test
+    public void validStepInSequencePath_notReported() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        // cim:Equipment.EquipmentContainer IS in the schema — must not be reported.
+        boolean spurious = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(PROP_EQ_CONTAINER));
+        assertFalse("valid sequence path step must not produce an annotation", spurious);
+    }
+
+    @Test
+    public void unknownPropertyInAlternativePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentAlt"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for sh:alternativePath member", found);
+    }
+
+    @Test
+    public void validAlternativeInAlternativePath_notReported() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean spurious = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(PROP_NAME));
+        assertFalse("valid alternative path member must not produce an annotation", spurious);
+    }
+
+    @Test
+    public void unknownPropertyInZeroOrMorePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentZeroPlus"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for sh:zeroOrMorePath", found);
+    }
+
+    @Test
+    public void unknownPropertyInOneOrMorePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentOnePlus"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for sh:oneOrMorePath", found);
+    }
+
+    @Test
+    public void unknownPropertyInZeroOrOnePath_emitsShapeAnnotation() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(CIM + "NonExistentZeroOne"));
+        assertTrue("UNKNOWN_PROPERTY must be reported for sh:zeroOrOnePath", found);
+    }
+
+    @Test
+    public void validPropertyInRepetitionPath_notReported() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        // GoodZeroOrMorePath uses cim:ACLineSegment.r which is in the schema — must not be reported.
+        boolean spurious = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(PROP_R));
+        assertFalse("valid property inside sh:zeroOrMorePath must not produce an annotation", spurious);
+    }
+
+    @Test
+    public void structuralErrors_causeIsValidFalse() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        assertFalse("structural errors must cause isValid() == false", r.isValid());
+    }
+
+    @Test
+    public void totalAnnotationsCountsShapeAndEmbedded() {
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        int total = r.totalAnnotations();
+        int shapeOnly = r.shapeAnnotations().size();
+        int embeddedOnly = r.embeddedResults().stream()
+                .mapToInt(e -> e.result().annotations().size()).sum();
+        assertEquals("totalAnnotations must equal shape + embedded counts", total, shapeOnly + embeddedOnly);
+    }
+
+    @Test
+    public void restrictedProfileScope_hiddenTermProducesError() {
+        // Validate against EQ only. The shapes-cross-profile.ttl uses cim:VoltageLevel.nominalVoltage
+        // which lives in TP. The sh:path for it must also fail.
+        // Use shapes-basic.ttl + TP-only scope: cim:ACLineSegment.r lives in EQ, not TP.
+        Graph g = loadShapes("shacl/shapes-basic.ttl");
+        var r = api.validateShacl(g, List.of(VersionIri.of(PROFILE_TP)));
+        // ACLineSegment.r is an EQ property — should be unknown under TP-only scope.
+        boolean found = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && a.term().getURI().equals(PROP_R));
+        assertTrue("sh:path property outside scope must be reported", found);
     }
 
     // ---- helpers ----------------------------------------------------------------------------

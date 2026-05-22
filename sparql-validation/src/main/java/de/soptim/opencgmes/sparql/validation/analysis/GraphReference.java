@@ -34,6 +34,12 @@ public record GraphReference(Node graph, Source source) {
         /** {@code FROM NAMED <g>} clause. */
         FROM_NAMED,
         /** {@code FROM <g>} clause (default-graph composition). */
-        FROM
+        FROM,
+        /** Named graph appearing in an INSERT or DELETE quad template. */
+        UPDATE_TEMPLATE,
+        /** {@code WITH <g>} clause in an INSERT/DELETE update operation. */
+        UPDATE_WITH,
+        /** Graph named in a {@code CREATE}, {@code DROP}, or {@code CLEAR} operation. */
+        UPDATE_MANAGEMENT
     }
 }

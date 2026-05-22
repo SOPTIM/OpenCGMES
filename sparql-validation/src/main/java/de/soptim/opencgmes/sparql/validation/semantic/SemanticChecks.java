@@ -39,9 +39,8 @@ import java.util.Set;
 import java.util.function.Function;
 
 /**
- * Phase 3 — domain/range / datatype / chain checks that run <em>after</em> the Phase 1
- * existence checks. Each check is independent and emits its own annotations; nothing here
- * decides validation outcome by itself.
+ * Domain/range, datatype, and path-chain checks. Each check is independent and emits its
+ * own annotations; nothing here decides validation outcome by itself.
  *
  * <h2>What gets reported</h2>
  * <ul>
@@ -75,11 +74,11 @@ public final class SemanticChecks {
             SparqlQueryAnalysis analysis,
             SchemaIndex schemaIndex,
             Function<Node, Collection<VersionIri>> scopeResolver) {
-        return run(analysis, schemaIndex, scopeResolver, null, null);
+        return run(analysis.triples(), analysis.pathChains(), schemaIndex, scopeResolver, null, null);
     }
 
     /**
-     * Phase 3 checks with source-location hints. The optional {@code originalQuery} and
+     * Checks with source-location hints. The optional {@code originalQuery} and
      * {@code prefixes} are forwarded to {@link de.soptim.opencgmes.sparql.validation
      * .SourceLocator} so emitted annotations carry {@code line}/{@code column} when the
      * offending term can be found in the original text.
@@ -90,12 +89,26 @@ public final class SemanticChecks {
             Function<Node, Collection<VersionIri>> scopeResolver,
             String originalQuery,
             PrefixMapping prefixes) {
+        return run(analysis.triples(), analysis.pathChains(), schemaIndex, scopeResolver, originalQuery, prefixes);
+    }
 
-        var ctx = new Ctx(schemaIndex, scopeResolver, originalQuery, prefixes);
+    /**
+     * Checks on raw triple and path-chain collections. Used for both query and
+     * SPARQL Update analyses.
+     */
+    public static List<SparqlValidationAnnotation> run(
+            List<TriplePatternReference> triples,
+            List<PathChainReference> pathChains,
+            SchemaIndex schemaIndex,
+            Function<Node, Collection<VersionIri>> scopeResolver,
+            String originalText,
+            PrefixMapping prefixes) {
+
+        var ctx = new Ctx(schemaIndex, scopeResolver, originalText, prefixes);
         var annotations = new ArrayList<SparqlValidationAnnotation>();
-        Map<Node, Set<Node>> subjectTypes = SubjectTypeInference.infer(analysis.triples());
+        Map<Node, Set<Node>> subjectTypes = SubjectTypeInference.infer(triples);
 
-        for (TriplePatternReference t : analysis.triples()) {
+        for (TriplePatternReference t : triples) {
             Node s = t.triple().getSubject();
             Node p = t.triple().getPredicate();
             Node o = t.triple().getObject();
@@ -112,7 +125,7 @@ public final class SemanticChecks {
 
         // Property path chain checks: for each adjacent (p1, p2) pair, verify
         // range(p1) ∩ domain(p2) is non-empty under subclass relaxation.
-        for (PathChainReference chain : analysis.pathChains()) {
+        for (PathChainReference chain : pathChains) {
             Collection<VersionIri> scope = scopeResolver.apply(chain.graph());
             List<Node> seg = chain.segments();
             for (int i = 0; i < seg.size() - 1; i++) {
@@ -222,7 +235,7 @@ public final class SemanticChecks {
         if (!object.isLiteral() || ranges.isEmpty()) return;
 
         // Only constrain when the range *includes a datatype*. Class-only ranges → IRI reference
-        // expected, but we don't fault literal-vs-IRI here (Phase 3 stays lenient on the
+        // expected, but we don't fault literal-vs-IRI here (intentionally lenient on the
         // "object exists in data" question).
         var rangeDatatypes = new LinkedHashSet<String>();
         for (Node r : ranges) {
@@ -274,7 +287,7 @@ public final class SemanticChecks {
     /**
      * Cheap compatibility table — exact match, plus the "all numerics ≈ numerics" and
      * "all strings ≈ strings" buckets. Sub-byte precision distinctions are deliberately
-     * ignored; that's a Phase 4 problem if anyone ever wants it.
+     * ignored; tighten if needed.
      */
     private static boolean datatypesCompatible(String a, String b) {
         if (a.equals(b)) return true;

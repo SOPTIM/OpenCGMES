@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 /**
- * Phase 3 — semantic check tests: domain/range, subClassOf relaxation, datatype mismatch,
+ * Semantic check tests: domain/range, subClassOf relaxation, datatype mismatch,
  * implied type, property path chain compatibility.
  */
 public class SemanticValidationTest {
@@ -175,7 +175,7 @@ public class SemanticValidationTest {
     @Test
     public void classRangeDoesNotTriggerDatatypeCheck() {
         // PROP_EQ_CONTAINER has range VoltageLevel (a class, not a datatype). A literal object
-        // would be questionable but Phase 3 is intentionally lenient on IRI-vs-literal — no WARN.
+        // would be questionable but the validator is intentionally lenient on IRI-vs-literal — no WARN.
         var r = api.validateSparql(PREAMBLE
                 + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:Equipment.EquipmentContainer \"foo\" . }");
         long mismatch = r.annotations().stream()

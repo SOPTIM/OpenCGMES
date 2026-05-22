@@ -29,7 +29,7 @@ import java.util.Objects;
  *
  * <p>Only "simple" sequence paths are surfaced here — any non-{@code P_Link} component (inverse,
  * alt, mod, neg) inside the path causes the chain to be dropped, because chain compatibility
- * across those operators is more nuanced than Phase 3 wants to commit to.</p>
+ * across those operators is more nuanced than the current chain check commits to.</p>
  *
  * @param segments  property IRIs in path order; always at least 2 elements
  * @param graph     enclosing {@code GRAPH <g>} node, or {@code null} for default-graph
