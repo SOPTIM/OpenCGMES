@@ -93,10 +93,10 @@ public final class AlgebraAnalysisVisitor {
     private boolean dynamicPredicate;
     private boolean dynamicClass;
 
-    /** Scope group assigned to triples currently being visited (0 = root conjunctive clause). */
-    private int currentScopeGroup = 0;
-    /** Counter used to mint fresh scope group IDs for UNION branches and OPTIONAL bodies. */
-    private int nextScopeGroup = 1;
+    /** Full ancestor chain for triples currently being visited. Root = [0]. */
+    private List<Integer> currentScopeChain = List.of(0);
+    /** Counter used to mint fresh scope IDs for UNION branches and OPTIONAL bodies. */
+    private int nextScopeId = 1;
 
     public void walk(Op op) {
         analyze(op);
@@ -184,22 +184,24 @@ public final class AlgebraAnalysisVisitor {
             }
             case OpUnion union -> {
                 // Each UNION branch is an independent alternative — types from one branch must
-                // not bleed into the other, so assign a fresh scope group to each branch.
-                int saved = currentScopeGroup;
-                currentScopeGroup = nextScopeGroup++;
+                // not bleed into the other. Each branch extends the parent chain with a fresh ID.
+                List<Integer> saved = currentScopeChain;
+                currentScopeChain = chainWith(saved, nextScopeId++);
                 analyze(union.getLeft());
-                currentScopeGroup = nextScopeGroup++;
+                currentScopeChain = chainWith(saved, nextScopeId++);
                 analyze(union.getRight());
-                currentScopeGroup = saved;
+                currentScopeChain = saved;
             }
             case OpLeftJoin leftJoin -> {
-                // Required part stays in the current scope; the optional body gets its own scope
+                // Required part stays in the current chain; the optional body appends a fresh ID
                 // so its type assertions don't poison domain checks in the required part.
+                // The body inherits the required part's chain as its prefix, so required-part
+                // types DO propagate into the optional body.
                 analyze(leftJoin.getLeft());
-                int saved = currentScopeGroup;
-                currentScopeGroup = nextScopeGroup++;
+                List<Integer> saved = currentScopeChain;
+                currentScopeChain = chainWith(saved, nextScopeId++);
                 analyze(leftJoin.getRight());
-                currentScopeGroup = saved;
+                currentScopeChain = saved;
             }
             case Op1 op1 -> analyze(op1.getSubOp());
             case Op2 op2 -> {
@@ -238,7 +240,7 @@ public final class AlgebraAnalysisVisitor {
     }
 
     void processTriple(Triple t, Node graph) {
-        triples.add(new TriplePatternReference(t, graph, currentScopeGroup));
+        triples.add(new TriplePatternReference(t, graph, currentScopeChain));
         Node p = t.getPredicate();
         if (p.isURI()) {
             if (RDF_TYPE.equals(p)) {
@@ -264,7 +266,7 @@ public final class AlgebraAnalysisVisitor {
         triples.add(new TriplePatternReference(
                 Triple.create(tp.getSubject(),
                         tp.getPredicate() == null ? PATH_PRED_PLACEHOLDER : tp.getPredicate(),
-                        tp.getObject()), graph, currentScopeGroup));
+                        tp.getObject()), graph, currentScopeChain));
         collectPathUris(tp.getPath(), graph);
 
         // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for path-chain checks.
@@ -342,6 +344,14 @@ public final class AlgebraAnalysisVisitor {
         for (Expr e : exprs) {
             Walker.walk(e, visitor);
         }
+    }
+
+    /** Returns a new immutable list equal to {@code parent} with {@code id} appended. */
+    private static List<Integer> chainWith(List<Integer> parent, int id) {
+        var copy = new ArrayList<Integer>(parent.size() + 1);
+        copy.addAll(parent);
+        copy.add(id);
+        return List.copyOf(copy);
     }
 
     private record ClassRefKey(Node term, Node graph) {}

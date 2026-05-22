@@ -66,9 +66,11 @@ public final class SubjectTypeInference {
     /**
      * Scope-aware inference for domain/range checks.
      *
-     * <p>Returns a two-level map: {@code scopeGroup → (subject → classes)}. Scope group 0 is the
-     * root conjunctive clause; all other values identify UNION branches or OPTIONAL bodies.
-     * Use {@link #typesFor} to resolve the effective type set for a specific triple.</p>
+     * <p>Returns a two-level map keyed by the <em>leaf scope ID</em> (the last element of
+     * {@link TriplePatternReference#scopeChain()}). Use {@link #typesFor} to resolve the
+     * effective type set for a specific triple — that method walks the full scope chain and
+     * merges types from all ancestor scopes, ensuring that a type declared in a required
+     * parent clause is visible inside a nested OPTIONAL body.</p>
      */
     public static Map<Integer, Map<Node, Set<Node>>> inferScoped(List<TriplePatternReference> triples) {
         var out = new LinkedHashMap<Integer, Map<Node, Set<Node>>>();
@@ -77,7 +79,8 @@ public final class SubjectTypeInference {
             if (!RDF_TYPE.equals(p)) continue;
             Node o = t.triple().getObject();
             if (!o.isURI()) continue;
-            out.computeIfAbsent(t.scopeGroup(), k -> new LinkedHashMap<>())
+            int leaf = t.scopeChain().getLast();
+            out.computeIfAbsent(leaf, k -> new LinkedHashMap<>())
                .computeIfAbsent(t.triple().getSubject(), k -> new LinkedHashSet<>())
                .add(o);
         }
@@ -91,24 +94,21 @@ public final class SubjectTypeInference {
     }
 
     /**
-     * Returns the types visible for {@code subject} when checking a triple in {@code scopeGroup}.
+     * Returns the types visible for {@code subject} when checking a triple whose scope chain
+     * is {@code scopeChain}.
      *
-     * <p>Types from root scope 0 always apply (they are conjunctive with every alternative).
-     * Types from the current {@code scopeGroup} also apply. Types from any other scope group do
-     * not — they belong to sibling UNION branches or optional bodies that are evaluated
-     * independently.</p>
+     * <p>The chain encodes the full ancestry from the root clause ({@code 0}) to the innermost
+     * scope. A type declared in scope {@code S} is visible to a triple in scope chain
+     * {@code [0, S, ...]} because {@code S} appears in the chain. Types in sibling scopes
+     * (not in the chain) are excluded — they belong to independent UNION alternatives.</p>
      */
-    public static Set<Node> typesFor(Node subject, int scopeGroup,
+    public static Set<Node> typesFor(Node subject, List<Integer> scopeChain,
                                      Map<Integer, Map<Node, Set<Node>>> scopedTypes) {
-        var root  = scopedTypes.getOrDefault(0, Map.of()).getOrDefault(subject, Set.of());
-        if (scopeGroup == 0 || scopedTypes.getOrDefault(scopeGroup, Map.of()).isEmpty()) {
-            return root;
+        var result = new LinkedHashSet<Node>();
+        for (int scope : scopeChain) {
+            var scopeTypes = scopedTypes.getOrDefault(scope, Map.of()).getOrDefault(subject, Set.of());
+            result.addAll(scopeTypes);
         }
-        var local = scopedTypes.getOrDefault(scopeGroup, Map.of()).getOrDefault(subject, Set.of());
-        if (local.isEmpty()) return root;
-        if (root.isEmpty())  return local;
-        var merged = new LinkedHashSet<Node>(root);
-        merged.addAll(local);
-        return Set.copyOf(merged);
+        return result.isEmpty() ? Set.of() : Set.copyOf(result);
     }
 }

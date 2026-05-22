@@ -161,7 +161,21 @@ public class SparqlValidationApiTest {
         assertTrue("expected GRAPH_NOT_CONFIGURED annotation, got: " + r.annotations(), found);
     }
 
-    // 8b. Variable graph in NamedGraphProfileScope: must not produce false errors.
+    // 8b. Variable graph with unknown class must produce an annotation without crashing.
+    @Test
+    public void variableGraphWithUnknownClassProducesAnnotationNotCrash() {
+        Node graphA = NodeFactory.createURI("urn:graph:a");
+        Map<Node, Collection<VersionIri>> map = Map.of(
+                graphA, List.of(VersionIri.of(PROFILE_EQ)));
+        // GRAPH ?g with an unknown class must produce UNKNOWN_CLASS without calling graph.getURI()
+        // on the variable node (which would throw UnsupportedOperationException).
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { GRAPH ?g { ?x a cim:DoesNotExist . } }", map);
+        SparqlValidationAnnotation a = expectSingle(r, SparqlValidationCode.UNKNOWN_CLASS);
+        assertEquals(CIM + "DoesNotExist", a.term().getURI());
+    }
+
+    // 8c. Variable graph in NamedGraphProfileScope: must not produce false errors.
     @Test
     public void variableGraphDoesNotProduceFalseErrors() {
         Node graphA = NodeFactory.createURI("urn:graph:a");

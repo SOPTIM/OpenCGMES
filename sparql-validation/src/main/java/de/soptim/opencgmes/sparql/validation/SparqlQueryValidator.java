@@ -110,10 +110,14 @@ public final class SparqlQueryValidator {
     private static List<TriplePatternReference> augmentWithTypeHints(
             List<TriplePatternReference> triples, Map<Node, Set<Node>> hints) {
         if (hints == null || hints.isEmpty()) return triples;
-        Map<Node, Set<Node>> existing = SubjectTypeInference.infer(triples);
+        // Only suppress injection when the variable has a definite type in root scope (0).
+        // A type that appears only inside an OPTIONAL or UNION branch is uncertain and must
+        // not prevent the target-class hint from being applied to the mandatory root clause.
+        Map<Integer, Map<Node, Set<Node>>> scoped = SubjectTypeInference.inferScoped(triples);
+        Map<Node, Set<Node>> rootTypes = scoped.getOrDefault(0, Map.of());
         var extra = new ArrayList<TriplePatternReference>();
         for (var entry : hints.entrySet()) {
-            if (existing.containsKey(entry.getKey())) continue; // explicit type wins
+            if (rootTypes.containsKey(entry.getKey())) continue; // explicit root-scope type wins
             for (Node cls : entry.getValue()) {
                 extra.add(new TriplePatternReference(
                         Triple.create(entry.getKey(), RDF_TYPE, cls), null));
@@ -314,7 +318,9 @@ public final class SparqlQueryValidator {
 
     private static void appendScopeLabel(StringBuilder msg, Node graph, Collection<VersionIri> selected) {
         if (graph != null) {
-            msg.append("graph <").append(graph.getURI()).append("> / ");
+            msg.append("graph ")
+               .append(graph.isURI() ? "<" + graph.getURI() + ">" : graph)
+               .append(" / ");
         }
         if (selected.isEmpty()) {
             msg.append("selected schema/profile scope (empty)");

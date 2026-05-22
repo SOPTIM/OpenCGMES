@@ -104,8 +104,14 @@ jobs:
             -Dproperty=ver.cimxml \
             -DnewVersion="${CIMXML_RELEASE}" \
             -DgenerateBackupPoms=false
+          # Also bump cimxml itself so the local install satisfies the rewritten dependency.
+          mvn -B -ntp -f cimxml/pom.xml \
+            org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
+            -DnewVersion="${CIMXML_RELEASE}" \
+            -DgenerateBackupPoms=false
 
-      # cimxml must exist in the local repo before sparql-validation can resolve it.
+      # cimxml must be installed locally so sparql-validation can resolve it during deploy.
+      # The version was bumped above to match the release dependency in sparql-validation/pom.xml.
       - name: Install cimxml dependency into local repo
         run: mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
 
@@ -153,6 +159,10 @@ jobs:
           mvn -B -ntp -f sparql-validation/pom.xml \
             org.codehaus.mojo:versions-maven-plugin:2.21.0:set-property \
             -Dproperty=ver.cimxml \
+            -DnewVersion="${CIMXML_RELEASE}" \
+            -DgenerateBackupPoms=false
+          mvn -B -ntp -f cimxml/pom.xml \
+            org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
             -DnewVersion="${CIMXML_RELEASE}" \
             -DgenerateBackupPoms=false
 

@@ -119,7 +119,7 @@ public final class SemanticChecks {
             Set<Node> domains = schemaIndex.domainsOf(p, scope);
             Set<Node> ranges  = schemaIndex.rangesOf(p, scope);
 
-            Set<Node> declared = SubjectTypeInference.typesFor(s, t.scopeGroup(), scopedTypes);
+            Set<Node> declared = SubjectTypeInference.typesFor(s, t.scopeChain(), scopedTypes);
             checkDomain(annotations, ctx, scope, declared, s, p, t.graph(), domains);
             checkLiteralRange(annotations, ctx, scope, p, o, t.graph(), ranges);
         }

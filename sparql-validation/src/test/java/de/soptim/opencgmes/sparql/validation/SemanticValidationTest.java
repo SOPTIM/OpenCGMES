@@ -270,6 +270,20 @@ public class SemanticValidationTest {
         assertNoErrors(r);
     }
 
+    @Test
+    public void unionBranchTypePropagatesIntoNestedOptional() {
+        // Branch type (?s = ACLineSegment, in scope [0,1]) must propagate into the nested
+        // OPTIONAL body (scope [0,1,2]) so that the domain check on ACLineSegment.r passes.
+        // With a flat scope model this would produce QUERY_IMPLIED_TYPE (no type found).
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  { ?s a cim:ACLineSegment . OPTIONAL { ?s cim:ACLineSegment.r ?r } } "
+                + "  UNION "
+                + "  { ?s a cim:VoltageLevel ; cim:VoltageLevel.nominalVoltage ?v } "
+                + "}");
+        assertNoErrors(r);
+    }
+
     // -- silence on incomplete schemas ------------------------------------------------------
 
     @Test
