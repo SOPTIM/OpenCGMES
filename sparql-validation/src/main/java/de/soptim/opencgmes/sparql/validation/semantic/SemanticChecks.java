@@ -107,7 +107,7 @@ public final class SemanticChecks {
             Set<Node> ranges  = schemaIndex.rangesOf(p, scope);
 
             checkDomain(annotations, ctx, scope, subjectTypes, s, p, t.graph(), domains);
-            checkLiteralRange(annotations, ctx, p, o, t.graph(), ranges);
+            checkLiteralRange(annotations, ctx, scope, p, o, t.graph(), ranges);
         }
 
         // Property path chain checks: for each adjacent (p1, p2) pair, verify
@@ -215,6 +215,7 @@ public final class SemanticChecks {
     private static void checkLiteralRange(
             List<SparqlValidationAnnotation> out,
             Ctx ctx,
+            Collection<VersionIri> scope,
             Node property, Node object, Node graph,
             Set<Node> ranges) {
 
@@ -246,7 +247,7 @@ public final class SemanticChecks {
                         + quoteIris(rangeDatatypes) + ".",
                 SparqlValidationCode.DATATYPE_MISMATCH,
                 property,
-                List.of(),
+                List.copyOf(scope),
                 List.of(),
                 graph));
     }

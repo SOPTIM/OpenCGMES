@@ -35,6 +35,12 @@ jobs:
 
           RELEASE_VERSION="${TAG#sparql-validation-v}"
           POM_VERSION="$(mvn -q -f sparql-validation/pom.xml help:evaluate -Dexpression=project.version -DforceStdout)"
+
+          if [[ "${POM_VERSION}" != *-SNAPSHOT ]]; then
+            echo "pom version '${POM_VERSION}' is not a SNAPSHOT; tag before the SNAPSHOT→release transition?" >&2
+            exit 1
+          fi
+
           POM_BASE="${POM_VERSION%-SNAPSHOT}"
 
           if [[ "${POM_BASE}" != "${RELEASE_VERSION}" ]]; then

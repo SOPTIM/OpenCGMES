@@ -63,8 +63,6 @@ public final class SparqlQueryAnalyzer {
             Node n = NodeFactory.createURI(uri);
             if (seen.add(n)) {
                 graphs.add(new GraphReference(n, GraphReference.Source.FROM));
-            } else {
-                graphs.add(new GraphReference(n, GraphReference.Source.FROM));
             }
         }
         for (String uri : safe(query.getNamedGraphURIs())) {

@@ -61,9 +61,12 @@ public sealed interface ValidationScope
 
         public NamedGraphProfileScope {
             Objects.requireNonNull(namedGraphsToProfiles, "namedGraphsToProfiles");
-            // Defensive copy with deep-immutable values.
+            // Defensive copy with deep-immutable values; validate every entry explicitly so
+            // callers get a named-parameter message rather than an opaque Map.copyOf NPE.
             var copy = new LinkedHashMap<Node, Collection<VersionIri>>();
             for (var e : namedGraphsToProfiles.entrySet()) {
+                Objects.requireNonNull(e.getKey(), "namedGraphsToProfiles key");
+                Objects.requireNonNull(e.getValue(), "namedGraphsToProfiles value for key " + e.getKey());
                 copy.put(e.getKey(), List.copyOf(e.getValue()));
             }
             namedGraphsToProfiles = Map.copyOf(copy);

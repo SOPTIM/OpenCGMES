@@ -53,6 +53,8 @@ public final class SubjectTypeInference {
             if (!o.isURI()) continue;
             out.computeIfAbsent(t.triple().getSubject(), k -> new LinkedHashSet<>()).add(o);
         }
-        return Map.copyOf(out);
+        var immutable = new LinkedHashMap<Node, Set<Node>>(out.size());
+        out.forEach((k, v) -> immutable.put(k, Set.copyOf(v)));
+        return Map.copyOf(immutable);
     }
 }

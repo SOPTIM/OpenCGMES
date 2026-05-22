@@ -105,48 +105,15 @@ public final class SparqlValidationApi {
         return graphDeps(analyze(query));
     }
 
-    public Collection<Node> getGraphDependencies(String query, Collection<VersionIri> profiles)
-            throws InvalidQueryException {
-        return graphDeps(analyze(query));
-    }
-
-    public Collection<Node> getGraphDependencies(
-            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
-            throws InvalidQueryException {
-        return graphDeps(analyze(query));
-    }
-
     // ---- getPropertyDependencies -----------------------------------------------------------
 
     public Collection<Node> getPropertyDependencies(String query) throws InvalidQueryException {
         return propertyDeps(analyze(query));
     }
 
-    public Collection<Node> getPropertyDependencies(String query, Collection<VersionIri> profiles)
-            throws InvalidQueryException {
-        return propertyDeps(analyze(query));
-    }
-
-    public Collection<Node> getPropertyDependencies(
-            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
-            throws InvalidQueryException {
-        return propertyDeps(analyze(query));
-    }
-
     // ---- getClassDependencies --------------------------------------------------------------
 
     public Collection<Node> getClassDependencies(String query) throws InvalidQueryException {
-        return classDeps(analyze(query));
-    }
-
-    public Collection<Node> getClassDependencies(String query, Collection<VersionIri> profiles)
-            throws InvalidQueryException {
-        return classDeps(analyze(query));
-    }
-
-    public Collection<Node> getClassDependencies(
-            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
-            throws InvalidQueryException {
         return classDeps(analyze(query));
     }
 
@@ -237,6 +204,7 @@ public final class SparqlValidationApi {
      * diagnostics.
      */
     public Collection<Node> getShaclClassDependencies(Graph shapesGraph) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
         var out = new LinkedHashSet<Node>();
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
@@ -251,6 +219,7 @@ public final class SparqlValidationApi {
 
     /** Aggregate property IRIs used by all SPARQL fragments embedded in the shapes graph. */
     public Collection<Node> getShaclPropertyDependencies(Graph shapesGraph) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
         var out = new LinkedHashSet<Node>();
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
@@ -270,6 +239,7 @@ public final class SparqlValidationApi {
      * "what does this shape need?" question, not the "is this shape valid against X?" one.
      */
     public Collection<VersionIri> getShaclProfileDependencies(Graph shapesGraph) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
         return shaclProfileDeps(shapesGraph, null);
     }
 
@@ -279,6 +249,7 @@ public final class SparqlValidationApi {
      */
     public Collection<VersionIri> getShaclProfileDependencies(
             Graph shapesGraph, Collection<VersionIri> profiles) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
         return shaclProfileDeps(shapesGraph, profiles);
     }
 
@@ -306,6 +277,7 @@ public final class SparqlValidationApi {
 
     /** Expose the extractor for callers that want to introspect SHACL fragments themselves. */
     public List<EmbeddedSparql> extractShaclSparql(Graph shapesGraph) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
         return shaclExtractor.extract(shapesGraph);
     }
 }

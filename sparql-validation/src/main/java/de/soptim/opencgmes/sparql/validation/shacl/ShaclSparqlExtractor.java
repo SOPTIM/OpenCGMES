@@ -89,10 +89,16 @@ public final class ShaclSparqlExtractor {
 
         var merged = new TreeMap<String, String>();
         Iterator<Triple> it = g.find(container, Shacl.PREFIXES, Node.ANY);
-        while (it.hasNext()) {
-            Node owner = it.next().getObject();
-            Map<String, String> m = prefixesByOwner.get(owner);
-            if (m != null) merged.putAll(m);
+        try {
+            while (it.hasNext()) {
+                Node owner = it.next().getObject();
+                Map<String, String> m = prefixesByOwner.get(owner);
+                if (m != null) merged.putAll(m);
+            }
+        } finally {
+            if (it instanceof AutoCloseable c) {
+                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+            }
         }
         return merged;
     }
@@ -105,22 +111,34 @@ public final class ShaclSparqlExtractor {
     private static Map<Node, Map<String, String>> collectPrefixDeclarations(Graph g) {
         var byOwner = new LinkedHashMap<Node, Map<String, String>>();
         Iterator<Triple> it = g.find(Node.ANY, Shacl.DECLARE, Node.ANY);
-        while (it.hasNext()) {
-            Triple t = it.next();
-            Node owner = t.getSubject();
-            Node decl  = t.getObject();
-            String prefix = literalOf(g, decl, Shacl.PREFIX);
-            String namespace = literalOf(g, decl, Shacl.NAMESPACE);
-            if (prefix == null || namespace == null) continue;
-            byOwner.computeIfAbsent(owner, k -> new TreeMap<>()).put(prefix, namespace);
+        try {
+            while (it.hasNext()) {
+                Triple t = it.next();
+                Node owner = t.getSubject();
+                Node decl  = t.getObject();
+                String prefix = literalOf(g, decl, Shacl.PREFIX);
+                String namespace = literalOf(g, decl, Shacl.NAMESPACE);
+                if (prefix == null || namespace == null) continue;
+                byOwner.computeIfAbsent(owner, k -> new TreeMap<>()).put(prefix, namespace);
+            }
+        } finally {
+            if (it instanceof AutoCloseable c) {
+                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+            }
         }
         return byOwner;
     }
 
     private static String literalOf(Graph g, Node subject, Node predicate) {
         Iterator<Triple> it = g.find(subject, predicate, Node.ANY);
-        if (!it.hasNext()) return null;
-        Node o = it.next().getObject();
-        return o.isLiteral() ? o.getLiteralLexicalForm() : null;
+        try {
+            if (!it.hasNext()) return null;
+            Node o = it.next().getObject();
+            return o.isLiteral() ? o.getLiteralLexicalForm() : null;
+        } finally {
+            if (it instanceof AutoCloseable c) {
+                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+            }
+        }
     }
 }

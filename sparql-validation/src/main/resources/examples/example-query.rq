@@ -1,13 +1,18 @@
-# Example SPARQL query validated against cim-mini-schema.rdf.
-# It contains two deliberate mistakes for the validator to catch.
+# SPARQL validation example — validated against CGMES 3.0 RDFS profiles.
+#
+# Deliberate mistakes for the validator to catch:
+#   1. cim:ACLineSegment.r applied to cim:Terminal  (wrong rdfs:domain)
+#   2. cim:DoesNotExist.property is not in any profile  (UNKNOWN_PROPERTY)
 PREFIX cim: <http://iec.ch/TC57/CIM100#>
 
-SELECT ?line ?name ?r
+SELECT ?line ?name ?r ?termName
 WHERE {
   ?line a cim:ACLineSegment ;
         cim:IdentifiedObject.name ?name ;
-        cim:ACLineSegment.resistance ?r .
+        cim:ACLineSegment.r ?r .
 
   ?term a cim:Terminal ;
-        cim:ACLineSegment.r ?value .
+        cim:IdentifiedObject.name ?termName ;
+        cim:ACLineSegment.r ?wrongDomain ;
+        cim:DoesNotExist.property ?bogus .
 }

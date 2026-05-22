@@ -149,13 +149,15 @@
                 <version>${ver.plugin.surefire}</version>
             </plugin>
 
-            <!-- Runs the EntsoeValidationExample: `mvn -pl sparql-validation exec:java` -->
+            <!-- Runs SparqlValidationExample: `mvn -pl sparql-validation exec:java` -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${ver.plugin.exec}</version>
                 <configuration>
                     <mainClass>${exec.mainClass}</mainClass>
+                    <!-- Keep CWD at the module root so relative default paths resolve correctly. -->
+                    <workingDirectory>${project.basedir}</workingDirectory>
                 </configuration>
             </plugin>
 

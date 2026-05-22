@@ -240,7 +240,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
                             propertyRange.computeIfAbsent(s, k -> new HashSet<>()).add(o);
                         }
                     }
-                    if (o.isURI()) classes.add(o);
+                    if (o.isURI() && !isDatatypeUri(o.getURI())) classes.add(o);
                 } else if (RDFS_SUBCLASS_OF.equals(p)) {
                     if (s.isURI()) {
                         classes.add(s);
@@ -335,6 +335,13 @@ public final class RdfsSchemaIndex implements SchemaIndex {
 
         return new ProfileSchema(v, classes, properties,
                 propertyDomain, propertyRange, baseline.subClassOf());
+    }
+
+    private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
+    private static final String RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+
+    private static boolean isDatatypeUri(String iri) {
+        return iri.startsWith(XSD_NS) || iri.equals(RDF_NS + "langString");
     }
 
     private static Map<Node, Set<Node>> mutableCopy(Map<Node, Set<Node>> in) {

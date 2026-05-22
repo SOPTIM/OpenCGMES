@@ -25,110 +25,189 @@ import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationAnnotation;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationApi;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationResult;
+import de.soptim.opencgmes.sparql.validation.VersionIri;
 import de.soptim.opencgmes.sparql.validation.schema.RdfsSchemaIndex;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
- * Minimal runnable example: validate a SPARQL query against a CIM/RDFS schema, both loaded
- * from classpath resources, with the result printed to the terminal.
+ * Runnable example: validate a SPARQL query against all CGMES 3.0 RDFS profiles from the
+ * ENTSO-E <em>Application Profiles Library</em> submodule, then print the result.
  *
- * <h2>Run it</h2>
+ * <h2>Quick start</h2>
  * <pre>{@code
- * mvn -q install -DskipTests            # once, so cimxml is in your local repo
+ * # Once: initialise the submodule
+ * git submodule update --init
+ *
+ * # Build and run with all defaults (CGMES 3.0 profiles + built-in example query)
+ * mvn -q install -DskipTests
  * mvn -q -pl sparql-validation exec:java
+ *
+ * # Custom RDFS folder and/or query file
+ * mvn -q -pl sparql-validation exec:java \
+ *     -Dexec.args="path/to/rdfs-folder path/to/query.rq"
  * }</pre>
  *
- * <p>It reads two files from {@code src/main/resources/examples/}:</p>
- * <ul>
- *   <li>{@code cim-mini-schema.rdf} — a small CIM-style RDFS profile</li>
- *   <li>{@code example-query.rq}   — a SPARQL query with two deliberate mistakes</li>
- * </ul>
+ * <h2>Arguments (both optional)</h2>
+ * <ol>
+ *   <li>{@code rdfs-dir}   — directory that contains {@code *.rdf} RDFS profile files.
+ *       Defaults to the submodule at
+ *       {@code testing/entsoe/application-profiles-library/CGMES/CurrentRelease/RDFS}.</li>
+ *   <li>{@code query-file} — path to a {@code *.rq} SPARQL file.
+ *       Defaults to the built-in {@code examples/example-query.rq} classpath resource.</li>
+ * </ol>
  */
 public final class SparqlValidationExample {
 
-    private static final String SCHEMA_RESOURCE = "examples/cim-mini-schema.rdf";
-    private static final String QUERY_RESOURCE  = "examples/example-query.rq";
+    private static final Path DEFAULT_RDFS_DIR = Path.of(
+            "testing", "entsoe", "application-profiles-library",
+            "CGMES", "CurrentRelease", "RDFS");
+
+    private static final String DEFAULT_QUERY_RESOURCE = "examples/example-query.rq";
 
     private SparqlValidationExample() {}
 
     public static void main(String[] args) throws Exception {
-        // 1. Load the RDFS schema and build the validation API.
-        SparqlValidationApi api;
-        try (Reader reader = resourceReader(SCHEMA_RESOURCE)) {
-            CimProfile profile = new RdfXmlParser().parseCimProfile(reader);
-            CimProfileRegistry registry = new CimProfileRegistryStd();
-            registry.register(profile);
-            api = new SparqlValidationApi(RdfsSchemaIndex.fromCimRegistry(registry));
+        Path rdfsDir    = args.length > 0 ? Path.of(args[0]) : DEFAULT_RDFS_DIR;
+        Path queryFile  = args.length > 1 ? Path.of(args[1]) : null;
+
+        // 1. Discover .rdf files in rdfsDir.
+        List<Path> rdfFiles = findRdfFiles(rdfsDir);
+        if (rdfFiles.isEmpty()) {
+            System.err.println("No .rdf files found in: " + rdfsDir.toAbsolutePath());
+            System.err.println("Did you run: git submodule update --init ?");
+            System.exit(1);
         }
 
-        // 2. Load the SPARQL query.
-        String query = resourceText(QUERY_RESOURCE);
+        // 2. Parse every profile and build the schema index.
+        CimProfileRegistry registry = new CimProfileRegistryStd();
+        var parseErrors = new ArrayList<String>();
+        for (Path f : rdfFiles) {
+            try (Reader r = Files.newBufferedReader(f, StandardCharsets.UTF_8)) {
+                CimProfile profile = new RdfXmlParser().parseCimProfile(r);
+                registry.register(profile);
+            } catch (Exception e) {
+                parseErrors.add(f.getFileName() + ": " + e.getMessage());
+            }
+        }
 
-        // 3. Validate and print the result.
-        SparqlValidationResult result = api.validateSparql(query);
+        RdfsSchemaIndex index = RdfsSchemaIndex.fromCimRegistry(registry);
+        SparqlValidationApi api = new SparqlValidationApi(index);
 
-        var index = (RdfsSchemaIndex) api.schemaIndex();
-        System.out.println("==============================================================");
+        // 3. Load the query — from file or classpath.
+        String queryText;
+        String queryLabel;
+        if (queryFile != null) {
+            queryText  = Files.readString(queryFile, StandardCharsets.UTF_8);
+            queryLabel = queryFile.toString();
+        } else {
+            queryText  = resourceText(DEFAULT_QUERY_RESOURCE);
+            queryLabel = DEFAULT_QUERY_RESOURCE + " (classpath)";
+        }
+
+        // 4. Validate the query against all loaded profiles.
+        SparqlValidationResult result = api.validateSparql(queryText);
+
+        // 5. Print a report.
+        System.out.println("=================================================================");
         System.out.println(" OpenCGMES — static SPARQL query validation");
-        System.out.println("==============================================================");
-        index.getAllProfiles().forEach(v -> {
+        System.out.println("=================================================================");
+        System.out.println();
+
+        System.out.println("--- schema profiles loaded from: " + rdfsDir.toAbsolutePath());
+        List<VersionIri> allProfiles = index.getAllProfiles();
+        for (VersionIri v : allProfiles) {
             var schema = index.profiles().get(v);
-            System.out.println(" schema : " + SCHEMA_RESOURCE);
-            System.out.println(" profile: " + v.iri()
-                    + "  (" + schema.classes().size() + " classes, "
-                    + schema.properties().size() + " properties)");
-        });
-        System.out.println(" query  : " + QUERY_RESOURCE);
-
-        System.out.println();
-        System.out.println("----- query --------------------------------------------------");
-        printNumbered(query);
-
-        System.out.println();
-        System.out.println("----- result -------------------------------------------------");
-        System.out.println(" valid: " + result.isValid());
-        if (result.annotations().isEmpty()) {
-            System.out.println(" (no problems found)");
+            System.out.printf("  %-55s  %3d cls  %3d prop%n",
+                    shortIri(v.iri()),
+                    schema.classes().size(),
+                    schema.properties().size());
         }
-        for (SparqlValidationAnnotation a : result.annotations()) {
-            String where = (a.line() != null)
-                    ? "line " + a.line() + ", col " + a.column()
-                    : "(no position)";
+        if (!parseErrors.isEmpty()) {
             System.out.println();
-            System.out.println(" [" + a.severity() + "] " + a.code() + "  —  " + where);
-            System.out.println("   " + a.message());
+            System.out.println("  [WARN] parse errors (files skipped):");
+            parseErrors.forEach(e -> System.out.println("    " + e));
         }
+
         System.out.println();
+        System.out.println("--- query: " + queryLabel);
+        printNumbered(queryText);
+
+        System.out.println();
+        System.out.println("--- validation result");
+        System.out.println("  valid: " + result.isValid());
+        System.out.println("  annotations: " + result.annotations().size());
+
+        if (result.annotations().isEmpty()) {
+            System.out.println("  (no problems found)");
+        } else {
+            System.out.println();
+            for (SparqlValidationAnnotation a : result.annotations()) {
+                String where = (a.line() != null)
+                        ? "line " + a.line() + ", col " + a.column()
+                        : "(no source location)";
+                System.out.println("  [" + a.severity() + "] " + a.code() + "  —  " + where);
+                System.out.println("    " + a.message());
+                Collection<VersionIri> selected = a.selectedProfiles();
+                if (!selected.isEmpty()) {
+                    System.out.println("    scope: " + selected.stream()
+                            .map(v -> shortIri(v.iri())).toList());
+                }
+                Collection<VersionIri> found = a.foundInOtherProfiles();
+                if (!found.isEmpty()) {
+                    System.out.println("    exists in: " + found.stream()
+                            .map(v -> shortIri(v.iri())).toList());
+                }
+                System.out.println();
+            }
+        }
     }
 
-    // ---- resource loading -----------------------------------------------------------------
-
-    private static Reader resourceReader(String name) {
-        InputStream in = SparqlValidationExample.class.getClassLoader().getResourceAsStream(name);
-        if (in == null) {
-            throw new IllegalStateException("Missing classpath resource: " + name);
+    private static List<Path> findRdfFiles(Path dir) throws Exception {
+        if (!Files.isDirectory(dir)) return List.of();
+        var out = new ArrayList<Path>();
+        try (var stream = Files.list(dir)) {
+            stream.filter(p -> p.toString().endsWith(".rdf"))
+                  .sorted()
+                  .forEach(out::add);
         }
-        return new InputStreamReader(in, StandardCharsets.UTF_8);
+        return out;
     }
 
     private static String resourceText(String name) throws Exception {
         try (InputStream in = SparqlValidationExample.class.getClassLoader()
                 .getResourceAsStream(name)) {
-            if (in == null) {
-                throw new IllegalStateException("Missing classpath resource: " + name);
-            }
+            if (in == null) throw new IllegalStateException("Missing classpath resource: " + name);
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    private static Reader resourceReader(String name) {
+        InputStream in = SparqlValidationExample.class.getClassLoader().getResourceAsStream(name);
+        if (in == null) throw new IllegalStateException("Missing classpath resource: " + name);
+        return new InputStreamReader(in, StandardCharsets.UTF_8);
     }
 
     private static void printNumbered(String text) {
         String[] lines = text.split("\n", -1);
         for (int i = 0; i < lines.length; i++) {
-            System.out.printf(" %2d | %s%n", i + 1, lines[i]);
+            System.out.printf("  %2d | %s%n", i + 1, lines[i]);
         }
+    }
+
+    // Returns the last two path/fragment segments: "CoreEquipment-EU/3.0" for a version IRI.
+    private static String shortIri(String iri) {
+        int last = Math.max(iri.lastIndexOf('/'), iri.lastIndexOf('#'));
+        if (last < 0) return iri;
+        int prev = Math.max(iri.lastIndexOf('/', last - 1), iri.lastIndexOf('#', last - 1));
+        return prev >= 0 ? iri.substring(prev + 1) : iri.substring(last + 1);
     }
 }
