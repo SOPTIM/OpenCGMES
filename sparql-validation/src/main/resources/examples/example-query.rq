@@ -1,0 +1,13 @@
+# Example SPARQL query validated against cim-mini-schema.rdf.
+# It contains two deliberate mistakes for the validator to catch.
+PREFIX cim: <http://iec.ch/TC57/CIM100#>
+
+SELECT ?line ?name ?r
+WHERE {
+  ?line a cim:ACLineSegment ;
+        cim:IdentifiedObject.name ?name ;
+        cim:ACLineSegment.resistance ?r .
+
+  ?term a cim:Terminal ;
+        cim:ACLineSegment.r ?value .
+}

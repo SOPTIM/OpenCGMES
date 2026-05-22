@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    A small, hand-written CIM-style RDFS profile used by SparqlValidationExample.
+
+    It is deliberately tiny but uses real CIM conventions: the cim: namespace,
+    an owl:Ontology header with owl:versionIRI + dcat:keyword, an rdfs:subClassOf
+    hierarchy, and properties whose range is given via cims:dataType (resolved to
+    an XSD datatype through a cims:stereotype "Primitive" class).
+-->
+<rdf:RDF
+   xmlns:cim="http://iec.ch/TC57/CIM100#"
+   xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+   xmlns:dcat="http://www.w3.org/ns/dcat#"
+   xmlns:owl="http://www.w3.org/2002/07/owl#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+   xml:base="http://iec.ch/TC57/CIM100">
+
+    <!-- ===== Ontology header ===== -->
+    <rdf:Description rdf:about="http://iec.ch/TC57/ns/CIM/CoreEquipment-EU#Ontology">
+        <dcat:keyword>EQ</dcat:keyword>
+        <owl:versionIRI rdf:resource="http://example.org/cim-mini/EquipmentProfile/1.0"/>
+        <owl:versionInfo xml:lang="en">1.0.0</owl:versionInfo>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#Ontology"/>
+    </rdf:Description>
+
+    <!-- ===== Classes (with a subClassOf hierarchy) ===== -->
+    <rdf:Description rdf:about="#IdentifiedObject">
+        <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#ConductingEquipment">
+        <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+        <rdfs:subClassOf rdf:resource="#IdentifiedObject"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#ACLineSegment">
+        <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+        <rdfs:subClassOf rdf:resource="#ConductingEquipment"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#Terminal">
+        <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+        <rdfs:subClassOf rdf:resource="#IdentifiedObject"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+    </rdf:Description>
+
+    <!-- ===== Properties ===== -->
+    <rdf:Description rdf:about="#IdentifiedObject.name">
+        <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+        <rdfs:domain rdf:resource="#IdentifiedObject"/>
+        <cims:dataType rdf:resource="#String"/>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#ACLineSegment.r">
+        <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+        <rdfs:domain rdf:resource="#ACLineSegment"/>
+        <cims:dataType rdf:resource="#Float"/>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#ACLineSegment.length">
+        <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+        <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+        <rdfs:domain rdf:resource="#ACLineSegment"/>
+        <cims:dataType rdf:resource="#Float"/>
+    </rdf:Description>
+
+    <!-- ===== Primitive datatypes (cims:dataType targets) ===== -->
+    <rdf:Description rdf:about="#String">
+        <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+        <rdfs:label xml:lang="en">String</rdfs:label>
+        <cims:stereotype>Primitive</cims:stereotype>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#Float">
+        <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+        <rdfs:label xml:lang="en">Float</rdfs:label>
+        <cims:stereotype>Primitive</cims:stereotype>
+    </rdf:Description>
+
+</rdf:RDF>

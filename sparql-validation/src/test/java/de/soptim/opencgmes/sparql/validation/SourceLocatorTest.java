@@ -113,6 +113,22 @@ public class SourceLocatorTest {
     }
 
     @Test
+    public void prefixedNameIsNotMatchedAsSubstringOfLongerName() {
+        // 'cim:ACLineSegment.r' must NOT match inside 'cim:ACLineSegment.resistance'.
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE {\n"
+                + "  ?a cim:ACLineSegment.resistance ?x .\n"
+                + "  ?b cim:ACLineSegment.r ?y .\n"
+                + "}";
+        Query parsed = QueryFactory.create(q);
+        var loc = SourceLocator.locate(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping());
+        assertEquals("must skip the substring hit on line 3 and find the real token on line 4",
+                Integer.valueOf(4), loc.line());
+    }
+
+    @Test
     public void unknownTermReturnsUnknown() {
         String q = "SELECT * WHERE { ?s ?p ?o }";
         var loc = SourceLocator.locate(q, NodeFactory.createURI("http://example.org/Missing"));

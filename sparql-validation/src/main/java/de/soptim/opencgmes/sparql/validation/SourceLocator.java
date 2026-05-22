@@ -93,8 +93,8 @@ public final class SourceLocator {
                 if (local.isEmpty()) continue;
                 if (local.charAt(0) == '/' || local.charAt(0) == '#') continue;
                 String prefixed = e.getKey() + ":" + local;
-                idx = query.indexOf(prefixed);
-                if (idx >= 0 && idx < best) best = idx;
+                int hit = findWholeToken(query, prefixed);
+                if (hit >= 0 && hit < best) best = hit;
             }
         }
 
@@ -105,6 +105,31 @@ public final class SourceLocator {
         }
 
         return best == Integer.MAX_VALUE ? UNKNOWN : toLineColumn(query, best);
+    }
+
+    /**
+     * Find the first occurrence of {@code token} that stands as a whole token — i.e. is neither
+     * preceded nor followed by a name-continuation character.
+     *
+     * <p>Without this, the property name {@code cim:ACLineSegment.r} would match inside
+     * {@code cim:ACLineSegment.resistance} and the locator would point at the wrong line.</p>
+     */
+    private static int findWholeToken(String text, String token) {
+        int from = 0;
+        int idx;
+        while ((idx = text.indexOf(token, from)) >= 0) {
+            boolean okBefore = idx == 0 || !isNameChar(text.charAt(idx - 1));
+            int after = idx + token.length();
+            boolean okAfter = after >= text.length() || !isNameChar(text.charAt(after));
+            if (okBefore && okAfter) return idx;
+            from = idx + 1;
+        }
+        return -1;
+    }
+
+    /** Characters that may continue a SPARQL prefixed name (loose superset of PN_CHARS). */
+    private static boolean isNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '.' || c == '-' || c == '_' || c == '%';
     }
 
     /**

@@ -24,6 +24,50 @@ it. Phase 1 catches the first two; Phase 3 will tackle the third.
 | Detects unknown class / property IRI | ✅                                     | ❌ (returns ∅)  | ❌              |
 | Detects bad data values              | ❌                                     | ❌              | ✅              |
 
+## Try it
+
+A self-contained, runnable example lives in
+[`SparqlValidationExample`](src/main/java/de/soptim/opencgmes/sparql/validation/examples/SparqlValidationExample.java).
+It reads two files from [`src/main/resources/examples/`](src/main/resources/examples/) — a
+small CIM/RDFS schema and a SPARQL query — validates the query against the schema, and prints
+the result. No network, no arguments.
+
+```bash
+mvn -q install -DskipTests             # once, so cimxml is in your local repo
+mvn -q -pl sparql-validation exec:java
+```
+
+Output:
+
+```
+==============================================================
+ OpenCGMES — static SPARQL query validation
+==============================================================
+ schema : examples/cim-mini-schema.rdf
+ profile: http://example.org/cim-mini/EquipmentProfile/1.0  (6 classes, 3 properties)
+ query  : examples/example-query.rq
+
+----- query --------------------------------------------------
+  ...
+  9 |         cim:ACLineSegment.resistance ?r .
+ ...
+ 12 |         cim:ACLineSegment.r ?value .
+
+----- result -------------------------------------------------
+ valid: false
+
+ [ERROR] UNKNOWN_PROPERTY  —  line 9, col 9
+   Property <...#ACLineSegment.resistance> does not exist in selected profile [...].
+
+ [ERROR] PROPERTY_NOT_ALLOWED_FOR_CLASS  —  line 12, col 9
+   Property <...#ACLineSegment.r> is not allowed on Variable ?term typed as
+   [<...#Terminal>]; expected one of [<...#ACLineSegment>].
+```
+
+Swap in your own schema/query by editing the two files under
+`src/main/resources/examples/` — or point the API at a real ENTSO-E profile;
+see [`testing/entsoe/`](testing/entsoe/).
+
 ## API
 
 The entry point is [`SparqlValidationApi`](src/main/java/de/soptim/opencgmes/sparql/validation/SparqlValidationApi.java).
