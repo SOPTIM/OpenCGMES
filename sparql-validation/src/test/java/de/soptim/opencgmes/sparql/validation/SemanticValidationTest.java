@@ -284,6 +284,67 @@ public class SemanticValidationTest {
         assertNoErrors(r);
     }
 
+    // -- Negative patterns (MINUS, NOT EXISTS, EXISTS) must not leak type assertions -----------
+
+    @Test
+    public void minusTypeDoesNotPoisonOuterScope() {
+        // MINUS { ?s a cim:VoltageLevel } is a negative pattern — the type there must not
+        // bleed into the outer scope and trigger PROPERTY_NOT_ALLOWED_FOR_CLASS on ACLineSegment.r.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  ?s cim:ACLineSegment.r ?r . "
+                + "  MINUS { ?s a cim:VoltageLevel } "
+                + "}");
+        long domainErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS)
+                .count();
+        assertEquals("MINUS type must not poison domain check in outer scope", 0, domainErrors);
+    }
+
+    @Test
+    public void filterNotExistsTypeDoesNotPoisonOuterScope() {
+        // FILTER NOT EXISTS { ?s a cim:VoltageLevel } — the type inside the NOT EXISTS
+        // body must not leak into the outer scope's domain checks.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  ?s cim:ACLineSegment.r ?r . "
+                + "  FILTER NOT EXISTS { ?s a cim:VoltageLevel } "
+                + "}");
+        long domainErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS)
+                .count();
+        assertEquals("FILTER NOT EXISTS type must not poison domain check in outer scope", 0, domainErrors);
+    }
+
+    @Test
+    public void filterExistsTypeDoesNotPoisonOuterScope() {
+        // FILTER EXISTS { ?s a cim:VoltageLevel } — the type inside the EXISTS body must
+        // not leak into the outer scope's domain checks.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  ?s cim:ACLineSegment.r ?r . "
+                + "  FILTER EXISTS { ?s a cim:VoltageLevel } "
+                + "}");
+        long domainErrors = r.annotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.PROPERTY_NOT_ALLOWED_FOR_CLASS)
+                .count();
+        assertEquals("FILTER EXISTS type must not poison domain check in outer scope", 0, domainErrors);
+    }
+
+    @Test
+    public void minusBodyStillValidatesUnknownTerms() {
+        // Even though MINUS is isolated for type inference, unknown properties inside it
+        // must still be reported as errors.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { "
+                + "  ?s a cim:ACLineSegment . "
+                + "  MINUS { ?s cim:doesNotExist ?x } "
+                + "}");
+        boolean hasUnknownProp = r.annotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY);
+        assertTrue("MINUS body unknown property must still be reported", hasUnknownProp);
+    }
+
     // -- silence on incomplete schemas ------------------------------------------------------
 
     @Test

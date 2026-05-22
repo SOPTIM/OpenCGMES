@@ -28,6 +28,7 @@ import org.apache.jena.sparql.algebra.op.OpBGP;
 import org.apache.jena.sparql.algebra.op.OpFilter;
 import org.apache.jena.sparql.algebra.op.OpGraph;
 import org.apache.jena.sparql.algebra.op.OpLeftJoin;
+import org.apache.jena.sparql.algebra.op.OpMinus;
 import org.apache.jena.sparql.algebra.op.OpN;
 import org.apache.jena.sparql.algebra.op.OpPath;
 import org.apache.jena.sparql.algebra.op.OpQuadBlock;
@@ -203,6 +204,12 @@ public final class AlgebraAnalysisVisitor {
                 analyze(leftJoin.getRight());
                 currentScopeChain = saved;
             }
+            case OpMinus minus -> {
+                // The left side is in the current scope; the MINUS right side is a negative
+                // pattern — types declared there must NOT affect domain checks in the left side.
+                analyze(minus.getLeft());
+                analyzeIsolated(minus.getRight());
+            }
             case Op1 op1 -> analyze(op1.getSubOp());
             case Op2 op2 -> {
                 analyze(op2.getLeft());
@@ -337,12 +344,29 @@ public final class AlgebraAnalysisVisitor {
         var visitor = new ExprVisitorBase() {
             @Override
             public void visit(ExprFunctionOp funcOp) {
-                // EXISTS / NOT EXISTS — descend into the embedded Op.
-                analyze(funcOp.getGraphPattern());
+                // EXISTS / NOT EXISTS — the embedded pattern is a negative (or existential) scope.
+                // Types declared inside must not influence domain checks outside this pattern.
+                analyzeIsolated(funcOp.getGraphPattern());
             }
         };
         for (Expr e : exprs) {
             Walker.walk(e, visitor);
+        }
+    }
+
+    /**
+     * Analyze {@code op} in a fresh child scope isolated from the current scope's type
+     * declarations. Unknown terms are still validated (the scope chain extends rather than
+     * replaces), but any {@code rdf:type} assertions inside will not be visible to triples
+     * outside this sub-tree.
+     */
+    private void analyzeIsolated(Op op) {
+        List<Integer> saved = currentScopeChain;
+        currentScopeChain = chainWith(saved, nextScopeId++);
+        try {
+            analyze(op);
+        } finally {
+            currentScopeChain = saved;
         }
     }
 
