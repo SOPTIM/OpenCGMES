@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.sparql.validation.analysis;
 
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.sparql.algebra.Op;
 import org.apache.jena.sparql.algebra.op.Op1;
@@ -74,6 +75,11 @@ import java.util.Set;
 public final class AlgebraAnalysisVisitor {
 
     private static final Node RDF_TYPE = RDF.type.asNode();
+
+    /** Synthetic predicate for path triples — must not be {@code rdf:type} so SubjectTypeInference
+     *  doesn't mistake path endpoint URIs for declared types. */
+    private static final Node PATH_PRED_PLACEHOLDER =
+            NodeFactory.createURI("urn:opencgmes:path-predicate-placeholder");
 
     private final List<TriplePatternReference> triples = new ArrayList<>();
     private final Set<ClassRefKey> seenClasses = new LinkedHashSet<>();
@@ -230,9 +236,9 @@ public final class AlgebraAnalysisVisitor {
             return;
         }
         triples.add(new TriplePatternReference(
-                Triple.create(tp.getSubject(), tp.getPredicate() == null
-                        ? RDF_TYPE // placeholder; only used for context, never validated
-                        : tp.getPredicate(), tp.getObject()), graph));
+                Triple.create(tp.getSubject(),
+                        tp.getPredicate() == null ? PATH_PRED_PLACEHOLDER : tp.getPredicate(),
+                        tp.getObject()), graph));
         collectPathUris(tp.getPath(), graph);
 
         // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for path-chain checks.

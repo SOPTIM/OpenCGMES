@@ -94,7 +94,7 @@ public final class SparqlQueryValidator {
                     augmentWithTypeHints(a.triples(), subjectTypeHints);
             List<SparqlValidationAnnotation> ann = validateReferences(
                     a.graphs(), a.classes(), a.properties(),
-                    triples, a.pathChains(), a.dynamicPredicate(),
+                    triples, a.pathChains(), a.dynamicPredicate(), a.dynamicClass(),
                     scope, a.query().getPrefixMapping(), query);
             return new SparqlValidationResult(query, plan, ann);
         } catch (InvalidQueryException e) {
@@ -136,7 +136,7 @@ public final class SparqlQueryValidator {
             SparqlUpdateAnalysis a = analyzer.analyzeUpdate(updateText);
             List<SparqlValidationAnnotation> ann = validateReferences(
                     a.graphs(), a.classes(), a.properties(),
-                    a.triples(), a.pathChains(), a.dynamicPredicate(),
+                    a.triples(), a.pathChains(), a.dynamicPredicate(), a.dynamicClass(),
                     scope, a.updateRequest().getPrefixMapping(), updateText);
             return new SparqlValidationResult(updateText, null, ann);
         } catch (InvalidQueryException e) {
@@ -166,6 +166,7 @@ public final class SparqlQueryValidator {
             List<TriplePatternReference> triples,
             List<PathChainReference> pathChains,
             boolean dynamicPredicate,
+            boolean dynamicClass,
             ValidationScope scope,
             PrefixMapping prefixes,
             String original) {
@@ -199,6 +200,14 @@ public final class SparqlQueryValidator {
                     SparqlValidationSeverity.WARN, null, null,
                     "Query contains triple(s) with a variable predicate; "
                             + "static property validation is skipped for those.",
+                    SparqlValidationCode.UNSUPPORTED_DYNAMIC_PROPERTY,
+                    null, scopeProfiles(scope, null), List.of(), null));
+        }
+        if (dynamicClass) {
+            annotations.add(new SparqlValidationAnnotation(
+                    SparqlValidationSeverity.WARN, null, null,
+                    "Query contains triple(s) with a variable rdf:type object; "
+                            + "static class validation is skipped for those.",
                     SparqlValidationCode.UNSUPPORTED_DYNAMIC_PROPERTY,
                     null, scopeProfiles(scope, null), List.of(), null));
         }
@@ -259,13 +268,13 @@ public final class SparqlQueryValidator {
             case ValidationScope.AllProfilesScope ignored -> schemaIndex.getAllProfiles();
             case ValidationScope.ProfileListScope l -> l.profiles();
             case ValidationScope.NamedGraphProfileScope ngs -> {
-                if (graph != null) {
+                if (graph != null && graph.isURI()) {
                     var hit = ngs.namedGraphsToProfiles().get(graph);
                     if (hit != null) yield hit;
-                    // graph was used but not configured — no schema scope; nothing exists.
+                    // URI graph used but not configured — no schema scope; nothing exists.
                     yield List.of();
                 }
-                // Default-graph context: union of all profiles in the map.
+                // Default-graph context or variable/blank graph: union of all configured profiles.
                 var union = new LinkedHashSet<VersionIri>();
                 for (var v : ngs.namedGraphsToProfiles().values()) union.addAll(v);
                 yield List.copyOf(union);

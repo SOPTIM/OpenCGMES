@@ -161,6 +161,30 @@ public class SparqlValidationApiTest {
         assertTrue("expected GRAPH_NOT_CONFIGURED annotation, got: " + r.annotations(), found);
     }
 
+    // 8b. Variable graph in NamedGraphProfileScope: must not produce false errors.
+    @Test
+    public void variableGraphDoesNotProduceFalseErrors() {
+        Node graphA = NodeFactory.createURI("urn:graph:a");
+        Map<Node, Collection<VersionIri>> map = Map.of(
+                graphA, List.of(VersionIri.of(PROFILE_EQ)));
+        // GRAPH ?g means the graph is not known statically — should fall back to the union of
+        // configured profiles and not emit false UNKNOWN_CLASS / UNKNOWN_PROPERTY errors.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { GRAPH ?g { ?x a cim:ACLineSegment ; cim:ACLineSegment.r ?r . } }", map);
+        assertNoErrors(r);
+    }
+
+    // 14b. Variable rdf:type object produces UNSUPPORTED_DYNAMIC_PROPERTY warning.
+    @Test
+    public void variableClassProducesWarning() {
+        var r = api.validateSparql(PREAMBLE + "SELECT * WHERE { ?s a ?cls . }");
+        boolean warn = r.annotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNSUPPORTED_DYNAMIC_PROPERTY
+                        && a.severity() == SparqlValidationSeverity.WARN);
+        assertTrue("expected UNSUPPORTED_DYNAMIC_PROPERTY warning for variable rdf:type", warn);
+        assertTrue("no ERROR annotations expected", r.isValid());
+    }
+
     // 9. OPTIONAL block.
     @Test
     public void optionalBlockIsAnalyzed() {

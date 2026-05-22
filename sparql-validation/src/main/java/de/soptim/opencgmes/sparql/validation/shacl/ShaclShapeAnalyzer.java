@@ -30,6 +30,7 @@ import org.apache.jena.vocabulary.RDF;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -166,7 +167,8 @@ public final class ShaclShapeAnalyzer {
     /** Walks an RDF list, calling {@code consumer} for each {@code rdf:first} value. */
     private static void walkList(Graph g, Node list, Consumer<Node> consumer) {
         Node cur = list;
-        while (cur != null && cur.isBlank()) {
+        var visited = new HashSet<Node>();
+        while (cur != null && cur.isBlank() && visited.add(cur)) {
             Node first = singleObject(g, cur, RDF_FIRST);
             if (first != null) consumer.accept(first);
             Node rest = singleObject(g, cur, RDF_REST);

@@ -94,6 +94,17 @@ jobs:
             -DnewVersion="${RELEASE_VERSION}" \
             -DgenerateBackupPoms=false
 
+          # Resolve the cimxml dependency from SNAPSHOT to release so the published POM
+          # does not contain a SNAPSHOT reference (which Maven Central rejects).
+          CIMXML_SNAP="$(mvn -q -f sparql-validation/pom.xml help:evaluate \
+            -Dexpression=ver.cimxml -DforceStdout)"
+          CIMXML_RELEASE="${CIMXML_SNAP%-SNAPSHOT}"
+          mvn -B -ntp -f sparql-validation/pom.xml \
+            org.codehaus.mojo:versions-maven-plugin:2.21.0:set-property \
+            -Dproperty=ver.cimxml \
+            -DnewVersion="${CIMXML_RELEASE}" \
+            -DgenerateBackupPoms=false
+
       # cimxml must exist in the local repo before sparql-validation can resolve it.
       - name: Install cimxml dependency into local repo
         run: mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
@@ -134,6 +145,15 @@ jobs:
           mvn -B -ntp -f sparql-validation/pom.xml \
             org.codehaus.mojo:versions-maven-plugin:2.21.0:set \
             -DnewVersion="${RELEASE_VERSION}" \
+            -DgenerateBackupPoms=false
+
+          CIMXML_SNAP="$(mvn -q -f sparql-validation/pom.xml help:evaluate \
+            -Dexpression=ver.cimxml -DforceStdout)"
+          CIMXML_RELEASE="${CIMXML_SNAP%-SNAPSHOT}"
+          mvn -B -ntp -f sparql-validation/pom.xml \
+            org.codehaus.mojo:versions-maven-plugin:2.21.0:set-property \
+            -Dproperty=ver.cimxml \
+            -DnewVersion="${CIMXML_RELEASE}" \
             -DgenerateBackupPoms=false
 
       - name: Install cimxml dependency into local repo
