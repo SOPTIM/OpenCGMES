@@ -43,33 +43,3 @@ ex:BadTargetClassShape
     sh:property [
         sh:path cim:IdentifiedObject.name ;
     ] .
-
-# --- Shape 3: unknown property path — UNKNOWN_PROPERTY on sh:path ----------------------
-#
-# Deliberate mistake: cim:ACLineSegment.typo does not exist.
-# Expected: one UNKNOWN_PROPERTY annotation on sh:path.
-
-ex:BadPathShape
-    a sh:NodeShape ;
-    sh:targetClass cim:ACLineSegment ;
-    sh:property [
-        sh:path cim:ACLineSegment.typo ;
-    ] .
-
-# --- Shape 4: wrong domain in embedded SPARQL — PROPERTY_NOT_ALLOWED_FOR_CLASS ---------
-#
-# sh:targetClass is cim:Terminal. The embedded SPARQL uses cim:ACLineSegment.r, whose
-# rdfs:domain is cim:ACLineSegment — not Terminal. After $this type injection, the
-# validator knows $this is a Terminal → domain mismatch → PROPERTY_NOT_ALLOWED_FOR_CLASS.
-
-ex:WrongDomainSparqlShape
-    a sh:NodeShape ;
-    sh:targetClass cim:Terminal ;
-    sh:sparql [
-        sh:prefixes ex: ;
-        sh:select """
-            SELECT $this WHERE {
-                $this cim:ACLineSegment.r ?r .
-            }
-        """ ;
-    ] .

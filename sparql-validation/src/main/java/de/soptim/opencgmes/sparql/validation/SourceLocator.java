@@ -76,8 +76,8 @@ public final class SourceLocator {
         String iri = term.getURI();
         int best = Integer.MAX_VALUE;
 
-        // 1. <full-IRI> form
-        int idx = query.indexOf("<" + iri + ">");
+        // 1. <full-IRI> form (skips occurrences inside # comments)
+        int idx = findFullIri(query, iri);
         if (idx >= 0 && idx < best) best = idx;
 
         // 2. prefix:local form
@@ -108,11 +108,8 @@ public final class SourceLocator {
     }
 
     /**
-     * Find the first occurrence of {@code token} that stands as a whole token — i.e. is neither
-     * preceded nor followed by a name-continuation character.
-     *
-     * <p>Without this, the property name {@code cim:ACLineSegment.r} would match inside
-     * {@code cim:ACLineSegment.resistance} and the locator would point at the wrong line.</p>
+     * Find the first occurrence of {@code token} that stands as a whole token and is not inside
+     * a SPARQL line comment.
      */
     private static int findWholeToken(String text, String token) {
         int from = 0;
@@ -121,7 +118,19 @@ public final class SourceLocator {
             boolean okBefore = idx == 0 || !isNameChar(text.charAt(idx - 1));
             int after = idx + token.length();
             boolean okAfter = after >= text.length() || !isNameChar(text.charAt(after));
-            if (okBefore && okAfter) return idx;
+            if (okBefore && okAfter && !isInComment(text, idx)) return idx;
+            from = idx + 1;
+        }
+        return -1;
+    }
+
+    /** Find the first {@code <iri>} occurrence that is not inside a SPARQL line comment. */
+    private static int findFullIri(String text, String iri) {
+        String needle = "<" + iri + ">";
+        int from = 0;
+        int idx;
+        while ((idx = text.indexOf(needle, from)) >= 0) {
+            if (!isInComment(text, idx)) return idx;
             from = idx + 1;
         }
         return -1;
@@ -134,17 +143,45 @@ public final class SourceLocator {
 
     /**
      * Find the first {@code a} keyword that's preceded by start-of-text, whitespace, {@code .}
-     * or {@code ;}. Returns -1 if none found.
+     * or {@code ;}, and is not inside a SPARQL line comment.
      */
     private static int findAKeyword(String query) {
         Matcher m = A_KEYWORD.matcher(query);
         while (m.find()) {
             int start = m.start();
+            if (isInComment(query, start)) continue;
             if (start == 0) return start;
             char prev = query.charAt(start - 1);
             if (Character.isWhitespace(prev) || prev == '.' || prev == ';') return start;
         }
         return -1;
+    }
+
+    /**
+     * Returns {@code true} when {@code index} falls inside a SPARQL {@code #} line comment.
+     *
+     * <p>Scans from the start of the line containing {@code index} and tracks single- and
+     * double-quoted string state so that a {@code #} inside a string literal does not falsely
+     * trigger the check.</p>
+     */
+    private static boolean isInComment(String text, int index) {
+        // Find the start of the line that contains index.
+        int lineStart = index;
+        while (lineStart > 0 && text.charAt(lineStart - 1) != '\n') lineStart--;
+
+        boolean inSingle = false;
+        boolean inDouble = false;
+        for (int i = lineStart; i < index; i++) {
+            char c = text.charAt(i);
+            if (c == '\\' && (inSingle || inDouble)) {
+                i++; // skip escaped character inside a string
+                continue;
+            }
+            if      (c == '\'' && !inDouble) inSingle = !inSingle;
+            else if (c == '"'  && !inSingle) inDouble = !inDouble;
+            else if (c == '#'  && !inSingle && !inDouble) return true;
+        }
+        return false;
     }
 
     private static Location toLineColumn(String text, int offset) {

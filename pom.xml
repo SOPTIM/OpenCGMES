@@ -55,5 +55,7 @@
     <modules>
         <module>cimxml</module>
         <module>sparql-validation</module>
+        <module>sparql-validation-cli</module>
+        <module>sparql-validation-lsp</module>
     </modules>
 </project>

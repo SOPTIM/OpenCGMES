@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    IMPORTANT: ALL output must go to stderr.
+    stdout is the JSON-RPC transport channel between the LSP server and the client.
+    Any text written to stdout corrupts the protocol stream.
+-->
+<Configuration status="warn">
+    <Appenders>
+        <Console name="Stderr" target="SYSTEM_ERR">
+            <PatternLayout pattern="%d{HH:mm:ss} [%-5level] %logger{1} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Suppress noisy Jena/Hadoop/Thrift INFO messages -->
+        <Logger name="org.apache.jena"          level="warn" additivity="false"><AppenderRef ref="Stderr"/></Logger>
+        <Logger name="org.apache.hadoop"        level="warn" additivity="false"><AppenderRef ref="Stderr"/></Logger>
+        <Logger name="org.apache.thrift"        level="warn" additivity="false"><AppenderRef ref="Stderr"/></Logger>
+        <Logger name="org.eclipse.lsp4j"        level="warn" additivity="false"><AppenderRef ref="Stderr"/></Logger>
+        <!-- Our server logs at INFO -->
+        <Logger name="de.soptim.opencgmes"      level="info" additivity="false"><AppenderRef ref="Stderr"/></Logger>
+        <Root level="warn"><AppenderRef ref="Stderr"/></Root>
+    </Loggers>
+</Configuration>
