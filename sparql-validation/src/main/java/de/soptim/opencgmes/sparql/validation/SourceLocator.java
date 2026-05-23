@@ -22,6 +22,8 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.shared.PrefixMapping;
 import org.apache.jena.vocabulary.RDF;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,8 +39,10 @@ import java.util.regex.Pattern;
  *   <li>The SPARQL shorthand {@code a} — only when the target is {@code rdf:type}.</li>
  * </ol>
  *
- * <p>The earliest match across all three forms wins. If the term appears multiple times, the
- * first occurrence is returned.</p>
+ * <p>The earliest match across all three forms wins. If the term appears multiple times,
+ * {@link #locate} returns the first occurrence; {@link #locateWithHint} picks the occurrence
+ * that appears closest (by character offset) to a given <em>hint</em> node — typically the
+ * subject or object from the same triple pattern.</p>
  *
  * <p>The {@code a} keyword detection is regex-based and intentionally conservative: it only
  * matches {@code a} that is preceded by start-of-text / whitespace / {@code .} / {@code ;}
@@ -73,68 +77,157 @@ public final class SourceLocator {
      */
     public static Location locate(String query, Node term, PrefixMapping prefixes) {
         if (query == null || term == null || !term.isURI()) return UNKNOWN;
-        String iri = term.getURI();
-        int best = Integer.MAX_VALUE;
-
-        // 1. <full-IRI> form (skips occurrences inside # comments)
-        int idx = findFullIri(query, iri);
-        if (idx >= 0 && idx < best) best = idx;
-
-        // 2. prefix:local form
-        if (prefixes != null) {
-            for (var e : prefixes.getNsPrefixMap().entrySet()) {
-                String ns = e.getValue();
-                if (ns == null || ns.isEmpty()) continue;
-                if (!iri.startsWith(ns)) continue;
-                String local = iri.substring(ns.length());
-                // Local name must be a legal PN_LOCAL start; very loose check: non-empty and not
-                // starting with '/' or '#' (those mean we matched a non-namespace prefix by
-                // accident, e.g. matching "http://" prefix against the full IRI).
-                if (local.isEmpty()) continue;
-                if (local.charAt(0) == '/' || local.charAt(0) == '#') continue;
-                String prefixed = e.getKey() + ":" + local;
-                int hit = findWholeToken(query, prefixed);
-                if (hit >= 0 && hit < best) best = hit;
-            }
-        }
-
-        // 3. 'a' keyword for rdf:type
-        if (RDF_TYPE_URI.equals(iri)) {
-            int aIdx = findAKeyword(query);
-            if (aIdx >= 0 && aIdx < best) best = aIdx;
-        }
-
-        return best == Integer.MAX_VALUE ? UNKNOWN : toLineColumn(query, best);
+        List<Integer> offsets = findAllTermOffsets(query, term, prefixes);
+        return offsets.isEmpty() ? UNKNOWN : toLineColumn(query, offsets.get(0));
     }
 
     /**
-     * Find the first occurrence of {@code token} that stands as a whole token and is not inside
-     * a SPARQL line comment.
+     * Like {@link #locate} but uses {@code hint} (typically the subject node from the same
+     * triple pattern) to prefer the occurrence of {@code term} that appears closest in the
+     * source text to that hint.
+     *
+     * <p>The hint may be a SPARQL variable (looked up as {@code ?name} / {@code $name}), a URI
+     * node (looked up as full IRI or prefixed form), or a blank node (not searchable — falls
+     * back to first occurrence). When the hint is {@code null}, or no occurrences of the hint
+     * can be found in the text, the method falls back to the first occurrence of {@code term}.</p>
+     *
+     * @param query     original query text, may be {@code null}
+     * @param term      the URI predicate to locate, may be {@code null}
+     * @param prefixes  prefix map from the parsed query, may be {@code null}
+     * @param hint      a node from the same triple that disambiguates which occurrence to return
      */
-    private static int findWholeToken(String text, String token) {
-        int from = 0;
-        int idx;
+    public static Location locateWithHint(
+            String query, Node term, PrefixMapping prefixes, Node hint) {
+        if (query == null || term == null || !term.isURI()) return UNKNOWN;
+
+        List<Integer> termOffsets = findAllTermOffsets(query, term, prefixes);
+        if (termOffsets.isEmpty()) return UNKNOWN;
+        if (termOffsets.size() == 1 || hint == null) return toLineColumn(query, termOffsets.get(0));
+
+        List<Integer> hintOffsets = findAllNodeOffsets(query, hint, prefixes);
+        if (hintOffsets.isEmpty()) return toLineColumn(query, termOffsets.get(0));
+
+        // Prefer a term occurrence that lies on the same source line as any hint occurrence.
+        // This handles the typical case where subject and predicate share a line.
+        for (int hOff : hintOffsets) {
+            int hLine = lineOf(query, hOff);
+            for (int tOff : termOffsets) {
+                if (lineOf(query, tOff) == hLine) return toLineColumn(query, tOff);
+            }
+        }
+
+        // Fallback: no same-line co-occurrence — pick by minimum character distance.
+        int best = termOffsets.get(0);
+        int bestDist = minDist(best, hintOffsets);
+        for (int off : termOffsets) {
+            int d = minDist(off, hintOffsets);
+            if (d < bestDist) {
+                bestDist = d;
+                best = off;
+            }
+        }
+        return toLineColumn(query, best);
+    }
+
+    // ---- offset collection -----------------------------------------------------------------
+
+    private static List<Integer> findAllTermOffsets(String query, Node term, PrefixMapping prefixes) {
+        String iri = term.getURI();
+        var offsets = new ArrayList<Integer>();
+        collectAllFullIri(query, iri, offsets);
+        if (prefixes != null) {
+            for (var e : prefixes.getNsPrefixMap().entrySet()) {
+                String ns = e.getValue();
+                if (ns == null || ns.isEmpty() || !iri.startsWith(ns)) continue;
+                String local = iri.substring(ns.length());
+                // Local name must be non-empty and not start with '/' or '#' (which would mean we
+                // matched a non-namespace prefix against the full IRI, e.g. "http://").
+                if (local.isEmpty() || local.charAt(0) == '/' || local.charAt(0) == '#') continue;
+                collectAllWholeToken(query, e.getKey() + ":" + local, offsets);
+            }
+        }
+        if (RDF_TYPE_URI.equals(iri)) collectAllAKeyword(query, offsets);
+        offsets.sort(Integer::compare);
+        return offsets;
+    }
+
+    /**
+     * Collects text offsets for {@code hint}: variables as {@code ?name}/{@code $name},
+     * URI nodes as full-IRI or prefixed form. Blank nodes and literals are not searchable.
+     */
+    private static List<Integer> findAllNodeOffsets(String query, Node hint, PrefixMapping prefixes) {
+        var offsets = new ArrayList<Integer>();
+        if (hint.isVariable()) {
+            String name = hint.getName();
+            collectAllWholeToken(query, "?" + name, offsets);
+            collectAllWholeToken(query, "$" + name, offsets);
+        } else if (hint.isURI()) {
+            String iri = hint.getURI();
+            collectAllFullIri(query, iri, offsets);
+            if (prefixes != null) {
+                for (var e : prefixes.getNsPrefixMap().entrySet()) {
+                    String ns = e.getValue();
+                    if (ns == null || ns.isEmpty() || !iri.startsWith(ns)) continue;
+                    String local = iri.substring(ns.length());
+                    if (local.isEmpty() || local.charAt(0) == '/' || local.charAt(0) == '#') continue;
+                    collectAllWholeToken(query, e.getKey() + ":" + local, offsets);
+                }
+            }
+        }
+        // Blank nodes, literals: not reliably searchable in source text
+        offsets.sort(Integer::compare);
+        return offsets;
+    }
+
+    private static void collectAllFullIri(String text, String iri, List<Integer> out) {
+        String needle = "<" + iri + ">";
+        int from = 0, idx;
+        while ((idx = text.indexOf(needle, from)) >= 0) {
+            if (!isInComment(text, idx)) out.add(idx);
+            from = idx + 1;
+        }
+    }
+
+    private static void collectAllWholeToken(String text, String token, List<Integer> out) {
+        int from = 0, idx;
         while ((idx = text.indexOf(token, from)) >= 0) {
             boolean okBefore = idx == 0 || !isNameChar(text.charAt(idx - 1));
             int after = idx + token.length();
             boolean okAfter = after >= text.length() || !isNameChar(text.charAt(after));
-            if (okBefore && okAfter && !isInComment(text, idx)) return idx;
+            if (okBefore && okAfter && !isInComment(text, idx)) out.add(idx);
             from = idx + 1;
         }
-        return -1;
     }
 
-    /** Find the first {@code <iri>} occurrence that is not inside a SPARQL line comment. */
-    private static int findFullIri(String text, String iri) {
-        String needle = "<" + iri + ">";
-        int from = 0;
-        int idx;
-        while ((idx = text.indexOf(needle, from)) >= 0) {
-            if (!isInComment(text, idx)) return idx;
-            from = idx + 1;
+    private static void collectAllAKeyword(String query, List<Integer> out) {
+        Matcher m = A_KEYWORD.matcher(query);
+        while (m.find()) {
+            int start = m.start();
+            if (isInComment(query, start)) continue;
+            if (start == 0) { out.add(start); continue; }
+            char prev = query.charAt(start - 1);
+            if (Character.isWhitespace(prev) || prev == '.' || prev == ';') out.add(start);
         }
-        return -1;
     }
+
+    private static int minDist(int offset, List<Integer> candidates) {
+        int min = Integer.MAX_VALUE;
+        for (int c : candidates) {
+            int d = Math.abs(offset - c);
+            if (d < min) min = d;
+        }
+        return min;
+    }
+
+    private static int lineOf(String text, int offset) {
+        int line = 1;
+        for (int i = 0; i < offset; i++) {
+            if (text.charAt(i) == '\n') line++;
+        }
+        return line;
+    }
+
+    // ---- shared utilities ------------------------------------------------------------------
 
     /** Characters that may continue a SPARQL prefixed name (loose superset of PN_CHARS). */
     private static boolean isNameChar(char c) {
@@ -142,44 +235,34 @@ public final class SourceLocator {
     }
 
     /**
-     * Find the first {@code a} keyword that's preceded by start-of-text, whitespace, {@code .}
-     * or {@code ;}, and is not inside a SPARQL line comment.
-     */
-    private static int findAKeyword(String query) {
-        Matcher m = A_KEYWORD.matcher(query);
-        while (m.find()) {
-            int start = m.start();
-            if (isInComment(query, start)) continue;
-            if (start == 0) return start;
-            char prev = query.charAt(start - 1);
-            if (Character.isWhitespace(prev) || prev == '.' || prev == ';') return start;
-        }
-        return -1;
-    }
-
-    /**
      * Returns {@code true} when {@code index} falls inside a SPARQL {@code #} line comment.
      *
-     * <p>Scans from the start of the line containing {@code index} and tracks single- and
-     * double-quoted string state so that a {@code #} inside a string literal does not falsely
-     * trigger the check.</p>
+     * <p>Scans from the start of the line containing {@code index} and tracks single-quoted,
+     * double-quoted, and {@code <...>} IRI-bracket states so that a {@code #} inside a string
+     * literal or an IRI (e.g. {@code <http://example.org/ns#term>}) does not falsely trigger.</p>
      */
     private static boolean isInComment(String text, int index) {
-        // Find the start of the line that contains index.
         int lineStart = index;
         while (lineStart > 0 && text.charAt(lineStart - 1) != '\n') lineStart--;
 
         boolean inSingle = false;
         boolean inDouble = false;
+        boolean inIri    = false;
         for (int i = lineStart; i < index; i++) {
             char c = text.charAt(i);
-            if (c == '\\' && (inSingle || inDouble)) {
+            if (inIri) {
+                if (c == '>') inIri = false;
+            } else if (c == '\\' && (inSingle || inDouble)) {
                 i++; // skip escaped character inside a string
-                continue;
+            } else if (c == '\'' && !inDouble) {
+                inSingle = !inSingle;
+            } else if (c == '"' && !inSingle) {
+                inDouble = !inDouble;
+            } else if (c == '<' && !inSingle && !inDouble) {
+                inIri = true;
+            } else if (c == '#' && !inSingle && !inDouble) {
+                return true;
             }
-            if      (c == '\'' && !inDouble) inSingle = !inSingle;
-            else if (c == '"'  && !inSingle) inDouble = !inDouble;
-            else if (c == '#'  && !inSingle && !inDouble) return true;
         }
         return false;
     }

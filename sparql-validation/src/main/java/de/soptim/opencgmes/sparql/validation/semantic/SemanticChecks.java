@@ -121,7 +121,7 @@ public final class SemanticChecks {
 
             Set<Node> declared = SubjectTypeInference.typesFor(s, t.scopeChain(), scopedTypes);
             checkDomain(annotations, ctx, scope, declared, s, p, t.graph(), domains);
-            checkLiteralRange(annotations, ctx, scope, p, o, t.graph(), ranges);
+            checkLiteralRange(annotations, ctx, scope, p, o, s, t.graph(), ranges);
         }
 
         // Property path chain checks: for each adjacent (p1, p2) pair, verify
@@ -169,6 +169,12 @@ public final class SemanticChecks {
             return de.soptim.opencgmes.sparql.validation.SourceLocator.locate(
                     originalQuery, term, prefixes);
         }
+
+        /** Locates {@code term} nearest to {@code hint} (e.g. the subject of the same triple). */
+        de.soptim.opencgmes.sparql.validation.SourceLocator.Location locateNear(Node term, Node hint) {
+            return de.soptim.opencgmes.sparql.validation.SourceLocator.locateWithHint(
+                    originalQuery, term, prefixes, hint);
+        }
     }
 
     // ---- Domain check + implied-type INFO --------------------------------------------------
@@ -186,7 +192,7 @@ public final class SemanticChecks {
             // No explicit type → can't fault, but we can hint when the domain is unambiguous.
             if (domains.size() == 1) {
                 Node only = domains.iterator().next();
-                var loc = ctx.locate(property);
+                var loc = ctx.locateNear(property, subject);
                 out.add(new SparqlValidationAnnotation(
                         SparqlValidationSeverity.INFO,
                         loc.line(), loc.column(),
@@ -208,7 +214,7 @@ public final class SemanticChecks {
             }
         }
         // No declared type is a subclass of any domain → emit error.
-        var loc = ctx.locate(property);
+        var loc = ctx.locateNear(property, subject);
         out.add(new SparqlValidationAnnotation(
                 SparqlValidationSeverity.ERROR,
                 loc.line(), loc.column(),
@@ -228,7 +234,7 @@ public final class SemanticChecks {
             List<SparqlValidationAnnotation> out,
             Ctx ctx,
             Collection<VersionIri> scope,
-            Node property, Node object, Node graph,
+            Node property, Node object, Node subject, Node graph,
             Set<Node> ranges) {
 
         if (!object.isLiteral() || ranges.isEmpty()) return;
@@ -244,7 +250,7 @@ public final class SemanticChecks {
             boolean hasClassRange = ranges.stream()
                     .anyMatch(r -> r.isURI() && !isDatatypeIri(r.getURI()));
             if (hasClassRange) {
-                var loc = ctx.locate(property);
+                var loc = ctx.locateNear(property, subject);
                 out.add(new SparqlValidationAnnotation(
                         SparqlValidationSeverity.WARN,
                         loc.line(), loc.column(),
@@ -265,7 +271,7 @@ public final class SemanticChecks {
         for (String r : rangeDatatypes) {
             if (datatypesCompatible(actual, r)) return;
         }
-        var loc = ctx.locate(property);
+        var loc = ctx.locateNear(property, subject);
         out.add(new SparqlValidationAnnotation(
                 SparqlValidationSeverity.WARN,
                 loc.line(), loc.column(),

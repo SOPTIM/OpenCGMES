@@ -195,4 +195,110 @@ public class SourceLocatorTest {
         assertEquals(SourceLocator.UNKNOWN, SourceLocator.locate("SELECT *", v));
     }
 
+    // ---- locateWithHint — variable subject disambiguates duplicate property occurrences ------
+
+    @Test
+    public void locateWithHint_variableHint_picksNearestOccurrence() {
+        // ?badSub is on line 4, near the second cim:r — that's the one the error is about.
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE {\n"
+                + "  ?goodSub cim:ACLineSegment.r ?r1 .\n"
+                + "  ?badSub  cim:ACLineSegment.r ?r2 .\n"
+                + "}";
+        Query parsed = QueryFactory.create(q);
+        var hint = NodeFactory.createVariable("badSub");
+
+        var loc = SourceLocator.locateWithHint(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping(), hint);
+
+        assertEquals("should point to line 4 (closest to ?badSub)", Integer.valueOf(4), loc.line());
+    }
+
+    @Test
+    public void locateWithHint_variableHint_firstOccurrenceWhenHintIsNearest() {
+        // ?s is closer to the FIRST cim:r on line 3.
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE {\n"
+                + "  ?s cim:ACLineSegment.r ?r1 .\n"
+                + "  ?other cim:ACLineSegment.r ?r2 .\n"
+                + "}";
+        Query parsed = QueryFactory.create(q);
+        var hint = NodeFactory.createVariable("s");
+
+        var loc = SourceLocator.locateWithHint(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping(), hint);
+
+        assertEquals("should point to line 3 (closest to ?s)", Integer.valueOf(3), loc.line());
+    }
+
+    @Test
+    public void locateWithHint_nullHint_fallsBackToFirstOccurrence() {
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE {\n"
+                + "  ?s1 cim:ACLineSegment.r ?r1 .\n"
+                + "  ?s2 cim:ACLineSegment.r ?r2 .\n"
+                + "}";
+        Query parsed = QueryFactory.create(q);
+
+        var loc = SourceLocator.locateWithHint(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping(), null);
+
+        assertEquals("null hint → first occurrence on line 3", Integer.valueOf(3), loc.line());
+    }
+
+    @Test
+    public void locateWithHint_singleOccurrence_returnsThatOccurrence() {
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE { ?s cim:ACLineSegment.r ?r }";
+        Query parsed = QueryFactory.create(q);
+        var hint = NodeFactory.createVariable("s");
+
+        var loc = SourceLocator.locateWithHint(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping(), hint);
+
+        assertEquals(Integer.valueOf(2), loc.line());
+    }
+
+    @Test
+    public void locateWithHint_hintNotFoundInText_fallsBackToFirstOccurrence() {
+        // Hint variable ?ghost never appears in the query text.
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE {\n"
+                + "  ?s1 cim:ACLineSegment.r ?r1 .\n"
+                + "  ?s2 cim:ACLineSegment.r ?r2 .\n"
+                + "}";
+        Query parsed = QueryFactory.create(q);
+        var hint = NodeFactory.createVariable("ghost");
+
+        var loc = SourceLocator.locateWithHint(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping(), hint);
+
+        assertEquals("hint not found → fall back to first occurrence on line 3",
+                Integer.valueOf(3), loc.line());
+    }
+
+    @Test
+    public void locateWithHint_uriHint_picksNearestOccurrence() {
+        // Hint is a URI constant, not a variable.
+        String iriSub2 = CIM + "Substation.S2";
+        String q = "PREFIX cim: <" + CIM + ">\n"
+                + "SELECT * WHERE {\n"
+                + "  <" + CIM + "Substation.S1> cim:ACLineSegment.r ?r1 .\n"
+                + "  <" + iriSub2 + "> cim:ACLineSegment.r ?r2 .\n"
+                + "}";
+        Query parsed = QueryFactory.create(q);
+        var hint = NodeFactory.createURI(iriSub2);
+
+        var loc = SourceLocator.locateWithHint(q,
+                NodeFactory.createURI(CIM + "ACLineSegment.r"),
+                parsed.getPrefixMapping(), hint);
+
+        assertEquals("URI hint on line 4 → picks predicate on line 4", Integer.valueOf(4), loc.line());
+    }
+
 }
