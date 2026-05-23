@@ -233,16 +233,31 @@ public final class SemanticChecks {
 
         if (!object.isLiteral() || ranges.isEmpty()) return;
 
-        // Only constrain when the range *includes a datatype*. Class-only ranges → IRI reference
-        // expected, but we don't fault literal-vs-IRI here (intentionally lenient on the
-        // "object exists in data" question).
         var rangeDatatypes = new LinkedHashSet<String>();
         for (Node r : ranges) {
             if (!r.isURI()) continue;
             String iri = r.getURI();
             if (isDatatypeIri(iri)) rangeDatatypes.add(iri);
         }
-        if (rangeDatatypes.isEmpty()) return;
+        if (rangeDatatypes.isEmpty()) {
+            // Class-only range: a literal is used where an IRI reference is expected.
+            boolean hasClassRange = ranges.stream()
+                    .anyMatch(r -> r.isURI() && !isDatatypeIri(r.getURI()));
+            if (hasClassRange) {
+                var loc = ctx.locate(property);
+                out.add(new SparqlValidationAnnotation(
+                        SparqlValidationSeverity.WARN,
+                        loc.line(), loc.column(),
+                        "Literal " + literalLabel(object) + " used for <" + property.getURI()
+                                + "> whose rdfs:range is a class (IRI reference expected).",
+                        SparqlValidationCode.DATATYPE_MISMATCH,
+                        property,
+                        List.copyOf(scope),
+                        List.of(),
+                        graph));
+            }
+            return;
+        }
 
         String actual = object.getLiteralDatatypeURI();
         if (actual == null) actual = XSD_STRING; // SPARQL plain literal ≈ xsd:string

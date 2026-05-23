@@ -297,6 +297,71 @@ public class SparqlValidationApiTest {
         assertTrue(profiles.contains(VersionIri.of(PROFILE_TP)));
     }
 
+    // 16b. Scoped dependency overloads.
+    @Test
+    public void scopedPropertyDepsFilterByProfileList() throws InvalidQueryException {
+        // Query uses PROP_R (EQ) and PROP_NOMINAL_V (TP). Restricting to EQ should return only PROP_R.
+        String q = PREAMBLE + "SELECT * WHERE { ?s cim:ACLineSegment.r ?r ; cim:VoltageLevel.nominalVoltage ?v . }";
+        Collection<Node> eqOnly = api.getPropertyDependencies(q, List.of(VersionIri.of(PROFILE_EQ)));
+        assertTrue(eqOnly.contains(NodeFactory.createURI(PROP_R)));
+        assertFalse("TP property must be excluded", eqOnly.contains(NodeFactory.createURI(PROP_NOMINAL_V)));
+
+        Collection<Node> both = api.getPropertyDependencies(q,
+                List.of(VersionIri.of(PROFILE_EQ), VersionIri.of(PROFILE_TP)));
+        assertTrue(both.contains(NodeFactory.createURI(PROP_R)));
+        assertTrue(both.contains(NodeFactory.createURI(PROP_NOMINAL_V)));
+    }
+
+    @Test
+    public void scopedClassDepsFilterByProfileList() throws InvalidQueryException {
+        String q = PREAMBLE + "SELECT * WHERE { ?s a cim:ACLineSegment . ?v a cim:VoltageLevel . }";
+        Collection<Node> eqOnly = api.getClassDependencies(q, List.of(VersionIri.of(PROFILE_EQ)));
+        assertTrue(eqOnly.contains(NodeFactory.createURI(CLASS_AC_LINE)));
+        assertFalse("TP class must be excluded", eqOnly.contains(NodeFactory.createURI(CLASS_VOLTAGE_LEVEL)));
+    }
+
+    @Test
+    public void scopedPropertyDepsFilterByNamedGraphMap() throws InvalidQueryException {
+        Node graphEq = NodeFactory.createURI("urn:graph:eq");
+        Map<Node, Collection<VersionIri>> map = Map.of(
+                graphEq, List.of(VersionIri.of(PROFILE_EQ)));
+        // PROP_R is inside the EQ-mapped graph; PROP_NOMINAL_V is outside any mapped graph.
+        String q = PREAMBLE
+                + "SELECT * WHERE { "
+                + "  GRAPH <urn:graph:eq> { ?s cim:ACLineSegment.r ?r } "
+                + "  ?v cim:VoltageLevel.nominalVoltage ?nv "
+                + "}";
+        Collection<Node> deps = api.getPropertyDependencies(q, map);
+        assertTrue("PROP_R inside EQ graph must be included", deps.contains(NodeFactory.createURI(PROP_R)));
+        // PROP_NOMINAL_V in default-graph context → scope falls back to union of map profiles (EQ only) → excluded
+        assertFalse("PROP_NOMINAL_V not in EQ profile must be excluded",
+                deps.contains(NodeFactory.createURI(PROP_NOMINAL_V)));
+    }
+
+    @Test
+    public void scopedGraphDepsFilterByMap() throws InvalidQueryException {
+        Node graphA = NodeFactory.createURI("urn:graph:a");
+        Node graphB = NodeFactory.createURI("urn:graph:b");
+        Map<Node, Collection<VersionIri>> map = Map.of(
+                graphA, List.of(VersionIri.of(PROFILE_EQ)));
+        String q = PREAMBLE
+                + "SELECT * WHERE { GRAPH <urn:graph:a> { ?s ?p ?o } GRAPH <urn:graph:b> { ?x ?y ?z } }";
+        Collection<Node> deps = api.getGraphDependencies(q, map);
+        assertTrue("graphA is in the map", deps.contains(graphA));
+        assertFalse("graphB is not in the map", deps.contains(graphB));
+    }
+
+    @Test
+    public void scopedGraphDepsWithProfileListReturnsSameAsUnscoped() throws InvalidQueryException {
+        // The Collection<VersionIri> overload cannot filter graphs without a mapping — same result.
+        String q = PREAMBLE + "SELECT * WHERE { GRAPH <urn:graph:a> { ?s ?p ?o } }";
+        Node graphA = NodeFactory.createURI("urn:graph:a");
+        Collection<Node> scoped   = api.getGraphDependencies(q, List.of(VersionIri.of(PROFILE_EQ)));
+        Collection<Node> unscoped = api.getGraphDependencies(q);
+        assertEquals(unscoped, scoped);
+        assertTrue(scoped.contains(graphA));
+    }
+
     // 17. CONSTRUCT template terms are validated and tracked.
     @Test
     public void constructTemplateUnknownClassEmitsError() {

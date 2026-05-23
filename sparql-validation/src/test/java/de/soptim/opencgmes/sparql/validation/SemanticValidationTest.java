@@ -173,14 +173,15 @@ public class SemanticValidationTest {
     }
 
     @Test
-    public void classRangeDoesNotTriggerDatatypeCheck() {
-        // PROP_EQ_CONTAINER has range VoltageLevel (a class, not a datatype). A literal object
-        // would be questionable but the validator is intentionally lenient on IRI-vs-literal — no WARN.
+    public void classRangeEmitsWarnForLiteral() {
+        // PROP_EQ_CONTAINER has range VoltageLevel (a class). Using a literal instead of an IRI
+        // reference should produce a DATATYPE_MISMATCH WARN.
         var r = api.validateSparql(PREAMBLE
                 + "SELECT * WHERE { ?s a cim:ACLineSegment ; cim:Equipment.EquipmentContainer \"foo\" . }");
-        long mismatch = r.annotations().stream()
-                .filter(an -> an.code() == SparqlValidationCode.DATATYPE_MISMATCH).count();
-        assertEquals(0, mismatch);
+        var a = expectSingle(r, SparqlValidationCode.DATATYPE_MISMATCH);
+        assertEquals(SparqlValidationSeverity.WARN, a.severity());
+        assertTrue("message should mention IRI reference",
+                a.message().contains("IRI reference expected") || a.message().contains("class"));
     }
 
     // -- Property path chain checks ---------------------------------------------------------

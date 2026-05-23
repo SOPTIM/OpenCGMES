@@ -150,6 +150,34 @@ public final class SparqlValidationApi {
         return graphDeps(analyze(query).graphs());
     }
 
+    /**
+     * Returns named graphs referenced in the query. The {@code profiles} argument has no
+     * filtering effect — graph references cannot be filtered by a profile list alone (no
+     * graph→profile mapping is available). Use
+     * {@link #getGraphDependencies(String, Map)} when you need to restrict to a known set
+     * of graphs.
+     */
+    public Collection<Node> getGraphDependencies(String query, Collection<VersionIri> profiles)
+            throws InvalidQueryException {
+        return graphDeps(analyze(query).graphs());
+    }
+
+    /**
+     * Returns the named graphs referenced in the query that appear as keys in
+     * {@code namedGraphsToProfiles}. Use this to find which of your known graphs a query
+     * depends on, so you can re-execute it when one of those graphs is updated.
+     */
+    public Collection<Node> getGraphDependencies(
+            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
+            throws InvalidQueryException {
+        var refs = analyze(query).graphs();
+        var out = new LinkedHashSet<Node>();
+        for (GraphReference gr : refs) {
+            if (namedGraphsToProfiles.containsKey(gr.graph())) out.add(gr.graph());
+        }
+        return out;
+    }
+
     public Collection<Node> getUpdateGraphDependencies(String updateText) throws InvalidQueryException {
         return graphDeps(analyzeUpdate(updateText).graphs());
     }
@@ -158,6 +186,24 @@ public final class SparqlValidationApi {
 
     public Collection<Node> getPropertyDependencies(String query) throws InvalidQueryException {
         return propertyDeps(analyze(query).properties());
+    }
+
+    /** Properties used in the query that exist in at least one of the given profiles. */
+    public Collection<Node> getPropertyDependencies(String query, Collection<VersionIri> profiles)
+            throws InvalidQueryException {
+        return propertyDepsScoped(analyze(query), new ValidationScope.ProfileListScope(profiles));
+    }
+
+    /**
+     * Properties used in the query that exist in the profiles mapped to their enclosing graph.
+     * Properties in default-graph context are validated against the union of all configured
+     * profiles in the map.
+     */
+    public Collection<Node> getPropertyDependencies(
+            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
+            throws InvalidQueryException {
+        return propertyDepsScoped(analyze(query),
+                new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
     }
 
     public Collection<Node> getUpdatePropertyDependencies(String updateText)
@@ -169,6 +215,24 @@ public final class SparqlValidationApi {
 
     public Collection<Node> getClassDependencies(String query) throws InvalidQueryException {
         return classDeps(analyze(query).classes());
+    }
+
+    /** Classes used in the query that exist in at least one of the given profiles. */
+    public Collection<Node> getClassDependencies(String query, Collection<VersionIri> profiles)
+            throws InvalidQueryException {
+        return classDepsScoped(analyze(query), new ValidationScope.ProfileListScope(profiles));
+    }
+
+    /**
+     * Classes used in the query that exist in the profiles mapped to their enclosing graph.
+     * Classes in default-graph context are validated against the union of all configured
+     * profiles in the map.
+     */
+    public Collection<Node> getClassDependencies(
+            String query, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
+            throws InvalidQueryException {
+        return classDepsScoped(analyze(query),
+                new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
     }
 
     public Collection<Node> getUpdateClassDependencies(String updateText) throws InvalidQueryException {
@@ -191,9 +255,31 @@ public final class SparqlValidationApi {
         return out;
     }
 
+    private Collection<Node> propertyDepsScoped(SparqlQueryAnalysis a, ValidationScope scope) {
+        var out = new LinkedHashSet<Node>();
+        for (PropertyReference p : a.properties()) {
+            Collection<VersionIri> selected = validator.scopeProfiles(scope, p.graph());
+            if (validator.schemaIndex().propertyExists(p.propertyNode(), selected)) {
+                out.add(p.propertyNode());
+            }
+        }
+        return out;
+    }
+
     private static Collection<Node> classDeps(List<ClassReference> classes) {
         var out = new LinkedHashSet<Node>();
         classes.forEach(c -> out.add(c.classNode()));
+        return out;
+    }
+
+    private Collection<Node> classDepsScoped(SparqlQueryAnalysis a, ValidationScope scope) {
+        var out = new LinkedHashSet<Node>();
+        for (ClassReference c : a.classes()) {
+            Collection<VersionIri> selected = validator.scopeProfiles(scope, c.graph());
+            if (validator.schemaIndex().classExists(c.classNode(), selected)) {
+                out.add(c.classNode());
+            }
+        }
         return out;
     }
 
