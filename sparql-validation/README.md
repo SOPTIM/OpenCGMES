@@ -400,6 +400,20 @@ from real RDFS files via `RdfsSchemaIndex.fromCimRegistry`), four additional che
 
 `rdfs:subClassOf` traversal is transitive and cycle-safe across the union of all profiles in scope.
 
+### SHACL property-shape constraint checks
+
+Two additional checks run on every SHACL property shape (any blank node with `sh:path`):
+
+| Code | Severity | Triggers when |
+| --- | --- | --- |
+| `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | WARN | `sh:nodeKind` forces a non-literal (`sh:IRI`, `sh:BlankNode`, `sh:BlankNodeOrIRI`) but `rdfs:range` is a datatype; or `sh:nodeKind sh:Literal` but `rdfs:range` is a class |
+| `INVALID_CARDINALITY` | ERROR | `sh:minCount` exceeds `sh:maxCount` on the same property shape |
+
+**Lenience policy** — a check is silently skipped:
+
+- `NODE_KIND_INCOMPATIBLE_WITH_RANGE`: skipped when no `rdfs:range` is declared, when the path is not a plain URI (sequence, inverse, etc.), or when the range is a mix of datatypes and classes. Ambiguous node kinds (`sh:IRIOrLiteral`, `sh:BlankNodeOrLiteral`) are never flagged.
+- `INVALID_CARDINALITY`: skipped when only one of `sh:minCount` / `sh:maxCount` is present.
+
 ## Current limitations
 
 - Variable predicates (`?s ?p ?o`) produce `UNSUPPORTED_DYNAMIC_PROPERTY` instead of per-triple checks.
@@ -415,5 +429,5 @@ from real RDFS files via `RdfsSchemaIndex.fromCimRegistry`), four additional che
 
 - **Tighter path-chain checks.** Extend chain compatibility to inverse and alternative path
   operators.
-- **SHACL constraint components beyond SPARQL.** `sh:minCount`, `sh:maxCount`, `sh:pattern`,
-  etc. are currently not analysed — only the SPARQL-based constraint forms are.
+- **More SHACL constraint components.** `sh:pattern`, `sh:in`, `sh:datatype` cross-checks,
+  and other constraint parameters are not yet analysed.

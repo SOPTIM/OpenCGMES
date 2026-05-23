@@ -37,5 +37,9 @@ public enum SparqlValidationCode {
     /** Literal object's datatype is incompatible with the property's {@code rdfs:range}. */
     DATATYPE_MISMATCH,
     /** Property is used on a subject whose type is not a subclass of any declared {@code rdfs:domain}. */
-    PROPERTY_NOT_ALLOWED_FOR_CLASS
+    PROPERTY_NOT_ALLOWED_FOR_CLASS,
+    /** {@code sh:nodeKind} value conflicts with the property's {@code rdfs:range} in the schema. */
+    NODE_KIND_INCOMPATIBLE_WITH_RANGE,
+    /** {@code sh:minCount} exceeds {@code sh:maxCount} on a property shape. */
+    INVALID_CARDINALITY
 }

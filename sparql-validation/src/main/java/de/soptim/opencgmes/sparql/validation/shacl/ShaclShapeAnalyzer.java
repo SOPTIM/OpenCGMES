@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -73,15 +74,15 @@ public final class ShaclShapeAnalyzer {
     }
 
     /**
-     * Analyses {@code shapesGraph} and returns one annotation per CIM term referenced in a shape
-     * structural position that does not exist in the given {@code scope}.
+     * Analyses {@code shapesGraph} and returns one annotation per structural problem found:
+     * unknown CIM terms, nodeKind/range mismatches, and cardinality contradictions.
      */
     public List<SparqlValidationAnnotation> analyze(Graph shapesGraph, Collection<VersionIri> scope) {
         var out = new ArrayList<SparqlValidationAnnotation>();
 
         checkClassReferences(shapesGraph, Shacl.TARGET_CLASS, "sh:targetClass", scope, out);
         checkClassReferences(shapesGraph, Shacl.CLASS, "sh:class", scope, out);
-        checkPathReferences(shapesGraph, scope, out);
+        checkPropertyShapes(shapesGraph, scope, out);
 
         return List.copyOf(out);
     }
@@ -129,20 +130,101 @@ public final class ShaclShapeAnalyzer {
         });
     }
 
-    // ---- sh:path ---------------------------------------------------------------------------
+    // ---- per-property-shape checks (sh:path, sh:nodeKind, sh:minCount/sh:maxCount) ----------
 
-    private void checkPathReferences(
+    /**
+     * Combined loop over every property shape (subject of {@code sh:path}).
+     * Runs three checks per shape: property existence, nodeKind/range compatibility, cardinality.
+     */
+    private void checkPropertyShapes(
             Graph g, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
 
-        forEachObject(g, Shacl.PATH, pathNode -> {
-            var props = new ArrayList<Node>();
-            extractPropertyUris(g, pathNode, props);
-            for (Node prop : props) {
-                if (schemaIndex.propertyExists(prop, scope)) continue;
-                List<VersionIri> elsewhere = schemaIndex.findProperty(prop);
-                out.add(propertyAnnotation(prop, scope, elsewhere));
+        var it = g.find(Node.ANY, Shacl.PATH, Node.ANY);
+        try {
+            while (it.hasNext()) {
+                Triple t = it.next();
+                Node shape    = t.getSubject();
+                Node pathNode = t.getObject();
+
+                // 1. Unknown property in path
+                var props = new ArrayList<Node>();
+                extractPropertyUris(g, pathNode, props);
+                for (Node prop : props) {
+                    if (schemaIndex.propertyExists(prop, scope)) continue;
+                    out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop)));
+                }
+
+                // 2. sh:nodeKind vs rdfs:range (only for simple single-URI paths)
+                if (pathNode.isURI()) {
+                    checkNodeKind(g, shape, pathNode, scope, out);
+                }
+
+                // 3. sh:minCount / sh:maxCount contradiction
+                checkCardinality(g, shape, pathNode, out);
             }
-        });
+        } finally {
+            if (it instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    private void checkNodeKind(
+            Graph g, Node shape, Node prop,
+            Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+
+        Node nodeKindNode = singleObject(g, shape, Shacl.NODE_KIND);
+        if (nodeKindNode == null || !nodeKindNode.isURI()) return;
+
+        Set<Node> ranges = schemaIndex.rangesOf(prop, scope);
+        if (ranges.isEmpty()) return; // schema is silent — permissive
+
+        boolean allDatatypes = ranges.stream().allMatch(r -> r.isURI() && isDatatypeRange(r.getURI()));
+        boolean allClasses   = ranges.stream().allMatch(r -> r.isURI() && !isDatatypeRange(r.getURI()));
+        if (!allDatatypes && !allClasses) return; // mixed — skip
+
+        String nk = nodeKindNode.getURI();
+        boolean requiresNonLiteral = Shacl.IRI.getURI().equals(nk)
+                || Shacl.BLANK_NODE.getURI().equals(nk)
+                || Shacl.BLANK_NODE_OR_IRI.getURI().equals(nk);
+        boolean requiresLiteral = Shacl.LITERAL.getURI().equals(nk);
+
+        if (allDatatypes && requiresNonLiteral) {
+            out.add(nodeKindAnnotation(prop, nodeKindNode,
+                    "a literal (datatype property)", "a non-literal", scope));
+        } else if (allClasses && requiresLiteral) {
+            out.add(nodeKindAnnotation(prop, nodeKindNode,
+                    "an IRI or blank node (object property)", "a literal", scope));
+        }
+    }
+
+    private static void checkCardinality(
+            Graph g, Node shape, Node pathNode, List<SparqlValidationAnnotation> out) {
+
+        Node minNode = singleObject(g, shape, Shacl.MIN_COUNT);
+        Node maxNode = singleObject(g, shape, Shacl.MAX_COUNT);
+        if (minNode == null || maxNode == null) return;
+
+        OptionalInt min = parseLiteralInt(minNode);
+        OptionalInt max = parseLiteralInt(maxNode);
+        if (min.isEmpty() || max.isEmpty()) return;
+
+        if (min.getAsInt() > max.getAsInt()) {
+            Node term = pathNode.isURI() ? pathNode : null;
+            out.add(cardinalityAnnotation(min.getAsInt(), max.getAsInt(), term));
+        }
+    }
+
+    private static OptionalInt parseLiteralInt(Node n) {
+        if (!n.isLiteral()) return OptionalInt.empty();
+        try {
+            return OptionalInt.of(Integer.parseInt(n.getLiteralLexicalForm()));
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
+    }
+
+    private static boolean isDatatypeRange(String iri) {
+        return iri.startsWith("http://www.w3.org/2001/XMLSchema#")
+                || iri.equals("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
     }
 
     /**
@@ -254,6 +336,44 @@ public final class ShaclShapeAnalyzer {
                 prop,
                 List.copyOf(scope),
                 List.copyOf(elsewhere),
+                null);
+    }
+
+    private static SparqlValidationAnnotation nodeKindAnnotation(
+            Node prop, Node nodeKindNode,
+            String actualKind, String declaredKind, Collection<VersionIri> scope) {
+
+        var msg = new StringBuilder("sh:nodeKind <")
+                .append(shortIri(nodeKindNode.getURI()))
+                .append("> declares value must be ").append(declaredKind)
+                .append(", but rdfs:range of <").append(prop.getURI()).append("> is ")
+                .append(actualKind).append(" in ");
+        appendScopeLabel(msg, scope);
+        msg.append('.');
+        return new SparqlValidationAnnotation(
+                SparqlValidationSeverity.WARN,
+                null, null,
+                msg.toString(),
+                SparqlValidationCode.NODE_KIND_INCOMPATIBLE_WITH_RANGE,
+                prop,
+                List.copyOf(scope),
+                List.of(),
+                null);
+    }
+
+    private static SparqlValidationAnnotation cardinalityAnnotation(
+            int min, int max, Node term) {
+
+        String msg = "sh:minCount " + min + " exceeds sh:maxCount " + max
+                + ": property shape can never be satisfied.";
+        return new SparqlValidationAnnotation(
+                SparqlValidationSeverity.ERROR,
+                null, null,
+                msg,
+                SparqlValidationCode.INVALID_CARDINALITY,
+                term,
+                List.of(),
+                List.of(),
                 null);
     }
 

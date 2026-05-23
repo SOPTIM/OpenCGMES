@@ -68,6 +68,27 @@ public final class Shacl {
     public static final Node PATH         = NodeFactory.createURI(NS + "path");
     /** {@code sh:class} — the required class of the value nodes. */
     public static final Node CLASS        = NodeFactory.createURI(NS + "class");
+    /** {@code sh:minCount} — minimum cardinality of the value nodes. */
+    public static final Node MIN_COUNT    = NodeFactory.createURI(NS + "minCount");
+    /** {@code sh:maxCount} — maximum cardinality of the value nodes. */
+    public static final Node MAX_COUNT    = NodeFactory.createURI(NS + "maxCount");
+    /** {@code sh:nodeKind} — expected RDF node kind. */
+    public static final Node NODE_KIND    = NodeFactory.createURI(NS + "nodeKind");
+
+    // ---- sh:nodeKind values ----------------------------------------------------------------
+
+    /** Node kind: IRI nodes only. */
+    public static final Node IRI                   = NodeFactory.createURI(NS + "IRI");
+    /** Node kind: blank nodes only. */
+    public static final Node BLANK_NODE            = NodeFactory.createURI(NS + "BlankNode");
+    /** Node kind: literal nodes only. */
+    public static final Node LITERAL               = NodeFactory.createURI(NS + "Literal");
+    /** Node kind: blank nodes or IRI nodes. */
+    public static final Node BLANK_NODE_OR_IRI     = NodeFactory.createURI(NS + "BlankNodeOrIRI");
+    /** Node kind: blank nodes or literal nodes. */
+    public static final Node BLANK_NODE_OR_LITERAL = NodeFactory.createURI(NS + "BlankNodeOrLiteral");
+    /** Node kind: IRI nodes or literal nodes. */
+    public static final Node IRI_OR_LITERAL        = NodeFactory.createURI(NS + "IRIOrLiteral");
 
     // ---- Property-path operators -----------------------------------------------------------
 
