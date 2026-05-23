@@ -1,0 +1,135 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "SPARQL",
+    "scopeName": "source.sparql",
+    "fileTypes": ["rq", "sparql"],
+    "patterns": [
+        { "include": "#comment" },
+        { "include": "#string-triple-double" },
+        { "include": "#string-triple-single" },
+        { "include": "#string-double" },
+        { "include": "#string-single" },
+        { "include": "#prefix-declaration" },
+        { "include": "#base-declaration" },
+        { "include": "#iri" },
+        { "include": "#variable" },
+        { "include": "#blank-node-label" },
+        { "include": "#number" },
+        { "include": "#boolean" },
+        { "include": "#aggregate" },
+        { "include": "#builtin-function" },
+        { "include": "#keyword-query" },
+        { "include": "#keyword-update" },
+        { "include": "#keyword-clause" },
+        { "include": "#keyword-modifier" },
+        { "include": "#keyword-expr" },
+        { "include": "#prefixed-name" }
+    ],
+    "repository": {
+        "comment": {
+            "name": "comment.line.number-sign.sparql",
+            "match": "#.*$"
+        },
+        "string-triple-double": {
+            "name": "string.quoted.triple.double.sparql",
+            "begin": "\"\"\"",
+            "end": "\"\"\"",
+            "patterns": [{ "include": "#string-escape" }]
+        },
+        "string-triple-single": {
+            "name": "string.quoted.triple.single.sparql",
+            "begin": "'''",
+            "end": "'''",
+            "patterns": [{ "include": "#string-escape" }]
+        },
+        "string-double": {
+            "name": "string.quoted.double.sparql",
+            "match": "\"(?:[^\"\\\\\\n]|\\\\.)*\"(?:@[a-zA-Z]+(?:-[a-zA-Z0-9]+)*|\\^\\^(?:<[^>]*>|[A-Za-z_][\\w\\-]*:[A-Za-z_][\\w.\\-]*))?"
+        },
+        "string-single": {
+            "name": "string.quoted.single.sparql",
+            "match": "'(?:[^'\\\\\\n]|\\\\.)*'(?:@[a-zA-Z]+(?:-[a-zA-Z0-9]+)*|\\^\\^(?:<[^>]*>|[A-Za-z_][\\w\\-]*:[A-Za-z_][\\w.\\-]*))?"
+        },
+        "string-escape": {
+            "name": "constant.character.escape.sparql",
+            "match": "\\\\(?:[\\\\\"'nrtbf]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+        },
+        "prefix-declaration": {
+            "name": "meta.directive.prefix.sparql",
+            "match": "(?i)(PREFIX)\\s+([A-Za-z_][\\w\\-]*:?)\\s*(<[^>]*>)",
+            "captures": {
+                "1": { "name": "keyword.other.directive.sparql" },
+                "2": { "name": "entity.name.namespace.sparql" },
+                "3": { "name": "string.quoted.other.iri.sparql" }
+            }
+        },
+        "base-declaration": {
+            "name": "meta.directive.base.sparql",
+            "match": "(?i)(BASE)\\s*(<[^>]*>)",
+            "captures": {
+                "1": { "name": "keyword.other.directive.sparql" },
+                "2": { "name": "string.quoted.other.iri.sparql" }
+            }
+        },
+        "iri": {
+            "name": "string.quoted.other.iri.sparql",
+            "match": "<[^>\\s]*>"
+        },
+        "variable": {
+            "name": "variable.parameter.sparql",
+            "match": "[?$][A-Za-z_][\\w]*"
+        },
+        "blank-node-label": {
+            "name": "variable.language.blank-node.sparql",
+            "match": "_:[A-Za-z_][\\w.\\-]*"
+        },
+        "number": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.float.sparql",
+                    "match": "[+-]?(?:\\d+\\.\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?"
+                },
+                {
+                    "name": "constant.numeric.integer.sparql",
+                    "match": "[+-]?\\d+"
+                }
+            ]
+        },
+        "boolean": {
+            "name": "constant.language.boolean.sparql",
+            "match": "(?i)\\b(true|false)\\b"
+        },
+        "aggregate": {
+            "name": "support.function.aggregate.sparql",
+            "match": "(?i)\\b(COUNT|SUM|MIN|MAX|AVG|SAMPLE|GROUP_CONCAT)\\b(?=\\s*\\()"
+        },
+        "builtin-function": {
+            "name": "support.function.builtin.sparql",
+            "match": "(?i)\\b(ABS|BNODE|BOUND|CEIL|COALESCE|CONCAT|CONTAINS|DATATYPE|DAY|ENCODE_FOR_URI|FLOOR|HOURS|IF|IRI|ISBLANK|ISLITERAL|ISNUMERIC|ISIRI|ISURI|LANG|LANGMATCHES|LCASE|MD5|MINUTES|MONTH|NOW|RAND|REGEX|REPLACE|ROUND|SAMETERM|SECONDS|SHA1|SHA256|SHA384|SHA512|STR|STRAFTER|STRBEFORE|STRDT|STRENDS|STRLANG|STRLEN|STRSTARTS|STRUUID|SUBSTR|TIMEZONE|TZ|UCASE|UCASE|URI|UUID|YEAR)\\b(?=\\s*\\()"
+        },
+        "keyword-query": {
+            "name": "keyword.control.query.sparql",
+            "match": "(?i)\\b(SELECT|CONSTRUCT|DESCRIBE|ASK)\\b"
+        },
+        "keyword-update": {
+            "name": "keyword.control.update.sparql",
+            "match": "(?i)\\b(INSERT|DELETE|DATA|LOAD|CLEAR|DROP|ADD|MOVE|COPY|CREATE)\\b"
+        },
+        "keyword-clause": {
+            "name": "keyword.control.clause.sparql",
+            "match": "(?i)\\b(WHERE|OPTIONAL|UNION|MINUS|GRAPH|SERVICE|BIND|VALUES|FILTER|FROM|NAMED|WITH|USING|INTO|TO|SILENT)\\b"
+        },
+        "keyword-modifier": {
+            "name": "keyword.control.modifier.sparql",
+            "match": "(?i)\\b(DISTINCT|REDUCED|ORDER|GROUP|BY|HAVING|LIMIT|OFFSET|ASC|DESC)\\b"
+        },
+        "keyword-expr": {
+            "name": "keyword.operator.expression.sparql",
+            "match": "(?i)\\b(NOT|EXISTS|IN|AS)\\b"
+        },
+        "prefixed-name": {
+            "name": "entity.name.type.prefixed.sparql",
+            "match": "[A-Za-z_][\\w\\-]*:[A-Za-z_\\d][\\w.\\-]*|[A-Za-z_][\\w\\-]*:"
+        }
+    }
+}

@@ -103,6 +103,156 @@ against all CGMES 3.0 RDFS profiles. Edit that file and re-run to try your own s
   valid: true  (no problems)
 ```
 
+> **Note:** source positions are unavailable in the command-line tool because it operates
+> on an RDF graph, not on raw text. The VS Code extension resolves positions into the
+> original source file for all annotation types.
+
+---
+
+## VS Code extension
+
+The `sparql-validation-vscode` module ships a VS Code extension that runs the language
+server and shows validation diagnostics (squiggly underlines) directly in the editor as
+you type — for both SPARQL query files and SHACL Turtle files.
+
+**Supported file types:**
+
+| Extension | Language |
+| --- | --- |
+| `.rq`, `.sparql` | SPARQL query / update |
+| `.ttl`, `.shacl` | Turtle / SHACL shapes |
+
+Validation is debounced (300 ms after the last keystroke) and automatically re-runs on
+all open files when the config file changes.
+
+### Prerequisites
+
+| Tool | Minimum version |
+| --- | --- |
+| Java | 21 |
+| Maven | 3.9 |
+| Node.js | 18 |
+| `vsce` (optional, for packaging) | any recent |
+
+### Building the VSIX
+
+```bash
+# 1. Build the Java language server JAR (from the repo root)
+mvn install -DskipTests
+
+# 2. Build the VS Code extension
+cd sparql-validation-vscode
+npm install
+npm run copy-jar    # copies sparql-validate-lsp.jar into server/
+npm run bundle      # compiles TypeScript and bundles with esbuild
+npx vsce package    # produces sparql-cgmes-validator-<version>.vsix
+```
+
+The `npm run copy-jar` step copies `sparql-validation-lsp/target/sparql-validate-lsp.jar`
+into `sparql-validation-vscode/server/`. The JAR is bundled inside the VSIX so users do
+not need to build Java themselves.
+
+### Installing
+
+**From a VSIX file** (most common):
+
+```bash
+code --install-extension sparql-cgmes-validator-0.1.0.vsix
+```
+
+Or open VS Code → Extensions panel → `⋯` menu → **Install from VSIX…**
+
+### Configuring your workspace
+
+Create `.cgmes/validation.json` in your workspace root. The server discovers this file
+automatically by walking up the directory tree from each open file.
+
+**Option A — point at a directory of RDFS files** (`.rdf`, `.ttl`, `.owl`):
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas"
+}
+```
+
+**Option B — list individual schema files:**
+
+```json
+{
+  "schemas": [
+    ".cgmes/61970-600-2_Equipment-AP-Voc-RDFS2020.rdf",
+    ".cgmes/61970-600-2_Topology-AP-Voc-RDFS2020.rdf"
+  ]
+}
+```
+
+**Option C — also map named graphs to specific profiles:**
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas",
+  "namedGraphs": {
+    "urn:uuid:my-equipment-graph": "http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0",
+    "urn:uuid:my-topology-graph":  "http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"
+  }
+}
+```
+
+When `namedGraphs` is configured, terms inside a `GRAPH <urn:uuid:my-equipment-graph> {}`
+block are validated against only the mapped profile instead of all profiles. Graphs not in
+the map produce a `GRAPH_NOT_CONFIGURED` information-level diagnostic.
+
+If no config file is found, a single information-level diagnostic is shown at the top of
+each file asking you to create one.
+
+### VS Code settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `sparqlValidation.serverJar` | *(bundled)* | Absolute path to a custom `sparql-validate-lsp.jar`. Leave empty to use the JAR bundled inside the extension. |
+| `sparqlValidation.javaExecutable` | `java` | Java executable used to launch the server. Must be Java 21 or later. |
+| `sparqlValidation.javaArgs` | `[]` | Extra JVM arguments, e.g. `["-Xmx512m"]`. |
+| `sparqlValidation.trace.server` | `off` | LSP trace level: `off`, `messages`, or `verbose`. Useful for debugging. |
+
+### Troubleshooting
+
+If the extension is installed but no diagnostics appear:
+
+1. Run **SPARQL CGMES Validator: Show Output** from the Command Palette to open the
+   output channel — startup errors and schema-load failures are logged there.
+2. Check that Java 21+ is on `PATH`, or set `sparqlValidation.javaExecutable` explicitly.
+3. Verify that `.cgmes/validation.json` exists and points to valid schema files.
+4. Set `sparqlValidation.trace.server` to `messages` to see raw LSP traffic.
+
+---
+
+## Language server
+
+`sparql-validation-lsp` is a standalone [LSP 3.17](https://microsoft.github.io/language-server-protocol/)
+server that wraps the `sparql-validation` library. It communicates over `stdio` and can be
+integrated into any LSP-capable editor.
+
+The server reads `.cgmes/validation.json` from the workspace root (walked up from the
+workspace root path reported by the client on `initialize`), loads the configured RDFS
+profiles once, and re-loads them whenever `validation.json` changes. All open documents
+are revalidated after a schema reload.
+
+To build the fat JAR only:
+
+```bash
+mvn -pl sparql-validation-lsp package -DskipTests
+# Output: sparql-validation-lsp/target/sparql-validate-lsp.jar
+```
+
+Launch it directly for integration testing:
+
+```bash
+java -jar sparql-validation-lsp/target/sparql-validate-lsp.jar
+# Speaks LSP over stdin/stdout.
+```
+
+---
+
 ## API
 
 The entry point is [`SparqlValidationApi`](src/main/java/de/soptim/opencgmes/sparql/validation/SparqlValidationApi.java).
@@ -138,6 +288,9 @@ if (!r.isValid()) {
         System.out.println("[" + a.severity() + "] " + a.code() + " -- " + a.message()));
 }
 ```
+
+Multiple `SELECT` queries separated by `;` in one file are automatically split and each
+segment is validated independently with line offsets adjusted back to the original text.
 
 Result shape (serializes cleanly to JSON):
 
@@ -264,6 +417,3 @@ from real RDFS files via `RdfsSchemaIndex.fromCimRegistry`), four additional che
   operators.
 - **SHACL constraint components beyond SPARQL.** `sh:minCount`, `sh:maxCount`, `sh:pattern`,
   etc. are currently not analysed — only the SPARQL-based constraint forms are.
-- **Source locations for shape-structure annotations.** `sh:targetClass` / `sh:path`
-  annotations currently have no line/column because the shapes graph is parsed as an RDF
-  graph, not as text.
