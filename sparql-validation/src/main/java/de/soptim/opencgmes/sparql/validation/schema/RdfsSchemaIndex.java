@@ -66,6 +66,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
     private static final Node RDFS_RANGE = RDFS.range.asNode();
     private static final Node RDFS_SUBCLASS_OF = RDFS.subClassOf.asNode();
     private static final Node RDFS_DATATYPE = RDFS.Datatype.asNode();
+    private static final Node RDFS_LABEL = RDFS.label.asNode();
+    private static final Node RDFS_COMMENT = RDFS.comment.asNode();
 
     private final Map<VersionIri, ProfileSchema> profiles;
     private final Map<Node, List<VersionIri>> classToProfiles;
@@ -187,6 +189,29 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         return false;
     }
 
+    @Override
+    public java.util.Optional<String> labelOf(Node term, Collection<VersionIri> scope) {
+        return firstStringAcrossScope(scope, ps -> ps.termLabels().get(term));
+    }
+
+    @Override
+    public java.util.Optional<String> commentOf(Node term, Collection<VersionIri> scope) {
+        return firstStringAcrossScope(scope, ps -> ps.termComments().get(term));
+    }
+
+    private java.util.Optional<String> firstStringAcrossScope(
+            Collection<VersionIri> scope,
+            java.util.function.Function<ProfileSchema, String> lookup) {
+        Collection<VersionIri> effective = (scope == null) ? profiles.keySet() : scope;
+        for (VersionIri v : effective) {
+            ProfileSchema ps = profiles.get(v);
+            if (ps == null) continue;
+            String val = lookup.apply(ps);
+            if (val != null && !val.isBlank()) return java.util.Optional.of(val.strip());
+        }
+        return java.util.Optional.empty();
+    }
+
     /** Union of profile-local sets retrieved via {@code lookup}, over every profile in scope. */
     private Set<Node> unionAcrossScope(
             Collection<VersionIri> scope,
@@ -209,6 +234,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         var propertyDomain = new LinkedHashMap<Node, Set<Node>>();
         var propertyRange = new LinkedHashMap<Node, Set<Node>>();
         var subClassOf = new LinkedHashMap<Node, Set<Node>>();
+        var termLabels = new LinkedHashMap<Node, String>();
+        var termComments = new LinkedHashMap<Node, String>();
         var it = graph.find(Node.ANY, Node.ANY, Node.ANY);
         try {
             while (it.hasNext()) {
@@ -249,13 +276,21 @@ public final class RdfsSchemaIndex implements SchemaIndex {
                             subClassOf.computeIfAbsent(s, k -> new HashSet<>()).add(o);
                         }
                     }
+                } else if (RDFS_LABEL.equals(p)) {
+                    if (s.isURI() && o.isLiteral()) {
+                        termLabels.putIfAbsent(s, o.getLiteralLexicalForm());
+                    }
+                } else if (RDFS_COMMENT.equals(p)) {
+                    if (s.isURI() && o.isLiteral()) {
+                        termComments.putIfAbsent(s, o.getLiteralLexicalForm());
+                    }
                 }
             }
         } finally {
             it.close();
         }
         return new ProfileSchema(versionIri, classes, properties,
-                propertyDomain, propertyRange, subClassOf);
+                propertyDomain, propertyRange, subClassOf, termLabels, termComments);
     }
 
     public static Builder builder() {
@@ -334,7 +369,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         }
 
         return new ProfileSchema(v, classes, properties,
-                propertyDomain, propertyRange, baseline.subClassOf());
+                propertyDomain, propertyRange, baseline.subClassOf(),
+                baseline.termLabels(), baseline.termComments());
     }
 
     private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
@@ -397,7 +433,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
             for (String s : classes) c.add(NodeFactory.createURI(s));
             for (String s : properties) p.add(NodeFactory.createURI(s));
             profiles.put(v, new ProfileSchema(v, c, p,
-                    toNodeMap(propertyDomain), toNodeMap(propertyRange), toNodeMap(subClassOf)));
+                    toNodeMap(propertyDomain), toNodeMap(propertyRange), toNodeMap(subClassOf),
+                    Map.of(), Map.of()));
             return this;
         }
 

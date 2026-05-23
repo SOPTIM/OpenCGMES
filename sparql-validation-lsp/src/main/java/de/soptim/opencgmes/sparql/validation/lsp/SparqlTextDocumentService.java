@@ -21,13 +21,18 @@ package de.soptim.opencgmes.sparql.validation.lsp;
 import de.soptim.opencgmes.sparql.validation.SourceLocator;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationCode;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationSeverity;
+import de.soptim.opencgmes.sparql.validation.VersionIri;
+import de.soptim.opencgmes.sparql.validation.schema.SchemaIndex;
 import de.soptim.opencgmes.sparql.validation.shacl.EmbeddedSparql;
 import de.soptim.opencgmes.sparql.validation.shacl.ShaclValidationResult;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFParser;
 import org.apache.jena.shared.PrefixMapping;
+import org.apache.jena.vocabulary.RDF;
 import org.eclipse.lsp4j.*;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
@@ -38,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -111,6 +117,38 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String uri  = params.getTextDocument().getUri();
         String text = documents.get(uri);
         if (text != null) scheduleValidation(uri, text);
+    }
+
+    @Override
+    public CompletableFuture<Hover> hover(HoverParams params) {
+        try {
+            return CompletableFuture.completedFuture(computeHover(params));
+        } catch (Exception e) {
+            LOG.error("Hover error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private Hover computeHover(HoverParams params) {
+        String uri  = params.getTextDocument().getUri();
+        String text = documents.get(uri);
+        if (text == null) return null;
+
+        var apiOpt = schemaManager.getApi();
+        if (apiOpt.isEmpty()) return null;
+
+        SchemaIndex index = apiOpt.get().schemaIndex();
+        int line = params.getPosition().getLine();
+        int col  = params.getPosition().getCharacter();
+
+        PrefixMapping prefixes = extractPrefixes(text);
+        Node term = termAtPosition(text, line, col, prefixes);
+        if (term == null) return null;
+
+        String markdown = buildHoverMarkdown(term, index, prefixes);
+        if (markdown == null || markdown.isBlank()) return null;
+
+        return new Hover(new MarkupContent(MarkupKind.MARKDOWN, markdown));
     }
 
     // ---- Internal API ----------------------------------------------------------------------
@@ -372,5 +410,199 @@ final class SparqlTextDocumentService implements TextDocumentService {
     private static boolean isTurtleFile(String uri) {
         String lower = uri.toLowerCase();
         return lower.endsWith(".ttl") || lower.endsWith(".shacl");
+    }
+
+    // ---- Hover helpers ---------------------------------------------------------------------
+
+    private static final Pattern PREFIX_PATTERN = Pattern.compile(
+            "(?i)(?:@prefix|PREFIX)\\s+(\\w+):\\s*<([^>]*)>");
+
+    /** Extracts all PREFIX / @prefix declarations from raw text (handles invalid documents). */
+    private static PrefixMapping extractPrefixes(String text) {
+        PrefixMapping pm = PrefixMapping.Factory.create();
+        if (text == null) return pm;
+        Matcher m = PREFIX_PATTERN.matcher(text);
+        while (m.find()) {
+            try { pm.setNsPrefix(m.group(1), m.group(2)); } catch (Exception ignored) {}
+        }
+        return pm;
+    }
+
+    /**
+     * Returns the schema term (URI node) under the cursor, or {@code null} if none.
+     *
+     * <p>Tries, in order: {@code <full IRI>}, {@code prefix:local} name, and the {@code a}
+     * keyword (resolved to {@code rdf:type}).</p>
+     */
+    static Node termAtPosition(String text, int line0, int col0, PrefixMapping prefixes) {
+        if (text == null) return null;
+        String[] lines = text.split("\n", -1);
+        if (line0 < 0 || line0 >= lines.length) return null;
+        String src = lines[line0];
+        if (src.isEmpty() || col0 < 0) return null;
+        int col = Math.min(col0, src.length() - 1);
+
+        // Skip positions inside a # comment
+        if (isInLineComment(src, col)) return null;
+
+        // 1. Try <full IRI>
+        {
+            int lt = -1, gt = -1;
+            if (src.charAt(col) == '>') {
+                // Cursor is on the closing '>': scan left for the matching '<'
+                gt = col;
+                for (int i = col - 1; i >= 0; i--) {
+                    char c = src.charAt(i);
+                    if (c == '<') { lt = i; break; }
+                    if (Character.isWhitespace(c) || c == '>') break;
+                }
+            } else {
+                // Scan left for '<', stopping at '>' or whitespace (cursor inside or at '<')
+                for (int i = col; i >= 0; i--) {
+                    char c = src.charAt(i);
+                    if (c == '<') { lt = i; break; }
+                    if (Character.isWhitespace(c) || c == '>') break;
+                }
+                if (lt >= 0) {
+                    int g = src.indexOf('>', lt + 1);
+                    if (g > lt && col <= g) gt = g;
+                }
+            }
+            if (lt >= 0 && gt > lt) {
+                String iri = src.substring(lt + 1, gt);
+                if (!iri.isEmpty() && iri.contains(":")) return NodeFactory.createURI(iri);
+            }
+        }
+
+        // 2. Extract prefixed-name token (letters, digits, '.', '-', '_', ':', '%')
+        if (!isNameChar(src.charAt(col))) return null;
+        int start = col;
+        while (start > 0 && isNameChar(src.charAt(start - 1))) start--;
+        int end = col + 1;
+        while (end < src.length() && isNameChar(src.charAt(end))) end++;
+        String token = src.substring(start, end);
+        if (token.isEmpty()) return null;
+
+        // 'a' keyword → rdf:type (only if preceded by non-name char to avoid matching "name")
+        if ("a".equals(token)) return RDF.type.asNode();
+
+        int colon = token.indexOf(':');
+        if (colon <= 0) return null;
+        // Reject tokens with a second colon (e.g. http:// would appear as full IRI, not here)
+        if (token.indexOf(':', colon + 1) >= 0) return null;
+        String pfx   = token.substring(0, colon);
+        String local = token.substring(colon + 1);
+        if (local.isEmpty()) return null;
+        String ns = prefixes.getNsPrefixURI(pfx);
+        if (ns == null) return null;
+        return NodeFactory.createURI(ns + local);
+    }
+
+    private static boolean isNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '.' || c == '-' || c == '_' || c == ':' || c == '%';
+    }
+
+    private static boolean isInLineComment(String src, int col) {
+        boolean inSingle = false, inDouble = false, inIri = false;
+        for (int i = 0; i < col && i < src.length(); i++) {
+            char c = src.charAt(i);
+            if (c == '\\' && (inSingle || inDouble)) { i++; continue; }
+            if (inIri) {
+                if (c == '>') inIri = false;
+            } else if (c == '<' && !inSingle && !inDouble) {
+                inIri = true;
+            } else if (c == '\'' && !inDouble) {
+                inSingle = !inSingle;
+            } else if (c == '"'  && !inSingle) {
+                inDouble = !inDouble;
+            } else if (c == '#'  && !inSingle && !inDouble) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Builds a Markdown hover string for the given term, or returns {@code null} if the term
+     * is not found in the schema.
+     */
+    private static String buildHoverMarkdown(Node term, SchemaIndex index, PrefixMapping docPrefixes) {
+        if (!term.isURI()) return null;
+
+        boolean isProperty = !index.findProperty(term).isEmpty();
+        boolean isClass    = !index.findClass(term).isEmpty();
+        if (!isProperty && !isClass) return null;
+
+        List<VersionIri> termProfiles = isProperty ? index.findProperty(term) : index.findClass(term);
+
+        var sb = new StringBuilder();
+
+        // --- Header: abbreviated IRI in bold + label if distinct ---
+        String abbrev = abbreviateUri(term.getURI(), docPrefixes);
+        sb.append("**`").append(abbrev).append("`**");
+        index.labelOf(term, termProfiles).ifPresent(l -> {
+            // Only append if label adds information beyond the local name
+            String localName = localName(term.getURI());
+            if (!l.equals(localName) && !l.equals(abbrev)) sb.append(" — ").append(l);
+        });
+        sb.append("\n\n");
+
+        // --- rdfs:comment ---
+        index.commentOf(term, termProfiles).ifPresent(c -> sb.append(c).append("\n\n"));
+
+        // --- Domain / Range / Profile table ---
+        Set<Node> domains = isProperty ? index.domainsOf(term, termProfiles) : Set.of();
+        Set<Node> ranges  = isProperty ? index.rangesOf(term, termProfiles)  : Set.of();
+
+        sb.append("| | |\n|---|---|\n");
+        if (!domains.isEmpty()) {
+            sb.append("| **Domain** | ");
+            domains.stream().filter(Node::isURI)
+                    .map(n -> "`" + abbreviateUri(n.getURI(), docPrefixes) + "`")
+                    .sorted().forEach(s -> sb.append(s).append(' '));
+            sb.append("|\n");
+        }
+        if (!ranges.isEmpty()) {
+            sb.append("| **Range** | ");
+            ranges.stream().filter(Node::isURI)
+                    .map(n -> "`" + abbreviateUri(n.getURI(), docPrefixes) + "`")
+                    .sorted().forEach(s -> sb.append(s).append(' '));
+            sb.append("|\n");
+        }
+        sb.append("| **Profile** | ");
+        termProfiles.stream()
+                .map(v -> "`" + shortProfileIri(v.iri()) + "`")
+                .forEach(p -> sb.append(p).append(' '));
+        sb.append("|\n");
+
+        return sb.toString().trim();
+    }
+
+    private static String abbreviateUri(String iri, PrefixMapping pm) {
+        String best = null;
+        int bestNsLen = 0;
+        for (var e : pm.getNsPrefixMap().entrySet()) {
+            String ns = e.getValue();
+            if (ns != null && iri.startsWith(ns) && ns.length() > bestNsLen) {
+                String local = iri.substring(ns.length());
+                if (!local.isEmpty()) {
+                    best = e.getKey() + ":" + local;
+                    bestNsLen = ns.length();
+                }
+            }
+        }
+        return best != null ? best : "<" + iri + ">";
+    }
+
+    private static String localName(String iri) {
+        int last = Math.max(iri.lastIndexOf('/'), iri.lastIndexOf('#'));
+        return last >= 0 ? iri.substring(last + 1) : iri;
+    }
+
+    private static String shortProfileIri(String iri) {
+        int last = iri.lastIndexOf('/');
+        if (last < 0) return iri;
+        int prev = iri.lastIndexOf('/', last - 1);
+        return prev >= 0 ? iri.substring(prev + 1) : iri.substring(last + 1);
     }
 }

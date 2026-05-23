@@ -23,6 +23,7 @@ import org.apache.jena.graph.Node;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -84,5 +85,23 @@ public interface SchemaIndex {
         if (sub == null || sup == null) return false;
         if (sub.equals(sup)) return true;
         return superClassesOf(sub, profiles).contains(sup);
+    }
+
+    // ---- Documentation lookups (populated from rdfs:label / rdfs:comment) -----------------
+
+    /**
+     * Returns the first {@code rdfs:label} found for {@code term} across the given scope,
+     * or empty if none is recorded.
+     */
+    default Optional<String> labelOf(Node term, Collection<VersionIri> scope) {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the first {@code rdfs:comment} found for {@code term} across the given scope,
+     * or empty if none is recorded.
+     */
+    default Optional<String> commentOf(Node term, Collection<VersionIri> scope) {
+        return Optional.empty();
     }
 }
