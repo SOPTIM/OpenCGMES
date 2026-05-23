@@ -133,7 +133,10 @@ function buildClient(serverJar: string): LanguageClient {
     };
 
     const clientOptions: LanguageClientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'sparql' }],
+        documentSelector: [
+            { scheme: 'file', language: 'sparql' },
+            { scheme: 'file', language: 'shacl' },
+        ],
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {

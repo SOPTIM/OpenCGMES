@@ -24,7 +24,8 @@
         "energy"
     ],
     "activationEvents": [
-        "onLanguage:sparql"
+        "onLanguage:sparql",
+        "onLanguage:shacl"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -33,6 +34,12 @@
                 "id": "sparql",
                 "aliases": ["SPARQL", "sparql"],
                 "extensions": [".rq", ".sparql"],
+                "configuration": "./language-configuration.json"
+            },
+            {
+                "id": "shacl",
+                "aliases": ["SHACL", "Turtle"],
+                "extensions": [".ttl", ".shacl"],
                 "configuration": "./language-configuration.json"
             }
         ],

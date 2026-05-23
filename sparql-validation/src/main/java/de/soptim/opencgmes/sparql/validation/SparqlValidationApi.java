@@ -27,6 +27,7 @@ import de.soptim.opencgmes.sparql.validation.schema.SchemaIndex;
 import de.soptim.opencgmes.sparql.validation.schema.ValidationScope;
 import org.apache.jena.query.QueryException;
 import org.apache.jena.query.QueryFactory;
+import de.soptim.opencgmes.sparql.validation.SparqlValidationCode;
 import de.soptim.opencgmes.sparql.validation.shacl.EmbeddedSparql;
 import de.soptim.opencgmes.sparql.validation.shacl.ShaclEmbeddedQueryResult;
 import de.soptim.opencgmes.sparql.validation.shacl.ShaclShapeAnalyzer;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -108,11 +110,112 @@ public final class SparqlValidationApi {
     private SparqlValidationResult validateAutoDetect(String input, ValidationScope scope) {
         // Try query first; fall back to update if the query parse fails.
         try {
-            QueryFactory.create(input);         // lightweight probe — does not retain the Query
+            QueryFactory.create(input);
             return validator.validate(input, scope);
         } catch (QueryException ignored) {
-            return validator.validateUpdate(input, scope);
+            SparqlValidationResult updateResult = validator.validateUpdate(input, scope);
+            boolean updateAlsoFailed = updateResult.annotations().stream()
+                    .anyMatch(a -> a.code() == SparqlValidationCode.SYNTAX_ERROR);
+            if (!updateAlsoFailed) return updateResult;
+
+            // Both parsers failed. Try splitting on ';' separators (multi-query file).
+            List<QuerySegment> segments = splitQuerySegments(input);
+            if (segments.size() > 1) {
+                return validateQuerySegments(segments, input, scope);
+            }
+            // Single segment that didn't parse — return the query error (more informative).
+            return validator.validate(input, scope);
         }
+    }
+
+    /** One ';'-separated SPARQL query within a multi-query file. */
+    private record QuerySegment(String text, int firstContentLine0) {}
+
+    /**
+     * Splits a multi-query file (queries separated by bare {@code ;} lines or {@code };} lines)
+     * into individual query segments. PREFIX declarations from the start of the file are
+     * prepended to every segment. Returns the unsplit input as a single segment when no
+     * separator is found.
+     */
+    private static List<QuerySegment> splitQuerySegments(String input) {
+        String[] inputLines = input.split("\n", -1);
+        List<String> prefixLines = new ArrayList<>();
+        List<QuerySegment> segments = new ArrayList<>();
+        List<String> current = new ArrayList<>();
+        // 0-based original line where the current segment's own (non-prefix) content begins.
+        int firstContentLine0 = 0;
+
+        for (int i = 0; i < inputLines.length; i++) {
+            String line = inputLines[i];
+            String trimmed = line.trim();
+
+            if (trimmed.toLowerCase().startsWith("prefix ")) {
+                prefixLines.add(line);
+                current.add(line);
+                firstContentLine0 = i + 1;
+            } else if (trimmed.equals(";")) {
+                if (hasNonPrefixContent(current)) {
+                    segments.add(new QuerySegment(String.join("\n", current), firstContentLine0));
+                }
+                current = new ArrayList<>(prefixLines);
+                firstContentLine0 = i + 1;
+            } else if (trimmed.equals("};")) {
+                // '}' closes the query; ';' is the separator — keep '}' in this segment.
+                current.add(line.substring(0, line.lastIndexOf(';')));
+                segments.add(new QuerySegment(String.join("\n", current), firstContentLine0));
+                current = new ArrayList<>(prefixLines);
+                firstContentLine0 = i + 1;
+            } else {
+                current.add(line);
+            }
+        }
+        if (hasNonPrefixContent(current)) {
+            segments.add(new QuerySegment(String.join("\n", current), firstContentLine0));
+        }
+        return segments;
+    }
+
+    private static boolean hasNonPrefixContent(List<String> lines) {
+        return lines.stream().anyMatch(
+                l -> !l.trim().isEmpty() && !l.trim().toLowerCase().startsWith("prefix "));
+    }
+
+    /**
+     * Validates each segment independently and merges the annotations, adjusting line numbers
+     * so they point into the original (multi-query) file rather than the individual segment.
+     * Falls back to a single whole-file validation if any segment fails to parse as a query.
+     */
+    private SparqlValidationResult validateQuerySegments(
+            List<QuerySegment> segments, String original, ValidationScope scope) {
+        int prefixLineCount = (int) Arrays.stream(original.split("\n", -1))
+                .filter(l -> l.trim().toLowerCase().startsWith("prefix "))
+                .count();
+
+        var allAnnotations = new ArrayList<SparqlValidationAnnotation>();
+        for (QuerySegment seg : segments) {
+            try {
+                QueryFactory.create(seg.text());
+            } catch (QueryException e) {
+                return validator.validate(original, scope);
+            }
+            // lineOffset: how many lines to add to convert a segment line number (1-based)
+            // to the original file line number. Lines within the PREFIX block need no
+            // adjustment (they're the same at the top of the original), but in practice
+            // schema-validation annotations always land in the query body, not on PREFIX lines.
+            int lineOffset = seg.firstContentLine0() - prefixLineCount;
+            SparqlValidationResult r = validator.validate(seg.text(), scope);
+            for (SparqlValidationAnnotation a : r.annotations()) {
+                if (a.line() != null && lineOffset != 0) {
+                    allAnnotations.add(new SparqlValidationAnnotation(
+                            a.severity(), a.line() + lineOffset, a.column(),
+                            a.message(), a.code(), a.term(),
+                            a.selectedProfiles(), a.foundInOtherProfiles(), a.graph()));
+                } else {
+                    allAnnotations.add(a);
+                }
+            }
+        }
+        return new SparqlValidationResult(original, null, allAnnotations);
     }
 
     // ---- getProfileDependencies (query) ----------------------------------------------------

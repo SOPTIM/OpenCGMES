@@ -20,7 +20,9 @@ package de.soptim.opencgmes.sparql.validation.cli;
 
 import de.soptim.opencgmes.sparql.validation.SparqlValidationAnnotation;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationApi;
+import de.soptim.opencgmes.sparql.validation.SparqlValidationCode;
 import de.soptim.opencgmes.sparql.validation.SparqlValidationResult;
+import de.soptim.opencgmes.sparql.validation.SparqlValidationSeverity;
 import de.soptim.opencgmes.sparql.validation.VersionIri;
 import de.soptim.opencgmes.sparql.validation.cli.config.CliConfig;
 import de.soptim.opencgmes.sparql.validation.cli.config.ConfigLoader;
@@ -30,8 +32,13 @@ import de.soptim.opencgmes.sparql.validation.cli.output.JsonFormatter;
 import de.soptim.opencgmes.sparql.validation.cli.output.TextFormatter;
 import de.soptim.opencgmes.sparql.validation.cli.schema.SchemaLoader;
 import de.soptim.opencgmes.sparql.validation.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.sparql.validation.shacl.ShaclValidationResult;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFParser;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ExitCode;
 import picocli.CommandLine.Option;
@@ -174,16 +181,23 @@ public class ValidateCommand implements Callable<Integer> {
         var api     = new SparqlValidationApi(index);
         var results = new ArrayList<FileResult>();
         for (String input : inputs) {
-            String source  = input.equals("-") ? "<stdin>" : input;
-            String queryText;
+            String source = input.equals("-") ? "<stdin>" : input;
+            String text;
             try {
-                queryText = readInput(input);
+                text = readInput(input);
             } catch (IOException e) {
                 System.err.println("Error reading " + source + ": " + e.getMessage());
                 return ExitCode.USAGE;
             }
-            SparqlValidationResult r = validate(api, queryText, namedGraphScope, index);
-            results.add(new FileResult(source, r.isValid(), List.copyOf(r.annotations())));
+
+            FileResult fileResult;
+            if (isTurtleFile(input)) {
+                fileResult = validateShaclInput(api, source, text);
+            } else {
+                SparqlValidationResult r = validateSparql(api, text, namedGraphScope, index);
+                fileResult = new FileResult(source, r.isValid(), List.copyOf(r.annotations()));
+            }
+            results.add(fileResult);
         }
 
         // 4. Format output.
@@ -201,7 +215,7 @@ public class ValidateCommand implements Callable<Integer> {
 
     // ---- Helpers ----------------------------------------------------------------------------
 
-    private SparqlValidationResult validate(
+    private SparqlValidationResult validateSparql(
             SparqlValidationApi api,
             String queryText,
             Map<Node, Collection<VersionIri>> namedGraphScope,
@@ -217,6 +231,51 @@ public class ValidateCommand implements Callable<Integer> {
             return api.validateSparql(queryText, versionIris);
         }
         return api.validateSparql(queryText);
+    }
+
+    private FileResult validateShaclInput(SparqlValidationApi api, String source, String text) {
+        Graph graph;
+        try {
+            var model = ModelFactory.createDefaultModel();
+            RDFParser.fromString(text, Lang.TURTLE).parse(model);
+            graph = model.getGraph();
+        } catch (Exception e) {
+            var parseError = new SparqlValidationAnnotation(
+                    SparqlValidationSeverity.ERROR, null, null,
+                    "Turtle/SHACL parse error: " + e.getMessage(),
+                    SparqlValidationCode.SYNTAX_ERROR,
+                    null, List.of(), List.of(), null);
+            return new FileResult(source, false, List.of(parseError));
+        }
+
+        ShaclValidationResult r;
+        if (!profiles.isEmpty()) {
+            var versionIris = profiles.stream().map(VersionIri::of).collect(Collectors.toList());
+            r = api.validateShacl(graph, versionIris);
+        } else {
+            r = api.validateShacl(graph);
+        }
+
+        // Flatten shape-structure and embedded-SPARQL annotations into a single list.
+        // Embedded-SPARQL positions are relative to the query string, not the Turtle file —
+        // strip them and prefix the message so the output is unambiguous.
+        var annotations = new ArrayList<SparqlValidationAnnotation>(r.shapeAnnotations());
+        for (var er : r.embeddedResults()) {
+            String kind = er.embedded().kind().toString();
+            for (var a : er.result().annotations()) {
+                annotations.add(new SparqlValidationAnnotation(
+                        a.severity(), null, null,
+                        "[embedded " + kind + "] " + a.message(),
+                        a.code(), a.term(), a.selectedProfiles(), a.foundInOtherProfiles(), a.graph()));
+            }
+        }
+        return new FileResult(source, r.isValid(), List.copyOf(annotations));
+    }
+
+    private static boolean isTurtleFile(String input) {
+        if ("-".equals(input)) return false;
+        String lower = input.toLowerCase();
+        return lower.endsWith(".ttl") || lower.endsWith(".shacl");
     }
 
     private Map<Node, Collection<VersionIri>> buildNamedGraphScope(
