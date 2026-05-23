@@ -226,10 +226,38 @@ final class SparqlTextDocumentService implements TextDocumentService {
         var loc = SourceLocator.locate(text, a.term(), prefixes);
         int line   = loc.line()   != null ? loc.line()   - 1 : 0;
         int col    = loc.column() != null ? loc.column() - 1 : 0;
-        int endCol = (a.term() != null && a.term().isURI())
-                   ? col + a.term().getURI().length() + 2
-                   : col + 1;
+        int endCol = col + tokenLengthInSource(text, loc);
         return buildDiagnostic(a.severity(), a.message(), a.code(), line, col, endCol);
+    }
+
+    /**
+     * Returns the character length of the SPARQL/Turtle token that starts at {@code loc}.
+     *
+     * <p>Handles three token forms: {@code <full-IRI>} (scan to {@code >}),
+     * {@code prefix:local} and keywords (scan to first delimiter), and falls back to 1.</p>
+     */
+    private static int tokenLengthInSource(String text, SourceLocator.Location loc) {
+        if (loc.line() == null || loc.column() == null || text == null) return 1;
+        String[] lines = text.split("\n", -1);
+        int li = loc.line() - 1;
+        if (li < 0 || li >= lines.length) return 1;
+        String src = lines[li];
+        int ci = loc.column() - 1;
+        if (ci < 0 || ci >= src.length()) return 1;
+        if (src.charAt(ci) == '<') {
+            int close = src.indexOf('>', ci);
+            return close >= 0 ? close - ci + 1 : 1;
+        }
+        int end = ci;
+        while (end < src.length()) {
+            char c = src.charAt(end);
+            if (Character.isWhitespace(c) || c == ';' || c == ',' || c == '('
+                    || c == ')' || c == '[' || c == ']' || c == '{' || c == '}' || c == '#') {
+                break;
+            }
+            end++;
+        }
+        return Math.max(1, end - ci);
     }
 
     private static final Pattern JENA_POSITION = Pattern.compile("\\[line:\\s*(\\d+),\\s*col:\\s*(\\d+)\\s*\\]");

@@ -136,6 +136,49 @@ public class SourceLocatorTest {
         assertNull(loc.column());
     }
 
+    // ---- Turtle source (used by the LSP for SHACL structural annotations) -------------------
+
+    @Test
+    public void locatesTermInTurtleSourceViaPrefixedName() {
+        // Simulates the LSP looking up a sh:targetClass value in a .ttl file.
+        String turtle = "@prefix sh:  <http://www.w3.org/ns/shacl#> .\n"
+                + "@prefix cim: <" + CIM + "> .\n"
+                + "\n"
+                + "ex:BadShape sh:targetClass cim:DoesNotExist .\n";
+        PrefixMapping pm = PrefixMapping.Factory.create();
+        pm.setNsPrefix("cim", CIM);
+        pm.setNsPrefix("sh", "http://www.w3.org/ns/shacl#");
+        var loc = SourceLocator.locate(turtle, NodeFactory.createURI(CIM + "DoesNotExist"), pm);
+        assertEquals("cim:DoesNotExist is on the 4th line", Integer.valueOf(4), loc.line());
+        // Column should point at the 'c' in 'cim:DoesNotExist', not line 1.
+        assertNotNull("column must be resolved", loc.column());
+        assertTrue("column must be > 1 (not at line start)", loc.column() > 1);
+    }
+
+    @Test
+    public void locatesTermInTurtleSourceViaFullIri() {
+        // Full-IRI form in Turtle is also found correctly.
+        String turtle = "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+                + "ex:Shape sh:targetClass <" + CIM + "ACLineSegment> .\n";
+        var loc = SourceLocator.locate(turtle, NodeFactory.createURI(CIM + "ACLineSegment"));
+        assertEquals(Integer.valueOf(2), loc.line());
+        // Column points to the '<' of the full IRI.
+        assertNotNull(loc.column());
+        String line2 = "ex:Shape sh:targetClass <" + CIM + "ACLineSegment> .";
+        int expected = line2.indexOf('<') + 1; // 1-based
+        assertEquals(Integer.valueOf(expected), loc.column());
+    }
+
+    @Test
+    public void turtleCommentIsNotMatchedAsTerm() {
+        // Term appears only inside a comment on line 1; the real occurrence is on line 2.
+        String turtle = "# cim:ACLineSegment is referenced below\n"
+                + "ex:Shape sh:targetClass <" + CIM + "ACLineSegment> .\n";
+        var loc = SourceLocator.locate(turtle, NodeFactory.createURI(CIM + "ACLineSegment"));
+        assertEquals("full-IRI occurrence must be on line 2, not in comment on line 1",
+                Integer.valueOf(2), loc.line());
+    }
+
     @Test
     public void nullInputsAreSafe() {
         assertEquals(SourceLocator.UNKNOWN,
