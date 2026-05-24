@@ -8,7 +8,7 @@ The repository ships an aggregator pom at the root. From a fresh checkout:
 ```bash
 mvn test                                # build & test every module
 mvn install                             # install every module into ~/.m2
-mvn -pl sparql-validation -am verify    # build sparql-validation + its dependencies only
+mvn -pl cimcheck/core -am verify        # build cimcheck-core + its dependencies only
 ```
 
 Each module also still builds standalone (`mvn -f cimxml/pom.xml verify` etc.); the
@@ -20,13 +20,13 @@ A Java library for parsing CIMXML files into RDF graphs using Apache Jena.
 It supports both full models and difference models as defined in IEC 61970-552.
 see [CimXmlParser](cimxml/README.md)
 
-## sparql-validation
+## CIMcheck
 
-Static SPARQL query validation against RDFS / CIM profile schemas — answers
-*"does this query make sense for the schema I'm working with?"* without
-executing the query and without requiring any RDF data. Useful in unit tests,
-build pipelines and query editors.
-see [sparql-validation](sparql-validation/README.md)
+Static SPARQL and SHACL validation against RDFS / CIM profile schemas — answers
+*"does this query (or shapes graph) make sense for the schema I'm working with?"* without
+executing the query and without requiring any RDF data. Ships as a library, a CLI tool,
+an LSP language server, and a VS Code extension.
+see [CIMcheck](cimcheck/core/README.md)
 
 ## Coming soon: QueryAndValidationUI
 

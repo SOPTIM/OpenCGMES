@@ -51,7 +51,7 @@ final class DiagnosticConverter {
             case INFO  -> DiagnosticSeverity.Information;
         };
 
-        Diagnostic d = new Diagnostic(range, a.message(), severity, "sparql-validate");
+        Diagnostic d = new Diagnostic(range, a.message(), severity, "cimcheck");
         d.setCode(Either.forLeft(a.code().name()));
         return d;
     }

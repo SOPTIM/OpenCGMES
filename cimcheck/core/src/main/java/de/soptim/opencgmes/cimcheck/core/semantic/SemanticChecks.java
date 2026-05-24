@@ -80,7 +80,7 @@ public final class SemanticChecks {
 
     /**
      * Checks with source-location hints. The optional {@code originalQuery} and
-     * {@code prefixes} are forwarded to {@link de.soptim.opencgmes.sparql.validation
+     * {@code prefixes} are forwarded to {@link de.soptim.opencgmes.cimcheck.core
      * .SourceLocator} so emitted annotations carry {@code line}/{@code column} when the
      * offending term can be found in the original text.
      */

@@ -48,10 +48,10 @@ import java.util.List;
  *
  * # Build and run with all defaults (CGMES 3.0 profiles + built-in example query)
  * mvn -q install -DskipTests
- * mvn -q -pl sparql-validation exec:java
+ * mvn -q -pl cimcheck/core exec:java
  *
  * # Custom RDFS folder and/or query file
- * mvn -q -pl sparql-validation exec:java \
+ * mvn -q -pl cimcheck/core exec:java \
  *     -Dexec.args="path/to/rdfs-folder path/to/query.rq"
  * }</pre>
  *

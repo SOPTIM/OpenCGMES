@@ -191,7 +191,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             var range = new Range(new Position(0, 0), new Position(0, 1));
             var hint  = new Diagnostic(range,
                     "No schema loaded. Add .cgmes/validation.json to enable validation.",
-                    DiagnosticSeverity.Information, "sparql-validate");
+                    DiagnosticSeverity.Information, "cimcheck");
             publishDiagnostics(uri, List.of(hint));
             return;
         }
@@ -219,7 +219,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             publishDiagnostics(uri, List.of(new Diagnostic(
                     new Range(new Position(0, 0), new Position(0, 1)),
                     "No schema loaded. Add .cgmes/validation.json to enable SHACL validation.",
-                    DiagnosticSeverity.Information, "sparql-validate")));
+                    DiagnosticSeverity.Information, "cimcheck")));
             return;
         }
 
@@ -313,7 +313,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
         return new Diagnostic(
                 new Range(new Position(line, col), new Position(line, col + 1)),
                 "Turtle/SHACL parse error: " + msg,
-                DiagnosticSeverity.Error, "sparql-validate");
+                DiagnosticSeverity.Error, "cimcheck");
     }
 
     private static Diagnostic convertEmbeddedAnnotation(
@@ -387,7 +387,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
         };
         Diagnostic d = new Diagnostic(
                 new Range(new Position(line, col), new Position(line, endCol)),
-                message, lspSeverity, "sparql-validate");
+                message, lspSeverity, "cimcheck");
         d.setCode(Either.forLeft(code.name()));
         return d;
     }

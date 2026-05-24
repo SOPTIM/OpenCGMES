@@ -1,10 +1,10 @@
-# sparql-validation
+# CIMcheck - Core
 
 Static SPARQL and SHACL validation against RDFS / CIM profile schemas for OpenCGMES.
 
 ## What it does
 
-`sparql-validation` answers the question *"does this query (or shapes graph) make sense
+`cimcheck-core` answers the question *"does this query (or shapes graph) make sense
 for the schema I'm working with?"* — **without executing anything and without needing RDF
 data**. It validates against RDFS profile files and catches mistakes at development time,
 in unit tests, or in CI.
@@ -31,7 +31,7 @@ mvn -q install -DskipTests
 ### SPARQL example
 
 ```bash
-mvn -q -pl sparql-validation exec:java
+mvn -q -pl cimcheck/core exec:java
 ```
 
 Validates [`src/main/resources/examples/example-query.rq`](src/main/resources/examples/example-query.rq)
@@ -39,7 +39,7 @@ against all CGMES 3.0 RDFS profiles. Edit that file and re-run to try your own q
 
 ```
 =================================================================
- OpenCGMES -- static SPARQL query validation
+ CIMcheck -- static SPARQL query validation
 =================================================================
 
 --- schema profiles loaded from: .../CGMES/CurrentRelease/RDFS
@@ -63,15 +63,15 @@ against all CGMES 3.0 RDFS profiles. Edit that file and re-run to try your own q
 To use a custom RDFS directory or query file:
 
 ```bash
-mvn -q -pl sparql-validation exec:java \
+mvn -q -pl cimcheck/core exec:java \
     -Dexec.args="path/to/rdfs-folder path/to/query.rq"
 ```
 
 ### SHACL example
 
 ```bash
-mvn -q -pl sparql-validation exec:java \
-    -Dexec.mainClass=examples.de.soptim.opencgmes.cimcheck.core.ShaclValidationExample
+mvn -q -pl cimcheck/core exec:java \
+    -Dexec.mainClass=de.soptim.opencgmes.cimcheck.core.examples.ShaclValidationExample
 ```
 
 Validates [`src/main/resources/examples/example-shapes.ttl`](src/main/resources/examples/example-shapes.ttl)
@@ -79,7 +79,7 @@ against all CGMES 3.0 RDFS profiles. Edit that file and re-run to try your own s
 
 ```
 =================================================================
- OpenCGMES -- static SHACL shapes graph validation
+ CIMcheck -- static SHACL shapes graph validation
 =================================================================
 
 --- shape-structure validation
@@ -111,7 +111,7 @@ against all CGMES 3.0 RDFS profiles. Edit that file and re-run to try your own s
 
 ## VS Code extension
 
-The `sparql-validation-vscode` module ships a VS Code extension that runs the language
+The `cimcheck/vscode` module ships a VS Code extension that runs the language
 server and shows validation diagnostics (squiggly underlines) directly in the editor as
 you type — for both SPARQL query files and SHACL Turtle files.
 
@@ -141,15 +141,15 @@ all open files when the config file changes.
 mvn install -DskipTests
 
 # 2. Build the VS Code extension
-cd sparql-validation-vscode
+cd cimcheck/vscode
 npm install
-npm run copy-jar    # copies sparql-validate-lsp.jar into server/
+npm run copy-jar    # copies cimcheck-lsp.jar into server/
 npm run bundle      # compiles TypeScript and bundles with esbuild
-npx vsce package    # produces sparql-cgmes-validator-<version>.vsix
+npx vsce package    # produces cimcheck-<version>.vsix
 ```
 
-The `npm run copy-jar` step copies `sparql-validation-lsp/target/sparql-validate-lsp.jar`
-into `sparql-validation-vscode/server/`. The JAR is bundled inside the VSIX so users do
+The `npm run copy-jar` step copies `cimcheck/lsp/target/cimcheck-lsp.jar`
+into `cimcheck/vscode/server/`. The JAR is bundled inside the VSIX so users do
 not need to build Java themselves.
 
 ### Installing
@@ -157,7 +157,7 @@ not need to build Java themselves.
 **From a VSIX file** (most common):
 
 ```bash
-code --install-extension sparql-cgmes-validator-0.1.0.vsix
+code --install-extension cimcheck-0.1.0.vsix
 ```
 
 Or open VS Code → Extensions panel → `⋯` menu → **Install from VSIX…**
@@ -209,27 +209,45 @@ each file asking you to create one.
 
 | Setting | Default | Description |
 | --- | --- | --- |
-| `sparqlValidation.serverJar` | *(bundled)* | Absolute path to a custom `sparql-validate-lsp.jar`. Leave empty to use the JAR bundled inside the extension. |
-| `sparqlValidation.javaExecutable` | `java` | Java executable used to launch the server. Must be Java 21 or later. |
-| `sparqlValidation.javaArgs` | `[]` | Extra JVM arguments, e.g. `["-Xmx512m"]`. |
-| `sparqlValidation.trace.server` | `off` | LSP trace level: `off`, `messages`, or `verbose`. Useful for debugging. |
+| `cimcheck.serverJar` | *(bundled)* | Absolute path to a custom `cimcheck-lsp.jar`. Leave empty to use the JAR bundled inside the extension. |
+| `cimcheck.javaExecutable` | `java` | Java executable used to launch the server. Must be Java 21 or later. |
+| `cimcheck.javaArgs` | `[]` | Extra JVM arguments, e.g. `["-Xmx512m"]`. |
+| `cimcheck.trace.server` | `off` | LSP trace level: `off`, `messages`, or `verbose`. Useful for debugging. |
+
+### Strictness mode
+
+Set `"strictness"` in `.cgmes/validation.json` to control how the validator reports findings:
+
+| Level | Behaviour |
+| --- | --- |
+| `permissive` | Structural errors only (`SYNTAX_ERROR`, `UNKNOWN_CLASS`, `UNKNOWN_PROPERTY`, `INVALID_CARDINALITY`) |
+| `default` | All findings as-is (errors are errors, warnings are warnings) |
+| `strict` | Warnings promoted to errors — suitable for CI |
+| `pedantic` | Warnings and infos promoted to errors |
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas",
+  "strictness": "strict"
+}
+```
 
 ### Troubleshooting
 
 If the extension is installed but no diagnostics appear:
 
-1. Run **SPARQL CGMES Validator: Show Output** from the Command Palette to open the
+1. Run **CIMcheck: Show Output** from the Command Palette to open the
    output channel — startup errors and schema-load failures are logged there.
-2. Check that Java 21+ is on `PATH`, or set `sparqlValidation.javaExecutable` explicitly.
+2. Check that Java 21+ is on `PATH`, or set `cimcheck.javaExecutable` explicitly.
 3. Verify that `.cgmes/validation.json` exists and points to valid schema files.
-4. Set `sparqlValidation.trace.server` to `messages` to see raw LSP traffic.
+4. Set `cimcheck.trace.server` to `messages` to see raw LSP traffic.
 
 ---
 
 ## Language server
 
-`sparql-validation-lsp` is a standalone [LSP 3.17](https://microsoft.github.io/language-server-protocol/)
-server that wraps the `sparql-validation` library. It communicates over `stdio` and can be
+`cimcheck/lsp` is a standalone [LSP 3.17](https://microsoft.github.io/language-server-protocol/)
+server that wraps the `cimcheck-core` library. It communicates over `stdio` and can be
 integrated into any LSP-capable editor.
 
 The server reads `.cgmes/validation.json` from the workspace root (walked up from the
@@ -240,16 +258,36 @@ are revalidated after a schema reload.
 To build the fat JAR only:
 
 ```bash
-mvn -pl sparql-validation-lsp package -DskipTests
-# Output: sparql-validation-lsp/target/sparql-validate-lsp.jar
+mvn -pl cimcheck/lsp package -DskipTests
+# Output: cimcheck/lsp/target/cimcheck-lsp.jar
 ```
 
 Launch it directly for integration testing:
 
 ```bash
-java -jar sparql-validation-lsp/target/sparql-validate-lsp.jar
+java -jar cimcheck/lsp/target/cimcheck-lsp.jar
 # Speaks LSP over stdin/stdout.
 ```
+
+---
+
+## CLI
+
+`cimcheck/cli` ships a command-line tool for validating queries and shapes in CI pipelines.
+
+```bash
+mvn -pl cimcheck/cli package -DskipTests
+# Output: cimcheck/cli/target/cimcheck.jar
+```
+
+Basic usage:
+
+```bash
+java -jar cimcheck.jar --help
+java -jar cimcheck.jar --schema path/to/rdfs --strictness strict path/to/query.rq
+```
+
+The `--strictness` flag mirrors the VS Code setting.
 
 ---
 

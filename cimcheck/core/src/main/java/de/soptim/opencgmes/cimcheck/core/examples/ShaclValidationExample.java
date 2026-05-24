@@ -55,12 +55,12 @@ import java.util.List;
  *
  * # Build and run with all defaults (CGMES 3.0 profiles + built-in example shapes)
  * mvn -q install -DskipTests
- * mvn -q -pl sparql-validation exec:java \
- *     -Dexec.mainClass=de.soptim.opencgmes.sparql.validation.examples.ShaclValidationExample
+ * mvn -q -pl cimcheck/core exec:java \
+ *     -Dexec.mainClass=de.soptim.opencgmes.cimcheck.core.examples.ShaclValidationExample
  *
  * # Custom RDFS folder and/or shapes file
- * mvn -q -pl sparql-validation exec:java \
- *     -Dexec.mainClass=de.soptim.opencgmes.sparql.validation.examples.ShaclValidationExample \
+ * mvn -q -pl cimcheck/core exec:java \
+ *     -Dexec.mainClass=de.soptim.opencgmes.cimcheck.core.examples.ShaclValidationExample \
  *     -Dexec.args="path/to/rdfs-folder path/to/shapes.ttl"
  * }</pre>
  *

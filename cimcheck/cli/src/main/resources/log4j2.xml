@@ -15,7 +15,7 @@
         <Logger name="org.apache.jena" level="WARN"/>
         <Logger name="com.github.jsonldjava" level="WARN"/>
         <!-- CLI's own logger at INFO so startup/config messages come through -->
-        <Logger name="de.soptim.opencgmes.sparql.validation.cli" level="INFO"/>
+        <Logger name="de.soptim.opencgmes.cimcheck.cli" level="INFO"/>
         <Root level="WARN">
             <AppenderRef ref="Stderr"/>
         </Root>

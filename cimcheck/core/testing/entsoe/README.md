@@ -1,6 +1,6 @@
 # ENTSO-E Application Profiles Library — drop-in test fixture
 
-The Phase 2 SHACL extractor in `de.soptim.opencgmes.sparql.validation.shacl` is designed
+The Phase 2 SHACL extractor in `de.soptim.opencgmes.cimcheck.core.shacl` is designed
 to consume the SHACL shapes from the ENTSO-E *Application Profiles Library*:
 
 > https://github.com/entsoe/application-profiles-library
