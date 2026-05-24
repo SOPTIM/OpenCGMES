@@ -247,19 +247,29 @@ final class SparqlTextDocumentService implements TextDocumentService {
             return;
         }
 
-        // Parse Turtle — report a syntax error diagnostic if it fails.
+        var diagnostics = new ArrayList<Diagnostic>();
+
+        // Parse Turtle. On failure, collect the parse error and attempt recovery so that
+        // CIMcheck schema errors are still shown alongside the syntax problem.
         Model model = ModelFactory.createDefaultModel();
         try {
             RDFParser.fromString(text, Lang.TURTLE).parse(model);
         } catch (Exception e) {
-            publishDiagnostics(uri, List.of(turtleParseErrorDiagnostic(e)));
-            return;
+            diagnostics.add(turtleParseErrorDiagnostic(e, text));
+            // Recovery: replace unrecognised @keyword directives with @prefix
+            // so Jena can parse the rest of the file and CIMcheck errors still appear.
+            String recovered = fixWrongTurtleDirectives(text);
+            if (!recovered.equals(text)) {
+                model = ModelFactory.createDefaultModel();
+                try {
+                    RDFParser.fromString(recovered, Lang.TURTLE).parse(model);
+                } catch (Exception ignored) { /* recovery also failed; model stays empty */ }
+            }
         }
 
         try {
             ShaclValidationResult result = apiOpt.get().validateShacl(model.getGraph());
-            var strictness  = schemaManager.strictnessLevel();
-            var diagnostics = new ArrayList<Diagnostic>();
+            var strictness = schemaManager.strictnessLevel();
 
             // Shape-structure annotations: apply strictness, then locate in Turtle source.
             for (var a : strictness.apply(result.shapeAnnotations())) {
@@ -278,6 +288,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             LOG.debug("Validated SHACL {}: {} diagnostic(s)", uri, diagnostics.size());
         } catch (Exception e) {
             LOG.error("Error validating SHACL {}: {}", uri, e.getMessage(), e);
+            publishDiagnostics(uri, diagnostics); // still publish any parse errors
         }
     }
 
@@ -323,8 +334,14 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     private static final Pattern JENA_POSITION = Pattern.compile("\\[line:\\s*(\\d+),\\s*col:\\s*(\\d+)\\s*\\]");
 
-    /** Builds a diagnostic for a Jena Turtle parse error, extracting position from the message. */
-    private static Diagnostic turtleParseErrorDiagnostic(Exception e) {
+    /**
+     * Builds a diagnostic for a Jena Turtle parse error.
+     *
+     * <p>Extracts the position from the Jena exception message and extends the highlighted range
+     * to cover the full token at that position (not just the single character that Jena points
+     * at, which would be just the {@code @} for a directive like {@code @prfx}).</p>
+     */
+    private static Diagnostic turtleParseErrorDiagnostic(Exception e, String text) {
         int line = 0, col = 0;
         String msg = e.getMessage();
         if (msg != null) {
@@ -334,8 +351,23 @@ final class SparqlTextDocumentService implements TextDocumentService {
                 col  = Math.max(0, Integer.parseInt(m.group(2)) - 1);
             }
         }
+        // Extend the squiggle to cover the full token rather than a single character.
+        int endCol = col + 1;
+        if (text != null) {
+            String[] srcLines = text.split("\n", -1);
+            if (line < srcLines.length) {
+                String src = srcLines[line];
+                int e2 = col;
+                while (e2 < src.length()
+                        && !Character.isWhitespace(src.charAt(e2))
+                        && src.charAt(e2) != ';' && src.charAt(e2) != ',') {
+                    e2++;
+                }
+                if (e2 > col) endCol = e2;
+            }
+        }
         return new Diagnostic(
-                new Range(new Position(line, col), new Position(line, col + 1)),
+                new Range(new Position(line, col), new Position(line, endCol)),
                 "Turtle/SHACL parse error: " + msg,
                 DiagnosticSeverity.Error, "cimcheck");
     }
@@ -344,61 +376,114 @@ final class SparqlTextDocumentService implements TextDocumentService {
             SparqlValidationAnnotation a,
             String kind, EmbeddedSparql embedded, String turtleText) {
         String msg = "[embedded " + kind + "] " + a.message();
-        int endCol = (a.term() != null && a.term().isURI())
-                   ? a.term().getURI().length() + 2
-                   : 1;
-        int line = embeddedAnnotationTurtleLine(a, embedded, turtleText);
-        int col  = a.column() != null ? Math.max(0, a.column() - 1) : 0;
-        return buildDiagnostic(a.severity(), msg, a.code(), line, col, Math.max(col + 1, col + endCol));
+        int[] pos = embeddedAnnotationTurtlePos(a, embedded, turtleText);
+        int line  = pos[0];
+        int col   = pos[1];
+        int endCol = col + tokenLengthInSource(turtleText,
+                new SourceLocator.Location(line + 1, col + 1));
+        return buildDiagnostic(a.severity(), msg, a.code(), line, col, Math.max(col + 1, endCol));
     }
 
     /**
-     * Maps an annotation position (relative to {@code renderedQuery}) back to a 0-based line
-     * in the Turtle source.
+     * Maps an annotation position (relative to the rendered SPARQL query) back to a [line, col]
+     * pair in the Turtle source (both 0-based).
      *
-     * <p>{@code renderedQuery} = {@code prefixes.size()} PREFIX lines + rawQuery.
-     * So the line within rawQuery is {@code annotation.line() - prefixes.size()}.
-     * We then find the line in the Turtle text where rawQuery starts and add that offset.</p>
+     * <p>The rendered query = {@code prefixes.size()} PREFIX lines + rawQuery. The raw query
+     * string is an exact substring of the Turtle source (it is the literal value between the
+     * {@code """...""""} delimiters). We therefore locate it with {@link String#indexOf} and
+     * navigate forward by the required number of lines — precise and anchor-free.</p>
+     *
+     * <p>Falls back to a line-anchor search when {@code indexOf} cannot find the raw query
+     * (e.g. the query contains Turtle escape sequences that Jena has already decoded).</p>
      */
-    private static int embeddedAnnotationTurtleLine(
-            SparqlValidationAnnotation a,
-            EmbeddedSparql embedded, String turtleText) {
-        if (a.line() == null) return 0;
-        int lineInRendered = a.line() - 1;                  // 0-based within renderedQuery
-        int lineInRaw = lineInRendered - embedded.prefixes().size(); // 0-based within rawQuery
+    private static int[] embeddedAnnotationTurtlePos(
+            SparqlValidationAnnotation a, EmbeddedSparql embedded, String turtleText) {
+        if (a.line() == null) return new int[]{0, 0};
 
-        // Find the 0-based start line of rawQuery inside the Turtle source.
-        int rawStartLine = findRawQueryStartLine(embedded.rawQuery(), turtleText);
-        return rawStartLine + Math.max(0, lineInRaw);
+        int lineInRendered = a.line() - 1;                               // 0-based in rendered query
+        int lineInRaw      = lineInRendered - embedded.prefixes().size(); // 0-based in rawQuery
+        int col            = a.column() != null ? Math.max(0, a.column() - 1) : 0;
+        if (lineInRaw < 0) { lineInRaw = 0; col = 0; }
+
+        String rawQuery = embedded.rawQuery();
+
+        // Exact match: rawQuery IS a literal substring of the Turtle source.
+        int rawStart = (rawQuery != null && !rawQuery.isEmpty())
+                ? turtleText.indexOf(rawQuery) : -1;
+        if (rawStart >= 0) {
+            // Navigate lineInRaw newlines forward from rawStart.
+            int offset = rawStart;
+            for (int i = 0; i < lineInRaw; i++) {
+                int nl = turtleText.indexOf('\n', offset);
+                if (nl < 0) { offset = turtleText.length(); break; }
+                offset = nl + 1;
+            }
+            // Count newlines before offset → 0-based line index in turtle text.
+            int turtleLine = 0;
+            for (int i = 0; i < offset && i < turtleText.length(); i++) {
+                if (turtleText.charAt(i) == '\n') turtleLine++;
+            }
+            return new int[]{turtleLine, col};
+        }
+
+        // Fallback: find first non-blank, non-comment rawQuery line as search anchor.
+        int rawStartLine = findRawQueryStartLine(rawQuery, turtleText);
+        return new int[]{rawStartLine + lineInRaw, col};
     }
 
     /**
-     * Returns the 0-based line number in {@code turtleText} where rawQuery line 0 would appear.
-     * Uses the first non-blank, non-comment line of rawQuery as a search anchor, then subtracts
-     * its 0-based index within rawQuery so the result points at rawQuery[0].
+     * Fallback for {@link #embeddedAnnotationTurtlePos}: uses the first non-blank,
+     * non-comment line of {@code rawQuery} as an anchor and searches for it in the
+     * Turtle source.
      */
     private static int findRawQueryStartLine(String rawQuery, String turtleText) {
+        if (rawQuery == null || turtleText == null) return 0;
         String[] rawLines = rawQuery.split("\n", -1);
-        int anchorIdxInRaw = -1;
+        int anchorIdx = -1;
         String anchor = null;
         for (int i = 0; i < rawLines.length; i++) {
-            String trimmed = rawLines[i].trim();
-            if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
-                anchorIdxInRaw = i;
-                anchor = trimmed;
-                break;
-            }
+            String t = rawLines[i].trim();
+            if (!t.isEmpty() && !t.startsWith("#")) { anchorIdx = i; anchor = t; break; }
         }
         if (anchor == null) return 0;
-
         String[] turtleLines = turtleText.split("\n", -1);
         for (int i = 0; i < turtleLines.length; i++) {
-            if (turtleLines[i].contains(anchor)) {
-                // i is the turtle line of rawQuery[anchorIdxInRaw]; subtract to get rawQuery[0].
-                return Math.max(0, i - anchorIdxInRaw);
-            }
+            if (turtleLines[i].contains(anchor)) return Math.max(0, i - anchorIdx);
         }
         return 0;
+    }
+
+    /**
+     * Replaces unrecognised {@code @keyword} Turtle directives (e.g. {@code @prfx}) with
+     * {@code @prefix} so that a file with a directive typo can still be partially parsed.
+     * Only lines outside {@code """..."""} blocks are touched.
+     */
+    private static String fixWrongTurtleDirectives(String text) {
+        String[] lines = text.split("\n", -1);
+        StringBuilder sb = new StringBuilder();
+        boolean inTripleQuote = false;
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            // Track whether we are inside a """ ... """ block.
+            int tripleCount = 0;
+            int idx = 0;
+            while ((idx = line.indexOf("\"\"\"", idx)) >= 0) { tripleCount++; idx += 3; }
+            if (!inTripleQuote) {
+                String trimmed = line.stripLeading();
+                if (trimmed.startsWith("@")
+                        && !trimmed.startsWith("@prefix")
+                        && !trimmed.startsWith("@base")) {
+                    // Replace the @wrongKeyword with @prefix; leave the rest untouched.
+                    line = line.replaceFirst("@[A-Za-z]+", "@prefix");
+                }
+                if (tripleCount % 2 != 0) inTripleQuote = true;
+            } else {
+                if (tripleCount % 2 != 0) inTripleQuote = false;
+            }
+            sb.append(line);
+            if (i < lines.length - 1) sb.append('\n');
+        }
+        return sb.toString();
     }
 
     private static Diagnostic buildDiagnostic(
