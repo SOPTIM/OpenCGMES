@@ -452,20 +452,134 @@ Two additional checks run on every SHACL property shape (any blank node with `sh
 - `NODE_KIND_INCOMPATIBLE_WITH_RANGE`: skipped when no `rdfs:range` is declared, when the path is not a plain URI (sequence, inverse, etc.), or when the range is a mix of datatypes and classes. Ambiguous node kinds (`sh:IRIOrLiteral`, `sh:BlankNodeOrLiteral`) are never flagged.
 - `INVALID_CARDINALITY`: skipped when only one of `sh:minCount` / `sh:maxCount` is present.
 
-## Current limitations
+## Known limitations
 
-- Variable predicates (`?s ?p ?o`) produce `UNSUPPORTED_DYNAMIC_PROPERTY` instead of per-triple checks.
-- `SERVICE { }` blocks are skipped — the remote endpoint's schema is not available.
-- Line/column numbers are best-effort: the locator searches the original text for the IRI in
-  `<full>`, `prefix:local`, and `a` forms; false positives inside string literals are possible.
-- Inverse, alternative, and repetition path operators are excluded from path-chain compatibility
-  checks (only plain `p1/p2/…` forward chains are checked).
-- Datatype precision within a bucket is not checked (all numeric XSD types are treated as one
-  bucket; `rdf:langString` is compatible with `xsd:string`).
+### Dynamic predicates and classes
+
+When a triple pattern uses a variable as the predicate or `rdf:type` object (e.g. `?s ?p ?o`
+or `?s a ?cls`), CIMcheck cannot perform per-triple existence or domain/range checks. It emits
+a single `UNSUPPORTED_DYNAMIC_PROPERTY` warning (severity WARN) for the whole query to flag
+that static validation is incomplete — it does **not** attempt to enumerate what the variable
+might be.
+
+A variable used as the **subject** is fine; the limitation is only for variable
+*predicates* and *type-object* positions.
+
+### SERVICE blocks
+
+`SERVICE { }` federated-query blocks are silently skipped. CIMcheck has no access to the
+remote endpoint's schema, so no class or property checks are performed inside the SERVICE
+body. No diagnostic is emitted for this omission.
+
+### Incomplete schema — missing `rdfs:domain` / `rdfs:range`
+
+All semantic checks (domain, range, path-chain compatibility) follow a **silent-on-missing**
+policy: if the schema index has no declared `rdfs:domain` for a property, no
+`PROPERTY_NOT_ALLOWED_FOR_CLASS` or `QUERY_IMPLIED_TYPE` annotation is emitted for that
+property. Likewise, if `rdfs:range` is absent, no `DATATYPE_MISMATCH` is emitted.
+
+This means a query that uses a property against a completely wrong subject type will produce
+no error if the profile files omit `rdfs:domain` for that property — a common situation with
+CIM profiles that only partially annotate semantics. The existence check (`UNKNOWN_CLASS`,
+`UNKNOWN_PROPERTY`) still fires regardless.
+
+Additionally, `rdfs:subClassOf` traversal is transitive but limited to what the loaded
+profiles declare. If a profile does not carry full subclass chains, a domain check may be
+skipped even when the types are technically incompatible.
+
+**Practical consequence for CIM users:** the CGMES RDFS files published by ENTSO-E declare
+`rdfs:domain` and `rdfs:range` on most properties, so semantic checks are generally active.
+Proprietary or partial profile files may suppress them silently.
+
+### Path-chain checks
+
+Forward property path chains (`ex:p1/ex:p2/ex:p3`) are checked for range–domain
+compatibility between adjacent segments. These path operators are **not** checked in chain
+context:
+
+- Inverse paths (`^ex:p`)
+- Alternative paths (`ex:p1 | ex:p2`)
+- Zero-or-more / one-or-more / zero-or-one (`*`, `+`, `?`)
+
+Each URI segment in these paths is still checked for **existence** (`UNKNOWN_PROPERTY`);
+only the cross-segment compatibility (range of p1 must overlap domain of p2) is skipped.
+
+### Datatype precision
+
+Datatype range checks group XSD types into compatibility buckets. These groupings are
+intentionally coarse:
+
+- All numeric XSD types (`xsd:integer`, `xsd:float`, `xsd:decimal`, etc.) are treated as
+  one bucket — using the wrong numeric subtype is not flagged.
+- `rdf:langString` is treated as compatible with `xsd:string`.
+
+Precision mismatches within a bucket (e.g. an `xsd:float` literal on a property that
+declares `rdfs:range xsd:integer`) do not produce a `DATATYPE_MISMATCH`.
+
+### Source positions
+
+Line and column numbers are located by searching the original query text for the IRI in
+three forms: `<full-IRI>`, `prefix:local`, and the `a` keyword (for `rdf:type`). The
+locator picks the occurrence nearest to the subject node of the offending triple, using a
+same-line heuristic then minimum character distance.
+
+Edge cases where positions may be wrong or missing:
+- An IRI that appears only inside a string literal or inside a comment is filtered out by a
+  bracket/string-state tracker, but the tracker is a simple scan — complex multi-line strings
+  can confuse it.
+- IRI forms not matching any of the three patterns (e.g. an IRI assembled by `BIND` or
+  `VALUES`) are reported as `(no source location)`.
+- SHACL shape-level annotations always report `(no source location)` because the shapes
+  graph is an RDF graph, not raw text.
+
+### SHACL: structural checks vs. SPARQL-validated
+
+CIMcheck performs **two distinct passes** over a SHACL shapes graph.
+
+**Pass 1 — structural analysis** validates shape declarations against the schema:
+
+| Predicate | What is checked |
+| --- | --- |
+| `sh:targetClass` | Class IRI must exist in the selected profiles |
+| `sh:class` | Class IRI must exist in the selected profiles |
+| `sh:path` | Every URI segment of the path (simple, sequence, inverse, alternative, zero/one/more) must be a known property |
+| `sh:nodeKind` + `rdfs:range` | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` when node kind contradicts the schema range |
+| `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min > max |
+
+**Pass 2 — embedded SPARQL validation** extracts and fully validates any inline SPARQL:
+
+| SHACL mechanism | Extraction point | `$this` typing |
+| --- | --- | --- |
+| `sh:sparql` → `sh:select` | `sh:SPARQLConstraint` | Shape's `sh:targetClass` |
+| `sh:target` → `sh:select` | `sh:SPARQLTarget` | Shape's `sh:targetClass` |
+| `sh:validator` → `sh:ask` | `sh:SPARQLAskValidator` | Shape's `sh:targetClass` |
+| `sh:rule` → `sh:construct` | `sh:SPARQLRule` | Shape's `sh:targetClass` |
+
+The extractor resolves `sh:prefixes → sh:declare → sh:prefix/sh:namespace` chains
+automatically and passes the resulting prefix map into the SPARQL validator.
+
+**SHACL features that are not checked at all** (neither structurally nor via SPARQL):
+
+| Feature | Reason not checked |
+| --- | --- |
+| `sh:datatype` | Redundant with range checks; not yet wired |
+| `sh:pattern` / `sh:flags` | Regex evaluation requires data |
+| `sh:in` | Value enumeration requires data |
+| `sh:hasValue` | Specific-value check requires data |
+| `sh:qualifiedValueShape` / `sh:qualifiedMinCount` / `sh:qualifiedMaxCount` | Requires data |
+| `sh:equals` / `sh:disjoint` / `sh:lessThan` / `sh:lessThanOrEquals` | Cross-property comparison requires data |
+| `sh:uniqueLang` | Requires data |
+| `sh:minLength` / `sh:maxLength` | Requires data |
+| `sh:closed` / `sh:ignoredProperties` | Open-world assumption; requires data |
+| `sh:or` / `sh:and` / `sh:not` / `sh:xone` | Boolean logic over shapes not analysed |
+| `sh:targetNode` | Specific-node target requires data |
+| `sh:targetSubjectsOf` / `sh:targetObjectsOf` | Property-based target requires data |
 
 ## Roadmap
 
-- **Tighter path-chain checks.** Extend chain compatibility to inverse and alternative path
-  operators.
-- **More SHACL constraint components.** `sh:pattern`, `sh:in`, `sh:datatype` cross-checks,
-  and other constraint parameters are not yet analysed.
+- **Tighter path-chain checks.** Extend range–domain compatibility to inverse and alternative
+  path operators.
+- **More SHACL structural checks.** Wire `sh:datatype` against `rdfs:range`; flag
+  `sh:class` used alongside a datatype `rdfs:range`.
+- **`SERVICE` schema hints.** Allow the config to supply an external schema for known
+  federated endpoints so SERVICE blocks can be partially validated.

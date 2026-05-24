@@ -22,7 +22,7 @@
 
         mvn install            # builds every module in dependency order
         mvn test               # tests every module
-        mvn -pl sparql-validation -am clean verify
+        mvn -pl cimcheck/core -am clean verify
 
     from the repository root without having to cd into each module.
 
