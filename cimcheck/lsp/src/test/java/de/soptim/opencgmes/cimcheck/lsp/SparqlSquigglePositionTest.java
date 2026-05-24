@@ -176,6 +176,32 @@ public class SparqlSquigglePositionTest {
         assertEquals("squiggle end col",   7, d.getRange().getEnd().getCharacter());
     }
 
+    /** Parse error (later op, complex body): CREEATE after INSERT DATA + DELETE WHERE. */
+    @Test
+    public void sparql_creeate_complex_squiggleOnBadToken() {
+        String query = "PREFIX cim: <http://iec.ch/TC57/CIM100#>\n"
+                + "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n"
+                + "\n"
+                + "INSERT DATA {\n"
+                + "    <urn:line1> a cim:ACLineSegment ;\n"
+                + "                cim:IdentifiedObject.name \"Line 1\" ;\n"
+                + "                cim:ACLineSegment.r \"0.01\"^^xsd:float .\n"
+                + "};\n"
+                + "\n"
+                + "DELETE WHERE {\n"
+                + "    ?line a cim:ACLineSegment ;\n"
+                + "};\n"
+                + "\n"
+                + "CREEATE GRAPH <urn:example:result>\n";
+
+        Diagnostic d = firstSyntaxDiagnostic(query);
+
+        // CREEATE on line 13 (0-based), col 0, length 7
+        assertEquals("squiggle line", 13, d.getRange().getStart().getLine());
+        assertEquals("squiggle start col", 0, d.getRange().getStart().getCharacter());
+        assertEquals("squiggle end col",   7, d.getRange().getEnd().getCharacter());
+    }
+
     // ===========================================================================================
     // Embedded SPARQL squiggle positions (SHACL)
     // ===========================================================================================
