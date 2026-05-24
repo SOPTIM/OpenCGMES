@@ -136,6 +136,16 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         return List.copyOf(profiles.keySet());
     }
 
+    @Override
+    public Set<Node> allClasses() {
+        return classToProfiles.keySet();
+    }
+
+    @Override
+    public Set<Node> allProperties() {
+        return propertyToProfiles.keySet();
+    }
+
     public Map<VersionIri, ProfileSchema> profiles() {
         return profiles;
     }

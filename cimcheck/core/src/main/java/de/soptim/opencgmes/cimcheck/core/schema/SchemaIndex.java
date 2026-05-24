@@ -104,4 +104,16 @@ public interface SchemaIndex {
     default Optional<String> commentOf(Node term, Collection<VersionIri> scope) {
         return Optional.empty();
     }
+
+    // ---- Enumeration (used for completion) -------------------------------------------------
+
+    /** All class nodes registered across every profile in this index. */
+    default Set<Node> allClasses() {
+        return Set.of();
+    }
+
+    /** All property nodes registered across every profile in this index. */
+    default Set<Node> allProperties() {
+        return Set.of();
+    }
 }

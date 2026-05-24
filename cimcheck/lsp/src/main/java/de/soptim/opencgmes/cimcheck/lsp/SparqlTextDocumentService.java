@@ -42,7 +42,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -128,6 +130,28 @@ final class SparqlTextDocumentService implements TextDocumentService {
             LOG.error("Hover error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    @Override
+    public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams params) {
+        try {
+            return CompletableFuture.completedFuture(Either.forLeft(computeCompletions(params)));
+        } catch (Exception e) {
+            LOG.error("Completion error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
+            return CompletableFuture.completedFuture(Either.forLeft(List.of()));
+        }
+    }
+
+    private List<CompletionItem> computeCompletions(CompletionParams params) {
+        String uri  = params.getTextDocument().getUri();
+        String text = documents.get(uri);
+        if (text == null) return List.of();
+        var apiOpt = schemaManager.getApi();
+        if (apiOpt.isEmpty()) return List.of();
+        SchemaIndex index = apiOpt.get().schemaIndex();
+        int line = params.getPosition().getLine();
+        int col  = params.getPosition().getCharacter();
+        return buildCompletionItems(text, line, col, index);
     }
 
     private Hover computeHover(HoverParams params) {
@@ -409,6 +433,117 @@ final class SparqlTextDocumentService implements TextDocumentService {
     private static boolean isTurtleFile(String uri) {
         String lower = uri.toLowerCase();
         return lower.endsWith(".ttl") || lower.endsWith(".shacl");
+    }
+
+    // ---- Completion helpers ----------------------------------------------------------------
+
+    /**
+     * Builds completion items for the token being typed at {@code (line, col)} in {@code text}.
+     *
+     * <p>Completions are only returned when the cursor is inside a {@code prefix:local} token
+     * whose namespace prefix is declared in the document. This avoids flooding the list on
+     * unqualified input. Context detection (class vs. property position) narrows the kind of
+     * items returned when the cursor follows a type-like predicate.</p>
+     */
+    static List<CompletionItem> buildCompletionItems(
+            String text, int line, int col, SchemaIndex index) {
+        if (text == null || index == null) return List.of();
+        String[] lines = text.split("\n", -1);
+        if (line < 0 || line >= lines.length) return List.of();
+        String src = lines[line];
+
+        int safeCol = Math.min(col, src.length());
+        if (safeCol > 0 && isInLineComment(src, safeCol - 1)) return List.of();
+
+        PrefixMapping prefixes = extractPrefixes(text);
+
+        // Find the start of the token being typed.
+        int tokenStart = safeCol;
+        while (tokenStart > 0 && isNameChar(src.charAt(tokenStart - 1))) tokenStart--;
+        String typedSoFar = src.substring(tokenStart, safeCol);
+
+        // Only complete when a recognized prefix has been typed (e.g. "cim:").
+        int colonIdx = typedSoFar.indexOf(':');
+        if (colonIdx <= 0) return List.of();
+        String pfx         = typedSoFar.substring(0, colonIdx);
+        String localFilter = typedSoFar.substring(colonIdx + 1).toLowerCase(Locale.ROOT);
+        String ns          = prefixes.getNsPrefixURI(pfx);
+        if (ns == null) return List.of();
+
+        boolean classCtx = isClassContext(src, tokenStart, prefixes);
+        Range replaceRange = new Range(
+                new Position(line, tokenStart),
+                new Position(line, safeCol));
+        List<VersionIri> allProfiles = index.getAllProfiles();
+        var items = new ArrayList<CompletionItem>();
+
+        // In class context only show classes; otherwise show both classes and properties.
+        for (Node cls : index.allClasses()) {
+            addIfMatching(cls, ns, pfx, localFilter, replaceRange,
+                    CompletionItemKind.Class, index, allProfiles, items);
+        }
+        if (!classCtx) {
+            for (Node prop : index.allProperties()) {
+                addIfMatching(prop, ns, pfx, localFilter, replaceRange,
+                        CompletionItemKind.Property, index, allProfiles, items);
+            }
+        }
+
+        items.sort(Comparator.comparing(CompletionItem::getLabel));
+        return items;
+    }
+
+    private static void addIfMatching(
+            Node term, String ns, String pfx, String localFilter,
+            Range replaceRange, CompletionItemKind kind,
+            SchemaIndex index, List<VersionIri> allProfiles,
+            List<CompletionItem> out) {
+        if (!term.isURI() || !term.getURI().startsWith(ns)) return;
+        String local = term.getURI().substring(ns.length());
+        if (local.isEmpty() || !local.toLowerCase(Locale.ROOT).startsWith(localFilter)) return;
+
+        String abbrev = pfx + ":" + local;
+        CompletionItem item = new CompletionItem(abbrev);
+        item.setKind(kind);
+        item.setTextEdit(Either.forLeft(new TextEdit(replaceRange, abbrev)));
+        index.labelOf(term, allProfiles).ifPresent(label -> {
+            if (!label.equals(local)) item.setDetail(label);
+        });
+        index.commentOf(term, allProfiles).ifPresent(comment ->
+                item.setDocumentation(new MarkupContent(MarkupKind.MARKDOWN, comment)));
+        out.add(item);
+    }
+
+    /** IRIs whose object position is a class reference. */
+    private static final Set<String> CLASS_POSITION_IRIS = Set.of(
+            "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+            "http://www.w3.org/ns/shacl#targetClass",
+            "http://www.w3.org/ns/shacl#class",
+            "http://www.w3.org/2000/01/rdf-schema#subClassOf",
+            "http://www.w3.org/ns/shacl#datatype"
+    );
+
+    /**
+     * Returns {@code true} when the cursor is in object position after a type-like predicate
+     * (e.g. {@code a}, {@code rdf:type}, {@code sh:targetClass}).
+     *
+     * <p>Scans backward from {@code tokenStart} past whitespace to find the preceding token
+     * and checks it against the known set of type predicates.</p>
+     */
+    static boolean isClassContext(String src, int tokenStart, PrefixMapping prefixes) {
+        int i = tokenStart - 1;
+        while (i >= 0 && Character.isWhitespace(src.charAt(i))) i--;
+        if (i < 0) return false;
+        int end = i + 1;
+        while (i >= 0 && isNameChar(src.charAt(i))) i--;
+        String prev = src.substring(i + 1, end);
+        if ("a".equals(prev)) return true;
+        int colon = prev.indexOf(':');
+        if (colon > 0) {
+            String ns = prefixes.getNsPrefixURI(prev.substring(0, colon));
+            if (ns != null) return CLASS_POSITION_IRIS.contains(ns + prev.substring(colon + 1));
+        }
+        return false;
     }
 
     // ---- Hover helpers ---------------------------------------------------------------------
