@@ -434,11 +434,42 @@ public final class SparqlValidationApi {
     // ========================================================================================
 
     /**
-     * Validate every SPARQL fragment embedded in {@code shapesGraph} against the entire schema
-     * index. Convenience for {@code validateShacl(shapesGraph, schemaIndex().getAllProfiles())}.
+     * Infers the profile scope most relevant to {@code shapesGraph} by examining which CIM terms
+     * it references in structural shape positions ({@code sh:targetClass}, {@code sh:class},
+     * {@code sh:path}) and in embedded SPARQL fragments ({@code sh:select}, {@code sh:ask},
+     * {@code sh:construct}).
+     *
+     * <p>For each recognised CIM IRI the method looks up the declaring profiles in the schema
+     * index and unions the results. This produces a tight scope that matches the profiles the
+     * shapes file was actually written against — without any manual configuration.</p>
+     *
+     * <p>Falls back to all registered profiles when no recognisable CIM terms are found (e.g.
+     * an empty graph or a shapes graph whose terms are all unknown), preserving the permissive
+     * all-profiles behavior as a safe default.</p>
+     */
+    public Collection<VersionIri> inferProfileScope(Graph shapesGraph) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
+        Collection<VersionIri> deps = getShaclProfileDependencies(shapesGraph);
+        return deps.isEmpty() ? schemaIndex().getAllProfiles() : deps;
+    }
+
+    /**
+     * Validates {@code shapesGraph} after automatically inferring the profile scope from the
+     * CIM terms it references. Equivalent to calling
+     * {@link #inferProfileScope(Graph)} then {@link #validateShacl(Graph, Collection)}.
+     *
+     * <p>This is the recommended no-configuration overload for CGMES shapes files. For shapes
+     * that span multiple known profiles, all relevant profiles are included in the scope
+     * automatically. Fall-back to all-profiles applies when no recognisable CIM terms are
+     * found.</p>
      */
     public ShaclValidationResult validateShacl(Graph shapesGraph) {
-        return validateShacl(shapesGraph, new ValidationScope.AllProfilesScope());
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
+        // Note: inferProfileScope internally calls getShaclProfileDependencies, which extracts
+        // SPARQL fragments. validateShacl(Graph, Collection) then extracts them again for
+        // validation. The double extraction is intentional for simplicity; the cost is small
+        // relative to validation itself.
+        return validateShacl(shapesGraph, inferProfileScope(shapesGraph));
     }
 
     /**

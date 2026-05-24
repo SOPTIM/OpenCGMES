@@ -125,6 +125,53 @@ you type — for both SPARQL query files and SHACL Turtle files.
 Validation is debounced (300 ms after the last keystroke) and automatically re-runs on
 all open files when the config file changes.
 
+### Editor features
+
+#### Diagnostics
+
+Squiggly underlines appear inline as you type. Hovering over an underlined term opens a
+tooltip that names the exact validation code (`UNKNOWN_CLASS`, `PROPERTY_NOT_ALLOWED_FOR_CLASS`,
+etc.) and links the relevant profile IRI.
+
+#### Hover documentation
+
+Hovering over any CIM class or property IRI (in both `prefix:local` and `<full-IRI>` form)
+shows a Markdown tooltip with:
+
+- The abbreviated IRI and its `rdfs:label` (when the label differs from the local name)
+- The `rdfs:comment` description from the schema
+- A summary table of `rdfs:domain`, `rdfs:range`, and the declaring profile(s)
+
+Works for terms declared in any profile loaded by `.cgmes/validation.json`.
+
+#### Code completion
+
+Typing a declared prefix followed by `:` triggers CIM-aware completion. As you continue
+typing the local name, the list narrows to matching terms:
+
+```sparql
+PREFIX cim: <http://iec.ch/TC57/CIM100#>
+
+SELECT * WHERE {
+  ?s a cim:ACL  # → completes to cim:ACLineSegment, cim:ACDCConverter, …
+     cim:ACLineSegment.r ?r .  # → property completions in predicate position
+}
+```
+
+Context-aware behaviour:
+
+| Position | Completions shown |
+| --- | --- |
+| After `a`, `rdf:type`, `sh:targetClass`, `sh:class`, `rdfs:subClassOf`, `sh:datatype` | Classes only |
+| Predicate or any other position | Classes **and** properties |
+
+Each completion item includes the `rdfs:label` (as _detail_) and `rdfs:comment` (as
+_documentation_) from the loaded schema, shown in the VS Code completion pop-up.
+
+Completion only fires when a declared namespace prefix is typed — open-ended typing without
+a prefix shows nothing, to avoid flooding the list. Trigger the list manually with
+`Ctrl+Space` after the colon.
+
 ### Prerequisites
 
 | Tool | Minimum version |
@@ -583,3 +630,8 @@ automatically and passes the resulting prefix map into the SPARQL validator.
   `sh:class` used alongside a datatype `rdfs:range`.
 - **`SERVICE` schema hints.** Allow the config to supply an external schema for known
   federated endpoints so SERVICE blocks can be partially validated.
+- **Completion in full-IRI position.** Currently completion only fires for `prefix:local`
+  tokens. Extend it to `<http://…` literals so users without prefix declarations also get
+  suggestions.
+- **Go-to-definition.** Jump from a CIM IRI in a query or shape to the corresponding
+  declaration in the RDFS profile file.

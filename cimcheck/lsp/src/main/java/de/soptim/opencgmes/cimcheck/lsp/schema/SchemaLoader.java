@@ -18,101 +18,54 @@
 
 package de.soptim.opencgmes.cimcheck.lsp.schema;
 
-import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
-import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
-import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
+import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-/** Builds a {@link RdfsSchemaIndex} from config or an explicit file list. */
+/**
+ * Builds a {@link RdfsSchemaIndex} from an {@link LspConfig}, delegating to
+ * {@link CgmesSchemaLoader} for file discovery and parsing.
+ */
 public final class SchemaLoader {
-
-    private static final Logger LOG = LoggerFactory.getLogger(SchemaLoader.class);
 
     private SchemaLoader() {}
 
     /**
-     * Loads an index from the given config. Paths are resolved relative to {@code configBase}.
+     * Loads an index from the given LSP config. Paths are resolved relative to {@code configBase}.
      *
-     * @throws SchemaLoadException if no schema files are found or any file fails to parse
+     * @throws SchemaLoadException if no schema files are found, any file fails to parse, or
+     *                             no CIM profiles are registered
      */
     public static RdfsSchemaIndex load(LspConfig config, Path configBase) throws SchemaLoadException {
-        return buildIndex(resolveFiles(config, configBase));
+        try {
+            return resolveLoader(config, configBase).loadIndex();
+        } catch (CgmesSchemaLoader.SchemaLoadException e) {
+            throw new SchemaLoadException(e.getMessage(), e);
+        }
     }
 
-    // ---- private helpers -------------------------------------------------------------------
+    // ---- Private ---------------------------------------------------------------------------
 
-    private static List<Path> resolveFiles(LspConfig config, Path base) throws SchemaLoadException {
+    private static CgmesSchemaLoader resolveLoader(LspConfig config, Path base)
+            throws SchemaLoadException {
         if (!config.schemas().isEmpty()) {
-            return config.schemas().stream()
+            List<Path> files = config.schemas().stream()
                     .map(s -> base.resolve(s).normalize())
                     .collect(Collectors.toList());
+            return CgmesSchemaLoader.fromFiles(files);
         }
         if (config.schemasDirectory() != null) {
             Path dir = base.resolve(config.schemasDirectory()).normalize();
-            if (!Files.isDirectory(dir)) {
-                throw new SchemaLoadException(
-                        "schemasDirectory does not exist or is not a directory: " + dir);
-            }
-            try (Stream<Path> walk = Files.walk(dir, 1)) {
-                var files = walk
-                        .filter(p -> isSchemaFile(p.getFileName().toString()))
-                        .sorted()
-                        .collect(Collectors.toList());
-                if (files.isEmpty()) {
-                    throw new SchemaLoadException(
-                            "No .rdf/.ttl/.owl files found in schemasDirectory: " + dir);
-                }
-                return files;
-            } catch (IOException e) {
-                throw new SchemaLoadException(
-                        "Cannot list schemasDirectory " + dir + ": " + e.getMessage(), e);
-            }
+            return CgmesSchemaLoader.fromDirectory(dir);
         }
         throw new SchemaLoadException("Config must specify 'schemasDirectory' or 'schemas'.");
     }
 
-    private static boolean isSchemaFile(String name) {
-        String lower = name.toLowerCase();
-        return lower.endsWith(".rdf") || lower.endsWith(".ttl") || lower.endsWith(".owl");
-    }
-
-    private static RdfsSchemaIndex buildIndex(List<Path> files) throws SchemaLoadException {
-        var registry = new CimProfileRegistryStd();
-        var parser   = new RdfXmlParser();
-        var failed   = new ArrayList<String>();
-
-        for (Path f : files) {
-            if (!Files.isRegularFile(f)) {
-                throw new SchemaLoadException("Schema file does not exist: " + f);
-            }
-            try {
-                registry.register(parser.parseCimProfile(f));
-                LOG.info("Loaded schema: {}", f.getFileName());
-            } catch (Exception e) {
-                failed.add(f + " (" + e.getMessage() + ")");
-                LOG.warn("Failed to load {}: {}", f, e.getMessage());
-            }
-        }
-
-        if (!failed.isEmpty()) {
-            throw new SchemaLoadException("Failed to parse schema file(s):\n  " +
-                    String.join("\n  ", failed));
-        }
-        if (registry.getRegisteredProfiles().isEmpty()) {
-            throw new SchemaLoadException("No profiles were loaded — check your schema files.");
-        }
-        return RdfsSchemaIndex.fromCimRegistry(registry);
-    }
+    // ---- Exception -------------------------------------------------------------------------
 
     /** Thrown when schema loading fails. */
     public static final class SchemaLoadException extends Exception {
