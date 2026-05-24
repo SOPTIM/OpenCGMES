@@ -224,13 +224,55 @@ final class SparqlTextDocumentService implements TextDocumentService {
             var result      = apiOpt.get().validateSparql(text);
             var effective   = schemaManager.strictnessLevel().apply(result.annotations());
             var diagnostics = effective.stream()
-                    .map(DiagnosticConverter::convert)
+                    .map(a -> convertSparqlAnnotation(a, text))
                     .toList();
             publishDiagnostics(uri, diagnostics);
             LOG.debug("Validated {}: {} annotation(s)", uri, diagnostics.size());
         } catch (Exception e) {
             LOG.error("Error validating {}: {}", uri, e.getMessage(), e);
         }
+    }
+
+    /**
+     * Converts a standalone-SPARQL annotation to an LSP diagnostic.
+     *
+     * <p>For semantic errors (class/property references), {@link DiagnosticConverter#convert} is
+     * used as-is — {@code a.line()}/{@code a.column()} come from {@link SourceLocator} and are
+     * reliable. For syntax errors Jena's {@code getLine()}/{@code getColumn()} often point to
+     * the end of the last successfully parsed token (e.g. the closing {@code >} of a PREFIX
+     * declaration) rather than to the bad token itself. The correct position is in the exception
+     * message ("line N, column C"), so we parse it from there and apply a backward scan to land
+     * on the token start instead of the following character.</p>
+     */
+    private static Diagnostic convertSparqlAnnotation(SparqlValidationAnnotation a, String text) {
+        if (a.term() != null) return DiagnosticConverter.convert(a); // semantic — position is reliable
+
+        // Syntax error: try to extract the accurate position from the message.
+        int line = a.line()   != null ? a.line()   - 1 : 0; // 0-based
+        int col  = a.column() != null ? a.column() - 1 : 0; // 0-based
+        if (a.message() != null) {
+            Matcher m = SPARQL_POSITION.matcher(a.message());
+            if (m.find()) {
+                line = Integer.parseInt(m.group(1)) - 1;
+                col  = Integer.parseInt(m.group(2)) - 1;
+            }
+        }
+
+        // Jena's column points to the char AFTER the bad token. Scan backwards to find the
+        // actual token start.
+        if (col > 0 && text != null) {
+            String[] srcLines = text.split("\n", -1);
+            if (line >= 0 && line < srcLines.length) {
+                String src = srcLines[line];
+                int end   = Math.min(col, src.length());
+                int start = end;
+                while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
+                if (start < end) col = start;
+            }
+        }
+
+        int endCol = col + tokenLengthInSource(text, new SourceLocator.Location(line + 1, col + 1));
+        return buildDiagnostic(a.severity(), a.message(), a.code(), line, col, Math.max(col + 1, endCol));
     }
 
     private void validateShacl(String uri, String text) {
