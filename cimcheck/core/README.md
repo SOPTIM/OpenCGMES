@@ -131,7 +131,7 @@ all open files when the config file changes.
 | --- | --- |
 | Java | 21 |
 | Maven | 3.9 |
-| Node.js | 18 |
+| Node.js | 20 |
 | `vsce` (optional, for packaging) | any recent |
 
 ### Building the VSIX

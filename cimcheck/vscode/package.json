@@ -10,7 +10,8 @@
         "url": "https://github.com/SOPTIM/OpenCGMES"
     },
     "engines": {
-        "vscode": "^1.75.0"
+        "vscode": "^1.75.0",
+        "node": ">=20.18.1"
     },
     "categories": [
         "Linters",
