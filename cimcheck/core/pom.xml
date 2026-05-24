@@ -84,7 +84,7 @@
         <ver.plugin.exec>3.5.0</ver.plugin.exec>
 
         <!-- Default main class for `mvn -pl cimcheck/core exec:java` -->
-        <exec.mainClass>de.soptim.opencgmes.sparql.validation.examples.SparqlValidationExample</exec.mainClass>
+        <exec.mainClass>de.soptim.opencgmes.cimcheck.core.examples.SparqlValidationExample</exec.mainClass>
     </properties>
 
     <dependencies>

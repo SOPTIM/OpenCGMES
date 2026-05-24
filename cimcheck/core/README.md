@@ -71,7 +71,7 @@ mvn -q -pl sparql-validation exec:java \
 
 ```bash
 mvn -q -pl sparql-validation exec:java \
-    -Dexec.mainClass=de.soptim.opencgmes.sparql.validation.examples.ShaclValidationExample
+    -Dexec.mainClass=examples.de.soptim.opencgmes.cimcheck.core.ShaclValidationExample
 ```
 
 Validates [`src/main/resources/examples/example-shapes.ttl`](src/main/resources/examples/example-shapes.ttl)
@@ -255,9 +255,9 @@ java -jar sparql-validation-lsp/target/sparql-validate-lsp.jar
 
 ## API
 
-The entry point is [`SparqlValidationApi`](src/main/java/de/soptim/opencgmes/sparql/validation/SparqlValidationApi.java).
-Construct it with any [`SchemaIndex`](src/main/java/de/soptim/opencgmes/sparql/validation/schema/SchemaIndex.java);
-[`RdfsSchemaIndex`](src/main/java/de/soptim/opencgmes/sparql/validation/schema/RdfsSchemaIndex.java)
+The entry point is [`SparqlValidationApi`](src/main/java/de/soptim/opencgmes/cimcheck/core/SparqlValidationApi.java).
+Construct it with any [`SchemaIndex`](src/main/java/de/soptim/opencgmes/cimcheck/core/schema/SchemaIndex.java);
+[`RdfsSchemaIndex`](src/main/java/de/soptim/opencgmes/cimcheck/core/schema/RdfsSchemaIndex.java)
 is the built-in implementation backed by RDFS files.
 
 ```java
