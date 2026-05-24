@@ -15,45 +15,22 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 -->
-<!--
-    OpenCGMES reactor (aggregator-only) pom.
-
-    This pom exists purely so that a developer can run
-
-        mvn install            # builds every module in dependency order
-        mvn test               # tests every module
-        mvn -pl sparql-validation -am clean verify
-
-    from the repository root without having to cd into each module.
-
-    The child modules deliberately do NOT declare <parent> on this pom — they
-    remain fully self-contained (own version, own dependencies, own release
-    profile) so the per-module release workflows that invoke
-    `mvn -f cimxml/pom.xml ...` keep working unchanged.
--->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>de.soptim.opencgmes</groupId>
-    <artifactId>opencgmes-reactor</artifactId>
+    <artifactId>cimcheck-reactor</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>OpenCGMES (reactor)</name>
-    <description>Aggregator pom for building all OpenCGMES modules together.</description>
-    <url>https://github.com/SOPTIM/OpenCGMES</url>
-
-    <licenses>
-        <license>
-            <name>The Apache Software License, Version 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-        </license>
-    </licenses>
+    <name>CIMcheck (reactor)</name>
+    <description>Aggregator pom for the CIMcheck SPARQL/SHACL validation toolchain.</description>
 
     <modules>
-        <module>cimxml</module>
-        <module>cimcheck</module>
+        <module>core</module>
+        <module>cli</module>
+        <module>lsp</module>
     </modules>
 </project>

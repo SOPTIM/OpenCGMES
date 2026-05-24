@@ -1,0 +1,115 @@
+{
+    "name": "cimcheck",
+    "displayName": "CIMcheck",
+    "description": "Validates SPARQL queries and SHACL shapes against CIM/CGMES schema profiles using the CIMcheck language server.",
+    "version": "0.1.0",
+    "publisher": "soptim-opencgmes",
+    "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/SOPTIM/OpenCGMES"
+    },
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Linters",
+        "Programming Languages"
+    ],
+    "keywords": [
+        "SPARQL",
+        "CIM",
+        "CGMES",
+        "validation",
+        "energy"
+    ],
+    "activationEvents": [
+        "onLanguage:sparql",
+        "onLanguage:shacl"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "sparql",
+                "aliases": ["SPARQL", "sparql"],
+                "extensions": [".rq", ".sparql"],
+                "configuration": "./language-configuration.json"
+            },
+            {
+                "id": "shacl",
+                "aliases": ["SHACL", "Turtle"],
+                "extensions": [".ttl", ".shacl"],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "sparql",
+                "scopeName": "source.sparql",
+                "path": "./syntaxes/sparql.tmLanguage.json"
+            },
+            {
+                "language": "shacl",
+                "scopeName": "source.turtle",
+                "path": "./syntaxes/turtle.tmLanguage.json"
+            }
+        ],
+        "jsonValidation": [
+            {
+                "fileMatch": "**/.cgmes/validation.json",
+                "url": "./schemas/validation.schema.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "cimcheck.showOutput",
+                "title": "Show Output",
+                "category": "CIMcheck"
+            }
+        ],
+        "configuration": {
+            "title": "CIMcheck",
+            "properties": {
+                "cimcheck.serverJar": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Absolute path to `cimcheck-lsp.jar`. Leave empty to use the bundled JAR in the extension's `server/` directory."
+                },
+                "cimcheck.javaExecutable": {
+                    "type": "string",
+                    "default": "java",
+                    "description": "Java executable used to launch the language server. Must be Java 21 or later."
+                },
+                "cimcheck.javaArgs": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "default": [],
+                    "markdownDescription": "Additional JVM arguments passed before `-jar`, e.g. `[\"-Xmx512m\"]`."
+                },
+                "cimcheck.trace.server": {
+                    "type": "string",
+                    "enum": ["off", "messages", "verbose"],
+                    "default": "off",
+                    "description": "Traces the communication between VS Code and the language server. Useful for debugging."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "node esbuild.js --production",
+        "bundle": "node esbuild.js",
+        "compile": "tsc --noEmit",
+        "watch": "node esbuild.js --watch",
+        "copy-jar": "cp ../lsp/target/cimcheck-lsp.jar server/"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "@types/vscode": "^1.75.0",
+        "typescript": "^5.4.0",
+        "esbuild": "^0.24.0"
+    }
+}
