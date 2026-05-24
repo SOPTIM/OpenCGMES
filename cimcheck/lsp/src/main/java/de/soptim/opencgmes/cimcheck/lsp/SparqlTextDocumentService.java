@@ -334,6 +334,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     private static final Pattern JENA_POSITION = Pattern.compile("\\[line:\\s*(\\d+),\\s*col:\\s*(\\d+)\\s*\\]");
 
+    /** Matches Jena's human-readable SPARQL error position: "at line N, column C". */
+    private static final Pattern SPARQL_POSITION = Pattern.compile("line (\\d+), column (\\d+)");
+
     /**
      * Builds a diagnostic for a Jena Turtle parse error.
      *
@@ -376,18 +379,32 @@ final class SparqlTextDocumentService implements TextDocumentService {
             SparqlValidationAnnotation a,
             String kind, EmbeddedSparql embedded, String turtleText) {
         String msg = "[embedded " + kind + "] " + a.message();
-        int[] pos = embeddedAnnotationTurtlePos(a, embedded, turtleText);
+
+        // Jena's QueryParseException.getLine()/getColumn() can point to the wrong position
+        // (e.g. end of a preceding PREFIX declaration rather than the bad token). The
+        // human-readable exception message carries the correct line/column via the format
+        // "line N, column C", so for syntax errors we parse position from there instead.
+        int renderedLine = a.line()   != null ? a.line()   : 0;
+        int renderedCol  = a.column() != null ? a.column() : 0;
+        if (a.term() == null && a.message() != null) {
+            Matcher m = SPARQL_POSITION.matcher(a.message());
+            if (m.find()) {
+                renderedLine = Integer.parseInt(m.group(1));
+                renderedCol  = Integer.parseInt(m.group(2));
+            }
+        }
+
+        int[] pos = embeddedAnnotationTurtlePos(renderedLine, renderedCol, embedded, turtleText);
         int line  = pos[0];
         int col   = pos[1];
 
-        // For syntax errors (term == null), Jena's column points to the character AFTER the
-        // bad token. Scan backwards to find where the token actually starts so the squiggle
-        // lands on the bad keyword rather than the space that follows it.
+        // Jena's column points to the character AFTER the bad token (e.g. the space that
+        // follows the misspelled keyword). Scan backwards to find the token start.
         if (a.term() == null && col > 0) {
             String[] srcLines = turtleText.split("\n", -1);
             if (line >= 0 && line < srcLines.length) {
                 String src = srcLines[line];
-                int end = Math.min(col, src.length());
+                int end   = Math.min(col, src.length());
                 int start = end;
                 while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
                 if (start < end) col = start;
@@ -400,24 +417,23 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     /**
-     * Maps an annotation position (relative to the rendered SPARQL query) back to a [line, col]
-     * pair in the Turtle source (both 0-based).
+     * Maps a rendered-query position (1-based line + column) back to a [line, col] pair in the
+     * Turtle source (both 0-based).
      *
      * <p>The rendered query = {@code prefixes.size()} PREFIX lines + rawQuery. The raw query
-     * string is an exact substring of the Turtle source (it is the literal value between the
-     * {@code """...""""} delimiters). We therefore locate it with {@link String#indexOf} and
-     * navigate forward by the required number of lines — precise and anchor-free.</p>
+     * string is an exact substring of the Turtle source (literal value between the
+     * {@code """..."""} delimiters). We locate it with {@link String#indexOf} and navigate
+     * forward by the required number of lines — precise and anchor-free.</p>
      *
-     * <p>Falls back to a line-anchor search when {@code indexOf} cannot find the raw query
-     * (e.g. the query contains Turtle escape sequences that Jena has already decoded).</p>
+     * <p>Falls back to a line-anchor search when {@code indexOf} cannot find the raw query.</p>
      */
     private static int[] embeddedAnnotationTurtlePos(
-            SparqlValidationAnnotation a, EmbeddedSparql embedded, String turtleText) {
-        if (a.line() == null) return new int[]{0, 0};
+            int renderedLine1based, int renderedCol1based, EmbeddedSparql embedded, String turtleText) {
+        if (renderedLine1based <= 0) return new int[]{0, 0};
 
-        int lineInRendered = a.line() - 1;                               // 0-based in rendered query
+        int lineInRendered = renderedLine1based - 1;                      // 0-based in rendered query
         int lineInRaw      = lineInRendered - embedded.prefixes().size(); // 0-based in rawQuery
-        int col            = a.column() != null ? Math.max(0, a.column() - 1) : 0;
+        int col            = Math.max(0, renderedCol1based - 1);
         if (lineInRaw < 0) { lineInRaw = 0; col = 0; }
 
         String rawQuery = embedded.rawQuery();
