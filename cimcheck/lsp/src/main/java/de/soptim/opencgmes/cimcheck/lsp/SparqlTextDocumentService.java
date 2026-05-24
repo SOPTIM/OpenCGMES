@@ -236,43 +236,96 @@ final class SparqlTextDocumentService implements TextDocumentService {
     /**
      * Converts a standalone-SPARQL annotation to an LSP diagnostic.
      *
-     * <p>For semantic errors (class/property references), {@link DiagnosticConverter#convert} is
-     * used as-is — {@code a.line()}/{@code a.column()} come from {@link SourceLocator} and are
-     * reliable. For syntax errors Jena's {@code getLine()}/{@code getColumn()} often point to
-     * the end of the last successfully parsed token (e.g. the closing {@code >} of a PREFIX
-     * declaration) rather than to the bad token itself. The correct position is in the exception
-     * message ("line N, column C"), so we parse it from there and apply a backward scan to land
-     * on the token start instead of the following character.</p>
+     * <p>Semantic errors (class/property references) go through {@link DiagnosticConverter}
+     * unchanged — their positions come from {@link SourceLocator} and are reliable.</p>
+     *
+     * <p>For syntax errors Jena's {@code getLine()}/{@code getColumn()} is unreliable (it can
+     * point to the end of the preceding successfully-parsed token). Two strategies are tried:
+     * <ul>
+     *   <li><b>Lexical errors</b> (message starts with {@code "Lexical error at line N, column C"}):
+     *       the message position IS reliable — Jena points one character past the bad token, so a
+     *       backward scan finds the token start.</li>
+     *   <li><b>Parse errors</b> (message starts with {@code "Encountered …"}): Javacc error
+     *       recovery can jump to an earlier valid position (e.g. the first INSERT after a bad
+     *       CREEATE). We ignore the message position and instead scan the query for the first line
+     *       that begins with an all-uppercase identifier not in the SPARQL keyword set — that
+     *       identifier is the misspelled keyword.</li>
+     * </ul>
+     * If neither strategy finds a position, a zero-position fallback is used.</p>
      */
-    private static Diagnostic convertSparqlAnnotation(SparqlValidationAnnotation a, String text) {
-        if (a.term() != null) return DiagnosticConverter.convert(a); // semantic — position is reliable
+    static Diagnostic convertSparqlAnnotation(SparqlValidationAnnotation a, String text) {
+        if (a.term() != null) return DiagnosticConverter.convert(a);
 
-        // Syntax error: try to extract the accurate position from the message.
-        int line = a.line()   != null ? a.line()   - 1 : 0; // 0-based
-        int col  = a.column() != null ? a.column() - 1 : 0; // 0-based
-        if (a.message() != null) {
+        int line = 0, col = 0;
+
+        if (a.message() != null && a.message().startsWith("Lexical error")) {
+            // Lexical error: message position is reliable. Column is one past the bad token.
             Matcher m = SPARQL_POSITION.matcher(a.message());
             if (m.find()) {
                 line = Integer.parseInt(m.group(1)) - 1;
-                col  = Integer.parseInt(m.group(2)) - 1;
+                col  = backScanToTokenStart(text, Integer.parseInt(m.group(1)) - 1,
+                                            Integer.parseInt(m.group(2)) - 1);
             }
-        }
-
-        // Jena's column points to the char AFTER the bad token. Scan backwards to find the
-        // actual token start.
-        if (col > 0 && text != null) {
-            String[] srcLines = text.split("\n", -1);
-            if (line >= 0 && line < srcLines.length) {
-                String src = srcLines[line];
-                int end   = Math.min(col, src.length());
-                int start = end;
-                while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
-                if (start < end) col = start;
+        } else {
+            // Parse error: message position is unreliable (Javacc error recovery).
+            // Scan for a line starting with an unrecognised all-uppercase SPARQL keyword.
+            int[] bad = findBadKeywordLine(text);
+            if (bad != null) {
+                line = bad[0];
+                col  = bad[1];
+            } else {
+                // Fallback: parse message position (best-effort for unusual errors).
+                if (a.message() != null) {
+                    Matcher m = SPARQL_POSITION.matcher(a.message());
+                    if (m.find()) {
+                        line = Integer.parseInt(m.group(1)) - 1;
+                        col  = backScanToTokenStart(text, line, Integer.parseInt(m.group(2)) - 1);
+                    }
+                }
             }
         }
 
         int endCol = col + tokenLengthInSource(text, new SourceLocator.Location(line + 1, col + 1));
         return buildDiagnostic(a.severity(), a.message(), a.code(), line, col, Math.max(col + 1, endCol));
+    }
+
+    /**
+     * Scans the query text for the first line that starts with an all-uppercase identifier that
+     * is NOT in {@link #SPARQL_STATEMENT_KEYWORDS}. Such an identifier is most likely a
+     * misspelled SPARQL keyword (e.g. {@code CREEATE}, {@code INSEEERT}).
+     *
+     * @return {@code [lineIndex, colIndex]} (0-based) of the bad token, or {@code null}
+     */
+    static int[] findBadKeywordLine(String text) {
+        if (text == null) return null;
+        String[] lines = text.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            String line    = lines[i];
+            String trimmed = line.stripLeading();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+            // Lines not starting with a letter cannot be misspelled keywords.
+            if (!Character.isLetter(trimmed.charAt(0))) continue;
+            int tokenStart = line.length() - trimmed.length();
+            int tokenEnd   = tokenStart;
+            while (tokenEnd < line.length() && Character.isLetter(line.charAt(tokenEnd))) tokenEnd++;
+            String token = line.substring(tokenStart, tokenEnd);
+            // Must be all-uppercase to look like a keyword (prefix names like "cim" are not).
+            if (!token.equals(token.toUpperCase(Locale.ROOT))) continue;
+            if (!SPARQL_STATEMENT_KEYWORDS.contains(token)) return new int[]{i, tokenStart};
+        }
+        return null;
+    }
+
+    /** Scans backward from {@code col} (0-based) on the given line to find where the token starts. */
+    private static int backScanToTokenStart(String text, int line, int col) {
+        if (col <= 0 || text == null) return Math.max(0, col);
+        String[] srcLines = text.split("\n", -1);
+        if (line < 0 || line >= srcLines.length) return col;
+        String src = srcLines[line];
+        int end   = Math.min(col, src.length());
+        int start = end;
+        while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
+        return (start < end) ? start : col;
     }
 
     private void validateShacl(String uri, String text) {
@@ -380,6 +433,24 @@ final class SparqlTextDocumentService implements TextDocumentService {
     private static final Pattern SPARQL_POSITION = Pattern.compile("line (\\d+), column (\\d+)");
 
     /**
+     * SPARQL / SPARQL-Update keywords that can legitimately appear as the first token on a line.
+     * Used to distinguish a valid keyword from a misspelled one when locating parse errors.
+     */
+    static final Set<String> SPARQL_STATEMENT_KEYWORDS = Set.of(
+            // Query forms
+            "SELECT", "CONSTRUCT", "ASK", "DESCRIBE",
+            // Update operations
+            "INSERT", "DELETE", "LOAD", "CLEAR", "DROP", "ADD", "MOVE", "COPY", "CREATE",
+            // Clauses that routinely start a line
+            "WHERE", "OPTIONAL", "FILTER", "UNION", "GRAPH", "MINUS", "SERVICE",
+            "BIND", "VALUES", "LIMIT", "OFFSET", "ORDER", "GROUP", "HAVING",
+            "WITH", "FROM", "NAMED", "USING", "SILENT", "ALL", "DEFAULT", "INTO", "DATA",
+            "NOT", "EXISTS", "DISTINCT", "REDUCED", "AS",
+            // Declarations
+            "PREFIX", "BASE"
+    );
+
+    /**
      * Builds a diagnostic for a Jena Turtle parse error.
      *
      * <p>Extracts the position from the Jena exception message and extends the highlighted range
@@ -442,16 +513,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
         // Jena's column points to the character AFTER the bad token (e.g. the space that
         // follows the misspelled keyword). Scan backwards to find the token start.
-        if (a.term() == null && col > 0) {
-            String[] srcLines = turtleText.split("\n", -1);
-            if (line >= 0 && line < srcLines.length) {
-                String src = srcLines[line];
-                int end   = Math.min(col, src.length());
-                int start = end;
-                while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
-                if (start < end) col = start;
-            }
-        }
+        if (a.term() == null) col = backScanToTokenStart(turtleText, line, col);
 
         int endCol = col + tokenLengthInSource(turtleText,
                 new SourceLocator.Location(line + 1, col + 1));
