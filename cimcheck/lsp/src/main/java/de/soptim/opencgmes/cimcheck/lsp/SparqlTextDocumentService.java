@@ -379,6 +379,21 @@ final class SparqlTextDocumentService implements TextDocumentService {
         int[] pos = embeddedAnnotationTurtlePos(a, embedded, turtleText);
         int line  = pos[0];
         int col   = pos[1];
+
+        // For syntax errors (term == null), Jena's column points to the character AFTER the
+        // bad token. Scan backwards to find where the token actually starts so the squiggle
+        // lands on the bad keyword rather than the space that follows it.
+        if (a.term() == null && col > 0) {
+            String[] srcLines = turtleText.split("\n", -1);
+            if (line >= 0 && line < srcLines.length) {
+                String src = srcLines[line];
+                int end = Math.min(col, src.length());
+                int start = end;
+                while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
+                if (start < end) col = start;
+            }
+        }
+
         int endCol = col + tokenLengthInSource(turtleText,
                 new SourceLocator.Location(line + 1, col + 1));
         return buildDiagnostic(a.severity(), msg, a.code(), line, col, Math.max(col + 1, endCol));
