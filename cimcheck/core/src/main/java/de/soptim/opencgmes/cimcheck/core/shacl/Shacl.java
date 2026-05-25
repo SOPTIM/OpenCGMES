@@ -74,6 +74,8 @@ public final class Shacl {
     public static final Node MAX_COUNT    = NodeFactory.createURI(NS + "maxCount");
     /** {@code sh:nodeKind} — expected RDF node kind. */
     public static final Node NODE_KIND    = NodeFactory.createURI(NS + "nodeKind");
+    /** {@code sh:datatype} — the required XSD datatype of the value nodes. */
+    public static final Node DATATYPE     = NodeFactory.createURI(NS + "datatype");
 
     // ---- sh:nodeKind values ----------------------------------------------------------------
 

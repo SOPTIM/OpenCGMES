@@ -47,13 +47,14 @@ import java.util.function.Consumer;
  *
  * <ul>
  *   <li>{@code sh:targetClass} — the focus-node class must exist in the schema.</li>
- *   <li>{@code sh:class} — the required value class must exist in the schema.</li>
+ *   <li>{@code sh:class} — the required value class must exist in the schema; and must not
+ *       be used on a property whose {@code rdfs:range} is a literal datatype.</li>
  *   <li>{@code sh:path} — every URI segment of a property path (simple, sequence, inverse,
  *       alternative, zero/one/more) must be a known CIM property.</li>
+ *   <li>{@code sh:nodeKind} — must be compatible with the property's {@code rdfs:range}.</li>
+ *   <li>{@code sh:datatype} — must not be used on a property whose {@code rdfs:range} is a
+ *       class (object property).</li>
  * </ul>
- *
- * <p>{@code sh:datatype} is intentionally not checked here — datatype validation is already
- * covered by the embedded-SPARQL path and by the semantic range checks.</p>
  *
  * <p>The analyzer is stateless and thread-safe.</p>
  */
@@ -155,9 +156,11 @@ public final class ShaclShapeAnalyzer {
                     out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop)));
                 }
 
-                // 2. sh:nodeKind vs rdfs:range (only for simple single-URI paths)
+                // 2. Range-compatibility checks (only for simple single-URI paths)
                 if (pathNode.isURI()) {
                     checkNodeKind(g, shape, pathNode, scope, out);
+                    checkDatatypeVsRange(g, shape, pathNode, scope, out);
+                    checkClassVsRange(g, shape, pathNode, scope, out);
                 }
 
                 // 3. sh:minCount / sh:maxCount contradiction
@@ -212,6 +215,38 @@ public final class ShaclShapeAnalyzer {
             Node term = pathNode.isURI() ? pathNode : null;
             out.add(cardinalityAnnotation(min.getAsInt(), max.getAsInt(), term));
         }
+    }
+
+    private void checkDatatypeVsRange(
+            Graph g, Node shape, Node prop,
+            Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+
+        Node datatypeNode = singleObject(g, shape, Shacl.DATATYPE);
+        if (datatypeNode == null || !datatypeNode.isURI()) return;
+
+        Set<Node> ranges = schemaIndex.rangesOf(prop, scope);
+        if (ranges.isEmpty()) return;
+
+        boolean allClasses = ranges.stream().allMatch(r -> r.isURI() && !isDatatypeRange(r.getURI()));
+        if (!allClasses) return; // mixed or already a datatype range — permissive
+
+        out.add(datatypeIncompatibleAnnotation(prop, datatypeNode, scope));
+    }
+
+    private void checkClassVsRange(
+            Graph g, Node shape, Node prop,
+            Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+
+        Node classNode = singleObject(g, shape, Shacl.CLASS);
+        if (classNode == null || !classNode.isURI()) return;
+
+        Set<Node> ranges = schemaIndex.rangesOf(prop, scope);
+        if (ranges.isEmpty()) return;
+
+        boolean allDatatypes = ranges.stream().allMatch(r -> r.isURI() && isDatatypeRange(r.getURI()));
+        if (!allDatatypes) return; // mixed or class range — permissive
+
+        out.add(classIncompatibleAnnotation(prop, classNode, scope));
     }
 
     private static OptionalInt parseLiteralInt(Node n) {
@@ -374,6 +409,46 @@ public final class ShaclShapeAnalyzer {
                 SparqlValidationCode.INVALID_CARDINALITY,
                 term,
                 List.of(),
+                List.of(),
+                null);
+    }
+
+    private static SparqlValidationAnnotation datatypeIncompatibleAnnotation(
+            Node prop, Node datatypeNode, Collection<VersionIri> scope) {
+
+        var msg = new StringBuilder("sh:datatype <")
+                .append(shortIri(datatypeNode.getURI()))
+                .append("> expects literal values, but rdfs:range of <")
+                .append(prop.getURI()).append("> is a class (object property) in ");
+        appendScopeLabel(msg, scope);
+        msg.append('.');
+        return new SparqlValidationAnnotation(
+                SparqlValidationSeverity.WARN,
+                null, null,
+                msg.toString(),
+                SparqlValidationCode.DATATYPE_INCOMPATIBLE_WITH_RANGE,
+                prop,
+                List.copyOf(scope),
+                List.of(),
+                null);
+    }
+
+    private static SparqlValidationAnnotation classIncompatibleAnnotation(
+            Node prop, Node classNode, Collection<VersionIri> scope) {
+
+        var msg = new StringBuilder("sh:class <")
+                .append(shortIri(classNode.getURI()))
+                .append("> expects IRI values, but rdfs:range of <")
+                .append(prop.getURI()).append("> is a literal datatype (datatype property) in ");
+        appendScopeLabel(msg, scope);
+        msg.append('.');
+        return new SparqlValidationAnnotation(
+                SparqlValidationSeverity.WARN,
+                null, null,
+                msg.toString(),
+                SparqlValidationCode.CLASS_INCOMPATIBLE_WITH_RANGE,
+                prop,
+                List.copyOf(scope),
                 List.of(),
                 null);
     }

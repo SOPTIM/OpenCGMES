@@ -40,6 +40,10 @@ public enum SparqlValidationCode {
     PROPERTY_NOT_ALLOWED_FOR_CLASS,
     /** {@code sh:nodeKind} value conflicts with the property's {@code rdfs:range} in the schema. */
     NODE_KIND_INCOMPATIBLE_WITH_RANGE,
+    /** {@code sh:datatype} is used on a property whose {@code rdfs:range} is a class (object property). */
+    DATATYPE_INCOMPATIBLE_WITH_RANGE,
+    /** {@code sh:class} is used on a property whose {@code rdfs:range} is a literal datatype (datatype property). */
+    CLASS_INCOMPATIBLE_WITH_RANGE,
     /** {@code sh:minCount} exceeds {@code sh:maxCount} on a property shape. */
     INVALID_CARDINALITY
 }

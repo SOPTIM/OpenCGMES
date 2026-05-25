@@ -292,6 +292,80 @@ public class ShaclConstraintChecksTest {
     }
 
     // ============================================================================================
+    // sh:datatype vs rdfs:range checks
+    // ============================================================================================
+
+    /** sh:datatype on a property with class range (object property) → WARN. */
+    @Test
+    public void datatype_on_objectProperty_warns() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path cim:Equipment.EquipmentContainer ; sh:datatype xsd:string ] ."));
+        assertTrue("sh:datatype on object property must produce DATATYPE_INCOMPATIBLE_WITH_RANGE",
+                hasDatatypeIncompatibleWarning(r, PROP_CONTAINER));
+    }
+
+    /** sh:datatype on a property with datatype range → no warning (consistent). */
+    @Test
+    public void datatype_on_datatypeProperty_ok() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:datatype xsd:double ] ."));
+        assertFalse("sh:datatype on datatype property must not produce DATATYPE_INCOMPATIBLE_WITH_RANGE",
+                hasDatatypeIncompatibleWarning(r, PROP_R));
+    }
+
+    /** sh:datatype on a property not in schema → no range → check skipped. */
+    @Test
+    public void datatype_on_unknownProperty_skipped() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path cim:UnknownProp ; sh:datatype xsd:string ] ."));
+        assertFalse("sh:datatype on unknown property (no schema range) must not warn",
+                r.shapeAnnotations().stream()
+                        .anyMatch(a -> a.code() == SparqlValidationCode.DATATYPE_INCOMPATIBLE_WITH_RANGE));
+    }
+
+    /** sh:datatype on a complex (inverse) path → check skipped. */
+    @Test
+    public void datatype_on_complexPath_skipped() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path [ sh:inversePath cim:Equipment.EquipmentContainer ] ; sh:datatype xsd:string ] ."));
+        assertFalse("sh:datatype check must be skipped for non-simple paths",
+                r.shapeAnnotations().stream()
+                        .anyMatch(a -> a.code() == SparqlValidationCode.DATATYPE_INCOMPATIBLE_WITH_RANGE));
+    }
+
+    // ============================================================================================
+    // sh:class vs rdfs:range checks
+    // ============================================================================================
+
+    /** sh:class on a property with datatype range (datatype property) → WARN. */
+    @Test
+    public void class_on_datatypeProperty_warns() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:class cim:Substation ] ."));
+        assertTrue("sh:class on datatype property must produce CLASS_INCOMPATIBLE_WITH_RANGE",
+                hasClassIncompatibleWarning(r, PROP_R));
+    }
+
+    /** sh:class on a property with class range (object property) → no warning. */
+    @Test
+    public void class_on_objectProperty_ok() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path cim:Equipment.EquipmentContainer ; sh:class cim:Substation ] ."));
+        assertFalse("sh:class on object property must not produce CLASS_INCOMPATIBLE_WITH_RANGE",
+                hasClassIncompatibleWarning(r, PROP_CONTAINER));
+    }
+
+    /** sh:class on a property not in schema → no range → check skipped. */
+    @Test
+    public void class_on_unknownProperty_skipped() {
+        var r = api.validateShacl(parseShapes(PREFIXES
+                + "ex:S sh:property [ sh:path cim:UnknownProp ; sh:class cim:Substation ] ."));
+        assertFalse("sh:class on unknown property (no schema range) must not warn",
+                r.shapeAnnotations().stream()
+                        .anyMatch(a -> a.code() == SparqlValidationCode.CLASS_INCOMPATIBLE_WITH_RANGE));
+    }
+
+    // ============================================================================================
     // Interaction: both checks on the same property shape
     // ============================================================================================
 
@@ -328,6 +402,20 @@ public class ShaclConstraintChecksTest {
             ShaclValidationResult r) {
         return r.shapeAnnotations().stream()
                 .anyMatch(a -> a.code() == SparqlValidationCode.INVALID_CARDINALITY);
+    }
+
+    private static boolean hasDatatypeIncompatibleWarning(
+            ShaclValidationResult r, String propUri) {
+        return r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.DATATYPE_INCOMPATIBLE_WITH_RANGE
+                        && a.term() != null && propUri.equals(a.term().getURI()));
+    }
+
+    private static boolean hasClassIncompatibleWarning(
+            ShaclValidationResult r, String propUri) {
+        return r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.CLASS_INCOMPATIBLE_WITH_RANGE
+                        && a.term() != null && propUri.equals(a.term().getURI()));
     }
 
     private static Graph parseShapes(String turtle) {
