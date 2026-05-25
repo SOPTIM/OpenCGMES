@@ -418,6 +418,9 @@ for (ShaclEmbeddedQueryResult fr : r.embeddedResults()) {
 
 `$this` inside a `sh:sparql` constraint is automatically typed as the enclosing shape's
 `sh:targetClass` for the purpose of domain/range checks — no extra wiring needed.
+`$PATH` is automatically substituted with the enclosing `sh:PropertyShape`'s `sh:path`
+URI when the path is a simple IRI, so `$this $PATH ?value` patterns are validated
+against the concrete property rather than treated as unresolvable variable predicates.
 
 ### Dependency extraction
 
@@ -463,7 +466,7 @@ Every class and property IRI in the query or shapes graph is looked up in the sc
 | `UNKNOWN_CLASS` | ERROR | Class IRI not found in the selected profiles |
 | `UNKNOWN_PROPERTY` | ERROR | Property IRI not found in the selected profiles |
 | `GRAPH_NOT_CONFIGURED` | WARN | `GRAPH <g>` used but `<g>` has no mapped profiles (named-graph scope only) |
-| `UNSUPPORTED_DYNAMIC_PROPERTY` | WARN | Variable predicate or class — static check not possible |
+| `UNSUPPORTED_DYNAMIC_PROPERTY` | WARN | Variable predicate or class that cannot be statically resolved — check skipped for those triples |
 
 ### Semantic checks
 
@@ -511,6 +514,14 @@ might be.
 
 A variable used as the **subject** is fine; the limitation is only for variable
 *predicates* and *type-object* positions.
+
+**Exception — SHACL `$PATH` variable:** SHACL embedded constraints commonly use
+`$this $PATH ?value` where `$PATH` is a runtime placeholder for the enclosing
+`sh:PropertyShape`'s `sh:path`. CIMcheck resolves this automatically: when a
+`sh:SPARQLConstraint` is linked to a property shape via `sh:sparql` and that
+shape has a simple URI `sh:path`, `$PATH` is substituted with the concrete
+property URI before analysis. No `UNSUPPORTED_DYNAMIC_PROPERTY` warning is
+emitted for successfully resolved `$PATH` patterns.
 
 ### SERVICE blocks
 
@@ -589,7 +600,7 @@ CIMcheck performs **two distinct passes** over a SHACL shapes graph.
 | --- | --- |
 | `sh:targetClass` | Class IRI must exist in the selected profiles |
 | `sh:class` | Class IRI must exist in the selected profiles |
-| `sh:path` | Every URI segment of the path (simple, sequence, inverse, alternative, zero/one/more) must be a known property |
+| `sh:path` | Every URI segment of the path (simple, sequence, inverse, alternative, zero/one/more) must be a known property; standard vocabulary terms (`rdf:type`, `rdfs:*`, `owl:*`, etc.) are exempt |
 | `sh:nodeKind` + `rdfs:range` | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` when node kind contradicts the schema range |
 | `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min > max |
 
@@ -603,7 +614,11 @@ CIMcheck performs **two distinct passes** over a SHACL shapes graph.
 | `sh:rule` → `sh:construct` | `sh:SPARQLRule` | Shape's `sh:targetClass` |
 
 The extractor resolves `sh:prefixes → sh:declare → sh:prefix/sh:namespace` chains
-automatically and passes the resulting prefix map into the SPARQL validator.
+automatically and passes the resulting prefix map into the SPARQL validator. If a
+`sh:prefixes` target node carries no `sh:declare` blocks (a common omission in
+published ENTSO-E SHACL files), the graph's own Turtle `@prefix` declarations are
+used as a fallback, so prefixes declared at the file level are always available to
+embedded queries.
 
 **SHACL features that are not checked at all** (neither structurally nor via SPARQL):
 
