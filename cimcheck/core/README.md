@@ -204,7 +204,7 @@ not need to build Java themselves.
 **From a VSIX file** (most common):
 
 ```bash
-code --install-extension cimcheck-0.1.0.vsix
+code --install-extension cimcheck-X.Y.Z.vsix
 ```
 
 Or open VS Code → Extensions panel → `⋯` menu → **Install from VSIX…**

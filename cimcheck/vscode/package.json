@@ -2,7 +2,7 @@
     "name": "cimcheck",
     "displayName": "CIMcheck",
     "description": "Validates SPARQL queries and SHACL shapes against CIM/CGMES schema profiles using the CIMcheck language server.",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "publisher": "soptim-ag",
     "license": "Apache-2.0",
     "repository": {
