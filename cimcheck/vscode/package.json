@@ -69,6 +69,26 @@
                 "category": "CIMcheck"
             }
         ],
+        "configurationDefaults": {
+            "[sparql]": {
+                "editor.quickSuggestions": {
+                    "other": "on",
+                    "comments": "off",
+                    "strings": "off"
+                },
+                "editor.suggestOnTriggerCharacters": true,
+                "editor.wordBasedSuggestions": "off"
+            },
+            "[shacl]": {
+                "editor.quickSuggestions": {
+                    "other": "on",
+                    "comments": "off",
+                    "strings": "off"
+                },
+                "editor.suggestOnTriggerCharacters": true,
+                "editor.wordBasedSuggestions": "off"
+            }
+        },
         "configuration": {
             "title": "CIMcheck",
             "properties": {
