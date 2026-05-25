@@ -83,13 +83,40 @@ public final class ShaclSparqlExtractor {
 
                 Map<String, String> prefixes = resolvePrefixes(g, container, prefixesByOwner);
                 Set<Node> targetClasses = resolveTargetClasses(g, container, shapeToTargetClasses);
-                out.add(new EmbeddedSparql(container, predicate, kind, queryText, prefixes, targetClasses));
+                Set<Node> shPaths = resolveShPaths(g, container);
+                out.add(new EmbeddedSparql(container, predicate, kind, queryText, prefixes, targetClasses, shPaths));
             }
         } finally {
             if (it instanceof AutoCloseable c) {
                 try { c.close(); } catch (Exception ignored) { /* nothing */ }
             }
         }
+    }
+
+    /**
+     * Collects simple URI {@code sh:path} values from every {@code sh:PropertyShape} that links
+     * to {@code container} via {@code sh:sparql}. Complex paths (sequence, inverse, alternative,
+     * repetition) are ignored — only direct URI nodes are collected.
+     *
+     * <p>Used to enable {@code $PATH} variable substitution in embedded SPARQL constraints: when
+     * a property shape has {@code sh:path cim:SomeProp} and its SPARQL body references
+     * {@code $PATH}, we can substitute {@code $PATH → <uri>} before static analysis.</p>
+     */
+    private static Set<Node> resolveShPaths(Graph g, Node container) {
+        var result = new LinkedHashSet<Node>();
+        Iterator<Triple> it = g.find(Node.ANY, Shacl.SPARQL, container);
+        try {
+            while (it.hasNext()) {
+                Node propShape = it.next().getSubject();
+                Node path = singleObject(g, propShape, Shacl.PATH);
+                if (path != null && path.isURI()) result.add(path);
+            }
+        } finally {
+            if (it instanceof AutoCloseable c) {
+                try { c.close(); } catch (Exception ignored) {}
+            }
+        }
+        return result;
     }
 
     /**
@@ -171,17 +198,24 @@ public final class ShaclSparqlExtractor {
     /**
      * Resolve all {@code sh:prefixes} pointers reachable from {@code container} into a single
      * merged prefix map. Multiple pointers are merged; later declarations overwrite earlier.
+     *
+     * <p>The graph's own {@code @prefix} declarations (from the Turtle file) are used as a
+     * baseline so that embedded queries can reference any prefix declared at the file level —
+     * even when the SHACL author omitted the explicit {@code sh:declare} block on the
+     * {@code sh:prefixes} target node. Explicit {@code sh:declare} entries take precedence over
+     * file-level prefixes.</p>
      */
     private static Map<String, String> resolvePrefixes(
             Graph g, Node container, Map<Node, Map<String, String>> prefixesByOwner) {
 
-        var merged = new TreeMap<String, String>();
+        // Seed with the graph's own @prefix declarations as a fallback baseline.
+        var merged = new TreeMap<>(g.getPrefixMapping().getNsPrefixMap());
         Iterator<Triple> it = g.find(container, Shacl.PREFIXES, Node.ANY);
         try {
             while (it.hasNext()) {
                 Node owner = it.next().getObject();
                 Map<String, String> m = prefixesByOwner.get(owner);
-                if (m != null) merged.putAll(m);
+                if (m != null) merged.putAll(m);  // sh:declare overrides file-level prefixes
             }
         } finally {
             if (it instanceof AutoCloseable c) {
@@ -189,6 +223,17 @@ public final class ShaclSparqlExtractor {
             }
         }
         return merged;
+    }
+
+    private static Node singleObject(Graph g, Node subject, Node predicate) {
+        Iterator<Triple> it = g.find(subject, predicate, Node.ANY);
+        try {
+            return it.hasNext() ? it.next().getObject() : null;
+        } finally {
+            if (it instanceof AutoCloseable c) {
+                try { c.close(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     /**

@@ -1,0 +1,35 @@
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex:   <http://example.org/shapes#> .
+@prefix cim:  <http://iec.ch/TC57/CIM100#> .
+
+# Tests two things simultaneously:
+#
+#  1. Prefix fallback: sh:prefixes cim: points to <http://iec.ch/TC57/CIM100#> which has no
+#     sh:declare block here. The cim: prefix must be resolved from the Turtle @prefix declaration.
+#
+#  2. $PATH substitution: the embedded SPARQL uses $PATH as a predicate variable. The enclosing
+#     sh:PropertyShape has sh:path cim:ACLineSegment.r, so $PATH is substituted with that URI
+#     and the query can be statically validated without UNSUPPORTED_DYNAMIC_PROPERTY.
+
+ex:LineShape
+    a               sh:NodeShape ;
+    sh:targetClass  cim:ACLineSegment ;
+    sh:property     ex:LineShape.r-usage .
+
+ex:LineShape.r-usage
+    a               sh:PropertyShape ;
+    sh:path         cim:ACLineSegment.r ;
+    sh:sparql       ex:LineShape.r-usageSparql .
+
+# NOTE: no sh:declare block on cim: — prefix comes from the file's @prefix declaration only.
+ex:LineShape.r-usageSparql
+    a               sh:SPARQLConstraint ;
+    sh:prefixes     cim: ;
+    sh:select       """
+        SELECT $this ?value
+        WHERE {
+            OPTIONAL { $this $PATH ?value } .
+            $this cim:ACLineSegment.r ?r .
+        }
+        """ .

@@ -372,6 +372,58 @@ public class ShaclValidationTest {
                 profiles.contains(VersionIri.of(PROFILE_EQ)));
     }
 
+    // ---- $PATH substitution and prefix fallback -------------------------------------------
+
+    @Test
+    public void pathVariable_isSubstitutedFromShPath() {
+        // shapes-path-variable.ttl uses $PATH in an embedded SPARQL.
+        // The enclosing sh:PropertyShape has sh:path cim:ACLineSegment.r.
+        // After substitution, the query must contain no UNSUPPORTED_DYNAMIC_PROPERTY annotation.
+        Graph g = loadShapes("shacl/shapes-path-variable.ttl");
+        var r = api.validateShacl(g);
+        boolean dynamic = r.embeddedResults().stream()
+                .flatMap(er -> er.result().annotations().stream())
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNSUPPORTED_DYNAMIC_PROPERTY);
+        assertFalse("$PATH must be substituted with sh:path URI; no UNSUPPORTED_DYNAMIC_PROPERTY expected", dynamic);
+    }
+
+    @Test
+    public void pathVariable_prefixFallbackFromTurtleDeclaration() {
+        // shapes-path-variable.ttl has sh:prefixes cim: but NO sh:declare block on the cim: node.
+        // The cim: prefix must be resolved from the Turtle @prefix declaration (graph fallback).
+        Graph g = loadShapes("shacl/shapes-path-variable.ttl");
+        var queries = api.extractShaclSparql(g);
+        assertFalse("At least one embedded query must be extracted", queries.isEmpty());
+        boolean cimResolved = queries.stream()
+                .anyMatch(q -> "http://iec.ch/TC57/CIM100#".equals(q.prefixes().get("cim")));
+        assertTrue("cim: prefix must be resolved from the Turtle @prefix declaration", cimResolved);
+    }
+
+    @Test
+    public void pathVariable_shPathsFieldPopulated() {
+        // The EmbeddedSparql.shPaths() field must contain the sh:path URI of the enclosing
+        // property shape.
+        Graph g = loadShapes("shacl/shapes-path-variable.ttl");
+        var queries = api.extractShaclSparql(g);
+        boolean hasPropR = queries.stream()
+                .anyMatch(q -> q.shPaths().contains(
+                        NodeFactory.createURI(PROP_R)));
+        assertTrue("shPaths must include the enclosing sh:path URI cim:ACLineSegment.r", hasPropR);
+    }
+
+    @Test
+    public void pathVariable_noSyntaxError() {
+        // Before the prefix-fallback fix, cim:ACLineSegment.r in the query body would cause
+        // "Unresolved prefixed name" because the cim: prefix was not injected via sh:declare.
+        // After the fix, the query must parse cleanly.
+        Graph g = loadShapes("shacl/shapes-path-variable.ttl");
+        var r = api.validateShacl(g);
+        boolean syntaxError = r.embeddedResults().stream()
+                .flatMap(er -> er.result().annotations().stream())
+                .anyMatch(a -> a.code() == SparqlValidationCode.SYNTAX_ERROR);
+        assertFalse("No SYNTAX_ERROR expected after prefix-fallback fix", syntaxError);
+    }
+
     // ---- helpers ----------------------------------------------------------------------------
 
     private static Graph loadShapes(String resourcePath) {

@@ -39,6 +39,11 @@ import java.util.TreeMap;
  * @param targetClasses   the {@code sh:targetClass} values of the enclosing shape(s), if
  *                        resolvable; empty when the context is ambiguous or absent (e.g. a
  *                        standalone {@code sh:SPARQLAskValidator} not yet linked to a shape)
+ * @param shPaths         simple URI {@code sh:path} values from enclosing {@code sh:PropertyShape}
+ *                        nodes that link to this container via {@code sh:sparql}; empty when no
+ *                        enclosing property shape has a simple URI path (complex paths, sequence
+ *                        paths, inverse paths, etc. are not collected here). Used to substitute
+ *                        the SHACL {@code $PATH} variable before static analysis.
  */
 public record EmbeddedSparql(
         Node container,
@@ -46,7 +51,8 @@ public record EmbeddedSparql(
         Kind kind,
         String rawQuery,
         Map<String, String> prefixes,
-        Set<Node> targetClasses
+        Set<Node> targetClasses,
+        Set<Node> shPaths
 ) {
 
     public EmbeddedSparql {
@@ -54,8 +60,9 @@ public record EmbeddedSparql(
         Objects.requireNonNull(queryPredicate, "queryPredicate");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(rawQuery, "rawQuery");
-        prefixes     = prefixes     == null ? Map.of()  : Map.copyOf(new TreeMap<>(prefixes));
-        targetClasses = targetClasses == null ? Set.of() : Set.copyOf(targetClasses);
+        prefixes      = prefixes      == null ? Map.of()  : Map.copyOf(new TreeMap<>(prefixes));
+        targetClasses = targetClasses == null ? Set.of()  : Set.copyOf(targetClasses);
+        shPaths       = shPaths       == null ? Set.of()  : Set.copyOf(shPaths);
     }
 
     /** Returns the {@link #rawQuery() raw query} with all resolved {@link #prefixes} prepended. */

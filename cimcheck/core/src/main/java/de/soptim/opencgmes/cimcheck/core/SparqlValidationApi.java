@@ -497,11 +497,35 @@ public final class SparqlValidationApi {
                     ? Map.of()
                     : Map.of(org.apache.jena.sparql.core.Var.alloc("this"),
                              q.targetClasses());
-            var r = validator.validate(q.renderedQuery(), scope, hints);
+            var r = validator.validate(renderedQueryWithPath(q), scope, hints);
             embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
         }
 
         return new ShaclValidationResult(shapeAnnotations, embeddedResults);
+    }
+
+    /**
+     * Returns the rendered query for {@code q} with the SHACL {@code $PATH} / {@code ?PATH}
+     * variable substituted by the first simple-URI {@code sh:path} collected from the enclosing
+     * property shape.
+     *
+     * <p>SHACL embedded constraints frequently use {@code $this $PATH ?value} where
+     * {@code $PATH} is a runtime placeholder that a SHACL processor replaces with the
+     * enclosing property shape's {@code sh:path}. For static analysis we substitute the
+     * known URI directly so the validator can check the concrete property rather than
+     * emitting an {@code UNSUPPORTED_DYNAMIC_PROPERTY} warning.</p>
+     *
+     * <p>If no suitable {@code sh:path} is available, or if the query does not reference
+     * {@code $PATH} / {@code ?PATH}, the unmodified rendered query is returned.</p>
+     */
+    private static String renderedQueryWithPath(EmbeddedSparql q) {
+        String rendered = q.renderedQuery();
+        if (q.shPaths().isEmpty()) return rendered;
+        if (!rendered.contains("$PATH") && !rendered.contains("?PATH")) return rendered;
+        Node pathNode = q.shPaths().iterator().next();
+        if (!pathNode.isURI()) return rendered;
+        String uri = "<" + pathNode.getURI() + ">";
+        return rendered.replaceAll("\\$PATH\\b", uri).replaceAll("\\?PATH\\b", uri);
     }
 
     /**
@@ -515,7 +539,7 @@ public final class SparqlValidationApi {
         var out = new LinkedHashSet<>(shaclAnalyzer.extractClassDependencies(shapesGraph));
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
-                var a = validator.analyze(q.renderedQuery());
+                var a = validator.analyze(renderedQueryWithPath(q));
                 a.classes().forEach(c -> out.add(c.classNode()));
             } catch (InvalidQueryException ignored) {
                 /* skip unparseable fragment */
@@ -531,7 +555,7 @@ public final class SparqlValidationApi {
         var out = new LinkedHashSet<>(shaclAnalyzer.extractPropertyDependencies(shapesGraph));
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
-                var a = validator.analyze(q.renderedQuery());
+                var a = validator.analyze(renderedQueryWithPath(q));
                 a.properties().forEach(p -> out.add(p.propertyNode()));
             } catch (InvalidQueryException ignored) {
                 /* skip unparseable fragment */
@@ -579,7 +603,7 @@ public final class SparqlValidationApi {
         // Embedded SPARQL terms: sh:select, sh:ask, sh:construct.
         for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
             try {
-                var a = validator.analyze(q.renderedQuery());
+                var a = validator.analyze(renderedQueryWithPath(q));
                 for (var c : a.classes()) {
                     for (VersionIri v : validator.schemaIndex().findClass(c.classNode())) {
                         if (restrict == null || restrict.contains(v)) out.add(v);
