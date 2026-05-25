@@ -19,8 +19,10 @@
 package de.soptim.opencgmes.cimcheck.core;
 
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
+import org.apache.jena.graph.Node;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +30,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -103,6 +108,13 @@ public final class CgmesSchemaLoader {
     // ---- Loading ---------------------------------------------------------------------------
 
     /**
+     * Carries a loaded {@link RdfsSchemaIndex} together with the {@link VersionIri} → source-file
+     * mapping collected while parsing. Callers that need file-level navigation (go-to-definition,
+     * workspace symbols) use {@link #sourcePaths()} to locate declarations in profile files.
+     */
+    public record LoadedIndex(RdfsSchemaIndex index, Map<VersionIri, Path> sourcePaths) {}
+
+    /**
      * Parses the configured files and returns the {@link RdfsSchemaIndex}.
      *
      * @throws SchemaLoadException if the directory does not exist, no schema files are found,
@@ -110,7 +122,17 @@ public final class CgmesSchemaLoader {
      *                             after parsing
      */
     public RdfsSchemaIndex loadIndex() throws SchemaLoadException {
-        return buildIndex(resolveFiles());
+        return buildIndexAndSources(resolveFiles()).index();
+    }
+
+    /**
+     * Parses the configured files and returns both the index and the {@link VersionIri} → file
+     * mapping needed for source navigation.
+     *
+     * @throws SchemaLoadException see {@link #loadIndex()}
+     */
+    public LoadedIndex loadIndexWithSources() throws SchemaLoadException {
+        return buildIndexAndSources(resolveFiles());
     }
 
     /**
@@ -158,19 +180,25 @@ public final class CgmesSchemaLoader {
         return lower.endsWith(".rdf") || lower.endsWith(".ttl") || lower.endsWith(".owl");
     }
 
-    private static RdfsSchemaIndex buildIndex(List<Path> filePaths) throws SchemaLoadException {
-        var registry = new CimProfileRegistryStd();
-        var parser   = new RdfXmlParser();
-        var failed   = new ArrayList<String>();
+    private static LoadedIndex buildIndexAndSources(List<Path> filePaths) throws SchemaLoadException {
+        var registry    = new CimProfileRegistryStd();
+        var parser      = new RdfXmlParser();
+        var failed      = new ArrayList<String>();
+        var sourcePaths = new LinkedHashMap<VersionIri, Path>();
 
         for (Path f : filePaths) {
             if (!Files.isRegularFile(f)) {
                 throw new SchemaLoadException("Schema file does not exist: " + f);
             }
             try {
-                var profile = parser.parseCimProfile(f);
+                CimProfile profile = parser.parseCimProfile(f);
                 try {
                     registry.register(profile);
+                    if (!profile.isHeaderProfile()) {
+                        for (Node iriNode : profile.getOwlVersionIRIs()) {
+                            sourcePaths.put(new VersionIri(iriNode), f);
+                        }
+                    }
                     LOG.debug("Loaded schema: {}", f.getFileName());
                 } catch (IllegalArgumentException dup) {
                     // Duplicate version IRI — multiple files declare the same profile.
@@ -192,7 +220,9 @@ public final class CgmesSchemaLoader {
             throw new SchemaLoadException(
                     "No CIM profiles were registered — check your schema files.");
         }
-        return RdfsSchemaIndex.fromCimRegistry(registry);
+        return new LoadedIndex(
+                RdfsSchemaIndex.fromCimRegistry(registry),
+                Collections.unmodifiableMap(sourcePaths));
     }
 
     // ---- Exception -------------------------------------------------------------------------

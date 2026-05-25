@@ -55,6 +55,7 @@ final class SchemaManager {
 
     private final AtomicReference<SparqlValidationApi> apiRef    = new AtomicReference<>();
     private final AtomicReference<StrictnessLevel>     levelRef  = new AtomicReference<>(StrictnessLevel.DEFAULT);
+    private final AtomicReference<DefinitionIndex>     defRef    = new AtomicReference<>();
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
     private volatile Path workspaceRoot;
@@ -95,6 +96,11 @@ final class SchemaManager {
         return levelRef.get();
     }
 
+    /** Returns the definition index, or empty if the schema has not been loaded yet. */
+    Optional<DefinitionIndex> getDefinitionIndex() {
+        return Optional.ofNullable(defRef.get());
+    }
+
     void shutdown() {
         executor.shutdown();
     }
@@ -110,12 +116,14 @@ final class SchemaManager {
                         "SPARQL Validation: No .cgmes/validation.json found — " +
                         "validation is disabled until a config is added.");
                 apiRef.set(null);
+                defRef.set(null);
                 return;
             }
             LspConfig config = discovered.get();
-            var index = SchemaLoader.load(config, root);
-            apiRef.set(new SparqlValidationApi(index));
+            var loaded = SchemaLoader.loadWithSources(config, root);
+            apiRef.set(new SparqlValidationApi(loaded.index()));
             levelRef.set(parseLevel(config));
+            defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));
             LOG.info("Schema loaded successfully from {} (strictness: {})", root, levelRef.get());
             notify(MessageType.Info, "SPARQL Validation: Schema loaded successfully.");
             onLoadedCallbacks.forEach(Runnable::run);
@@ -123,6 +131,7 @@ final class SchemaManager {
             LOG.error("Failed to load schema: {}", e.getMessage(), e);
             notify(MessageType.Error, "SPARQL Validation: Schema load failed — " + e.getMessage());
             apiRef.set(null);
+            defRef.set(null);
         }
     }
 

@@ -18,11 +18,14 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
-import org.eclipse.lsp4j.DidChangeConfigurationParams;
-import org.eclipse.lsp4j.DidChangeWatchedFilesParams;
+import org.eclipse.lsp4j.*;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.WorkspaceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles workspace-level events.
@@ -40,6 +43,27 @@ final class SparqlWorkspaceService implements WorkspaceService {
 
     SparqlWorkspaceService(SchemaManager schemaManager) {
         this.schemaManager = schemaManager;
+    }
+
+    @Override
+    public CompletableFuture<Either<List<? extends SymbolInformation>, List<? extends WorkspaceSymbol>>>
+            symbol(WorkspaceSymbolParams params) {
+        try {
+            var apiOpt = schemaManager.getApi();
+            if (apiOpt.isEmpty())
+                return CompletableFuture.completedFuture(Either.forRight(List.of()));
+
+            var defIndexOpt = schemaManager.getDefinitionIndex();
+            if (defIndexOpt.isEmpty())
+                return CompletableFuture.completedFuture(Either.forRight(List.of()));
+
+            List<WorkspaceSymbol> symbols = defIndexOpt.get().findSymbols(
+                    params.getQuery(), apiOpt.get().schemaIndex());
+            return CompletableFuture.completedFuture(Either.forRight(symbols));
+        } catch (Exception e) {
+            LOG.error("Symbol search error: {}", e.getMessage(), e);
+            return CompletableFuture.completedFuture(Either.forRight(List.of()));
+        }
     }
 
     @Override

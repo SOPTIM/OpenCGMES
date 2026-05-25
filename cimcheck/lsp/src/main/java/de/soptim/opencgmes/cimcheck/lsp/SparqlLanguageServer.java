@@ -80,6 +80,8 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
         caps.setTextDocumentSync(TextDocumentSyncKind.Full);
         caps.setHoverProvider(true);
         caps.setCompletionProvider(new CompletionOptions(false, List.of(":")));
+        caps.setDefinitionProvider(true);
+        caps.setWorkspaceSymbolProvider(true);
 
         InitializeResult result = new InitializeResult(caps);
         result.setServerInfo(new ServerInfo("SPARQL Validation Server", "1.0.0"));

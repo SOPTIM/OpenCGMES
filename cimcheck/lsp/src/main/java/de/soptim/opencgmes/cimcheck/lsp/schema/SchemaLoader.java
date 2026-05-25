@@ -19,11 +19,14 @@
 package de.soptim.opencgmes.cimcheck.lsp.schema;
 
 import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
+import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader.LoadedIndex;
+import de.soptim.opencgmes.cimcheck.core.VersionIri;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -35,14 +38,32 @@ public final class SchemaLoader {
     private SchemaLoader() {}
 
     /**
+     * Carries the loaded index together with the {@link VersionIri} → source-file mapping
+     * needed for go-to-definition and workspace symbol navigation.
+     */
+    public record SchemaAndSources(RdfsSchemaIndex index, Map<VersionIri, Path> sourcePaths) {}
+
+    /**
      * Loads an index from the given LSP config. Paths are resolved relative to {@code configBase}.
      *
      * @throws SchemaLoadException if no schema files are found, any file fails to parse, or
      *                             no CIM profiles are registered
      */
     public static RdfsSchemaIndex load(LspConfig config, Path configBase) throws SchemaLoadException {
+        return loadWithSources(config, configBase).index();
+    }
+
+    /**
+     * Loads both the index and the source-file map from the given LSP config.
+     *
+     * @throws SchemaLoadException if no schema files are found, any file fails to parse, or
+     *                             no CIM profiles are registered
+     */
+    public static SchemaAndSources loadWithSources(LspConfig config, Path configBase)
+            throws SchemaLoadException {
         try {
-            return resolveLoader(config, configBase).loadIndex();
+            LoadedIndex loaded = resolveLoader(config, configBase).loadIndexWithSources();
+            return new SchemaAndSources(loaded.index(), loaded.sourcePaths());
         } catch (CgmesSchemaLoader.SchemaLoadException e) {
             throw new SchemaLoadException(e.getMessage(), e);
         }

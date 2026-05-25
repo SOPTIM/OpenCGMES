@@ -133,6 +133,44 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     @Override
+    public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definition(
+            DefinitionParams params) {
+        try {
+            String uri  = params.getTextDocument().getUri();
+            String text = documents.get(uri);
+            if (text == null) return noDefinition();
+
+            var apiOpt = schemaManager.getApi();
+            if (apiOpt.isEmpty()) return noDefinition();
+
+            var defIndexOpt = schemaManager.getDefinitionIndex();
+            if (defIndexOpt.isEmpty()) return noDefinition();
+
+            SchemaIndex index = apiOpt.get().schemaIndex();
+            int line = params.getPosition().getLine();
+            int col  = params.getPosition().getCharacter();
+
+            PrefixMapping prefixes = extractPrefixes(text);
+            Node term = termAtPosition(text, line, col, prefixes);
+            if (term == null) return noDefinition();
+
+            return defIndexOpt.get().locationOf(term)
+                    .map(loc -> CompletableFuture.completedFuture(
+                            Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(
+                                    List.of(loc))))
+                    .orElseGet(SparqlTextDocumentService::noDefinition);
+        } catch (Exception e) {
+            LOG.error("Definition error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
+            return noDefinition();
+        }
+    }
+
+    private static CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>>
+            noDefinition() {
+        return CompletableFuture.completedFuture(Either.forLeft(List.of()));
+    }
+
+    @Override
     public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams params) {
         try {
             return CompletableFuture.completedFuture(Either.forLeft(computeCompletions(params)));
