@@ -125,7 +125,15 @@ final class SchemaManager {
             levelRef.set(parseLevel(config));
             defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));
             LOG.info("Schema loaded successfully from {} (strictness: {})", root, levelRef.get());
-            notify(MessageType.Info, "SPARQL Validation: Schema loaded successfully.");
+            if (!loaded.skippedFiles().isEmpty()) {
+                String detail = String.join("\n", loaded.skippedFiles());
+                notify(MessageType.Warning,
+                        "SPARQL Validation: Schema loaded with warnings — "
+                        + loaded.skippedFiles().size()
+                        + " file(s) could not be parsed and were skipped:\n" + detail);
+            } else {
+                notify(MessageType.Info, "SPARQL Validation: Schema loaded successfully.");
+            }
             onLoadedCallbacks.forEach(Runnable::run);
         } catch (Exception e) {
             LOG.error("Failed to load schema: {}", e.getMessage(), e);

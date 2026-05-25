@@ -40,8 +40,12 @@ public final class SchemaLoader {
     /**
      * Carries the loaded index together with the {@link VersionIri} → source-file mapping
      * needed for go-to-definition and workspace symbol navigation.
+     *
+     * <p>{@link #skippedFiles()} is non-empty when one or more schema files could not be parsed;
+     * callers should surface these as user-visible warnings.</p>
      */
-    public record SchemaAndSources(RdfsSchemaIndex index, Map<VersionIri, Path> sourcePaths) {}
+    public record SchemaAndSources(RdfsSchemaIndex index, Map<VersionIri, Path> sourcePaths,
+                                   List<String> skippedFiles) {}
 
     /**
      * Loads an index from the given LSP config. Paths are resolved relative to {@code configBase}.
@@ -56,14 +60,16 @@ public final class SchemaLoader {
     /**
      * Loads both the index and the source-file map from the given LSP config.
      *
-     * @throws SchemaLoadException if no schema files are found, any file fails to parse, or
-     *                             no CIM profiles are registered
+     * <p>Files that cannot be parsed are recorded in {@link SchemaAndSources#skippedFiles()}
+     * rather than causing a hard failure; the load only fails if no valid CIM profile loads.</p>
+     *
+     * @throws SchemaLoadException if no schema files are found or no CIM profiles could be registered
      */
     public static SchemaAndSources loadWithSources(LspConfig config, Path configBase)
             throws SchemaLoadException {
         try {
             LoadedIndex loaded = resolveLoader(config, configBase).loadIndexWithSources();
-            return new SchemaAndSources(loaded.index(), loaded.sourcePaths());
+            return new SchemaAndSources(loaded.index(), loaded.sourcePaths(), loaded.skippedFiles());
         } catch (CgmesSchemaLoader.SchemaLoadException e) {
             throw new SchemaLoadException(e.getMessage(), e);
         }

@@ -82,6 +82,60 @@ public class CgmesSchemaLoaderTest {
         CgmesSchemaLoader.fromFiles(Path.of("/no/such/file.rdf")).loadIndex();
     }
 
+    @Test(expected = CgmesSchemaLoader.SchemaLoadException.class)
+    public void fromFiles_onlyUnparseableFiles_throws() throws Exception {
+        Path bad = writeRdf("bad.rdf", MINIMAL_BAD_CIM16_RDF);
+        CgmesSchemaLoader.fromFiles(bad).loadIndex();
+    }
+
+    @Test
+    public void fromFiles_goodAndBadFile_skipsUnparseableWithWarning() throws Exception {
+        Path good = writeRdf("good.rdf", MINIMAL_GOOD_CIM16_RDF);
+        Path bad  = writeRdf("bad.rdf",  MINIMAL_BAD_CIM16_RDF);
+
+        CgmesSchemaLoader.LoadedIndex result =
+                CgmesSchemaLoader.fromFiles(good, bad).loadIndexWithSources();
+
+        assertFalse("index must contain the good profile", result.index().getAllProfiles().isEmpty());
+        assertEquals("exactly one file should be in skippedFiles", 1, result.skippedFiles().size());
+        assertTrue("skipped entry must name the bad file",
+                result.skippedFiles().get(0).contains("bad.rdf"));
+    }
+
+    private Path writeRdf(String name, String content) throws IOException {
+        Path file = tmp.newFile(name).toPath();
+        Files.writeString(file, content);
+        return file;
+    }
+
+    /** Minimal CIM 16 RDF that passes CimProfile16.hasVersionIRIAndKeyword. */
+    private static final String MINIMAL_GOOD_CIM16_RDF = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+                     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+                     xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#">
+              <rdf:Description rdf:about="http://entsoe.eu/TestExt#TestVersion.shortName">
+                <rdfs:domain rdf:resource="http://entsoe.eu/TestExt#TestVersion"/>
+                <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">TST</cims:isFixed>
+              </rdf:Description>
+              <rdf:Description rdf:about="http://entsoe.eu/TestExt#TestVersion.entsoeURI">
+                <rdfs:domain rdf:resource="http://entsoe.eu/TestExt#TestVersion"/>
+                <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">http://example.org/TestProfile/1</cims:isFixed>
+              </rdf:Description>
+            </rdf:RDF>
+            """;
+
+    /** CIM 16 RDF without Version metadata — fails CimProfile16.hasVersionIRIAndKeyword. */
+    private static final String MINIMAL_BAD_CIM16_RDF = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+                     xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#">
+              <rdfs:Class rdf:about="http://iec.ch/TC57/2013/CIM-schema-cim16#Foo"/>
+            </rdf:RDF>
+            """;
+
     // ============================================================================================
     // Happy-path integration tests — skipped when submodule is absent
     // ============================================================================================

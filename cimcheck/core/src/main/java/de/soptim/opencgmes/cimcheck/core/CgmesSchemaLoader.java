@@ -111,15 +111,21 @@ public final class CgmesSchemaLoader {
      * Carries a loaded {@link RdfsSchemaIndex} together with the {@link VersionIri} → source-file
      * mapping collected while parsing. Callers that need file-level navigation (go-to-definition,
      * workspace symbols) use {@link #sourcePaths()} to locate declarations in profile files.
+     *
+     * <p>{@link #skippedFiles()} lists files that could not be parsed. When it is non-empty, the
+     * index was built from the remaining files only — callers should surface these as warnings.</p>
      */
-    public record LoadedIndex(RdfsSchemaIndex index, Map<VersionIri, Path> sourcePaths) {}
+    public record LoadedIndex(RdfsSchemaIndex index, Map<VersionIri, Path> sourcePaths,
+                              List<String> skippedFiles) {}
 
     /**
      * Parses the configured files and returns the {@link RdfsSchemaIndex}.
      *
+     * <p>Files that cannot be parsed are skipped with a warning rather than causing a hard
+     * failure. The load only fails if no valid CIM profile can be registered at all.</p>
+     *
      * @throws SchemaLoadException if the directory does not exist, no schema files are found,
-     *                             any file fails to parse, or no CIM profiles are registered
-     *                             after parsing
+     *                             or no CIM profiles could be registered after parsing
      */
     public RdfsSchemaIndex loadIndex() throws SchemaLoadException {
         return buildIndexAndSources(resolveFiles()).index();
@@ -128,6 +134,9 @@ public final class CgmesSchemaLoader {
     /**
      * Parses the configured files and returns both the index and the {@link VersionIri} → file
      * mapping needed for source navigation.
+     *
+     * <p>Files that cannot be parsed are recorded in {@link LoadedIndex#skippedFiles()} rather
+     * than causing a hard failure. The load only fails if no valid CIM profile can be registered.</p>
      *
      * @throws SchemaLoadException see {@link #loadIndex()}
      */
@@ -212,17 +221,20 @@ public final class CgmesSchemaLoader {
             }
         }
 
-        if (!failed.isEmpty()) {
-            throw new SchemaLoadException(
-                    "Failed to parse schema file(s):\n  " + String.join("\n  ", failed));
-        }
         if (registry.getRegisteredProfiles().isEmpty()) {
-            throw new SchemaLoadException(
-                    "No CIM profiles were registered — check your schema files.");
+            String detail = failed.isEmpty()
+                    ? "No CIM profiles were registered — check your schema files."
+                    : "Failed to parse schema file(s):\n  " + String.join("\n  ", failed);
+            throw new SchemaLoadException(detail);
+        }
+        if (!failed.isEmpty()) {
+            LOG.warn("Skipped {} unparseable schema file(s) — validation will use the remaining profiles:\n  {}",
+                    failed.size(), String.join("\n  ", failed));
         }
         return new LoadedIndex(
                 RdfsSchemaIndex.fromCimRegistry(registry),
-                Collections.unmodifiableMap(sourcePaths));
+                Collections.unmodifiableMap(sourcePaths),
+                List.copyOf(failed));
     }
 
     // ---- Exception -------------------------------------------------------------------------
