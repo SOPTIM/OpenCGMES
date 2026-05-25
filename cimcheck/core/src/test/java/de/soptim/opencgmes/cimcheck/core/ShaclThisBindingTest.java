@@ -204,6 +204,22 @@ public class ShaclThisBindingTest {
         assertTrue("domain error must fire for query embedded inside sh:property", found);
     }
 
+    // ---- QUERY_IMPLIED_TYPE suppression in embedded SHACL queries --------------------------
+
+    @Test
+    public void impliedTypeForIntermediateVar_isSuppressed() {
+        // IntermediateVarShape: ?v has no explicit rdf:type but appears as subject of
+        // cim:VoltageLevel.nominalVoltage (domain=VoltageLevel). Without suppression,
+        // QUERY_IMPLIED_TYPE (INFO) would fire for ?v. After the fix it must be absent.
+        Graph g = loadShapes("shacl/shapes-this-binding.ttl");
+        ShaclValidationResult r = api.validateShacl(g);
+
+        boolean impliedType = r.embeddedResults().stream()
+                .flatMap(er -> er.result().annotations().stream())
+                .anyMatch(a -> a.code() == SparqlValidationCode.QUERY_IMPLIED_TYPE);
+        assertFalse("QUERY_IMPLIED_TYPE must be suppressed in SHACL embedded query results", impliedType);
+    }
+
     // ---- helpers ---------------------------------------------------------------------------
 
     private static Graph loadShapes(String resourcePath) {

@@ -620,6 +620,14 @@ published ENTSO-E SHACL files), the graph's own Turtle `@prefix` declarations ar
 used as a fallback, so prefixes declared at the file level are always available to
 embedded queries.
 
+**`QUERY_IMPLIED_TYPE` is suppressed in embedded SHACL results.** In a plain SPARQL
+editor, `QUERY_IMPLIED_TYPE` (INFO) is useful: it flags that a variable carries an
+implicit type through a property's `rdfs:domain`. Inside a SHACL embedded constraint,
+the intermediate variables are transient bindings — the constraint author is not expected
+to annotate them with `rdf:type`. Emitting the annotation here would be noise that masks
+real issues, so it is filtered out of every embedded-query result before the
+`ShaclValidationResult` is assembled.
+
 **SHACL features that are not checked at all** (neither structurally nor via SPARQL):
 
 | Feature | Reason not checked |

@@ -78,3 +78,19 @@ ex:ViaPropShape
             """ ;
         ] ;
     ] .
+
+# --- Case 6: intermediate variable in subject position of a domain-having property ----
+# ?v has no explicit rdf:type but is used as subject of cim:VoltageLevel.nominalVoltage
+# (domain=VoltageLevel). QUERY_IMPLIED_TYPE would fire for ?v; it must be suppressed.
+ex:IntermediateVarShape
+    a sh:NodeShape ;
+    sh:targetClass cim:ACLineSegment ;
+    sh:sparql [
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT $this WHERE {
+                $this cim:ACLineSegment.r ?v .
+                ?v cim:VoltageLevel.nominalVoltage ?w .
+            }
+        """ ;
+    ] .

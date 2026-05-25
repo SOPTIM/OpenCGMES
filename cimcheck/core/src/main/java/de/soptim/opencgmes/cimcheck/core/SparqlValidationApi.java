@@ -498,10 +498,31 @@ public final class SparqlValidationApi {
                     : Map.of(org.apache.jena.sparql.core.Var.alloc("this"),
                              q.targetClasses());
             var r = validator.validate(renderedQueryWithPath(q), scope, hints);
+            r = suppressImpliedType(r);
             embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
         }
 
         return new ShaclValidationResult(shapeAnnotations, embeddedResults);
+    }
+
+    /**
+     * Removes {@link SparqlValidationCode#QUERY_IMPLIED_TYPE} annotations from an embedded-SPARQL
+     * result before it is stored in the SHACL validation report.
+     *
+     * <p>In a plain SPARQL editor, {@code QUERY_IMPLIED_TYPE} (INFO) is useful: it tells the
+     * author that variable {@code ?x} carries an implicit type due to a property's
+     * {@code rdfs:domain}. Inside a SHACL embedded constraint, however, the variables are
+     * transient bindings, not entities the query author is expected to annotate with
+     * {@code rdf:type}. Emitting the annotation here would be noise that masks real
+     * issues.</p>
+     */
+    private static SparqlValidationResult suppressImpliedType(SparqlValidationResult r) {
+        var filtered = r.annotations().stream()
+                .filter(a -> a.code() != SparqlValidationCode.QUERY_IMPLIED_TYPE)
+                .toList();
+        return filtered.size() == r.annotations().size()
+                ? r
+                : new SparqlValidationResult(r.query(), r.queryPlan(), filtered);
     }
 
     /**
