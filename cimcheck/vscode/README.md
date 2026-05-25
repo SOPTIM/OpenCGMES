@@ -151,6 +151,11 @@ Set `cimcheck.javaExecutable` to the full path of a Java 21+ executable, e.g. `/
 **No diagnostics appearing**
 Check that the file extension is recognised (`.rq`, `.sparql`, `.ttl`, `.shacl`) and that the schema loaded successfully. The status notification "SPARQL Validation: Schema loaded successfully." confirms the schema is ready.
 
+## Known Limitations
+
+**Standard vocabulary terms are not validated**
+Terms from well-known standard namespaces (`rdf:`, `rdfs:`, `owl:`, `xsd:`, `sh:`, `dcat:`, `dcterms:`, `skos:`, `cims:`, `cimuml:`) are silently accepted regardless of whether the exact term is defined in those vocabularies. A typo like `rdfs:Classs` will not be flagged. This is intentional — these vocabularies are not part of CIM profile files, so the schema index has no information about them.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
