@@ -176,4 +176,46 @@ public class TestCimProfile16 {
         assertTrue(ontology.isHeaderProfile());
         assertEquals(CimProfile16.CIM_NAMESPACE, ontology.getCimNamespace());
     }
+
+    /**
+     * Pre-2020 ENTSO-E profiles encode {@code cims:isFixed} values with the non-standard
+     * XML attribute syntax {@code <cims:isFixed rdfs:Literal="value" />} rather than a typed
+     * literal.  Jena parses this as a blank-node object with an {@code rdfs:Literal} triple.
+     * Verify that {@link CimProfile16} recognises this format correctly.
+     */
+    @Test
+    public void parseProfileOntologyHeader_2016RdfsLiteralFormat() {
+        final var rdfxml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rdf:RDF xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+                     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+                     xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#">
+              <rdf:Description rdf:about="http://entsoe.eu/Test#TestVersion.shortName">
+                <rdfs:domain rdf:resource="http://entsoe.eu/Test#TestVersion"/>
+                <cims:isFixed rdfs:Literal="TST" />
+              </rdf:Description>
+              <rdf:Description rdf:about="http://entsoe.eu/Test#TestVersion.entsoeURI">
+                <rdfs:domain rdf:resource="http://entsoe.eu/Test#TestVersion"/>
+                <cims:isFixed rdfs:Literal="http://example.org/TestProfile/1" />
+              </rdf:Description>
+            </rdf:RDF>
+            """;
+
+        var graph = new GraphMem2Roaring();
+        RDFParser.create()
+                .source(new StringReader(rdfxml))
+                .lang(org.apache.jena.riot.Lang.RDFXML)
+                .checking(false)
+                .parse(graph);
+
+        var profile = CimProfile.wrap(graph);
+
+        assertFalse(profile.isHeaderProfile());
+        assertEquals(CimVersion.CIM_16, profile.getCIMVersion());
+        assertEquals("TST", profile.getDcatKeyword());
+        assertEquals(1, profile.getOwlVersionIRIs().size());
+        assertEquals("http://example.org/TestProfile/1",
+                profile.getOwlVersionIRIs().iterator().next().getURI());
+    }
 }

@@ -45,6 +45,14 @@ public class CimProfile16 extends GraphWrapper implements CimProfile {
   static final Node PREDICATE_RDFS_DOMAIN = NodeFactory.createURI(NS_RDFS + "domain");
   static final Node PREDICATE_CIMS_IS_FIXED = NodeFactory.createURI(NS_CIMS + "isFixed");
 
+  /**
+   * Used in pre-2020 profiles where {@code cims:isFixed} is encoded as
+   * {@code <cims:isFixed rdfs:Literal="value" />} — the XML attribute style creates a blank
+   * node as the object of {@code cims:isFixed}, with an additional triple
+   * {@code _:bn rdfs:Literal "value"}.
+   */
+  static final Node PREDICATE_RDFS_LITERAL = NodeFactory.createURI(NS_RDFS + "Literal");
+
   private final boolean isHeaderProfile;
 
   /**
@@ -95,6 +103,15 @@ public class CimProfile16 extends GraphWrapper implements CimProfile {
    * dot). Then looks for all triples with cim:isFixed for the found profile class and returns the
    * literal values of those triples.
    *
+   * <p>Two encoding styles are supported:</p>
+   * <ul>
+   *   <li><b>2020 style</b>: {@code <cims:isFixed rdf:datatype="...">value</cims:isFixed>} —
+   *       object is a typed literal, returned directly.</li>
+   *   <li><b>2016 style</b>: {@code <cims:isFixed rdfs:Literal="value" />} — the XML attribute
+   *       produces a blank node as the {@code cims:isFixed} object, with an additional triple
+   *       {@code _:bn rdfs:Literal "value"}. Both steps are followed.</li>
+   * </ul>
+   *
    * @param graph                             the graph to search in
    * @param propertyNameStartWithIncludingDot the property name to look for, including the dot (e.g.
    *                                          ".shortName", ".entsoeURI", ".baseURI")
@@ -112,8 +129,19 @@ public class CimProfile16 extends GraphWrapper implements CimProfile {
             propertyNameStartWithIncludingDot, 0, propertyNameStartWithIncludingDot.length()))
         .flatMap(t -> graph
             .stream(t.getSubject(), PREDICATE_CIMS_IS_FIXED, Node.ANY)
-            .filter(t2 -> t2.getObject().isLiteral())
-            .map(t2 -> t2.getObject().getLiteralLexicalForm()));
+            .flatMap(t2 -> {
+              if (t2.getObject().isLiteral()) {
+                // 2020 style: direct typed literal
+                return Stream.of(t2.getObject().getLiteralLexicalForm());
+              }
+              if (t2.getObject().isBlank()) {
+                // 2016 style: blank node with rdfs:Literal "value"
+                return graph.stream(t2.getObject(), PREDICATE_RDFS_LITERAL, Node.ANY)
+                    .filter(t3 -> t3.getObject().isLiteral())
+                    .map(t3 -> t3.getObject().getLiteralLexicalForm());
+              }
+              return Stream.empty();
+            }));
   }
 
   @Override
