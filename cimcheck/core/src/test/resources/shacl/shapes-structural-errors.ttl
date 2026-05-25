@@ -75,3 +75,17 @@ ex:GoodZeroOrMorePath
     sh:property [
         sh:path [ sh:zeroOrMorePath cim:ACLineSegment.r ] ;
     ] .
+
+# ---- Valid 3: multi-namespace aliases in sh:alternativePath — no error expected ------
+# cim:IdentifiedObject.name is known; the other two carry the same local name under
+# different namespaces (cross-version compatibility pattern). UNKNOWN_PROPERTY must
+# NOT be emitted for the aliases.
+ex:MultiNamespaceAltPath
+    a sh:NodeShape ;
+    sh:property [
+        sh:path [ sh:alternativePath (
+            cim:IdentifiedObject.name
+            <http://example.org/otherns#IdentifiedObject.name>
+            <https://future.example.org/ns#IdentifiedObject.name>
+        ) ] ;
+    ] .

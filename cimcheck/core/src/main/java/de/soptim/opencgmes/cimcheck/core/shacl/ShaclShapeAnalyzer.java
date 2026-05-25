@@ -178,13 +178,7 @@ public final class ShaclShapeAnalyzer {
                 Node pathNode = t.getObject();
 
                 // 1. Unknown property in path
-                var props = new ArrayList<Node>();
-                extractPropertyUris(g, pathNode, props);
-                for (Node prop : props) {
-                    if (isExemptVocabulary(prop)) continue;
-                    if (schemaIndex.propertyExists(prop, scope)) continue;
-                    out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop)));
-                }
+                checkPathPropertyExistence(g, pathNode, scope, out);
 
                 // 2. Range-compatibility checks (only for simple single-URI paths)
                 if (pathNode.isURI()) {
@@ -291,6 +285,99 @@ public final class ShaclShapeAnalyzer {
     private static boolean isDatatypeRange(String iri) {
         return iri.startsWith("http://www.w3.org/2001/XMLSchema#")
                 || iri.equals("http://www.w3.org/1999/02/22-rdf-syntax-ns#langString");
+    }
+
+    /**
+     * Recursively walks a SHACL property path and emits {@code UNKNOWN_PROPERTY} annotations
+     * for any URI segment not present in the schema.
+     *
+     * <p>For {@code sh:alternativePath}, the alternatives are treated as a group: an unknown
+     * alternative is suppressed when at least one sibling in the same group is a known property
+     * <em>with the same local name</em>. This handles the multi-namespace cross-version
+     * compatibility pattern (e.g. {@code cim:SvStatus.ConductingEquipment |
+     * <http://iec.ch/TC57/CIM100#SvStatus.ConductingEquipment> |
+     * <https://cim.ucaiug.io/ns#SvStatus.ConductingEquipment>}) without silencing genuine
+     * typos whose local names differ from every known alternative.</p>
+     */
+    private void checkPathPropertyExistence(
+            Graph g, Node path, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+        if (path.isURI()) {
+            if (!isExemptVocabulary(path) && !schemaIndex.propertyExists(path, scope)) {
+                out.add(propertyAnnotation(path, scope, schemaIndex.findProperty(path)));
+            }
+            return;
+        }
+        if (!path.isBlank()) return;
+
+        // RDF list (sequence path)
+        Node firstEl = singleObject(g, path, RDF_FIRST);
+        if (firstEl != null) {
+            walkList(g, path, el -> checkPathPropertyExistence(g, el, scope, out));
+            return;
+        }
+
+        // sh:inversePath
+        Node inv = singleObject(g, path, Shacl.INVERSE_PATH);
+        if (inv != null) {
+            checkPathPropertyExistence(g, inv, scope, out);
+            return;
+        }
+
+        // sh:alternativePath — apply group-level suppression for namespace aliases
+        Node alt = singleObject(g, path, Shacl.ALTERNATIVE_PATH);
+        if (alt != null) {
+            checkAlternativePathExistence(g, alt, scope, out);
+            return;
+        }
+
+        // sh:zeroOrMorePath / sh:oneOrMorePath / sh:zeroOrOnePath
+        for (Node pred : REPEAT_PATH_PREDICATES) {
+            Node inner = singleObject(g, path, pred);
+            if (inner != null) {
+                checkPathPropertyExistence(g, inner, scope, out);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Checks existence for all alternatives in an {@code sh:alternativePath} list.
+     *
+     * <p>An unknown alternative is <em>suppressed</em> when the group contains at least one
+     * known property sharing the same local name — the standard cross-version compatibility
+     * pattern where the same property appears under multiple CIM namespace URIs. An unknown
+     * alternative whose local name does not match any known sibling is still flagged (it is
+     * most likely a typo).</p>
+     */
+    private void checkAlternativePathExistence(
+            Graph g, Node altList, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+        var allProps = new ArrayList<Node>();
+        walkList(g, altList, el -> extractPropertyUris(g, el, allProps));
+
+        var known = new ArrayList<Node>();
+        var unknown = new ArrayList<Node>();
+        for (Node prop : allProps) {
+            if (isExemptVocabulary(prop)) continue;
+            if (schemaIndex.propertyExists(prop, scope)) {
+                known.add(prop);
+            } else {
+                unknown.add(prop);
+            }
+        }
+        for (Node prop : unknown) {
+            String localName = localName(prop.getURI());
+            boolean hasKnownSibling = known.stream()
+                    .anyMatch(k -> localName(k.getURI()).equals(localName));
+            if (!hasKnownSibling) {
+                out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop)));
+            }
+        }
+    }
+
+    /** Returns the local name of a URI (the part after the last {@code #} or {@code /}). */
+    private static String localName(String uri) {
+        int sep = Math.max(uri.lastIndexOf('#'), uri.lastIndexOf('/'));
+        return sep >= 0 ? uri.substring(sep + 1) : uri;
     }
 
     /**

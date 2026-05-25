@@ -600,7 +600,7 @@ CIMcheck performs **two distinct passes** over a SHACL shapes graph.
 | --- | --- |
 | `sh:targetClass` | Class IRI must exist in the selected profiles |
 | `sh:class` | Class IRI must exist in the selected profiles |
-| `sh:path` | Every URI segment of the path (simple, sequence, inverse, alternative, zero/one/more) must be a known property; standard vocabulary terms (`rdf:type`, `rdfs:*`, `owl:*`, etc.) are exempt |
+| `sh:path` | Every URI segment of the path (simple, sequence, inverse, alternative, zero/one/more) must be a known property; standard vocabulary terms (`rdf:type`, `rdfs:*`, `owl:*`, etc.) are exempt. For `sh:alternativePath`, an unknown alternative is suppressed when at least one sibling in the same group is a known property with the same local name (cross-version namespace alias pattern). |
 | `sh:nodeKind` + `rdfs:range` | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` when node kind contradicts the schema range |
 | `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min > max |
 

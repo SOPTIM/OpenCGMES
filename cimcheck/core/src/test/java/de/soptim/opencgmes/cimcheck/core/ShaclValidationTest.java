@@ -294,6 +294,21 @@ public class ShaclValidationTest {
     }
 
     @Test
+    public void alternativePath_unknownNamespaceAliasOfKnownProperty_notReported() {
+        // MultiNamespaceAltPath has cim:IdentifiedObject.name (known) plus two aliases with
+        // the same local name under different namespaces (multi-version compatibility pattern).
+        // UNKNOWN_PROPERTY must NOT be emitted for the aliases.
+        Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
+        var r = api.validateShacl(g);
+        boolean spurious = r.shapeAnnotations().stream()
+                .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY
+                        && (a.term().getURI().contains("otherns#IdentifiedObject")
+                         || a.term().getURI().contains("future.example.org")));
+        assertFalse("namespace aliases of a known property in sh:alternativePath must not be reported",
+                spurious);
+    }
+
+    @Test
     public void validPropertyInRepetitionPath_notReported() {
         Graph g = loadShapes("shacl/shapes-structural-errors.ttl");
         var r = api.validateShacl(g);
