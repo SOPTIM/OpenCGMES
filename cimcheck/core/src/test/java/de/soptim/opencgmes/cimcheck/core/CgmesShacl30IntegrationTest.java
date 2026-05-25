@@ -53,18 +53,13 @@ import static org.junit.Assert.*;
  *       constraints plus embedded {@code sh:select} queries for cross-profile business rules.</li>
  * </ul>
  *
- * <p>A known-by-design limitation: ENTSO-E shapes use {@code sh:path ( cim:SomeProp rdf:type )}
- * sequence paths to check association value types. The {@code rdf:type} step in these paths
- * is an RDF core term, not a CIM property, so it produces {@code UNKNOWN_PROPERTY} annotations
- * in structural shape analysis. The tests below assert that <em>only</em> {@code rdf:type}
- * triggers property annotations — no real CIM terms are falsely reported as unknown.</p>
+ * <p>ENTSO-E shapes use {@code sh:path ( cim:SomeProp rdf:type )} sequence paths to check
+ * association value types. {@code rdf:type} is an RDF core term and is now exempt from
+ * CIM-schema validation, so no {@code UNKNOWN_PROPERTY} annotations are produced for it.</p>
  */
 public class CgmesShacl30IntegrationTest {
 
     private static final String CIM100 = "http://iec.ch/TC57/CIM100#";
-
-    // rdf:type appears as the second step in association value-type paths: sh:path ( cim:Prop rdf:type )
-    private static final String RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 
     private static final Path RDFS_DIR = Path.of(
             "testing/entsoe/application-profiles-library/CGMES/CurrentRelease/RDFS");
@@ -116,18 +111,16 @@ public class CgmesShacl30IntegrationTest {
     }
 
     @Test
-    public void equipmentSimpleShapes_unknownPropertyAnnotationsOnlyForRdfType() throws IOException {
-        // ENTSO-E uses sequence paths ( cim:Prop rdf:type ) for value-type checks.
-        // rdf:type is an RDF core term, not a CIM property — it's expected to be flagged.
-        // No other property should be unknown.
+    public void equipmentSimpleShapes_noUnknownPropertyAnnotations() throws IOException {
+        // rdf:type is an RDF core term and is exempt from CIM property validation.
+        // The ENTSO-E sequence paths ( cim:Prop rdf:type ) must produce zero UNKNOWN_PROPERTY annotations.
         Graph g = loadShacl(EQ_SIMPLE_SHACL);
         var r = api.validateShacl(g);
-        var nonRdfTypeErrors = r.shapeAnnotations().stream()
+        var propertyErrors = r.shapeAnnotations().stream()
                 .filter(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY)
-                .filter(a -> a.term() != null && !RDF_TYPE.equals(a.term().getURI()))
                 .toList();
-        assertTrue("Only rdf:type should appear as UNKNOWN_PROPERTY; unexpected terms: "
-                + nonRdfTypeErrors, nonRdfTypeErrors.isEmpty());
+        assertTrue("Standard vocabulary terms (rdf:type etc.) must be exempt; unexpected: "
+                + propertyErrors, propertyErrors.isEmpty());
     }
 
     @Test

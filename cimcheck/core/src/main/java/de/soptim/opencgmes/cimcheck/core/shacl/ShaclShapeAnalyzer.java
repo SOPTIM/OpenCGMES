@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Static analysis of SHACL shape structure against a CIM schema.
@@ -59,6 +60,34 @@ import java.util.function.Consumer;
  * <p>The analyzer is stateless and thread-safe.</p>
  */
 public final class ShaclShapeAnalyzer {
+
+    /**
+     * Standard W3C/IETF vocabulary namespaces whose terms are never validated against the CIM
+     * schema index. Terms from these namespaces are correct by definition and do not appear in
+     * CIM profile files. Mirrors the list in {@code AlgebraAnalysisVisitor}.
+     */
+    private static final List<String> EXEMPT_NAMESPACES = List.of(
+            "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "http://www.w3.org/2000/01/rdf-schema#",
+            "http://www.w3.org/2002/07/owl#",
+            "http://www.w3.org/2001/XMLSchema#",
+            "http://www.w3.org/ns/shacl#",
+            "http://www.w3.org/ns/dcat#",
+            "http://purl.org/dc/terms/",
+            "http://purl.org/dc/elements/1.1/",
+            "http://www.w3.org/2004/02/skos/core#",
+            "http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#",
+            "http://iec.ch/TC57/NonStandard/UML#"
+    );
+
+    private static boolean isExemptVocabulary(Node node) {
+        if (!node.isURI()) return false;
+        String uri = node.getURI();
+        for (String ns : EXEMPT_NAMESPACES) {
+            if (uri.startsWith(ns)) return true;
+        }
+        return false;
+    }
 
     private static final Node RDF_FIRST = RDF.first.asNode();
     private static final Node RDF_REST  = RDF.rest.asNode();
@@ -112,7 +141,7 @@ public final class ShaclShapeAnalyzer {
         forEachObject(shapesGraph, Shacl.PATH, pathNode -> {
             var props = new ArrayList<Node>();
             extractPropertyUris(shapesGraph, pathNode, props);
-            out.addAll(props);
+            props.stream().filter(Predicate.not(ShaclShapeAnalyzer::isExemptVocabulary)).forEach(out::add);
         });
         return out;
     }
@@ -152,6 +181,7 @@ public final class ShaclShapeAnalyzer {
                 var props = new ArrayList<Node>();
                 extractPropertyUris(g, pathNode, props);
                 for (Node prop : props) {
+                    if (isExemptVocabulary(prop)) continue;
                     if (schemaIndex.propertyExists(prop, scope)) continue;
                     out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop)));
                 }
