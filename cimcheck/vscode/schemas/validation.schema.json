@@ -36,6 +36,14 @@
             "description": "Controls which findings are reported and how their severities are mapped.\n\n• permissive — only unknown-term and syntax errors; semantic checks and hints are suppressed. Good for exploratory queries against an incomplete schema.\n• default — all checks, original severities. Only errors fail validation.\n• strict — all checks; warnings are promoted to errors. Recommended for CI.\n• pedantic — all checks; warnings and hints are promoted to errors.",
             "enum": ["permissive", "default", "strict", "pedantic"],
             "default": "default"
+        },
+        "prefixes": {
+            "type": "object",
+            "description": "Custom default PREFIX declarations injected into every SPARQL query that does not already declare them. Omit this field to use the built-in defaults (rdf, rdfs, owl, xsd, sh, cim, md). Set to {} to disable all default prefixes. Provide an explicit map to replace the built-in defaults entirely.",
+            "additionalProperties": {
+                "type": "string",
+                "description": "Namespace IRI for this prefix, e.g. \"http://iec.ch/TC57/CIM100#\""
+            }
         }
     },
     "anyOf": [

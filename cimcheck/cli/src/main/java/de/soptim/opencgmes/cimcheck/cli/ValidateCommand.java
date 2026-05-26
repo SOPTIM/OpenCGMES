@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimcheck.cli;
 
+import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
@@ -211,7 +212,10 @@ public class ValidateCommand implements Callable<Integer> {
         Map<Node, Collection<VersionIri>> namedGraphScope = buildNamedGraphScope(config, index);
 
         // 4. Validate each input.
-        var api       = new SparqlValidationApi(index);
+        var effectivePrefixes = (config != null && config.prefixes() != null)
+                ? config.prefixes()
+                : DefaultPrefixes.BUILT_IN;
+        var api       = new SparqlValidationApi(index, effectivePrefixes);
         var results   = new ArrayList<FileResult>();
         String stdinText = null;
         for (String input : inputs) {

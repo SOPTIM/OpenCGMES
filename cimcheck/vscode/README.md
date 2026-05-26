@@ -104,6 +104,10 @@ The `.cgmes/validation.json` file supports these fields:
   "namedGraphs": {
     "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
     "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+  },
+  "prefixes": {
+    "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "cim":  "http://iec.ch/TC57/CIM100#"
   }
 }
 ```
@@ -145,6 +149,26 @@ in the query: if your query says `FROM NAMED <EQ>` or `GRAPH <EQ> {}`, the confi
   ]
 }
 ```
+
+### `prefixes`
+
+Default PREFIX declarations automatically injected into every SPARQL query or update that
+does not already declare them. When this field is **absent**, the built-in set is used:
+
+| Prefix | Namespace |
+|--------|-----------|
+| `rdf`  | `http://www.w3.org/1999/02/22-rdf-syntax-ns#` |
+| `rdfs` | `http://www.w3.org/2000/01/rdf-schema#` |
+| `owl`  | `http://www.w3.org/2002/07/owl#` |
+| `xsd`  | `http://www.w3.org/2001/XMLSchema#` |
+| `sh`   | `http://www.w3.org/ns/shacl#` |
+| `cim`  | `http://iec.ch/TC57/CIM100#` |
+| `md`   | `http://iec.ch/TC57/61970-552/ModelDescription/1#` |
+
+Setting `"prefixes"` to an explicit object **replaces** the built-in set entirely. Use an
+empty object `{}` to disable all automatic prefix injection.
+
+Prefixes already declared inside the query file are never overwritten.
 
 ## Commands
 

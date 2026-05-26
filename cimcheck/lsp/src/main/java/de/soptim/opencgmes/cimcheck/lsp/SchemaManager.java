@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
+import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
@@ -147,7 +148,10 @@ final class SchemaManager {
             }
             LspConfig config = discovered.get();
             var loaded = SchemaLoader.loadWithSources(config, root);
-            apiRef.set(new SparqlValidationApi(loaded.index()));
+            var effectivePrefixes = config.prefixes() != null
+                    ? config.prefixes()
+                    : DefaultPrefixes.BUILT_IN;
+            apiRef.set(new SparqlValidationApi(loaded.index(), effectivePrefixes));
             levelRef.set(parseLevel(config));
             defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));
             namedGraphRef.set(buildNamedGraphScope(config, loaded.index()));

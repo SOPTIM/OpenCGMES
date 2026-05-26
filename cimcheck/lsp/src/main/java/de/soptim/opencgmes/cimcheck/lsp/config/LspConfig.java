@@ -40,11 +40,13 @@ public record LspConfig(
         @JsonProperty("schemasDirectory") String schemasDirectory,
         @JsonProperty("schemas")          List<String> schemas,
         @JsonProperty("namedGraphs")      Map<String, List<String>> namedGraphs,
-        @JsonProperty("strictness")       String strictness
+        @JsonProperty("strictness")       String strictness,
+        @JsonProperty("prefixes")         Map<String, String> prefixes
 ) {
     public LspConfig {
         if (schemas     == null) schemas     = List.of();
         if (namedGraphs == null) namedGraphs = Map.of();
+        // prefixes: null means "use built-in defaults", empty map means "no defaults"
     }
 
     public boolean hasNamedGraphs() {

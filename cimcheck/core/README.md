@@ -291,6 +291,44 @@ The key can be a full absolute IRI (`urn:uuid:…`) or a short relative name lik
 Relative names are matched using the same base URI that the SPARQL parser applies to
 `<EQ>` in the query, so the config key and the query IRI always line up.
 
+### Default prefix declarations
+
+Common namespace prefixes (`rdf:`, `rdfs:`, `owl:`, `xsd:`, `sh:`, `cim:`, `md:`) are
+automatically injected into every SPARQL query or update that does not already declare them,
+so you can write `cim:ACLineSegment` without a `PREFIX cim:` line at the top of every file.
+
+```sparql
+# No PREFIX declarations needed — the built-in defaults cover these.
+SELECT ?s ?p ?o
+WHERE { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?r }
+```
+
+Override or disable the defaults via `"prefixes"` in `.cgmes/validation.json`:
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas",
+  "prefixes": {
+    "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "cim":  "http://iec.ch/TC57/CIM100#",
+    "mycim": "http://example.com/my-extension#"
+  }
+}
+```
+
+An explicit `"prefixes"` object **replaces** the built-in set entirely. Use `{}` to disable
+all automatic prefix injection:
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas",
+  "prefixes": {}
+}
+```
+
+When `"prefixes"` is absent the built-in defaults are used. Prefixes already declared inside
+the query file are never overwritten.
+
 ### Strictness mode
 
 Set `"strictness"` in `.cgmes/validation.json` to control how the validator reports findings:

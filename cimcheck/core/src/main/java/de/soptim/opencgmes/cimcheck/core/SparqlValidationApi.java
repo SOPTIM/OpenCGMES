@@ -67,10 +67,30 @@ public final class SparqlValidationApi {
     private final SparqlQueryValidator validator;
     private final ShaclSparqlExtractor shaclExtractor = new ShaclSparqlExtractor();
     private final ShaclShapeAnalyzer shaclAnalyzer;
+    private final Map<String, String> defaultPrefixes;
 
+    /**
+     * Constructs the API with the {@link DefaultPrefixes#BUILT_IN built-in default prefixes}.
+     *
+     * <p>Default prefixes are automatically prepended to every SPARQL query or update that
+     * does not already declare them, so users can write {@code cim:ACLineSegment} without a
+     * {@code PREFIX cim:} line.</p>
+     */
     public SparqlValidationApi(SchemaIndex schemaIndex) {
+        this(schemaIndex, DefaultPrefixes.BUILT_IN);
+    }
+
+    /**
+     * Constructs the API with a custom default prefix map.
+     *
+     * <p>Pass {@link DefaultPrefixes#BUILT_IN} to use the standard set, pass
+     * {@code Map.of()} to disable automatic prefix injection entirely, or pass a
+     * custom map to replace the built-in defaults with workspace-specific prefixes.</p>
+     */
+    public SparqlValidationApi(SchemaIndex schemaIndex, Map<String, String> defaultPrefixes) {
         this.validator = new SparqlQueryValidator(Objects.requireNonNull(schemaIndex, "schemaIndex"));
         this.shaclAnalyzer = new ShaclShapeAnalyzer(schemaIndex);
+        this.defaultPrefixes = Map.copyOf(Objects.requireNonNull(defaultPrefixes, "defaultPrefixes"));
     }
 
     public SchemaIndex schemaIndex() {
@@ -107,6 +127,14 @@ public final class SparqlValidationApi {
     }
 
     private SparqlValidationResult validateAutoDetect(String input, ValidationScope scope) {
+        DefaultPrefixes.InjectionResult inj = DefaultPrefixes.inject(input, defaultPrefixes);
+        SparqlValidationResult raw = validateAutoDetectRaw(inj.text(), scope);
+        return inj.injectedLineCount() > 0
+                ? adjustLineNumbers(raw, input, inj.injectedLineCount())
+                : raw;
+    }
+
+    private SparqlValidationResult validateAutoDetectRaw(String input, ValidationScope scope) {
         // Try query first; fall back to update if the query parse fails.
         try {
             QueryFactory.create(input);
@@ -125,6 +153,26 @@ public final class SparqlValidationApi {
             // Single segment that didn't parse — return the query error (more informative).
             return validator.validate(input, scope);
         }
+    }
+
+    /**
+     * Shifts all annotation line numbers (and embedded line references in messages) by
+     * {@code -subtractLines} so they point into {@code originalInput} rather than into
+     * the prefix-injected augmented text.  The result's {@link SparqlValidationResult#query()}
+     * is also replaced with {@code originalInput}.
+     */
+    private static SparqlValidationResult adjustLineNumbers(
+            SparqlValidationResult raw, String originalInput, int subtractLines) {
+        var adjusted = new ArrayList<SparqlValidationAnnotation>(raw.annotations().size());
+        for (var a : raw.annotations()) {
+            Integer newLine = a.line() != null ? Math.max(1, a.line() - subtractLines) : null;
+            String  newMsg  = DefaultPrefixes.adjustMessageLines(a.message(), subtractLines);
+            adjusted.add(new SparqlValidationAnnotation(
+                    a.severity(), newLine, a.column(),
+                    newMsg, a.code(), a.term(),
+                    a.selectedProfiles(), a.foundInOtherProfiles(), a.graph()));
+        }
+        return new SparqlValidationResult(originalInput, raw.queryPlan(), List.copyOf(adjusted));
     }
 
     /** One ';'-separated SPARQL query within a multi-query file. */
@@ -332,11 +380,15 @@ public final class SparqlValidationApi {
     // ---- internals -------------------------------------------------------------------------
 
     private SparqlQueryAnalysis analyze(String query) throws InvalidQueryException {
-        return validator.analyze(Objects.requireNonNull(query, "query"));
+        String augmented = DefaultPrefixes.inject(
+                Objects.requireNonNull(query, "query"), defaultPrefixes).text();
+        return validator.analyze(augmented);
     }
 
     private SparqlUpdateAnalysis analyzeUpdate(String updateText) throws InvalidQueryException {
-        return validator.analyzeUpdate(Objects.requireNonNull(updateText, "updateText"));
+        String augmented = DefaultPrefixes.inject(
+                Objects.requireNonNull(updateText, "updateText"), defaultPrefixes).text();
+        return validator.analyzeUpdate(augmented);
     }
 
     private static Collection<Node> propertyDeps(List<PropertyReference> props) {
