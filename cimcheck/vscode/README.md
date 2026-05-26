@@ -102,7 +102,8 @@ The `.cgmes/validation.json` file supports these fields:
   "schemas": ["path/to/Profile.rdf"],
   "strictness": "default",
   "namedGraphs": {
-    "http://example.org/graph/EQ": "http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"
+    "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+    "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
   }
 }
 ```
@@ -122,12 +123,26 @@ Controls which findings are reported and how severities are mapped:
 
 ### `namedGraphs`
 
-Maps named graph IRIs to profile version IRIs. When set, terms inside a `GRAPH <iri> {}` block are validated against the mapped profile only, rather than all loaded profiles. Graphs not listed here produce a `GRAPH_NOT_CONFIGURED` information diagnostic.
+Maps named graph IRIs to one or more profile version IRIs. When set, terms inside a
+`GRAPH <iri> {}` block are validated against the mapped profiles only, rather than all
+loaded profiles. Graphs not listed here produce a `GRAPH_NOT_CONFIGURED` warning diagnostic.
+
+When `namedGraphs` is **not** configured (the default), validation runs against all profiles
+and no `GRAPH_NOT_CONFIGURED` diagnostics are emitted — useful when your queries use
+`GRAPH` blocks without a fixed graph-to-profile mapping.
+
+Each value is an **array** of profile IRIs, so a graph can span multiple profiles. The key
+can be a full absolute IRI or a **short relative name** that matches how you write the graph
+in the query: if your query says `FROM NAMED <EQ>` or `GRAPH <EQ> {}`, the config key
+`"EQ"` will match it.
 
 ```json
 "namedGraphs": {
-  "http://example.org/EQ": "http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0",
-  "http://example.org/TP": "http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"
+  "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+  "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"],
+  "urn:uuid:my-ssh-graph": [
+    "http://iec.ch/TC57/ns/CIM/SteadyStateHypothesis-EU/3.0"
+  ]
 }
 ```
 

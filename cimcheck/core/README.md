@@ -239,15 +239,32 @@ automatically by walking up the directory tree from each open file.
 {
   "schemasDirectory": ".cgmes/schemas",
   "namedGraphs": {
-    "urn:uuid:my-equipment-graph": "http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0",
-    "urn:uuid:my-topology-graph":  "http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"
+    "urn:uuid:my-equipment-graph": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+    "urn:uuid:my-topology-graph":  ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+  }
+}
+```
+
+Each value is an array of profile IRIs, so a single graph can be validated against
+multiple profiles. Short relative names work too — a SPARQL query that writes
+`FROM NAMED <EQ>` or `GRAPH <EQ> {}` can be matched with the config key `"EQ"`:
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas",
+  "namedGraphs": {
+    "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+    "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
   }
 }
 ```
 
 When `namedGraphs` is configured, terms inside a `GRAPH <urn:uuid:my-equipment-graph> {}`
-block are validated against only the mapped profile instead of all profiles. Graphs not in
-the map produce a `GRAPH_NOT_CONFIGURED` information-level diagnostic.
+block are validated against only the mapped profiles instead of all profiles. Graphs not in
+the map produce a `GRAPH_NOT_CONFIGURED` warning-level diagnostic.
+
+When `namedGraphs` is **not** configured (the default), validation runs against all loaded
+profiles and no `GRAPH_NOT_CONFIGURED` diagnostics are emitted.
 
 If no config file is found, a single information-level diagnostic is shown at the top of
 each file asking you to create one.
@@ -260,6 +277,19 @@ each file asking you to create one.
 | `cimcheck.javaExecutable` | `java` | Java executable used to launch the server. Must be Java 21 or later. |
 | `cimcheck.javaArgs` | `[]` | Extra JVM arguments, e.g. `["-Xmx512m"]`. |
 | `cimcheck.trace.server` | `off` | LSP trace level: `off`, `messages`, or `verbose`. Useful for debugging. |
+
+### Named graph scope
+
+`namedGraphs` maps graph IRIs (or short relative names) to one or more profile IRIs.
+
+| Behaviour | When |
+| --- | --- |
+| All profiles, no `GRAPH_NOT_CONFIGURED` | `namedGraphs` not set (default) |
+| Per-graph profiles; missing graphs produce `GRAPH_NOT_CONFIGURED` | `namedGraphs` set |
+
+The key can be a full absolute IRI (`urn:uuid:…`) or a short relative name like `EQ`.
+Relative names are matched using the same base URI that the SPARQL parser applies to
+`<EQ>` in the query, so the config key and the query IRI always line up.
 
 ### Strictness mode
 
