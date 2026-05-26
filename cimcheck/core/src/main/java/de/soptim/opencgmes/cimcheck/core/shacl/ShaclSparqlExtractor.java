@@ -88,7 +88,7 @@ public final class ShaclSparqlExtractor {
             }
         } finally {
             if (it instanceof AutoCloseable c) {
-                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+                try { c.close(); } catch (Exception ignored) {}
             }
         }
     }
@@ -219,7 +219,7 @@ public final class ShaclSparqlExtractor {
             }
         } finally {
             if (it instanceof AutoCloseable c) {
-                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+                try { c.close(); } catch (Exception ignored) {}
             }
         }
         return merged;
@@ -256,7 +256,7 @@ public final class ShaclSparqlExtractor {
             }
         } finally {
             if (it instanceof AutoCloseable c) {
-                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+                try { c.close(); } catch (Exception ignored) {}
             }
         }
         return byOwner;
@@ -270,7 +270,7 @@ public final class ShaclSparqlExtractor {
             return o.isLiteral() ? o.getLiteralLexicalForm() : null;
         } finally {
             if (it instanceof AutoCloseable c) {
-                try { c.close(); } catch (Exception ignored) { /* nothing */ }
+                try { c.close(); } catch (Exception ignored) {}
             }
         }
     }

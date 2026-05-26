@@ -141,7 +141,13 @@ final class SchemaManager {
             } else {
                 notify(MessageType.Info, "SPARQL Validation: Schema loaded successfully.");
             }
-            onLoadedCallbacks.forEach(Runnable::run);
+            for (Runnable cb : onLoadedCallbacks) {
+                try {
+                    cb.run();
+                } catch (Exception cbEx) {
+                    LOG.error("On-loaded callback failed: {}", cbEx.getMessage(), cbEx);
+                }
+            }
         } catch (Exception e) {
             LOG.error("Failed to load schema: {}", e.getMessage(), e);
             notify(MessageType.Error, "SPARQL Validation: Schema load failed — " + e.getMessage());

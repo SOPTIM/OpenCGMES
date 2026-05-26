@@ -253,18 +253,6 @@ public final class SparqlValidationApi {
     }
 
     /**
-     * Returns named graphs referenced in the query. The {@code profiles} argument has no
-     * filtering effect — graph references cannot be filtered by a profile list alone (no
-     * graph→profile mapping is available). Use
-     * {@link #getGraphDependencies(String, Map)} when you need to restrict to a known set
-     * of graphs.
-     */
-    public Collection<Node> getGraphDependencies(String query, Collection<VersionIri> profiles)
-            throws InvalidQueryException {
-        return graphDeps(analyze(query).graphs());
-    }
-
-    /**
      * Returns the named graphs referenced in the query that appear as keys in
      * {@code namedGraphsToProfiles}. Use this to find which of your known graphs a query
      * depends on, so you can re-execute it when one of those graphs is updated.

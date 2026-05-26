@@ -351,17 +351,6 @@ public class SparqlValidationApiTest {
         assertFalse("graphB is not in the map", deps.contains(graphB));
     }
 
-    @Test
-    public void scopedGraphDepsWithProfileListReturnsSameAsUnscoped() throws InvalidQueryException {
-        // The Collection<VersionIri> overload cannot filter graphs without a mapping — same result.
-        String q = PREAMBLE + "SELECT * WHERE { GRAPH <urn:graph:a> { ?s ?p ?o } }";
-        Node graphA = NodeFactory.createURI("urn:graph:a");
-        Collection<Node> scoped   = api.getGraphDependencies(q, List.of(VersionIri.of(PROFILE_EQ)));
-        Collection<Node> unscoped = api.getGraphDependencies(q);
-        assertEquals(unscoped, scoped);
-        assertTrue(scoped.contains(graphA));
-    }
-
     // 17. CONSTRUCT template terms are validated and tracked.
     @Test
     public void constructTemplateUnknownClassEmitsError() {
