@@ -396,31 +396,23 @@ public final class SparqlValidationApi {
      * used by the query (restricted to the given scope).
      */
     private Collection<VersionIri> profileDeps(SparqlQueryAnalysis a, ValidationScope scope) {
-        var out = new LinkedHashSet<VersionIri>();
-        for (var c : a.classes()) {
-            Collection<VersionIri> selected = validator.scopeProfiles(scope, c.graph());
-            for (VersionIri v : validator.schemaIndex().findClass(c.classNode())) {
-                if (selected.contains(v)) out.add(v);
-            }
-        }
-        for (var p : a.properties()) {
-            Collection<VersionIri> selected = validator.scopeProfiles(scope, p.graph());
-            for (VersionIri v : validator.schemaIndex().findProperty(p.propertyNode())) {
-                if (selected.contains(v)) out.add(v);
-            }
-        }
-        return out;
+        return collectProfileDeps(a.classes(), a.properties(), scope);
     }
 
     private Collection<VersionIri> updateProfileDeps(SparqlUpdateAnalysis a, ValidationScope scope) {
+        return collectProfileDeps(a.classes(), a.properties(), scope);
+    }
+
+    private Collection<VersionIri> collectProfileDeps(
+            List<ClassReference> classes, List<PropertyReference> properties, ValidationScope scope) {
         var out = new LinkedHashSet<VersionIri>();
-        for (var c : a.classes()) {
+        for (var c : classes) {
             Collection<VersionIri> selected = validator.scopeProfiles(scope, c.graph());
             for (VersionIri v : validator.schemaIndex().findClass(c.classNode())) {
                 if (selected.contains(v)) out.add(v);
             }
         }
-        for (var p : a.properties()) {
+        for (var p : properties) {
             Collection<VersionIri> selected = validator.scopeProfiles(scope, p.graph());
             for (VersionIri v : validator.schemaIndex().findProperty(p.propertyNode())) {
                 if (selected.contains(v)) out.add(v);
@@ -546,7 +538,9 @@ public final class SparqlValidationApi {
         Node pathNode = q.shPaths().iterator().next();
         if (!pathNode.isURI()) return rendered;
         String uri = "<" + pathNode.getURI() + ">";
-        return rendered.replaceAll("\\$PATH\\b", uri).replaceAll("\\?PATH\\b", uri);
+        // Use literal replace, not replaceAll: the URI is a replacement string, not a
+        // regex pattern, and replaceAll would interpret '$' in the URI as a back-reference.
+        return rendered.replace("$PATH", uri).replace("?PATH", uri);
     }
 
     /**

@@ -277,8 +277,7 @@ public class SparqlUpdateValidationTest {
                 + "CREATE GRAPH <http://ex.com/h>");
 
         long templateGraphs = a.graphs().stream()
-                .filter(g -> g.source() == GraphReference.Source.GRAPH_BLOCK
-                          || g.source() == GraphReference.Source.UPDATE_TEMPLATE)
+                .filter(g -> g.source() == GraphReference.Source.GRAPH_BLOCK)
                 .count();
         assertTrue("INSERT GRAPH block should be tracked", templateGraphs >= 1);
 

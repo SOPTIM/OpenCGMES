@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimcheck.core.shacl;
 
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
+import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 
 import java.util.List;
 import java.util.Objects;
@@ -50,11 +51,19 @@ public record ShaclValidationResult(
 
     /** @return {@code true} iff neither shape structure nor any embedded query produced an ERROR. */
     public boolean isValid() {
-        for (var a : shapeAnnotations) {
+        return isValid(StrictnessLevel.DEFAULT);
+    }
+
+    /**
+     * @return {@code true} iff, after applying {@code level}, neither shape structure nor any
+     *         embedded query contains an annotation whose (possibly promoted) severity is ERROR.
+     */
+    public boolean isValid(StrictnessLevel level) {
+        for (var a : level.apply(shapeAnnotations)) {
             if (a.severity() == SparqlValidationSeverity.ERROR) return false;
         }
         for (var r : embeddedResults) {
-            for (var a : r.result().annotations()) {
+            for (var a : level.apply(r.result().annotations())) {
                 if (a.severity() == SparqlValidationSeverity.ERROR) return false;
             }
         }

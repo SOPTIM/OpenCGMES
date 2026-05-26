@@ -58,6 +58,8 @@ import org.apache.jena.sparql.path.P_ZeroOrOne;
 import org.apache.jena.sparql.path.Path;
 import org.apache.jena.vocabulary.RDF;
 
+import de.soptim.opencgmes.cimcheck.core.ExemptVocabulary;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -78,36 +80,6 @@ import java.util.Set;
 public final class AlgebraAnalysisVisitor {
 
     private static final Node RDF_TYPE = RDF.type.asNode();
-
-    /**
-     * Namespace prefixes whose terms are never validated against the CIM schema index.
-     * These are standard W3C / IETF vocabularies that are correct by definition and whose
-     * terms do not appear in CIM profile files.  A term whose URI starts with any of these
-     * strings is silently accepted regardless of whether the schema index knows about it.
-     */
-    private static final List<String> EXEMPT_NAMESPACES = List.of(
-            "http://www.w3.org/1999/02/22-rdf-syntax-ns#",   // rdf:
-            "http://www.w3.org/2000/01/rdf-schema#",          // rdfs:
-            "http://www.w3.org/2002/07/owl#",                 // owl:
-            "http://www.w3.org/2001/XMLSchema#",              // xsd:
-            "http://www.w3.org/ns/shacl#",                    // sh:
-            "http://www.w3.org/ns/dcat#",                     // dcat:
-            "http://purl.org/dc/terms/",                      // dcterms:
-            "http://purl.org/dc/elements/1.1/",               // dc:
-            "http://www.w3.org/2004/02/skos/core#",           // skos:
-            "http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#", // cims:
-            "http://iec.ch/TC57/NonStandard/UML#"             // cimuml:
-    );
-
-    /** Returns {@code true} if {@code node} is a URI in one of the exempt standard namespaces. */
-    private static boolean isExemptVocabulary(Node node) {
-        if (!node.isURI()) return false;
-        String uri = node.getURI();
-        for (String ns : EXEMPT_NAMESPACES) {
-            if (uri.startsWith(ns)) return true;
-        }
-        return false;
-    }
 
     /** Synthetic predicate for path triples — must not be {@code rdf:type} so SubjectTypeInference
      *  doesn't mistake path endpoint URIs for declared types. */
@@ -322,11 +294,11 @@ public final class AlgebraAnalysisVisitor {
             if (RDF_TYPE.equals(p)) {
                 Node o = t.getObject();
                 if (o.isURI()) {
-                    if (!isExemptVocabulary(o)) seenClasses.add(new ClassRefKey(o, graph));
+                    if (!ExemptVocabulary.isExempt(o)) seenClasses.add(new ClassRefKey(o, graph));
                 } else if (o.isVariable()) {
                     dynamicClass = true;
                 }
-            } else if (!isExemptVocabulary(p)) {
+            } else if (!ExemptVocabulary.isExempt(p)) {
                 seenProperties.add(new PropertyRefKey(p, graph));
             }
         } else if (p.isVariable()) {
@@ -371,13 +343,13 @@ public final class AlgebraAnalysisVisitor {
         switch (path) {
             case P_Link link -> {
                 Node n = link.getNode();
-                if (n != null && n.isURI() && !isExemptVocabulary(n)) {
+                if (n != null && n.isURI() && !ExemptVocabulary.isExempt(n)) {
                     seenProperties.add(new PropertyRefKey(n, graph));
                 }
             }
             case P_ReverseLink rl -> {
                 Node n = rl.getNode();
-                if (n != null && n.isURI() && !isExemptVocabulary(n)) {
+                if (n != null && n.isURI() && !ExemptVocabulary.isExempt(n)) {
                     seenProperties.add(new PropertyRefKey(n, graph));
                 }
             }
@@ -399,7 +371,7 @@ public final class AlgebraAnalysisVisitor {
             case P_NegPropSet nps -> {
                 for (P_Path0 leaf : nps.getNodes()) {
                     Node n = leaf.getNode();
-                    if (n != null && n.isURI() && !isExemptVocabulary(n)) {
+                    if (n != null && n.isURI() && !ExemptVocabulary.isExempt(n)) {
                         seenProperties.add(new PropertyRefKey(n, graph));
                     }
                 }

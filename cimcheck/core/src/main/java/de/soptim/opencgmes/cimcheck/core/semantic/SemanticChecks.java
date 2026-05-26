@@ -293,9 +293,10 @@ public final class SemanticChecks {
         for (Node r : ranges) {
             for (Node d : domains) {
                 if (r.equals(d)) return true;
+                // r (range of p1) must be equal to, or a subclass of, d (domain of p2).
+                // The reverse direction is intentionally not checked: if domain(p2)=Person and
+                // range(p1)=Animal, p1 produces Animal nodes that may not satisfy p2's domain.
                 if (idx.isSubClassOf(r, d, scope)) return true;
-                // Also accept the reverse direction (Animal range × Person domain ≈ possibly ok).
-                if (idx.isSubClassOf(d, r, scope)) return true;
             }
         }
         return false;

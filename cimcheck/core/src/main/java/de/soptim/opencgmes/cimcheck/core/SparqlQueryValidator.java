@@ -391,10 +391,4 @@ public final class SparqlQueryValidator {
                 null);
     }
 
-    // Utility access used by SparqlValidationApi for dependency methods.
-    Set<Node> intersect(Collection<Node> required, Map<Node, ?> registered) {
-        var set = new LinkedHashSet<Node>();
-        for (Node n : required) if (registered.containsKey(n)) set.add(n);
-        return set;
-    }
 }

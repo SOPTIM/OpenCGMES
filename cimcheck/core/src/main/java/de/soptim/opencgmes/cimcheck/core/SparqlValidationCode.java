@@ -26,8 +26,6 @@ public enum SparqlValidationCode {
     UNKNOWN_CLASS,
     /** Property IRI was not found in the selected schema scope. */
     UNKNOWN_PROPERTY,
-    /** Term exists in another, non-selected profile (hint attached to UNKNOWN_*). */
-    TERM_EXISTS_IN_OTHER_PROFILE,
     /** A named graph is used by the query but no profiles were configured for it. */
     GRAPH_NOT_CONFIGURED,
     /** A variable predicate / class is used and cannot be validated statically. */
