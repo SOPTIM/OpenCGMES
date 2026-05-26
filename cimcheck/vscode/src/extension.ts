@@ -49,7 +49,7 @@ function doActivate(context: vscode.ExtensionContext): void {
         return;
     }
 
-    client = buildClient(serverJar);
+    client = buildClient(serverJar, context);
     client.start();
     out.appendLine('Language client started — waiting for server handshake.');
 
@@ -71,8 +71,6 @@ function doActivate(context: vscode.ExtensionContext): void {
             }
         })
     );
-
-    context.subscriptions.push({ dispose: () => client?.stop() });
 }
 
 export function deactivate(): Thenable<void> | undefined {
@@ -110,7 +108,7 @@ function resolveServerJar(context: vscode.ExtensionContext): string | undefined 
     return undefined;
 }
 
-function buildClient(serverJar: string): LanguageClient {
+function buildClient(serverJar: string, context: vscode.ExtensionContext): LanguageClient {
     const config    = vscode.workspace.getConfiguration('cimcheck');
     const javaExe   = config.get<string>('javaExecutable', 'java');
     const extraArgs = config.get<string[]>('javaArgs', []);
@@ -126,11 +124,14 @@ function buildClient(serverJar: string): LanguageClient {
         },
         debug: {
             command: javaExe,
-            // Attach a Java debugger on port 5005 when running under F5.
-            args: ['-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005', ...args],
+            // Attach a Java debugger on localhost:5005 when running under F5.
+            args: ['-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005', ...args],
             transport: TransportKind.stdio,
         },
     };
+
+    const traceChannel = vscode.window.createOutputChannel(`${CHANNEL} (trace)`);
+    context.subscriptions.push(traceChannel);
 
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
@@ -142,7 +143,7 @@ function buildClient(serverJar: string): LanguageClient {
         synchronize: {
             fileEvents: vscode.workspace.createFileSystemWatcher('**/.cgmes/validation.json'),
         },
-        traceOutputChannel: vscode.window.createOutputChannel(`${CHANNEL} (trace)`),
+        traceOutputChannel: traceChannel,
     };
 
     return new LanguageClient('cimcheck', CHANNEL, serverOptions, clientOptions);
