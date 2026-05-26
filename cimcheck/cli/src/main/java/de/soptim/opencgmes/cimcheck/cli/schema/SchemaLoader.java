@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -79,7 +80,7 @@ public final class SchemaLoader {
                 throw new SchemaLoadException(
                         "schemasDirectory does not exist or is not a directory: " + dir);
             }
-            try (Stream<Path> walk = Files.walk(dir, 1)) {
+            try (Stream<Path> walk = Files.walk(dir, 1, FileVisitOption.FOLLOW_LINKS)) {
                 var files = walk
                         .filter(p -> isSchemaFile(p.getFileName().toString()))
                         .sorted()

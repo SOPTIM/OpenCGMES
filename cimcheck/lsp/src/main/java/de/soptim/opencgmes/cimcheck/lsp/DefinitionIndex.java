@@ -98,16 +98,11 @@ final class DefinitionIndex {
         String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         var result = new ArrayList<WorkspaceSymbol>();
 
-        for (Node cls : index.allClasses()) {
-            if (result.size() >= MAX_SYMBOLS) break;
-            addSymbol(cls, q, SymbolKind.Class, result);
-        }
-        for (Node prop : index.allProperties()) {
-            if (result.size() >= MAX_SYMBOLS) break;
-            addSymbol(prop, q, SymbolKind.Property, result);
-        }
+        for (Node cls : index.allClasses()) addSymbol(cls, q, SymbolKind.Class, result);
+        for (Node prop : index.allProperties()) addSymbol(prop, q, SymbolKind.Property, result);
 
         result.sort(Comparator.comparing(WorkspaceSymbol::getName));
+        if (result.size() > MAX_SYMBOLS) return result.subList(0, MAX_SYMBOLS);
         return result;
     }
 

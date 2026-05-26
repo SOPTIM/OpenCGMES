@@ -224,7 +224,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     void shutdown() {
-        scheduler.shutdown();
+        scheduler.shutdownNow();
     }
 
     // ---- Private ---------------------------------------------------------------------------
@@ -244,7 +244,6 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     private void validateSparql(String uri, String text) {
-        pending.remove(uri);
         LanguageClient c = client;
         if (c == null) return;
 
@@ -292,7 +291,13 @@ final class SparqlTextDocumentService implements TextDocumentService {
      * If neither strategy finds a position, a zero-position fallback is used.</p>
      */
     static Diagnostic convertSparqlAnnotation(SparqlValidationAnnotation a, String text) {
-        if (a.term() != null) return DiagnosticConverter.convert(a);
+        if (a.term() != null) {
+            int line = a.line() != null ? a.line() - 1 : 0;
+            int col  = a.column() != null ? a.column() - 1 : 0;
+            var loc  = new SourceLocator.Location(a.line(), a.column());
+            int endCol = col + tokenLengthInSource(text, loc);
+            return buildDiagnostic(a.severity(), a.message(), a.code(), line, col, Math.max(col + 1, endCol));
+        }
 
         int line = 0, col = 0;
 
@@ -367,7 +372,6 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     private void validateShacl(String uri, String text) {
-        pending.remove(uri);
         LanguageClient c = client;
         if (c == null) return;
 
@@ -520,9 +524,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
                 if (e2 > col) endCol = e2;
             }
         }
+        String display = msg != null ? msg : e.getClass().getSimpleName();
         return new Diagnostic(
                 new Range(new Position(line, col), new Position(line, endCol)),
-                "Turtle/SHACL parse error: " + msg,
+                "Turtle/SHACL parse error: " + display,
                 DiagnosticSeverity.Error, "cimcheck");
     }
 

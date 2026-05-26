@@ -74,6 +74,7 @@ final class SparqlWorkspaceService implements WorkspaceService {
 
     @Override
     public void didChangeWatchedFiles(DidChangeWatchedFilesParams params) {
+        if (params.getChanges() == null) return;
         boolean configChanged = params.getChanges().stream()
                 .anyMatch(e -> e.getUri().contains(".cgmes/validation.json"));
         if (configChanged) {

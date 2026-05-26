@@ -210,13 +210,19 @@ public class ValidateCommand implements Callable<Integer> {
         Map<Node, Collection<VersionIri>> namedGraphScope = buildNamedGraphScope(config, index);
 
         // 4. Validate each input.
-        var api     = new SparqlValidationApi(index);
-        var results = new ArrayList<FileResult>();
+        var api       = new SparqlValidationApi(index);
+        var results   = new ArrayList<FileResult>();
+        String stdinText = null;
         for (String input : inputs) {
             String source = input.equals("-") ? "<stdin>" : input;
             String text;
             try {
-                text = readInput(input);
+                if ("-".equals(input)) {
+                    if (stdinText == null) stdinText = readStdin();
+                    text = stdinText;
+                } else {
+                    text = readInput(input);
+                }
             } catch (IOException e) {
                 System.err.println("Error reading " + source + ": " + e.getMessage());
                 return ExitCode.USAGE;
@@ -334,10 +340,11 @@ public class ValidateCommand implements Callable<Integer> {
         return Map.copyOf(map);
     }
 
+    private static String readStdin() throws IOException {
+        return new String(System.in.readAllBytes(), StandardCharsets.UTF_8);
+    }
+
     private static String readInput(String input) throws IOException {
-        if ("-".equals(input)) {
-            return new String(System.in.readAllBytes(), StandardCharsets.UTF_8);
-        }
         return Files.readString(Path.of(input), StandardCharsets.UTF_8);
     }
 
