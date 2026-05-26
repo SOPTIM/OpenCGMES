@@ -20,10 +20,15 @@
         },
         "namedGraphs": {
             "type": "object",
-            "description": "Maps named graph IRIs to profile version IRIs. When set, terms inside a GRAPH <iri> {} block are validated against the mapped profile only instead of all profiles. Graphs not in the map produce a GRAPH_NOT_CONFIGURED information diagnostic.",
+            "description": "Maps named graph IRIs (or short relative names like \"EQ\") to one or more profile version IRIs. When set, terms inside a GRAPH <iri> {} block are validated against the mapped profiles only instead of all profiles. Graphs referenced in the query but absent from the map produce a GRAPH_NOT_CONFIGURED warning.",
             "additionalProperties": {
-                "type": "string",
-                "description": "Profile version IRI, e.g. http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"
+                "type": "array",
+                "description": "One or more profile version IRIs for this graph.",
+                "items": {
+                    "type": "string",
+                    "description": "Profile version IRI, e.g. http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"
+                },
+                "minItems": 1
             }
         },
         "strictness": {

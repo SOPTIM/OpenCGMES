@@ -31,7 +31,7 @@ import java.util.Map;
  * {
  *   "schemasDirectory": ".cgmes/schemas",
  *   "namedGraphs": {
- *     "urn:uuid:eq-network": "http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"
+ *     "urn:uuid:eq-network": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"]
  *   }
  * }
  * }</pre>
@@ -39,7 +39,7 @@ import java.util.Map;
 public record LspConfig(
         @JsonProperty("schemasDirectory") String schemasDirectory,
         @JsonProperty("schemas")          List<String> schemas,
-        @JsonProperty("namedGraphs")      Map<String, String> namedGraphs,
+        @JsonProperty("namedGraphs")      Map<String, List<String>> namedGraphs,
         @JsonProperty("strictness")       String strictness
 ) {
     public LspConfig {

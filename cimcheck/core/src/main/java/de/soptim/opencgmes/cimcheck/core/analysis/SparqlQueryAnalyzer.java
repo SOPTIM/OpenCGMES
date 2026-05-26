@@ -57,6 +57,18 @@ import java.util.List;
  */
 public final class SparqlQueryAnalyzer {
 
+    /**
+     * Base URI used when parsing SPARQL queries and updates that contain relative IRIs such as
+     * {@code <EQ>} or {@code <TP>}.
+     *
+     * <p>Without an explicit base, Jena resolves relative IRIs against the JVM working directory,
+     * producing {@code file:///path/EQ} URIs that never match user-configured graph names. Using
+     * this stable, non-file base keeps relative graph references predictable: {@code <EQ>} always
+     * becomes {@code urn:x-cimcheck:base/EQ}, which callers can match by prepending this prefix
+     * to a relative config key.</p>
+     */
+    public static final String RELATIVE_IRI_BASE = "urn:x-cimcheck:base/";
+
     /** Parses the query and runs the analysis. */
     public SparqlQueryAnalysis analyze(String queryString) throws InvalidQueryException {
         Query query = parse(queryString);
@@ -249,7 +261,7 @@ public final class SparqlQueryAnalyzer {
     /** Parses a SPARQL Update string, translating parse errors into our checked exception. */
     public UpdateRequest parseUpdate(String updateString) throws InvalidQueryException {
         try {
-            return UpdateFactory.create(updateString);
+            return UpdateFactory.create(updateString, RELATIVE_IRI_BASE);
         } catch (QueryParseException e) {
             throw new InvalidQueryException(
                     e.getMessage(), e, safeLine(e.getLine()), safeCol(e.getColumn()));
@@ -263,7 +275,7 @@ public final class SparqlQueryAnalyzer {
     /** Parses the query, translating Jena's {@link QueryParseException} into our checked one. */
     public Query parse(String queryString) throws InvalidQueryException {
         try {
-            return QueryFactory.create(queryString);
+            return QueryFactory.create(queryString, RELATIVE_IRI_BASE);
         } catch (QueryParseException e) {
             throw new InvalidQueryException(
                     e.getMessage(), e, safeLine(e.getLine()), safeCol(e.getColumn()));

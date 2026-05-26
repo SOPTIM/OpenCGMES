@@ -25,6 +25,7 @@ import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
+import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalyzer;
 import de.soptim.opencgmes.cimcheck.cli.config.CliConfig;
 import de.soptim.opencgmes.cimcheck.cli.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.cli.output.FileResult;
@@ -326,15 +327,29 @@ public class ValidateCommand implements Callable<Integer> {
 
         var map = new LinkedHashMap<Node, Collection<VersionIri>>();
         for (var entry : config.namedGraphs().entrySet()) {
-            Node graphNode   = NodeFactory.createURI(entry.getKey());
-            VersionIri vIri  = VersionIri.of(entry.getValue());
-            // Only include the profile if it actually exists in the index.
-            if (index.getAllProfiles().contains(vIri)) {
-                map.put(graphNode, List.of(vIri));
+            String key = entry.getKey();
+            // Relative keys (no colon) are resolved against the same base URI used by the
+            // SPARQL parser so that <EQ> in a query matches the config key "EQ".
+            Node graphNode = key.contains(":")
+                    ? NodeFactory.createURI(key)
+                    : NodeFactory.createURI(SparqlQueryAnalyzer.RELATIVE_IRI_BASE + key);
+
+            var versionIris = new ArrayList<VersionIri>();
+            for (String profileUri : entry.getValue()) {
+                VersionIri vIri = VersionIri.of(profileUri);
+                if (index.getAllProfiles().contains(vIri)) {
+                    versionIris.add(vIri);
+                } else {
+                    System.err.println("Warning: namedGraph '" + key
+                            + "' references unknown profile '" + profileUri
+                            + "' — profile will be skipped.");
+                }
+            }
+            if (!versionIris.isEmpty()) {
+                map.put(graphNode, versionIris);
             } else {
-                System.err.println("Warning: namedGraph '" + entry.getKey()
-                        + "' references unknown profile '" + entry.getValue()
-                        + "' — graph will be excluded from scope.");
+                System.err.println("Warning: namedGraph '" + key
+                        + "' has no known profiles — graph will be excluded from scope.");
             }
         }
         return Map.copyOf(map);

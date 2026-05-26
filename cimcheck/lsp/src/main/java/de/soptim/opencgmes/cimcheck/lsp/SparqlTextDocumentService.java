@@ -21,6 +21,7 @@ package de.soptim.opencgmes.cimcheck.lsp;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
+import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
 import de.soptim.opencgmes.cimcheck.core.schema.SchemaIndex;
@@ -263,7 +264,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
         }
 
         try {
-            var result      = apiOpt.get().validateSparql(text);
+            var namedGraphScope = schemaManager.namedGraphScope();
+            SparqlValidationResult result = namedGraphScope.isEmpty()
+                    ? apiOpt.get().validateSparql(text)
+                    : apiOpt.get().validateSparql(text, namedGraphScope);
             var effective   = schemaManager.strictnessLevel().apply(result.annotations());
             var diagnostics = effective.stream()
                     .map(a -> convertSparqlAnnotation(a, text))
