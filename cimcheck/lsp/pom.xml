@@ -22,7 +22,7 @@
 
     <groupId>de.soptim.opencgmes</groupId>
     <artifactId>cimcheck-lsp</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>CIMcheck - Language Server</name>
@@ -47,7 +47,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
-        <ver.cimcheck-core>0.2.0-SNAPSHOT</ver.cimcheck-core>
+        <ver.cimcheck-core>0.2.1-SNAPSHOT</ver.cimcheck-core>
         <ver.lsp4j>0.23.1</ver.lsp4j>
         <ver.jackson>2.18.3</ver.jackson>
         <ver.slf4j>2.0.17</ver.slf4j>
