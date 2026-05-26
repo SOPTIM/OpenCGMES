@@ -150,7 +150,7 @@ final class SchemaManager {
             var loaded = SchemaLoader.loadWithSources(config, root);
             var effectivePrefixes = config.prefixes() != null
                     ? config.prefixes()
-                    : DefaultPrefixes.BUILT_IN;
+                    : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, loaded.index());
             apiRef.set(new SparqlValidationApi(loaded.index(), effectivePrefixes));
             levelRef.set(parseLevel(config));
             defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));

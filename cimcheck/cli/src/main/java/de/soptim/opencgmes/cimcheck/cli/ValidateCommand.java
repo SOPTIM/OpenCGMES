@@ -214,7 +214,7 @@ public class ValidateCommand implements Callable<Integer> {
         // 4. Validate each input.
         var effectivePrefixes = (config != null && config.prefixes() != null)
                 ? config.prefixes()
-                : DefaultPrefixes.BUILT_IN;
+                : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
         var api       = new SparqlValidationApi(index, effectivePrefixes);
         var results   = new ArrayList<FileResult>();
         String stdinText = null;

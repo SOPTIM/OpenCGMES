@@ -70,14 +70,16 @@ public final class SparqlValidationApi {
     private final Map<String, String> defaultPrefixes;
 
     /**
-     * Constructs the API with the {@link DefaultPrefixes#BUILT_IN built-in default prefixes}.
+     * Constructs the API with auto-detected default prefixes.
      *
-     * <p>Default prefixes are automatically prepended to every SPARQL query or update that
-     * does not already declare them, so users can write {@code cim:ACLineSegment} without a
-     * {@code PREFIX cim:} line.</p>
+     * <p>The built-in prefix set is used as the base, but the {@code cim:} entry is replaced
+     * with the namespace actually used by the majority of terms in {@code schemaIndex} — so the
+     * correct {@code cim:} namespace is injected regardless of whether the schema is CGMES 2.4.15,
+     * CGMES 3.0, or any other CIM version.  If no single dominant namespace is detected (e.g., a
+     * mixed-version schema), the built-in {@code cim:} default is kept unchanged.</p>
      */
     public SparqlValidationApi(SchemaIndex schemaIndex) {
-        this(schemaIndex, DefaultPrefixes.BUILT_IN);
+        this(schemaIndex, DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, schemaIndex));
     }
 
     /**

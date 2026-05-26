@@ -18,10 +18,16 @@
 
 package de.soptim.opencgmes.cimcheck.core;
 
+import de.soptim.opencgmes.cimcheck.core.schema.SchemaIndex;
+import org.apache.jena.graph.Node;
+
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +59,83 @@ public final class DefaultPrefixes {
         m.put("cim",  "http://iec.ch/TC57/CIM100#");
         m.put("md",   "http://iec.ch/TC57/61970-552/ModelDescription/1#");
         BUILT_IN = Map.copyOf(m);
+    }
+
+    /**
+     * Well-known standard-vocabulary namespaces that are never the CIM domain namespace.
+     * Any IRI whose namespace prefix is in this set is excluded from CIM-namespace detection.
+     */
+    private static final Set<String> STANDARD_NAMESPACES = Set.of(
+            "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "http://www.w3.org/2000/01/rdf-schema#",
+            "http://www.w3.org/2002/07/owl#",
+            "http://www.w3.org/2001/XMLSchema#",
+            "http://www.w3.org/ns/shacl#",
+            "http://iec.ch/TC57/61970-552/ModelDescription/1#"
+    );
+
+    /**
+     * Scans all class and property IRIs in {@code index}, tallies their namespace prefixes
+     * (the part up to and including the last {@code #}), filters out well-known standard
+     * vocabularies, and returns the dominant CIM namespace if one clearly emerges.
+     *
+     * <p>A namespace is considered dominant when it accounts for at least ten terms <em>and</em>
+     * has more than twice as many terms as the next-most-frequent non-standard namespace.
+     * This threshold is intentionally high so that mixed-version schemas (e.g., CGMES 2.4.15
+     * and 3.0 profiles loaded together) correctly return {@link Optional#empty()}, leaving the
+     * {@code cim:} prefix to the user's own configuration.</p>
+     */
+    public static Optional<String> detectCimNamespace(SchemaIndex index) {
+        var freq = new HashMap<String, Integer>();
+        for (Node n : index.allClasses())    tally(n, freq);
+        for (Node n : index.allProperties()) tally(n, freq);
+        if (freq.isEmpty()) return Optional.empty();
+
+        String best = null;
+        int bestCount = 0, secondCount = 0;
+        for (var e : freq.entrySet()) {
+            if (e.getValue() > bestCount) {
+                secondCount = bestCount;
+                bestCount   = e.getValue();
+                best        = e.getKey();
+            } else if (e.getValue() > secondCount) {
+                secondCount = e.getValue();
+            }
+        }
+        return (bestCount >= 10 && bestCount > secondCount * 2)
+                ? Optional.of(best)
+                : Optional.empty();
+    }
+
+    /**
+     * Returns a copy of {@code base} with the {@code "cim"} entry overridden by the
+     * namespace detected from {@code index}, or {@code base} unchanged when detection
+     * finds no clear winner or the detected namespace is already the one in {@code base}.
+     */
+    public static Map<String, String> withDetectedCimPrefix(Map<String, String> base, SchemaIndex index) {
+        return detectCimNamespace(index)
+                .filter(ns -> !ns.equals(base.get("cim")))
+                .map(ns -> {
+                    var m = new LinkedHashMap<>(base);
+                    m.put("cim", ns);
+                    return Map.<String, String>copyOf(m);
+                })
+                .orElse(base);
+    }
+
+    private static void tally(Node node, Map<String, Integer> freq) {
+        if (!node.isURI()) return;
+        String ns = namespace(node.getURI());
+        if (ns == null || STANDARD_NAMESPACES.contains(ns)) return;
+        freq.merge(ns, 1, Integer::sum);
+    }
+
+    private static String namespace(String uri) {
+        int hash = uri.lastIndexOf('#');
+        if (hash > 0) return uri.substring(0, hash + 1);
+        int slash = uri.lastIndexOf('/');
+        if (slash > 0) return uri.substring(0, slash + 1);
+        return null;
     }
 
     /**
