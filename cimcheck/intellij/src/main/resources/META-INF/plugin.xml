@@ -47,17 +47,29 @@
     <extensions defaultExtensionNs="com.intellij">
 
         <!-- ── File types ────────────────────────────────────────────────── -->
+        <!--
+            Do NOT add language="…" here: IntelliJ resolves that attribute before loading
+            the class, and the lookup can silently fail.  The Language is already carried
+            by the LanguageFileType constructor and is picked up correctly at class load time.
+        -->
         <fileType name="SPARQL"
                   implementationClass="de.soptim.opencgmes.cimcheck.intellij.SparqlFileType"
-                  language="SPARQL"
                   extensions="rq;sparql"
                   fieldName="INSTANCE"/>
 
         <fileType name="SHACL"
                   implementationClass="de.soptim.opencgmes.cimcheck.intellij.ShaclFileType"
-                  language="SHACL"
                   extensions="ttl;shacl"
                   fieldName="INSTANCE"/>
+
+        <!-- ── Syntax highlighting ───────────────────────────────────────── -->
+        <lang.syntaxHighlighterFactory
+            language="SPARQL"
+            implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckSyntaxHighlighterFactory"/>
+
+        <lang.syntaxHighlighterFactory
+            language="SHACL"
+            implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckSyntaxHighlighterFactory"/>
 
         <!-- ── Application-level settings service ────────────────────────── -->
         <applicationService
@@ -80,12 +92,16 @@
                 factoryClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckServerConnectionProvider"
                 lastDocumentDisconnectedTimeout="5000"/>
 
-        <!-- ── File-type → server mappings ───────────────────────────────── -->
-        <languageMapping language="SPARQL"
+        <!-- ── File-type → server mappings ─────────────────────────────────
+             fileTypeMapping activates by FileType.getName() (the string returned by our
+             SparqlFileType / ShaclFileType), which is available as soon as the class is
+             loaded — more reliable than languageMapping (which requires Language lookup).
+        -->
+        <fileTypeMapping fileType="SPARQL"
                          serverId="cimcheck-lsp"
                          languageId="sparql"/>
 
-        <languageMapping language="SHACL"
+        <fileTypeMapping fileType="SHACL"
                          serverId="cimcheck-lsp"
                          languageId="shacl"/>
 
