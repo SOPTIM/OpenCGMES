@@ -1,0 +1,6 @@
+.gradle/
+build/
+# IntelliJ Platform Gradle Plugin download cache
+.intellijPlatform/
+# Bundled server JAR is copied by Gradle from the LSP Maven module — not committed.
+src/main/resources/server/*.jar

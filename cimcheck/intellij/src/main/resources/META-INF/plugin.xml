@@ -1,0 +1,93 @@
+<!--
+    Licensed to the Apache Software Foundation (ASF) under one or more
+    contributor license agreements. See the NOTICE file distributed with
+    this work for additional information regarding copyright ownership.
+    The ASF licenses this file to You under the Apache License, Version 2.0
+    (the "License"); you may not use this file except in compliance with
+    the License. You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+-->
+<idea-plugin>
+    <id>de.soptim.opencgmes.cimcheck</id>
+    <name>CIMcheck</name>
+    <vendor email="info@soptim.de" url="https://www.soptim.de/">SOPTIM AG</vendor>
+
+    <description><![CDATA[
+        Real-time SPARQL and SHACL validation against CIM/CGMES schema profiles,
+        powered by the CIMcheck language server.<br/><br/>
+
+        Write a SPARQL query or SHACL shape and get immediate feedback:
+        unknown classes and properties are underlined, syntax errors are highlighted,
+        and semantic issues like domain/range mismatches are flagged as you type —
+        all resolved against your actual RDFS profile files.<br/><br/>
+
+        <b>Features:</b>
+        <ul>
+            <li>Real-time diagnostics (unknown terms, type mismatches, cardinality errors)</li>
+            <li>Hover documentation — full IRI and source profile for any CIM term</li>
+            <li>Auto-completion after <code>cim:</code> and other prefixes</li>
+            <li>Go-to-definition — jump to the term's declaration in the profile file</li>
+            <li>Workspace symbol search — find any schema term by name</li>
+        </ul>
+
+        <b>Requires Java 21+</b> to launch the language server, and the
+        <a href="https://plugins.jetbrains.com/plugin/23257-lsp4ij">LSP4IJ</a> plugin.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.redhat.devtools.lsp4ij</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+
+        <!-- ── File types ────────────────────────────────────────────────── -->
+        <fileType name="SPARQL"
+                  implementationClass="de.soptim.opencgmes.cimcheck.intellij.SparqlFileType"
+                  language="SPARQL"
+                  extensions="rq;sparql"
+                  fieldName="INSTANCE"/>
+
+        <fileType name="SHACL"
+                  implementationClass="de.soptim.opencgmes.cimcheck.intellij.ShaclFileType"
+                  language="SHACL"
+                  extensions="ttl;shacl"
+                  fieldName="INSTANCE"/>
+
+        <!-- ── Application-level settings service ────────────────────────── -->
+        <applicationService
+            serviceImplementation="de.soptim.opencgmes.cimcheck.intellij.settings.CimcheckSettings"/>
+
+        <!-- ── Settings page under Settings > Tools > CIMcheck ───────────── -->
+        <applicationConfigurable
+            parentId="tools"
+            displayName="CIMcheck"
+            id="de.soptim.opencgmes.cimcheck.settings"
+            instance="de.soptim.opencgmes.cimcheck.intellij.settings.CimcheckSettingsConfigurable"/>
+
+    </extensions>
+
+    <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+
+        <!-- ── Language server registration ─────────────────────────────── -->
+        <server id="cimcheck-lsp"
+                name="CIMcheck"
+                factoryClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckServerConnectionProvider"
+                lastDocumentDisconnectedTimeout="5000"/>
+
+        <!-- ── File-type → server mappings ───────────────────────────────── -->
+        <languageMapping language="SPARQL"
+                         serverId="cimcheck-lsp"
+                         languageId="sparql"/>
+
+        <languageMapping language="SHACL"
+                         serverId="cimcheck-lsp"
+                         languageId="shacl"/>
+
+    </extensions>
+</idea-plugin>

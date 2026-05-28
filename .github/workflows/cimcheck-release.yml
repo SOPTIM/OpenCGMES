@@ -220,6 +220,11 @@ jobs:
           cache: npm
           cache-dependency-path: cimcheck/vscode/package-lock.json
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        with:
+          gradle-version: "9.5.0"
+
       - name: Set release versions for all modules
         shell: bash
         run: |
@@ -243,6 +248,10 @@ jobs:
               -DnewVersion="${RELEASE_VERSION}" \
               -DgenerateBackupPoms=false
           done
+
+          # Bump the IntelliJ plugin version to match.
+          sed -i "s/^pluginVersion=.*/pluginVersion=${RELEASE_VERSION}/" \
+            cimcheck/intellij/gradle.properties
 
           # Update cross-module version references inside each pom.
           mvn -B -ntp -f cimcheck/core/pom.xml \
@@ -282,6 +291,10 @@ jobs:
           npx @vscode/vsce package
         working-directory: cimcheck/vscode
 
+      - name: Build IntelliJ plugin
+        run: gradle buildPlugin
+        working-directory: cimcheck/intellij
+
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -291,4 +304,5 @@ jobs:
             --generate-notes \
             cimcheck/cli/target/cimcheck.jar \
             cimcheck/lsp/target/cimcheck-lsp.jar \
-            cimcheck/vscode/cimcheck-*.vsix
+            cimcheck/vscode/cimcheck-*.vsix \
+            cimcheck/intellij/build/distributions/cimcheck-intellij-*.zip
