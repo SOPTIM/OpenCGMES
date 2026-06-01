@@ -33,6 +33,7 @@ import de.soptim.opencgmes.cimcheck.core.semantic.SemanticChecks;
 import de.soptim.opencgmes.cimcheck.core.semantic.SubjectTypeInference;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
+import org.apache.jena.query.Query;
 import org.apache.jena.shared.PrefixMapping;
 import org.apache.jena.vocabulary.RDF;
 
@@ -88,18 +89,37 @@ public final class SparqlQueryValidator {
         Objects.requireNonNull(query, "query");
         Objects.requireNonNull(scope, "scope");
         try {
-            SparqlQueryAnalysis a = analyzer.analyze(query);
-            String plan = QueryPlanFormatter.format(a.query(), a.algebra());
-            List<TriplePatternReference> triples =
-                    augmentWithTypeHints(a.triples(), subjectTypeHints);
-            List<SparqlValidationAnnotation> ann = validateReferences(
-                    a.graphs(), a.classes(), a.properties(),
-                    triples, a.pathChains(), a.dynamicPredicate(), a.dynamicClass(),
-                    scope, a.query().getPrefixMapping(), query);
-            return new SparqlValidationResult(query, plan, ann);
+            Query parsed = analyzer.parse(query);
+            return validate(parsed, query, scope, subjectTypeHints);
         } catch (InvalidQueryException e) {
             return new SparqlValidationResult(query, null, List.of(syntaxAnnotation(e)));
         }
+    }
+
+    /** Validates an already-parsed query without re-parsing it. */
+    public SparqlValidationResult validate(Query query, String originalText, ValidationScope scope) {
+        return validate(query, originalText, scope, Map.of());
+    }
+
+    /**
+     * Validates an already-parsed query without re-parsing it. {@code originalText} is the source
+     * string the query was parsed from; it is used only for diagnostic line/column resolution.
+     * See {@link #validate(String, ValidationScope, Map)} for the subject-type-hint contract.
+     */
+    public SparqlValidationResult validate(Query query, String originalText, ValidationScope scope,
+                                           Map<Node, Set<Node>> subjectTypeHints) {
+        Objects.requireNonNull(query, "query");
+        Objects.requireNonNull(originalText, "originalText");
+        Objects.requireNonNull(scope, "scope");
+        SparqlQueryAnalysis a = analyzer.analyze(query);
+        String plan = QueryPlanFormatter.format(a.query(), a.algebra());
+        List<TriplePatternReference> triples =
+                augmentWithTypeHints(a.triples(), subjectTypeHints);
+        List<SparqlValidationAnnotation> ann = validateReferences(
+                a.graphs(), a.classes(), a.properties(),
+                triples, a.pathChains(), a.dynamicPredicate(), a.dynamicClass(),
+                scope, a.query().getPrefixMapping(), originalText);
+        return new SparqlValidationResult(originalText, plan, ann);
     }
 
     /**

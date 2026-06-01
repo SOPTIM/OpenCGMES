@@ -137,7 +137,9 @@ public final class SemanticChecks {
                 Set<Node> d2 = schemaIndex.domainsOf(p2, scope);
                 if (r1.isEmpty() || d2.isEmpty()) continue;
                 if (!anySubclassMatch(r1, d2, schemaIndex, scope)) {
-                    var loc = ctx.locate(p2);
+                    // Prefer the occurrence of p2 nearest p1 — in a `p1/p2` chain they are written
+                    // adjacently, so this lands the squiggle on the right segment when p2 recurs.
+                    var loc = ctx.locateNear(p2, p1);
                     annotations.add(new SparqlValidationAnnotation(
                             SparqlValidationSeverity.ERROR,
                             loc.line(), loc.column(),
@@ -166,11 +168,6 @@ public final class SemanticChecks {
             String originalQuery,
             PrefixMapping prefixes
     ) {
-        SourceLocator.Location locate(Node term) {
-            return SourceLocator.locate(
-                    originalQuery, term, prefixes);
-        }
-
         /** Locates {@code term} nearest to {@code hint} (e.g. the subject of the same triple). */
         SourceLocator.Location locateNear(Node term, Node hint) {
             return SourceLocator.locateWithHint(

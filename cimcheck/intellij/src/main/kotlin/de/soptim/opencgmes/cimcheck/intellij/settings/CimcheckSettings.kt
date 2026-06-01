@@ -31,7 +31,10 @@ class CimcheckSettings : PersistentStateComponent<CimcheckSettings.State> {
 
     data class State(
         @JvmField var serverJar: String      = "",
-        @JvmField var javaExecutable: String = "java",
+        // Empty by default so CimcheckServerConnectionProvider.resolveJavaExecutable falls through
+        // to IntelliJ's bundled JBR (always Java 21+). Defaulting to "java" here would short-circuit
+        // that logic and break the plugin on machines where "java" is not on PATH (common on Windows).
+        @JvmField var javaExecutable: String = "",
         @JvmField var javaArgs: String       = ""
     )
 
@@ -48,7 +51,10 @@ class CimcheckSettings : PersistentStateComponent<CimcheckSettings.State> {
         get() = _state.serverJar
         set(v) { _state.serverJar = v }
 
-    /** Java executable used to launch the language server (must be Java 21+). */
+    /**
+     * Java executable used to launch the language server (must be Java 21+).
+     * Empty means "auto": use IntelliJ's own bundled JBR.
+     */
     var javaExecutable: String
         get() = _state.javaExecutable
         set(v) { _state.javaExecutable = v }

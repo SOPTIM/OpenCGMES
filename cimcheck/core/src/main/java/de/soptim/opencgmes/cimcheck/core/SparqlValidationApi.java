@@ -22,9 +22,11 @@ import de.soptim.opencgmes.cimcheck.core.analysis.ClassReference;
 import de.soptim.opencgmes.cimcheck.core.analysis.GraphReference;
 import de.soptim.opencgmes.cimcheck.core.analysis.PropertyReference;
 import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalysis;
+import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalyzer;
 import de.soptim.opencgmes.cimcheck.core.analysis.SparqlUpdateAnalysis;
 import de.soptim.opencgmes.cimcheck.core.schema.SchemaIndex;
 import de.soptim.opencgmes.cimcheck.core.schema.ValidationScope;
+import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryException;
 import org.apache.jena.query.QueryFactory;
 import de.soptim.opencgmes.cimcheck.core.shacl.EmbeddedSparql;
@@ -43,6 +45,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * High-level façade exposing the three {@code validateSparql} overloads and the four dependency
@@ -137,10 +141,13 @@ public final class SparqlValidationApi {
     }
 
     private SparqlValidationResult validateAutoDetectRaw(String input, ValidationScope scope) {
-        // Try query first; fall back to update if the query parse fails.
+        // Try query first; fall back to update if the query parse fails. Parse exactly once here,
+        // using the same base URI the analyzer uses, and hand the parsed Query to the validator so
+        // the text is not parsed a second time and relative-IRI resolution is identical to the
+        // validation step.
         try {
-            QueryFactory.create(input);
-            return validator.validate(input, scope);
+            Query query = QueryFactory.create(input, SparqlQueryAnalyzer.RELATIVE_IRI_BASE);
+            return validator.validate(query, input, scope);
         } catch (QueryException ignored) {
             SparqlValidationResult updateResult = validator.validateUpdate(input, scope);
             boolean updateAlsoFailed = updateResult.annotations().stream()
@@ -579,11 +586,16 @@ public final class SparqlValidationApi {
         if (!rendered.contains("$PATH") && !rendered.contains("?PATH")) return rendered;
         Node pathNode = q.shPaths().iterator().next();
         if (!pathNode.isURI()) return rendered;
+        // Substitute only the whole-token $PATH / ?PATH placeholder — a variable such as
+        // $PATHOLOGY or ?PATH2 must be left untouched (the negative look-ahead enforces this).
+        // Matcher.quoteReplacement guards against a '$' or '\' inside the IRI being treated as
+        // a regex back-reference in the replacement string.
         String uri = "<" + pathNode.getURI() + ">";
-        // Use literal replace, not replaceAll: the URI is a replacement string, not a
-        // regex pattern, and replaceAll would interpret '$' in the URI as a back-reference.
-        return rendered.replace("$PATH", uri).replace("?PATH", uri);
+        return SH_PATH_VARIABLE.matcher(rendered).replaceAll(Matcher.quoteReplacement(uri));
     }
+
+    /** Matches the SHACL {@code $PATH} / {@code ?PATH} placeholder as a complete variable token. */
+    private static final Pattern SH_PATH_VARIABLE = Pattern.compile("[$?]PATH(?![A-Za-z0-9_])");
 
     /**
      * Aggregate class IRIs used by all SPARQL fragments embedded in the shapes graph.

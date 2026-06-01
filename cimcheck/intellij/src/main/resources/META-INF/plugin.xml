@@ -57,6 +57,17 @@
                   extensions="rq;sparql"
                   fieldName="INSTANCE"/>
 
+        <!--
+            Deliberate decision: this claims the generic ".ttl" extension, not just ".shacl".
+            ENTSO-E (and most tooling) ship SHACL shapes as plain ".ttl", and IntelliJ Community
+            has no built-in Turtle file type, so claiming ".ttl" is what makes CIMcheck useful out
+            of the box. Implications, accepted on purpose:
+              • If another installed plugin also registers ".ttl", IntelliJ resolves the conflict by
+                file-type precedence (last registration wins) — CIMcheck does not force itself.
+              • A non-SHACL ".ttl" data file simply produces no diagnostics (no sh:* terms to check),
+                so the cost of the broad claim is benign.
+            Narrow this to extensions="shacl" only if Turtle support should be left to another plugin.
+        -->
         <fileType name="SHACL"
                   implementationClass="de.soptim.opencgmes.cimcheck.intellij.ShaclFileType"
                   extensions="ttl;shacl"
