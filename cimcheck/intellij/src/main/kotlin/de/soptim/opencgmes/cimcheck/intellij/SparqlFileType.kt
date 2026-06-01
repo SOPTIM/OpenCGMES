@@ -17,9 +17,10 @@
 package de.soptim.opencgmes.cimcheck.intellij
 
 import com.intellij.openapi.fileTypes.LanguageFileType
+import com.intellij.openapi.fileTypes.PlainTextLanguage
 import javax.swing.Icon
 
-class SparqlFileType private constructor() : LanguageFileType(SparqlLanguage) {
+class SparqlFileType private constructor() : LanguageFileType(PlainTextLanguage.INSTANCE) {
 
     override fun getName()             = "SPARQL"
     override fun getDescription()      = "SPARQL Query Language"

@@ -38,7 +38,7 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
 
     override fun createConnectionProvider(project: Project): ProcessStreamConnectionProvider {
         val settings = CimcheckSettings.getInstance()
-        val javaExe  = settings.javaExecutable.ifBlank { "java" }
+        val javaExe  = resolveJavaExecutable(settings.javaExecutable)
         val jarPath  = resolveServerJar(settings.serverJar)
         val extra    = settings.javaArgs.trim()
             .splitToSequence("\\s+".toRegex())
@@ -56,6 +56,30 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
     }
 
     // -------------------------------------------------------------------------
+
+    /**
+     * Resolves the java executable to use for launching the LSP server.
+     *
+     * Resolution order:
+     *  1. Explicit value from Settings > Tools > CIMcheck > Java executable.
+     *  2. IntelliJ's own bundled JBR — `java.home` points to the JRE running the
+     *     current IDE process, which is always Java 21+ for IntelliJ 2024.1+.
+     *     This is the right default: `java` may not be on the system PATH (common
+     *     on Windows), but IntelliJ's JBR is always present and always the right version.
+     *  3. Bare `"java"` as a last resort (relies on the system PATH).
+     */
+    private fun resolveJavaExecutable(configured: String): String {
+        if (configured.isNotBlank()) return configured.trim()
+
+        val javaHome = System.getProperty("java.home") ?: ""
+        if (javaHome.isNotBlank()) {
+            val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
+            val javaBin = File(javaHome, "bin/java${if (isWindows) ".exe" else ""}")
+            if (javaBin.canExecute()) return javaBin.absolutePath
+        }
+
+        return "java"
+    }
 
     private fun resolveServerJar(configured: String): String {
         // 1. Explicit user setting.

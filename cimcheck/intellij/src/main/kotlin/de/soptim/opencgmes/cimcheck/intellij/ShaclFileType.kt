@@ -17,9 +17,10 @@
 package de.soptim.opencgmes.cimcheck.intellij
 
 import com.intellij.openapi.fileTypes.LanguageFileType
+import com.intellij.openapi.fileTypes.PlainTextLanguage
 import javax.swing.Icon
 
-class ShaclFileType private constructor() : LanguageFileType(ShaclLanguage) {
+class ShaclFileType private constructor() : LanguageFileType(PlainTextLanguage.INSTANCE) {
 
     override fun getName()             = "SHACL"
     override fun getDescription()      = "SHACL / Turtle"

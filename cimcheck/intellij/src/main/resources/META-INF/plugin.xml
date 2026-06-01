@@ -63,13 +63,17 @@
                   fieldName="INSTANCE"/>
 
         <!-- ── Syntax highlighting ───────────────────────────────────────── -->
-        <lang.syntaxHighlighterFactory
-            language="SPARQL"
-            implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckSyntaxHighlighterFactory"/>
+        <!--
+            Registered by file type NAME rather than Language ID so there is no
+            dependency on a Language singleton being initialised first.
+        -->
+        <editorHighlighterProvider
+            fileType="SPARQL"
+            implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckEditorHighlighterProvider"/>
 
-        <lang.syntaxHighlighterFactory
-            language="SHACL"
-            implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckSyntaxHighlighterFactory"/>
+        <editorHighlighterProvider
+            fileType="SHACL"
+            implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckEditorHighlighterProvider"/>
 
         <!-- ── Application-level settings service ────────────────────────── -->
         <applicationService

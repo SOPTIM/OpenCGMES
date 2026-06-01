@@ -17,17 +17,37 @@
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.1.0"
+    id("org.jetbrains.kotlin.jvm") version "2.2.0"
     id("org.jetbrains.intellij.platform") version "2.16.0"
 }
 
 group   = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
-kotlin {
-    // IntelliJ Platform 2024.1 (build 241) requires bytecode target 17.
-    // The LSP server JAR it launches is separate and uses Java 21.
-    jvmToolchain(17)
+// IntelliJ Platform 2024.1 (build 241) requires bytecode target 17.
+// The platform plugin internally sets jvmToolchain(17); we override it in afterEvaluate
+// so the build compiles with whatever JDK is installed (≥17), targeting Java 17 bytecode.
+afterEvaluate {
+    val localJdk = listOf(17, 21, 25, 26)
+        .firstOrNull { v ->
+            org.gradle.jvm.toolchain.JavaLanguageVersion.of(v).let { lv ->
+                try {
+                    javaToolchains.launcherFor { languageVersion.set(lv) }.get()
+                    true
+                } catch (_: Exception) { false }
+            }
+        } ?: 17
+
+    extensions.configure<JavaPluginExtension> {
+        toolchain { languageVersion.set(org.gradle.jvm.toolchain.JavaLanguageVersion.of(localJdk)) }
+    }
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = "17"
+        targetCompatibility = "17"
+    }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 repositories {
@@ -55,6 +75,11 @@ intellijPlatform {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
         }
     }
+    // buildSearchableOptions launches a headless IDE instance to index settings.
+    // This triggers premature file type validation before PlainTextLanguage is registered,
+    // causing a non-fatal SEVERE log that fails the task.  The plugin works correctly
+    // without the index; the settings page is still fully functional.
+    buildSearchableOptions = false
 }
 
 // ---------------------------------------------------------------------------
