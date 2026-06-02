@@ -19,7 +19,7 @@
 package de.soptim.opencgmes.cimxml.graph;
 
 import de.soptim.opencgmes.cimxml.CimVersion;
-import org.apache.jena.mem2.GraphMem2Roaring;
+import org.apache.jena.mem.GraphMemRoaring;
 import org.apache.jena.riot.RDFParser;
 import org.junit.Test;
 
@@ -47,7 +47,7 @@ public class TestCimProfile18 {
             """;
 
 
-        var graph = new GraphMem2Roaring();
+        var graph = new GraphMemRoaring();
 
         RDFParser.create()
                 .source(new StringReader(rdfxml))

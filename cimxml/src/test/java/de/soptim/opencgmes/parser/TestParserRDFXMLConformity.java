@@ -21,8 +21,8 @@ package de.soptim.opencgmes.parser;
 import de.soptim.opencgmes.cimxml.parser.ReaderCIMXML_StAX_SR;
 import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXMLToDatasetGraph;
 import org.apache.jena.graph.Graph;
-import org.apache.jena.mem2.GraphMem2Roaring;
-import org.apache.jena.mem2.IndexingStrategy;
+import org.apache.jena.mem.GraphMemRoaring;
+import org.apache.jena.mem.IndexingStrategy;
 import org.apache.jena.riot.RDFParser;
 import org.apache.jena.riot.system.PrefixMap;
 import org.apache.jena.shared.PrefixMapping;
@@ -149,7 +149,7 @@ public class TestParserRDFXMLConformity {
 
     public void parseAndCompare(Path rdfxml, Path nTriples) throws Exception {
         Objects.requireNonNull(rdfxml);
-        final var expectedGraph = new GraphMem2Roaring(IndexingStrategy.LAZY);
+        final var expectedGraph = new GraphMemRoaring(IndexingStrategy.LAZY);
         final var parser = new ReaderCIMXML_StAX_SR();
         final var streamRDF = new StreamCIMXMLToDatasetGraph();
 
@@ -168,7 +168,7 @@ public class TestParserRDFXMLConformity {
         assertPrefixMappingEquals(expectedGraph.getPrefixMapping(), streamRDF.getCIMDatasetGraph().prefixes());
 
         if (nTriples != null) {
-            final var nTriplesGraph = new GraphMem2Roaring(IndexingStrategy.LAZY);
+            final var nTriplesGraph = new GraphMemRoaring(IndexingStrategy.LAZY);
             RDFParser.create()
                     .source(nTriples)
                     .lang(org.apache.jena.riot.Lang.NTRIPLES)

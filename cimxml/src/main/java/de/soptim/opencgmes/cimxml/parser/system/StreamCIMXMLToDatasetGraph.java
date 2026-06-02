@@ -26,8 +26,8 @@ import de.soptim.opencgmes.cimxml.sparql.core.LinkedCimDatasetGraph;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
-import org.apache.jena.mem2.GraphMem2Roaring;
-import org.apache.jena.mem2.IndexingStrategy;
+import org.apache.jena.mem.GraphMemRoaring;
+import org.apache.jena.mem.IndexingStrategy;
 import org.apache.jena.sparql.core.Quad;
 
 /**
@@ -49,7 +49,7 @@ public class StreamCIMXMLToDatasetGraph implements StreamCIMXML {
     public StreamCIMXMLToDatasetGraph() {
         // init default graph for body context
         currentContext = CimXmlDocumentContext.body;
-        currentGraph = new GraphMem2Roaring(IndexingStrategy.LAZY_PARALLEL);
+        currentGraph = new GraphMemRoaring(IndexingStrategy.LAZY_PARALLEL);
         linkedCIMDatasetGraph = new LinkedCimDatasetGraph(currentGraph);
     }
 
@@ -77,7 +77,7 @@ public class StreamCIMXMLToDatasetGraph implements StreamCIMXML {
         if (linkedCIMDatasetGraph.containsGraph(graphName)) {
             currentGraph = linkedCIMDatasetGraph.getGraph(graphName);
         } else {
-            final var newGraph = new GraphMem2Roaring(indexingStrategy);
+            final var newGraph = new GraphMemRoaring(indexingStrategy);
             newGraph.getPrefixMapping().setNsPrefixes(currentGraph.getPrefixMapping());
             currentGraph = newGraph;
             linkedCIMDatasetGraph.addGraph(graphName, currentGraph);
@@ -105,6 +105,11 @@ public class StreamCIMXMLToDatasetGraph implements StreamCIMXML {
     }
 
     @Override
+    public void version(String version) {
+        // Nothing to do
+    }
+
+    @Override
     public void prefix(String prefix, String iri) {
         linkedCIMDatasetGraph.prefixes().add(prefix, iri);
         currentGraph.getPrefixMapping().setNsPrefix(prefix, iri);
@@ -114,7 +119,7 @@ public class StreamCIMXMLToDatasetGraph implements StreamCIMXML {
     public void finish() {
         // Initialize indexes in parallel for all graphs that use LAZY_PARALLEL indexing strategy.
         linkedCIMDatasetGraph.getGraphs().parallelStream().forEach(graph -> {
-            if (graph instanceof GraphMem2Roaring roaring && !roaring.isIndexInitialized()) {
+            if (graph instanceof GraphMemRoaring roaring && !roaring.isIndexInitialized()) {
                 roaring.initializeIndexParallel();
             }
         });

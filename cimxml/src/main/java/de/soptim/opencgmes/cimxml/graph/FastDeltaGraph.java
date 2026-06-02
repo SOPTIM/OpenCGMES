@@ -23,8 +23,8 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.graph.compose.Delta;
 import org.apache.jena.graph.impl.GraphBase;
-import org.apache.jena.mem2.GraphMem2Roaring;
-import org.apache.jena.mem2.IndexingStrategy;
+import org.apache.jena.mem.GraphMemRoaring;
+import org.apache.jena.mem.IndexingStrategy;
 import org.apache.jena.util.iterator.ExtendedIterator;
 
 import java.util.Iterator;
@@ -44,8 +44,8 @@ public class FastDeltaGraph extends GraphBase {
         if (base == null)
             throw new IllegalArgumentException("base graph must not be null");
         this.base = base;
-        this.additions = new GraphMem2Roaring(IndexingStrategy.LAZY_PARALLEL);
-        this.deletions = new GraphMem2Roaring(IndexingStrategy.LAZY_PARALLEL);
+        this.additions = new GraphMemRoaring(IndexingStrategy.LAZY_PARALLEL);
+        this.deletions = new GraphMemRoaring(IndexingStrategy.LAZY_PARALLEL);
     }
 
     /**
