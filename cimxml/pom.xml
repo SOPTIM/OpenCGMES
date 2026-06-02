@@ -69,7 +69,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Main dependencies -->
-        <ver.jena>5.6.0</ver.jena>
+        <ver.jena>6.1.0</ver.jena>
 
         <!-- XML -->
         <ver.stax2-api>4.3.0</ver.stax2-api>
