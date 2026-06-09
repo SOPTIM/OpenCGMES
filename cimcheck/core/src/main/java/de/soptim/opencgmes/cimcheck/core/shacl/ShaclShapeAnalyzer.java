@@ -261,6 +261,40 @@ public final class ShaclShapeAnalyzer {
     }
 
     /**
+     * Recursively walks a SHACL property path, dispatching to one of two callbacks:
+     * {@code onUri} for each leaf URI node, and {@code onAlternativeGroup} once per
+     * {@code sh:alternativePath} group with all leaf URIs pre-collected.
+     *
+     * <p>Handles all SHACL path forms: simple URI, sequence (RDF list), inverse, alternative,
+     * and repetition ({@code sh:zeroOrMorePath} etc.).</p>
+     */
+    private static void walkPath(Graph g, Node path,
+            Consumer<Node> onUri, Consumer<List<Node>> onAlternativeGroup) {
+        if (path.isURI()) { onUri.accept(path); return; }
+        if (!path.isBlank()) return;
+
+        Node firstEl = singleObject(g, path, RDF_FIRST);
+        if (firstEl != null) {
+            walkList(g, path, el -> walkPath(g, el, onUri, onAlternativeGroup));
+            return;
+        }
+        Node inv = singleObject(g, path, Shacl.INVERSE_PATH);
+        if (inv != null) { walkPath(g, inv, onUri, onAlternativeGroup); return; }
+
+        Node alt = singleObject(g, path, Shacl.ALTERNATIVE_PATH);
+        if (alt != null) {
+            var group = new ArrayList<Node>();
+            walkList(g, alt, el -> walkPath(g, el, group::add, group::addAll));
+            onAlternativeGroup.accept(group);
+            return;
+        }
+        for (Node pred : REPEAT_PATH_PREDICATES) {
+            Node inner = singleObject(g, path, pred);
+            if (inner != null) { walkPath(g, inner, onUri, onAlternativeGroup); return; }
+        }
+    }
+
+    /**
      * Recursively walks a SHACL property path and emits {@code UNKNOWN_PROPERTY} annotations
      * for any URI segment not present in the schema.
      *
@@ -274,47 +308,17 @@ public final class ShaclShapeAnalyzer {
      */
     private void checkPathPropertyExistence(
             Graph g, Node path, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
-        if (path.isURI()) {
-            if (!ExemptVocabulary.isExempt(path) && !schemaIndex.propertyExists(path, scope)) {
-                out.add(propertyAnnotation(path, scope, schemaIndex.findProperty(path)));
-            }
-            return;
-        }
-        if (!path.isBlank()) return;
-
-        // RDF list (sequence path)
-        Node firstEl = singleObject(g, path, RDF_FIRST);
-        if (firstEl != null) {
-            walkList(g, path, el -> checkPathPropertyExistence(g, el, scope, out));
-            return;
-        }
-
-        // sh:inversePath
-        Node inv = singleObject(g, path, Shacl.INVERSE_PATH);
-        if (inv != null) {
-            checkPathPropertyExistence(g, inv, scope, out);
-            return;
-        }
-
-        // sh:alternativePath — apply group-level suppression for namespace aliases
-        Node alt = singleObject(g, path, Shacl.ALTERNATIVE_PATH);
-        if (alt != null) {
-            checkAlternativePathExistence(g, alt, scope, out);
-            return;
-        }
-
-        // sh:zeroOrMorePath / sh:oneOrMorePath / sh:zeroOrOnePath
-        for (Node pred : REPEAT_PATH_PREDICATES) {
-            Node inner = singleObject(g, path, pred);
-            if (inner != null) {
-                checkPathPropertyExistence(g, inner, scope, out);
-                return;
-            }
-        }
+        walkPath(g, path,
+                uri -> {
+                    if (!ExemptVocabulary.isExempt(uri) && !schemaIndex.propertyExists(uri, scope)) {
+                        out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
+                    }
+                },
+                group -> checkAlternativeGroup(group, scope, out));
     }
 
     /**
-     * Checks existence for all alternatives in an {@code sh:alternativePath} list.
+     * Checks existence for all alternatives collected from an {@code sh:alternativePath} group.
      *
      * <p>An unknown alternative is <em>suppressed</em> when the group contains at least one
      * known property sharing the same local name — the standard cross-version compatibility
@@ -322,12 +326,9 @@ public final class ShaclShapeAnalyzer {
      * alternative whose local name does not match any known sibling is still flagged (it is
      * most likely a typo).</p>
      */
-    private void checkAlternativePathExistence(
-            Graph g, Node altList, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
-        var allProps = new ArrayList<Node>();
-        walkList(g, altList, el -> extractPropertyUris(g, el, allProps));
-
-        var known = new ArrayList<Node>();
+    private void checkAlternativeGroup(
+            List<Node> allProps, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+        var known   = new ArrayList<Node>();
         var unknown = new ArrayList<Node>();
         for (Node prop : allProps) {
             if (ExemptVocabulary.isExempt(prop)) continue;
@@ -355,51 +356,9 @@ public final class ShaclShapeAnalyzer {
 
     /**
      * Recursively collects all URI property nodes out of a SHACL property path expression.
-     *
-     * <ul>
-     *   <li>URI node → added directly.</li>
-     *   <li>RDF list (sequence path) → each element is expanded recursively.</li>
-     *   <li>Blank node with {@code sh:inversePath} → inner path expanded.</li>
-     *   <li>Blank node with {@code sh:alternativePath} → list elements expanded.</li>
-     *   <li>Blank node with repetition operators ({@code sh:zeroOrMorePath} etc.) → expanded.</li>
-     * </ul>
      */
     private static void extractPropertyUris(Graph g, Node path, List<Node> out) {
-        if (path.isURI()) {
-            out.add(path);
-            return;
-        }
-        if (!path.isBlank()) return;
-
-        // RDF list (sequence path): distinguished by having rdf:first.
-        Node firstEl = singleObject(g, path, RDF_FIRST);
-        if (firstEl != null) {
-            walkList(g, path, el -> extractPropertyUris(g, el, out));
-            return;
-        }
-
-        // sh:inversePath
-        Node inv = singleObject(g, path, Shacl.INVERSE_PATH);
-        if (inv != null) {
-            extractPropertyUris(g, inv, out);
-            return;
-        }
-
-        // sh:alternativePath (its value is an RDF list)
-        Node alt = singleObject(g, path, Shacl.ALTERNATIVE_PATH);
-        if (alt != null) {
-            walkList(g, alt, el -> extractPropertyUris(g, el, out));
-            return;
-        }
-
-        // sh:zeroOrMorePath / sh:oneOrMorePath / sh:zeroOrOnePath
-        for (Node pred : REPEAT_PATH_PREDICATES) {
-            Node inner = singleObject(g, path, pred);
-            if (inner != null) {
-                extractPropertyUris(g, inner, out);
-                return;
-            }
-        }
+        walkPath(g, path, out::add, out::addAll);
     }
 
     /** Walks an RDF list, calling {@code consumer} for each {@code rdf:first} value. */

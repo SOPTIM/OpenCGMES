@@ -26,7 +26,6 @@ import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalyzer;
 import de.soptim.opencgmes.cimcheck.cli.config.CliConfig;
 import de.soptim.opencgmes.cimcheck.cli.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.cli.output.FileResult;
@@ -38,7 +37,6 @@ import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimcheck.core.shacl.ShaclValidationResult;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
-import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFParser;
@@ -54,7 +52,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -209,7 +206,10 @@ public class ValidateCommand implements Callable<Integer> {
         }
 
         // 3. Build scope: named-graph map or profile list.
-        Map<Node, Collection<VersionIri>> namedGraphScope = buildNamedGraphScope(config, index);
+        Map<Node, Collection<VersionIri>> namedGraphScope = SparqlValidationApi.buildNamedGraphScope(
+                config == null ? Map.of() : config.namedGraphs(),
+                index,
+                msg -> System.err.println("Warning: " + msg));
 
         // 4. Validate each input.
         var effectivePrefixes = (config != null && config.prefixes() != null)
@@ -322,41 +322,6 @@ public class ValidateCommand implements Callable<Integer> {
         if ("-".equals(input)) return false;
         String lower = input.toLowerCase();
         return lower.endsWith(".ttl") || lower.endsWith(".shacl");
-    }
-
-    private Map<Node, Collection<VersionIri>> buildNamedGraphScope(
-            CliConfig config, RdfsSchemaIndex index) {
-
-        if (config == null || !config.hasNamedGraphs()) return Map.of();
-
-        var map = new LinkedHashMap<Node, Collection<VersionIri>>();
-        for (var entry : config.namedGraphs().entrySet()) {
-            String key = entry.getKey();
-            // Relative keys (no colon) are resolved against the same base URI used by the
-            // SPARQL parser so that <EQ> in a query matches the config key "EQ".
-            Node graphNode = key.contains(":")
-                    ? NodeFactory.createURI(key)
-                    : NodeFactory.createURI(SparqlQueryAnalyzer.RELATIVE_IRI_BASE + key);
-
-            var versionIris = new ArrayList<VersionIri>();
-            for (String profileUri : entry.getValue()) {
-                VersionIri vIri = VersionIri.of(profileUri);
-                if (index.getAllProfiles().contains(vIri)) {
-                    versionIris.add(vIri);
-                } else {
-                    System.err.println("Warning: namedGraph '" + key
-                            + "' references unknown profile '" + profileUri
-                            + "' — profile will be skipped.");
-                }
-            }
-            if (!versionIris.isEmpty()) {
-                map.put(graphNode, versionIris);
-            } else {
-                System.err.println("Warning: namedGraph '" + key
-                        + "' has no known profiles — graph will be excluded from scope.");
-            }
-        }
-        return Map.copyOf(map);
     }
 
     private static String readStdin() throws IOException {

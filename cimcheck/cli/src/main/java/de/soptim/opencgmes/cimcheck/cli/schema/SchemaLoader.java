@@ -18,9 +18,8 @@
 
 package de.soptim.opencgmes.cimcheck.cli.schema;
 
-import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
-import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
 import de.soptim.opencgmes.cimcheck.cli.config.CliConfig;
+import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +28,6 @@ import java.io.IOException;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -104,32 +102,13 @@ public final class SchemaLoader {
     }
 
     private static RdfsSchemaIndex buildIndex(List<Path> files) throws SchemaLoadException {
-        var registry = new CimProfileRegistryStd();
-        var parser   = new RdfXmlParser();
-        var failed   = new ArrayList<String>();
-
-        for (Path f : files) {
-            if (!Files.isRegularFile(f)) {
-                throw new SchemaLoadException("Schema file does not exist: " + f);
-            }
-            try {
-                registry.register(parser.parseCimProfile(f));
-                LOG.info("Loaded schema: {}", f.getFileName());
-            } catch (Exception e) {
-                failed.add(f + " (" + e.getMessage() + ")");
-                LOG.warn("Failed to load schema {}: {}", f, e.getMessage());
-            }
+        try {
+            var loaded = CgmesSchemaLoader.fromFiles(files).loadIndexWithSources();
+            loaded.skippedFiles().forEach(f -> LOG.warn("Skipped unparseable schema file: {}", f));
+            return loaded.index();
+        } catch (CgmesSchemaLoader.SchemaLoadException e) {
+            throw new SchemaLoadException(e.getMessage(), e.getCause());
         }
-
-        if (!failed.isEmpty()) {
-            throw new SchemaLoadException("Failed to parse schema file(s):\n  " +
-                    String.join("\n  ", failed));
-        }
-        if (registry.getRegisteredProfiles().isEmpty()) {
-            throw new SchemaLoadException("No profiles were loaded — check your schema files.");
-        }
-
-        return RdfsSchemaIndex.fromCimRegistry(registry);
     }
 
     /** Thrown when schema loading fails. */

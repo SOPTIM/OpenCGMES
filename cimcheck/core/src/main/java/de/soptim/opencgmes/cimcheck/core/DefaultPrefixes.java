@@ -149,6 +149,10 @@ public final class DefaultPrefixes {
     private static final Pattern DECLARED =
             Pattern.compile("(?i)(?:@?prefix)\\s+(\\w+):\\s");
 
+    /** Matches PREFIX/@prefix declarations and captures both the name and the namespace IRI. */
+    private static final Pattern PREFIX_DECL =
+            Pattern.compile("(?i)(?:@?prefix)\\s+(\\w+):\\s*<([^>]*)>");
+
     /** Matches {@code line N} position references inside Jena error messages. */
     private static final Pattern LINE_IN_MSG =
             Pattern.compile("(?i)(\\bline )(\\d+)");
@@ -179,6 +183,25 @@ public final class DefaultPrefixes {
         }
         if (count == 0) return new InjectionResult(queryText, 0);
         return new InjectionResult(sb.append(queryText).toString(), count);
+    }
+
+    /**
+     * Extracts all {@code PREFIX}/{@code @prefix} declarations from {@code text} and returns
+     * them as a prefix-name → namespace-IRI map.  Both SPARQL ({@code PREFIX name: <iri>}) and
+     * Turtle ({@code @prefix name: <iri>}) forms are recognised.  Malformed declarations
+     * (missing {@code <...>}) are silently skipped.
+     *
+     * <p>Useful for clients that need to resolve prefixed names in partially-valid documents
+     * without a full parse.</p>
+     */
+    public static Map<String, String> declaredPrefixes(String text) {
+        if (text == null) return Map.of();
+        var result = new LinkedHashMap<String, String>();
+        Matcher m = PREFIX_DECL.matcher(text);
+        while (m.find()) {
+            result.put(m.group(1), m.group(2));
+        }
+        return Map.copyOf(result);
     }
 
     /**

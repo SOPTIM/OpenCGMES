@@ -22,13 +22,10 @@ import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalyzer;
-import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimcheck.lsp.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
 import de.soptim.opencgmes.cimcheck.lsp.schema.SchemaLoader;
 import org.apache.jena.graph.Node;
-import org.apache.jena.graph.NodeFactory;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.MessageType;
 import org.eclipse.lsp4j.services.LanguageClient;
@@ -36,9 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -154,7 +149,8 @@ final class SchemaManager {
             apiRef.set(new SparqlValidationApi(loaded.index(), effectivePrefixes));
             levelRef.set(parseLevel(config));
             defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));
-            namedGraphRef.set(buildNamedGraphScope(config, loaded.index()));
+            namedGraphRef.set(SparqlValidationApi.buildNamedGraphScope(
+                    config.namedGraphs(), loaded.index(), msg -> LOG.warn("{}", msg)));
             LOG.info("Schema loaded successfully from {} (strictness: {})", root, levelRef.get());
             if (!loaded.skippedFiles().isEmpty()) {
                 String detail = String.join("\n", loaded.skippedFiles());
@@ -188,39 +184,6 @@ final class SchemaManager {
             LOG.warn("Invalid strictness '{}' in config, using DEFAULT: {}", config.strictness(), e.getMessage());
             return StrictnessLevel.DEFAULT;
         }
-    }
-
-    private static Map<Node, Collection<VersionIri>> buildNamedGraphScope(
-            LspConfig config, RdfsSchemaIndex index) {
-
-        if (!config.hasNamedGraphs()) return Map.of();
-
-        var map = new LinkedHashMap<Node, Collection<VersionIri>>();
-        for (var entry : config.namedGraphs().entrySet()) {
-            String key = entry.getKey();
-            // Relative keys (no colon) are resolved against the same base URI used by the
-            // SPARQL parser so that <EQ> in a query matches the config key "EQ".
-            Node graphNode = key.contains(":")
-                    ? NodeFactory.createURI(key)
-                    : NodeFactory.createURI(SparqlQueryAnalyzer.RELATIVE_IRI_BASE + key);
-
-            var versionIris = new ArrayList<VersionIri>();
-            for (String profileUri : entry.getValue()) {
-                VersionIri vIri = VersionIri.of(profileUri);
-                if (index.getAllProfiles().contains(vIri)) {
-                    versionIris.add(vIri);
-                } else {
-                    LOG.warn("namedGraph '{}' references unknown profile '{}' — profile will be skipped.",
-                            key, profileUri);
-                }
-            }
-            if (!versionIris.isEmpty()) {
-                map.put(graphNode, versionIris);
-            } else {
-                LOG.warn("namedGraph '{}' has no known profiles — graph will be excluded from scope.", key);
-            }
-        }
-        return Map.copyOf(map);
     }
 
     private void notify(MessageType type, String message) {

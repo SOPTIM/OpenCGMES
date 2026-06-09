@@ -37,14 +37,18 @@ import de.soptim.opencgmes.cimcheck.core.shacl.ShaclValidationResult;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 
+import org.apache.jena.graph.NodeFactory;
+
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -694,5 +698,52 @@ public final class SparqlValidationApi {
     public List<EmbeddedSparql> extractShaclSparql(Graph shapesGraph) {
         Objects.requireNonNull(shapesGraph, "shapesGraph");
         return shaclExtractor.extract(shapesGraph);
+    }
+
+    /**
+     * Builds a per-graph profile scope map from a raw {@code namedGraphs} config entry.
+     *
+     * <p>Relative keys (containing no {@code :}) are resolved against
+     * {@link SparqlQueryAnalyzer#RELATIVE_IRI_BASE} so that short names like {@code "EQ"} in the
+     * config match {@code <EQ>} in SPARQL queries.  Unknown or empty mappings are reported via
+     * {@code warn}.</p>
+     *
+     * @param namedGraphs raw map from graph key → list of version IRI strings (from config)
+     * @param index       schema index used to verify that each profile URI is known
+     * @param warn        receives a formatted warning message for each unknown or empty mapping
+     * @return an immutable, ordered graph→profile map; empty when {@code namedGraphs} is null or empty
+     */
+    public static Map<Node, Collection<VersionIri>> buildNamedGraphScope(
+            Map<String, List<String>> namedGraphs,
+            SchemaIndex index,
+            Consumer<String> warn) {
+
+        if (namedGraphs == null || namedGraphs.isEmpty()) return Map.of();
+
+        var map = new LinkedHashMap<Node, Collection<VersionIri>>();
+        for (var entry : namedGraphs.entrySet()) {
+            String key = entry.getKey();
+            Node graphNode = key.contains(":")
+                    ? NodeFactory.createURI(key)
+                    : NodeFactory.createURI(SparqlQueryAnalyzer.RELATIVE_IRI_BASE + key);
+
+            var versionIris = new ArrayList<VersionIri>();
+            for (String profileUri : entry.getValue()) {
+                VersionIri vIri = VersionIri.of(profileUri);
+                if (index.getAllProfiles().contains(vIri)) {
+                    versionIris.add(vIri);
+                } else {
+                    warn.accept("namedGraph '" + key + "' references unknown profile '"
+                            + profileUri + "' — profile will be skipped.");
+                }
+            }
+            if (!versionIris.isEmpty()) {
+                map.put(graphNode, versionIris);
+            } else {
+                warn.accept("namedGraph '" + key
+                        + "' has no known profiles — graph will be excluded from scope.");
+            }
+        }
+        return Map.copyOf(map);
     }
 }

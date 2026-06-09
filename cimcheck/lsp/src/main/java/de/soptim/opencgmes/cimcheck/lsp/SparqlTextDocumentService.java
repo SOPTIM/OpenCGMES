@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
+import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
@@ -152,7 +153,6 @@ final class SparqlTextDocumentService implements TextDocumentService {
             var defIndexOpt = schemaManager.getDefinitionIndex();
             if (defIndexOpt.isEmpty()) return noDefinition();
 
-            SchemaIndex index = apiOpt.get().schemaIndex();
             int line = params.getPosition().getLine();
             int col  = params.getPosition().getCharacter();
 
@@ -312,12 +312,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
         if (a.message() != null && a.message().startsWith("Lexical error")) {
             // Lexical error: message position is reliable. Column is one past the bad token.
-            Matcher m = SPARQL_POSITION.matcher(a.message());
-            if (m.find()) {
-                line = Integer.parseInt(m.group(1)) - 1;
-                col  = backScanToTokenStart(text, Integer.parseInt(m.group(1)) - 1,
-                                            Integer.parseInt(m.group(2)) - 1);
-            }
+            int[] pos = positionFromMessage(a.message(), text);
+            if (pos != null) { line = pos[0]; col = pos[1]; }
         } else {
             // Parse error: message position is unreliable (Javacc error recovery).
             // Scan for a line starting with an unrecognised all-uppercase SPARQL keyword.
@@ -326,14 +322,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
                 line = bad[0];
                 col  = bad[1];
             } else {
-                // Fallback: parse message position (best-effort for unusual errors).
-                if (a.message() != null) {
-                    Matcher m = SPARQL_POSITION.matcher(a.message());
-                    if (m.find()) {
-                        line = Integer.parseInt(m.group(1)) - 1;
-                        col  = backScanToTokenStart(text, line, Integer.parseInt(m.group(2)) - 1);
-                    }
-                }
+                int[] pos = positionFromMessage(a.message(), text);
+                if (pos != null) { line = pos[0]; col = pos[1]; }
             }
         }
 
@@ -363,6 +353,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
             String token = line.substring(tokenStart, tokenEnd);
             // Must be all-uppercase to look like a keyword (prefix names like "cim" are not).
             if (!token.equals(token.toUpperCase(Locale.ROOT))) continue;
+            // Skip built-in function calls (e.g. COALESCE(), STR()) that follow a token boundary.
+            if (tokenEnd < line.length() && line.charAt(tokenEnd) == '(') continue;
             if (!SPARQL_STATEMENT_KEYWORDS.contains(token)) return new int[]{i, tokenStart};
         }
         return null;
@@ -378,6 +370,15 @@ final class SparqlTextDocumentService implements TextDocumentService {
         int start = end;
         while (start > 0 && !Character.isWhitespace(src.charAt(start - 1))) start--;
         return (start < end) ? start : col;
+    }
+
+    private static int[] positionFromMessage(String message, String text) {
+        if (message == null) return null;
+        Matcher m = SPARQL_POSITION.matcher(message);
+        if (!m.find()) return null;
+        int line = Integer.parseInt(m.group(1)) - 1;
+        int col  = backScanToTokenStart(text, line, Integer.parseInt(m.group(2)) - 1);
+        return new int[]{line, col};
     }
 
     private void validateShacl(String uri, String text) {
@@ -496,7 +497,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             "WHERE", "OPTIONAL", "FILTER", "UNION", "GRAPH", "MINUS", "SERVICE",
             "BIND", "VALUES", "LIMIT", "OFFSET", "ORDER", "GROUP", "HAVING",
             "WITH", "FROM", "NAMED", "USING", "SILENT", "ALL", "DEFAULT", "INTO", "DATA",
-            "NOT", "EXISTS", "DISTINCT", "REDUCED", "AS",
+            "NOT", "EXISTS", "DISTINCT", "REDUCED", "AS", "BY", "IN", "TO",
             // Declarations
             "PREFIX", "BASE"
     );
@@ -518,21 +519,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
                 col  = Math.max(0, Integer.parseInt(m.group(2)) - 1);
             }
         }
-        // Extend the squiggle to cover the full token rather than a single character.
-        int endCol = col + 1;
-        if (text != null) {
-            String[] srcLines = text.split("\n", -1);
-            if (line < srcLines.length) {
-                String src = srcLines[line];
-                int e2 = col;
-                while (e2 < src.length()
-                        && !Character.isWhitespace(src.charAt(e2))
-                        && src.charAt(e2) != ';' && src.charAt(e2) != ',') {
-                    e2++;
-                }
-                if (e2 > col) endCol = e2;
-            }
-        }
+        int endCol = col + tokenLengthInSource(text, new SourceLocator.Location(line + 1, col + 1));
         String display = msg != null ? msg : e.getClass().getSimpleName();
         return new Diagnostic(
                 new Range(new Position(line, col), new Position(line, endCol)),
@@ -820,17 +807,12 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     // ---- Hover helpers ---------------------------------------------------------------------
 
-    private static final Pattern PREFIX_PATTERN = Pattern.compile(
-            "(?i)(?:@prefix|PREFIX)\\s+(\\w+):\\s*<([^>]*)>");
-
     /** Extracts all PREFIX / @prefix declarations from raw text (handles invalid documents). */
     private static PrefixMapping extractPrefixes(String text) {
         PrefixMapping pm = PrefixMapping.Factory.create();
-        if (text == null) return pm;
-        Matcher m = PREFIX_PATTERN.matcher(text);
-        while (m.find()) {
-            try { pm.setNsPrefix(m.group(1), m.group(2)); } catch (Exception ignored) {}
-        }
+        DefaultPrefixes.declaredPrefixes(text).forEach((name, ns) -> {
+            try { pm.setNsPrefix(name, ns); } catch (Exception ignored) {}
+        });
         return pm;
     }
 

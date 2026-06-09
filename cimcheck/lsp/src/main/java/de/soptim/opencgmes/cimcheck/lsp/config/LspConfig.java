@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimcheck.lsp.config;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import de.soptim.opencgmes.cimcheck.core.ValidationConfig;
 
 import java.util.List;
 import java.util.Map;
@@ -42,14 +43,10 @@ public record LspConfig(
         @JsonProperty("namedGraphs")      Map<String, List<String>> namedGraphs,
         @JsonProperty("strictness")       String strictness,
         @JsonProperty("prefixes")         Map<String, String> prefixes
-) {
+) implements ValidationConfig {
     public LspConfig {
         if (schemas     == null) schemas     = List.of();
         if (namedGraphs == null) namedGraphs = Map.of();
         // prefixes: null means "use built-in defaults", empty map means "no defaults"
-    }
-
-    public boolean hasNamedGraphs() {
-        return !namedGraphs.isEmpty();
     }
 }
