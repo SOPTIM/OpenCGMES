@@ -226,3 +226,56 @@ jobs:
             cimcheck/lsp/target/cimcheck-lsp.jar \
             cimcheck/vscode/cimcheck-*.vsix \
             cimcheck/intellij/build/distributions/cimcheck-intellij-*.zip
+
+  # ---- JetBrains Marketplace -----------------------------------------------
+  publish-jetbrains-marketplace:
+    needs:
+      - validate-tag
+      - publish-maven-central
+    runs-on: ubuntu-latest
+    environment: JetBrains Marketplace Deployment
+    env:
+      PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Java 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimcheck/core/pom.xml
+            cimcheck/lsp/pom.xml
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Validate required secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${PUBLISH_TOKEN}" ]] || (echo "JETBRAINS_MARKETPLACE_TOKEN secret is missing" >&2; exit 1)
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml and cimcheck-core into local repo
+        run: |
+          mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+          mvn -B -ntp -f cimcheck/core/pom.xml -DskipTests clean install
+
+      - name: Build LSP fat JAR
+        run: mvn -B -ntp -f cimcheck/lsp/pom.xml -DskipTests clean package
+
+      - name: Publish plugin to JetBrains Marketplace
+        run: gradle publishPlugin
+        working-directory: cimcheck/intellij

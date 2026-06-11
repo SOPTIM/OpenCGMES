@@ -86,6 +86,10 @@ intellijPlatform {
     // without the index; the settings page is still fully functional.
     buildSearchableOptions = false
 
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+    }
+
     // ── Plugin Verifier (./gradlew verifyPlugin) ─────────────────────────────
     // Runs the IntelliJ Plugin Verifier — the same tool the JetBrains Marketplace
     // runs on upload. Catches internal-API and scheduled-for-removal usages (which
