@@ -16,24 +16,7 @@
  */
 package de.soptim.opencgmes.cimcheck.intellij
 
-import com.intellij.openapi.fileTypes.LanguageFileType
-import javax.swing.Icon
+import com.intellij.lang.Language
 
-/**
- * SHACL / Turtle file type (.ttl, .shacl).
- *
- * Extends [LanguageFileType] with the dedicated [ShaclLanguage] singleton — see
- * [SparqlFileType] for the rationale.
- */
-class ShaclFileType private constructor() : LanguageFileType(ShaclLanguage) {
-
-    override fun getName()             = "SHACL"
-    override fun getDescription()      = "SHACL / Turtle"
-    override fun getDefaultExtension() = "shacl"
-    override fun getIcon(): Icon?      = null
-
-    companion object {
-        @JvmField
-        val INSTANCE = ShaclFileType()
-    }
-}
+/** Language singleton for SPARQL files (.rq, .sparql). */
+object SparqlLanguage : Language("SPARQL")
