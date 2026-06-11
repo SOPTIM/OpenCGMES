@@ -63,22 +63,32 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
      * Resolution order:
      *  1. Explicit value from Settings > Tools > CIMcheck > Java executable.
      *  2. IntelliJ's own bundled JBR — `java.home` points to the JRE running the
-     *     current IDE process, which is always Java 21+ for IntelliJ 2024.1+.
-     *     This is the right default: `java` may not be on the system PATH (common
-     *     on Windows), but IntelliJ's JBR is always present and always the right version.
+     *     current IDE process. The plugin requires IntelliJ 2024.2+ (build 242),
+     *     whose bundled JBR is Java 21+; earlier IDEs bundle JBR 17, which cannot
+     *     run the Java 21 server. We still verify the running JBR is >= 21 and
+     *     skip it if not, rather than launch a server that would die with
+     *     UnsupportedClassVersionError.
      *  3. Bare `"java"` as a last resort (relies on the system PATH).
      */
     private fun resolveJavaExecutable(configured: String): String {
         if (configured.isNotBlank()) return configured.trim()
 
         val javaHome = System.getProperty("java.home") ?: ""
-        if (javaHome.isNotBlank()) {
+        if (javaHome.isNotBlank() && runtimeJavaMajor() >= MIN_JAVA_VERSION) {
             val isWindows = System.getProperty("os.name", "").lowercase().contains("win")
             val javaBin = File(javaHome, "bin/java${if (isWindows) ".exe" else ""}")
             if (javaBin.canExecute()) return javaBin.absolutePath
         }
 
         return "java"
+    }
+
+    /** Major version of the JVM running the current IDE (e.g. 21), or 0 if unknown. */
+    private fun runtimeJavaMajor(): Int {
+        // "21"/"17" on modern JDKs; "1.8" style on legacy JDKs (treated as < 21).
+        val version = (System.getProperty("java.specification.version") ?: return 0)
+            .removePrefix("1.")
+        return version.substringBefore('.').toIntOrNull() ?: 0
     }
 
     private fun resolveServerJar(configured: String): String {
@@ -113,4 +123,9 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
         PluginManager.getInstance()
             .findEnabledPlugin(PluginId.getId("de.soptim.opencgmes.cimcheck"))
             ?.version ?: "unknown"
+
+    companion object {
+        /** The bundled language server is compiled for Java 21. */
+        private const val MIN_JAVA_VERSION = 21
+    }
 }

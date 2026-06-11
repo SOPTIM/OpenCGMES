@@ -24,7 +24,7 @@ plugins {
 group   = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
-// IntelliJ Platform 2024.1 (build 241) requires bytecode target 17.
+// IntelliJ Platform 2024.2 (build 242) requires bytecode target 17.
 // The platform plugin internally sets jvmToolchain(17); we override it in afterEvaluate
 // so the build compiles with whatever JDK is installed (≥17), targeting Java 17 bytecode.
 afterEvaluate {
@@ -40,6 +40,11 @@ afterEvaluate {
 
     extensions.configure<JavaPluginExtension> {
         toolchain { languageVersion.set(org.gradle.jvm.toolchain.JavaLanguageVersion.of(localJdk)) }
+        // Compile to Java 17 bytecode regardless of the JDK that runs javac, so the
+        // output runs on every supported IDE. Set at the extension level (not just on
+        // the JavaCompile tasks) so it isn't overridden by the toolchain default.
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     tasks.withType<JavaCompile>().configureEach {
         sourceCompatibility = "17"
