@@ -20,25 +20,71 @@
     <vendor email="info@soptim.de" url="https://www.soptim.de/">SOPTIM AG</vendor>
 
     <description><![CDATA[
-        Real-time SPARQL and SHACL validation against CIM/CGMES schema profiles,
-        powered by the CIMcheck language server.<br/><br/>
+        <p>
+            Real-time <b>SPARQL</b> and <b>SHACL</b> validation against CIM/CGMES schema
+            profiles, powered by the CIMcheck language server. Write a SPARQL query or a
+            SHACL shape and get immediate feedback as you type: unknown classes and
+            properties are underlined, syntax errors are highlighted, and semantic issues
+            such as domain/range mismatches are flagged — all resolved against <i>your</i>
+            actual RDFS profile files.
+        </p>
 
-        Write a SPARQL query or SHACL shape and get immediate feedback:
-        unknown classes and properties are underlined, syntax errors are highlighted,
-        and semantic issues like domain/range mismatches are flagged as you type —
-        all resolved against your actual RDFS profile files.<br/><br/>
-
-        <b>Features:</b>
+        <h3>Features</h3>
         <ul>
-            <li>Real-time diagnostics (unknown terms, type mismatches, cardinality errors)</li>
-            <li>Hover documentation — full IRI and source profile for any CIM term</li>
-            <li>Auto-completion after <code>cim:</code> and other prefixes</li>
-            <li>Go-to-definition — jump to the term's declaration in the profile file</li>
-            <li>Workspace symbol search — find any schema term by name</li>
+            <li><b>Syntax highlighting</b> for SPARQL (<code>.rq</code>, <code>.sparql</code>) and SHACL / Turtle (<code>.ttl</code>, <code>.shacl</code>).</li>
+            <li><b>Real-time diagnostics</b> — unknown terms, datatype mismatches, properties not allowed for a class, cardinality errors and more.</li>
+            <li><b>Hover documentation</b> — the full IRI and source profile for any CIM term (e.g. <code>cim:ACLineSegment</code>).</li>
+            <li><b>Auto-completion</b> — type <code>:</code> after a prefix such as <code>cim:</code> for class and property suggestions.</li>
+            <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file.</li>
+            <li><b>Workspace symbol search</b> — press Ctrl+Alt+Shift+N (Go to Symbol) and type a term name to find any schema term.</li>
         </ul>
 
-        <b>Requires Java 21+</b> to launch the language server, and the
-        <a href="https://plugins.jetbrains.com/plugin/23257-lsp4ij">LSP4IJ</a> plugin.
+        <h3>Requirements</h3>
+        <ul>
+            <li><b>IntelliJ 2024.2 or later.</b> The plugin runs the language server on the IDE's bundled Java runtime, which is Java 21+ from 2024.2 onward.</li>
+            <li>The <a href="https://plugins.jetbrains.com/plugin/23257-lsp4ij">LSP4IJ</a> plugin (installed automatically as a required dependency).</li>
+            <li>A Java 21+ runtime. By default the plugin uses the IDE's own runtime; you can point it at a different one in settings.</li>
+        </ul>
+
+        <h3>Getting started</h3>
+        <ol>
+            <li><b>Install LSP4IJ</b> if prompted — it is a required dependency and provides the LSP client.</li>
+            <li><b>Create a configuration file</b> at <code>.cgmes/validation.json</code> in your project root. This tells CIMcheck where your RDFS profile files are:
+                <pre>{
+  "schemasDirectory": "schemas/cgmes-3.0"
+}</pre>
+                or list individual files:
+                <pre>{
+  "schemas": ["schemas/EquipmentCore.rdf", "schemas/Topology.rdf"]
+}</pre>
+                The file is watched and the schema reloads automatically whenever it changes.
+            </li>
+            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> The server starts, loads the schema in the background, and begins validating.</li>
+        </ol>
+
+        <h3>Settings</h3>
+        <p>Under <b>Settings / Preferences → Tools → CIMcheck</b>:</p>
+        <ul>
+            <li><b>Server JAR</b> — leave empty to use the JAR bundled with the plugin, or point to your own <code>cimcheck-lsp.jar</code>.</li>
+            <li><b>Java executable</b> — leave empty to use the IDE's runtime, or set a path to a Java 21+ executable.</li>
+            <li><b>JVM arguments</b> — extra arguments passed before <code>-jar</code>, e.g. <code>-Xmx512m</code>.</li>
+        </ul>
+
+        <h3>Validation configuration</h3>
+        <p>
+            <code>.cgmes/validation.json</code> also supports <code>strictness</code>
+            (<code>permissive</code> / <code>default</code> / <code>strict</code> /
+            <code>pedantic</code>), <code>namedGraphs</code> (map graph IRIs to profile
+            versions) and <code>prefixes</code> (default PREFIX declarations injected into
+            queries). See the project README for the full reference.
+        </p>
+
+        <h3>Troubleshooting</h3>
+        <ul>
+            <li><b>No syntax highlighting / file not recognised</b> — confirm the file extension is one of <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code>, <code>.shacl</code>. If a previously installed plugin already claimed <code>.ttl</code>, add the association under <b>Settings → Editor → File Types → SHACL</b>.</li>
+            <li><b>No diagnostics appearing</b> — make sure <code>.cgmes/validation.json</code> exists in the project root and that LSP4IJ is enabled. Open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMcheck's status and logs.</li>
+            <li><b>Server fails to start</b> — usually a Java version problem. Set <b>Settings → Tools → CIMcheck → Java executable</b> to a Java 21+ path.</li>
+        </ul>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

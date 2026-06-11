@@ -16,16 +16,23 @@
  */
 package de.soptim.opencgmes.cimcheck.intellij
 
-import com.intellij.openapi.fileTypes.LanguageFileType
-import com.intellij.openapi.fileTypes.PlainTextLanguage
+import com.intellij.openapi.fileTypes.FileType
 import javax.swing.Icon
 
-class ShaclFileType private constructor() : LanguageFileType(PlainTextLanguage.INSTANCE) {
+/**
+ * SHACL / Turtle file type (.ttl, .shacl).
+ *
+ * Implements [FileType] directly instead of extending LanguageFileType — see
+ * [SparqlFileType] for the rationale (binding PlainTextLanguage conflicts with the
+ * built-in PLAIN_TEXT file type and can block extension registration).
+ */
+class ShaclFileType private constructor() : FileType {
 
     override fun getName()             = "SHACL"
     override fun getDescription()      = "SHACL / Turtle"
     override fun getDefaultExtension() = "shacl"
     override fun getIcon(): Icon?      = null
+    override fun isBinary()            = false
 
     companion object {
         @JvmField
