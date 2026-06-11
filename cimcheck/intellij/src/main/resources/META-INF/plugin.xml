@@ -146,16 +146,16 @@
                 factoryClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckServerConnectionProvider"
                 lastDocumentDisconnectedTimeout="5000"/>
 
-        <!-- ── File-type → server mappings ─────────────────────────────────
-             fileTypeMapping activates by FileType.getName() (the string returned by our
-             SparqlFileType / ShaclFileType), which is available as soon as the class is
-             loaded — more reliable than languageMapping (which requires Language lookup).
+        <!-- ── Language → server mappings ──────────────────────────────────
+             languageMapping is the correct hook for LanguageFileType-backed files; LSP4IJ
+             resolves the server by Language when the file type carries one.  The languageId
+             values ("sparql", "shacl") are the LSP language identifiers sent to the server.
         -->
-        <fileTypeMapping fileType="SPARQL"
+        <languageMapping language="SPARQL"
                          serverId="cimcheck-lsp"
                          languageId="sparql"/>
 
-        <fileTypeMapping fileType="SHACL"
+        <languageMapping language="SHACL"
                          serverId="cimcheck-lsp"
                          languageId="shacl"/>
 
