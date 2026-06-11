@@ -93,12 +93,8 @@
     <extensions defaultExtensionNs="com.intellij">
 
         <!-- ── File types ────────────────────────────────────────────────── -->
-        <!--
-            Do NOT add language="…" here: IntelliJ resolves that attribute before loading
-            the class, and the lookup can silently fail.  The Language is already carried
-            by the LanguageFileType constructor and is picked up correctly at class load time.
-        -->
         <fileType name="SPARQL"
+                  language="SPARQL"
                   implementationClass="de.soptim.opencgmes.cimcheck.intellij.SparqlFileType"
                   extensions="rq;sparql"
                   fieldName="INSTANCE"/>
@@ -115,6 +111,7 @@
             Narrow this to extensions="shacl" only if Turtle support should be left to another plugin.
         -->
         <fileType name="SHACL"
+                  language="SHACL"
                   implementationClass="de.soptim.opencgmes.cimcheck.intellij.ShaclFileType"
                   extensions="ttl;shacl"
                   fieldName="INSTANCE"/>
