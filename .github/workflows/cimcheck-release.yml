@@ -215,6 +215,13 @@ jobs:
         run: gradle buildPlugin
         working-directory: cimcheck/intellij
 
+      - name: Rename JARs to include version
+        run: |
+          cp cimcheck/cli/target/cimcheck.jar \
+             "cimcheck/cli/target/cimcheck-${{ env.RELEASE_VERSION }}.jar"
+          cp cimcheck/lsp/target/cimcheck-lsp.jar \
+             "cimcheck/lsp/target/cimcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
+
       - name: Create draft GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -224,8 +231,8 @@ jobs:
             --generate-notes \
             --draft \
             "cimcheck/core/target/cimcheck-core-${{ env.RELEASE_VERSION }}.jar" \
-            cimcheck/cli/target/cimcheck.jar \
-            cimcheck/lsp/target/cimcheck-lsp.jar \
+            "cimcheck/cli/target/cimcheck-${{ env.RELEASE_VERSION }}.jar" \
+            "cimcheck/lsp/target/cimcheck-lsp-${{ env.RELEASE_VERSION }}.jar" \
             cimcheck/vscode/cimcheck-*.vsix \
             cimcheck/intellij/build/distributions/cimcheck-intellij-*.zip
 
