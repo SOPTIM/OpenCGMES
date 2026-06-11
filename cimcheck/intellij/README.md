@@ -32,7 +32,9 @@ The plugin is a thin client around the CIMcheck language server (`cimcheck-lsp`)
 
 ### 1. Install the plugin (and LSP4IJ)
 
-Install **CIMcheck** from the Marketplace. When prompted, also install **LSP4IJ** — it is required.
+Install **CIMcheck** from the Marketplace (Settings → Plugins → Marketplace). LSP4IJ is a required dependency and IntelliJ installs it automatically as part of a Marketplace install.
+
+> If you install CIMcheck from a downloaded `.zip` instead (Install Plugin from Disk), IntelliJ does **not** resolve Marketplace dependencies — install **LSP4IJ** manually first (Settings → Plugins → Marketplace → search "LSP4IJ").
 
 ### 2. Create a configuration file
 

@@ -42,7 +42,7 @@
         <h3>Requirements</h3>
         <ul>
             <li><b>IntelliJ 2024.2 or later.</b> The plugin runs the language server on the IDE's bundled Java runtime, which is Java 21+ from 2024.2 onward.</li>
-            <li>The <a href="https://plugins.jetbrains.com/plugin/23257-lsp4ij">LSP4IJ</a> plugin (installed automatically as a required dependency).</li>
+            <li>The <a href="https://plugins.jetbrains.com/plugin/23257-lsp4ij">LSP4IJ</a> plugin. When you install CIMcheck <b>from the Marketplace</b> it is pulled in automatically; if you install CIMcheck from a downloaded <code>.zip</code>, install LSP4IJ manually first (Settings → Plugins → Marketplace → search "LSP4IJ").</li>
             <li>A Java 21+ runtime. By default the plugin uses the IDE's own runtime; you can point it at a different one in settings.</li>
         </ul>
 

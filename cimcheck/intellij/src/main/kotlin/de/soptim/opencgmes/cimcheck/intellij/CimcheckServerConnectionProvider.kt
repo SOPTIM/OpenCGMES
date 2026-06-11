@@ -46,11 +46,17 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
         val cmd      = listOf(javaExe) + extra + listOf("-jar", jarPath)
         val workDir  = project.basePath
 
-        // ProcessStreamConnectionProvider is abstract in LSP4IJ 0.7+;
-        // subclass it inline and supply the command list via getCommands().
+        // ProcessStreamConnectionProvider is abstract in LSP4IJ 0.7+; subclass it inline.
+        // IMPORTANT: populate the command list with setCommands(...), NOT by overriding
+        // getCommands(). LSP4IJ's start() reads the private `commands` FIELD directly, so an
+        // overridden getter leaves the field empty and start() throws
+        // "Unable to start language server" — while toString() (which uses the getter) still
+        // prints the correct command, making the failure look inexplicable.
         return object : ProcessStreamConnectionProvider() {
-            override fun getCommands(): List<String>  = cmd
-            override fun getWorkingDirectory(): String? = workDir
+            init {
+                setCommands(cmd)
+                setWorkingDirectory(workDir)
+            }
         }
     }
 
