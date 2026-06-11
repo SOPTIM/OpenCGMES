@@ -307,9 +307,32 @@ public final class SparqlValidationApi {
         return updateProfileDeps(analyzeUpdate(updateText), new ValidationScope.ProfileListScope(profiles));
     }
 
+    /**
+     * Profiles needed by a SPARQL Update, scoped per enclosing named graph; mirrors
+     * {@link #getProfileDependencies(String, Map)} on the query side.
+     */
+    public Collection<VersionIri> getUpdateProfileDependencies(
+            String updateText, Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
+            throws InvalidQueryException {
+        return updateProfileDeps(analyzeUpdate(updateText),
+                new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
+    }
+
     // ---- getGraphDependencies --------------------------------------------------------------
 
     public Collection<Node> getGraphDependencies(String query) throws InvalidQueryException {
+        return graphDeps(analyze(query).graphs());
+    }
+
+    /**
+     * Named graphs referenced in the query. The {@code profiles} argument exists only for API
+     * symmetry with the other dependency getters — a query's graph references are syntactic
+     * ({@code FROM} / {@code FROM NAMED} / {@code GRAPH}) and are not narrowed by a profile
+     * scope, so this returns the same set as {@link #getGraphDependencies(String)}. Use
+     * {@link #getGraphDependencies(String, Map)} to restrict the result to configured graphs.
+     */
+    public Collection<Node> getGraphDependencies(String query, Collection<VersionIri> profiles)
+            throws InvalidQueryException {
         return graphDeps(analyze(query).graphs());
     }
 

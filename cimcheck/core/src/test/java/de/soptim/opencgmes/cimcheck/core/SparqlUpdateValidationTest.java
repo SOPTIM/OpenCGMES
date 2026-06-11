@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
@@ -241,6 +242,29 @@ public class SparqlUpdateValidationTest {
     public void getUpdateProfileDependencies() throws InvalidQueryException {
         Collection<VersionIri> profiles = api.getUpdateProfileDependencies(PREAMBLE
                 + "INSERT DATA { <urn:a> a cim:ACLineSegment ; cim:ACLineSegment.r \"0.1\"^^xsd:float }");
+        assertTrue(profiles.contains(VersionIri.of(PROFILE_EQ)));
+    }
+
+    @Test
+    public void getUpdateProfileDependencies_scopedToProfileList() throws InvalidQueryException {
+        String u = PREAMBLE
+                + "INSERT DATA { <urn:a> a cim:ACLineSegment ; cim:ACLineSegment.r \"0.1\"^^xsd:float }";
+        // EQ in scope → profile is reported.
+        Collection<VersionIri> inScope =
+                api.getUpdateProfileDependencies(u, List.of(VersionIri.of(PROFILE_EQ)));
+        assertTrue(inScope.contains(VersionIri.of(PROFILE_EQ)));
+        // Empty scope → nothing reported.
+        Collection<VersionIri> empty = api.getUpdateProfileDependencies(u, List.of());
+        assertTrue("no profiles in scope → empty result", empty.isEmpty());
+    }
+
+    @Test
+    public void getUpdateProfileDependencies_scopedToNamedGraphMap() throws InvalidQueryException {
+        Node graphEq = NodeFactory.createURI("urn:graph:eq");
+        Map<Node, Collection<VersionIri>> map = Map.of(graphEq, List.of(VersionIri.of(PROFILE_EQ)));
+        String u = PREAMBLE
+                + "INSERT DATA { GRAPH <urn:graph:eq> { <urn:a> a cim:ACLineSegment } }";
+        Collection<VersionIri> profiles = api.getUpdateProfileDependencies(u, map);
         assertTrue(profiles.contains(VersionIri.of(PROFILE_EQ)));
     }
 

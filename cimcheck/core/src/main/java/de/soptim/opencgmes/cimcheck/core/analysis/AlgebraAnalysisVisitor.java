@@ -87,8 +87,8 @@ public final class AlgebraAnalysisVisitor {
             NodeFactory.createURI("urn:opencgmes:path-predicate-placeholder");
 
     private final List<TriplePatternReference> triples = new ArrayList<>();
-    private final Set<ClassRefKey> seenClasses = new LinkedHashSet<>();
-    private final Set<PropertyRefKey> seenProperties = new LinkedHashSet<>();
+    private final Set<ClassReference> seenClasses = new LinkedHashSet<>();
+    private final Set<PropertyReference> seenProperties = new LinkedHashSet<>();
     private final Set<Node> seenGraphBlocks = new LinkedHashSet<>();
     private final List<PathChainReference> pathChains = new ArrayList<>();
     private final Deque<Node> graphStack = new ArrayDeque<>();
@@ -110,15 +110,11 @@ public final class AlgebraAnalysisVisitor {
     }
 
     public List<ClassReference> classes() {
-        var out = new ArrayList<ClassReference>(seenClasses.size());
-        for (var k : seenClasses) out.add(new ClassReference(k.term, k.graph));
-        return out;
+        return new ArrayList<>(seenClasses);
     }
 
     public List<PropertyReference> properties() {
-        var out = new ArrayList<PropertyReference>(seenProperties.size());
-        for (var k : seenProperties) out.add(new PropertyReference(k.term, k.graph));
-        return out;
+        return new ArrayList<>(seenProperties);
     }
 
     public boolean dynamicPredicate() {
@@ -294,12 +290,12 @@ public final class AlgebraAnalysisVisitor {
             if (RDF_TYPE.equals(p)) {
                 Node o = t.getObject();
                 if (o.isURI()) {
-                    if (!ExemptVocabulary.isExempt(o)) seenClasses.add(new ClassRefKey(o, graph));
+                    if (!ExemptVocabulary.isExempt(o)) seenClasses.add(new ClassReference(o, graph));
                 } else if (o.isVariable()) {
                     dynamicClass = true;
                 }
             } else if (!ExemptVocabulary.isExempt(p)) {
-                seenProperties.add(new PropertyRefKey(p, graph));
+                seenProperties.add(new PropertyReference(p, graph));
             }
         } else if (p.isVariable()) {
             dynamicPredicate = true;
@@ -344,13 +340,13 @@ public final class AlgebraAnalysisVisitor {
             case P_Link link -> {
                 Node n = link.getNode();
                 if (n != null && n.isURI() && !ExemptVocabulary.isExempt(n)) {
-                    seenProperties.add(new PropertyRefKey(n, graph));
+                    seenProperties.add(new PropertyReference(n, graph));
                 }
             }
             case P_ReverseLink rl -> {
                 Node n = rl.getNode();
                 if (n != null && n.isURI() && !ExemptVocabulary.isExempt(n)) {
-                    seenProperties.add(new PropertyRefKey(n, graph));
+                    seenProperties.add(new PropertyReference(n, graph));
                 }
             }
             case P_Inverse inv -> collectPathUris(inv.getSubPath(), graph);
@@ -372,7 +368,7 @@ public final class AlgebraAnalysisVisitor {
                 for (P_Path0 leaf : nps.getNodes()) {
                     Node n = leaf.getNode();
                     if (n != null && n.isURI() && !ExemptVocabulary.isExempt(n)) {
-                        seenProperties.add(new PropertyRefKey(n, graph));
+                        seenProperties.add(new PropertyReference(n, graph));
                     }
                 }
             }
@@ -419,7 +415,5 @@ public final class AlgebraAnalysisVisitor {
         return List.copyOf(copy);
     }
 
-    private record ClassRefKey(Node term, Node graph) {}
 
-    private record PropertyRefKey(Node term, Node graph) {}
 }

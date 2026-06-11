@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimcheck.core.shacl;
 
 import de.soptim.opencgmes.cimcheck.core.ExemptVocabulary;
+import de.soptim.opencgmes.cimcheck.core.IriFormat;
 import de.soptim.opencgmes.cimcheck.core.SparqlQueryValidator;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
@@ -387,7 +388,7 @@ public final class ShaclShapeAnalyzer {
         msg.append('.');
         if (!elsewhere.isEmpty()) {
             msg.append(" Exists in profile").append(elsewhere.size() == 1 ? " " : "s ");
-            appendIris(msg, elsewhere);
+            IriFormat.appendIris(msg, elsewhere);
             msg.append('.');
         }
         return new SparqlValidationAnnotation(
@@ -410,7 +411,7 @@ public final class ShaclShapeAnalyzer {
         msg.append('.');
         if (!elsewhere.isEmpty()) {
             msg.append(" Exists in profile").append(elsewhere.size() == 1 ? " " : "s ");
-            appendIris(msg, elsewhere);
+            IriFormat.appendIris(msg, elsewhere);
             msg.append('.');
         }
         return new SparqlValidationAnnotation(
@@ -429,7 +430,7 @@ public final class ShaclShapeAnalyzer {
             String actualKind, String declaredKind, Collection<VersionIri> scope) {
 
         var msg = new StringBuilder("sh:nodeKind <")
-                .append(shortIri(nodeKindNode.getURI()))
+                .append(IriFormat.shortIri(nodeKindNode.getURI()))
                 .append("> declares value must be ").append(declaredKind)
                 .append(", but rdfs:range of <").append(prop.getURI()).append("> is ")
                 .append(actualKind).append(" in ");
@@ -466,7 +467,7 @@ public final class ShaclShapeAnalyzer {
             Node prop, Node datatypeNode, Collection<VersionIri> scope) {
 
         var msg = new StringBuilder("sh:datatype <")
-                .append(shortIri(datatypeNode.getURI()))
+                .append(IriFormat.shortIri(datatypeNode.getURI()))
                 .append("> expects literal values, but rdfs:range of <")
                 .append(prop.getURI()).append("> is a class (object property) in ");
         appendScopeLabel(msg, scope);
@@ -486,7 +487,7 @@ public final class ShaclShapeAnalyzer {
             Node prop, Node classNode, Collection<VersionIri> scope) {
 
         var msg = new StringBuilder("sh:class <")
-                .append(shortIri(classNode.getURI()))
+                .append(IriFormat.shortIri(classNode.getURI()))
                 .append("> expects IRI values, but rdfs:range of <")
                 .append(prop.getURI()).append("> is a literal datatype (datatype property) in ");
         appendScopeLabel(msg, scope);
@@ -507,26 +508,8 @@ public final class ShaclShapeAnalyzer {
             msg.append("selected schema/profile scope (empty)");
         } else {
             msg.append("selected profile").append(scope.size() == 1 ? " " : "s ");
-            appendIris(msg, scope);
+            IriFormat.appendIris(msg, scope);
         }
-    }
-
-    private static void appendIris(StringBuilder msg, Collection<VersionIri> profiles) {
-        msg.append('[');
-        boolean first = true;
-        for (VersionIri v : profiles) {
-            if (!first) msg.append(", ");
-            msg.append(shortIri(v.iri()));
-            first = false;
-        }
-        msg.append(']');
-    }
-
-    private static String shortIri(String iri) {
-        int last = Math.max(iri.lastIndexOf('/'), iri.lastIndexOf('#'));
-        if (last < 0) return iri;
-        int prev = Math.max(iri.lastIndexOf('/', last - 1), iri.lastIndexOf('#', last - 1));
-        return prev >= 0 ? iri.substring(prev + 1) : iri.substring(last + 1);
     }
 
     // ---- graph helpers ---------------------------------------------------------------------

@@ -55,6 +55,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -69,7 +70,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     private static final long DEBOUNCE_MS = 300;
 
     private final SchemaManager schemaManager;
-    private volatile LanguageClient client;
+    private final AtomicReference<LanguageClient> client = new AtomicReference<>();
 
     /** Current text content for each open document URI. */
     private final Map<String, String> documents = new ConcurrentHashMap<>();
@@ -87,7 +88,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     void setClient(LanguageClient client) {
-        this.client = client;
+        this.client.set(client);
     }
 
     // ---- TextDocumentService ---------------------------------------------------------------
@@ -250,7 +251,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     private void validateSparql(String uri, String text) {
-        LanguageClient c = client;
+        LanguageClient c = client.get();
         if (c == null) return;
 
         var apiOpt = schemaManager.getApi();
@@ -282,8 +283,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
     /**
      * Converts a standalone-SPARQL annotation to an LSP diagnostic.
      *
-     * <p>Semantic errors (class/property references) go through {@link DiagnosticConverter}
-     * unchanged — their positions come from {@link SourceLocator} and are reliable.</p>
+     * <p>Semantic errors (class/property references) keep their positions unchanged — they come
+     * from {@link SourceLocator} and are reliable.</p>
      *
      * <p>For syntax errors Jena's {@code getLine()}/{@code getColumn()} is unreliable (it can
      * point to the end of the preceding successfully-parsed token). Two strategies are tried:
@@ -382,7 +383,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     private void validateShacl(String uri, String text) {
-        LanguageClient c = client;
+        LanguageClient c = client.get();
         if (c == null) return;
 
         var apiOpt = schemaManager.getApi();
@@ -676,7 +677,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     private void publishDiagnostics(String uri, List<Diagnostic> diagnostics) {
-        LanguageClient c = client;
+        LanguageClient c = client.get();
         if (c != null) c.publishDiagnostics(new PublishDiagnosticsParams(uri, diagnostics));
     }
 

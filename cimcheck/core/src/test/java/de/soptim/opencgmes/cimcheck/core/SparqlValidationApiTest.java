@@ -351,6 +351,60 @@ public class SparqlValidationApiTest {
         assertFalse("graphB is not in the map", deps.contains(graphB));
     }
 
+    @Test
+    public void scopedClassDepsFilterByNamedGraphMap() throws InvalidQueryException {
+        Node graphEq = NodeFactory.createURI("urn:graph:eq");
+        Map<Node, Collection<VersionIri>> map = Map.of(graphEq, List.of(VersionIri.of(PROFILE_EQ)));
+        // ACLineSegment is inside the EQ-mapped graph; VoltageLevel is in default-graph context
+        // → scope falls back to the union of map profiles (EQ only) → excluded.
+        String q = PREAMBLE
+                + "SELECT * WHERE { "
+                + "  GRAPH <urn:graph:eq> { ?s a cim:ACLineSegment } "
+                + "  ?v a cim:VoltageLevel "
+                + "}";
+        Collection<Node> deps = api.getClassDependencies(q, map);
+        assertTrue("EQ class inside mapped graph must be included",
+                deps.contains(NodeFactory.createURI(CLASS_AC_LINE)));
+        assertFalse("TP class not in EQ profile must be excluded",
+                deps.contains(NodeFactory.createURI(CLASS_VOLTAGE_LEVEL)));
+    }
+
+    @Test
+    public void scopedProfileDepsFilterByProfileList() throws InvalidQueryException {
+        String q = PREAMBLE + "SELECT * WHERE { ?s a cim:ACLineSegment . ?v a cim:VoltageLevel . }";
+        // Restrict to EQ: only the EQ profile should be reported even though TP terms are used.
+        Collection<VersionIri> eqOnly = api.getProfileDependencies(q, List.of(VersionIri.of(PROFILE_EQ)));
+        assertTrue(eqOnly.contains(VersionIri.of(PROFILE_EQ)));
+        assertFalse("TP profile out of scope must be excluded", eqOnly.contains(VersionIri.of(PROFILE_TP)));
+    }
+
+    @Test
+    public void scopedProfileDepsFilterByNamedGraphMap() throws InvalidQueryException {
+        Node graphEq = NodeFactory.createURI("urn:graph:eq");
+        Map<Node, Collection<VersionIri>> map = Map.of(graphEq, List.of(VersionIri.of(PROFILE_EQ)));
+        String q = PREAMBLE
+                + "SELECT * WHERE { GRAPH <urn:graph:eq> { ?s a cim:ACLineSegment } }";
+        Collection<VersionIri> profiles = api.getProfileDependencies(q, map);
+        assertTrue(profiles.contains(VersionIri.of(PROFILE_EQ)));
+        assertFalse(profiles.contains(VersionIri.of(PROFILE_TP)));
+    }
+
+    @Test
+    public void graphDepsWithProfileListReturnsAllGraphReferences() throws InvalidQueryException {
+        // The (query, Collection<VersionIri>) overload exists for API symmetry; graph references
+        // are syntactic, so the profile list does not narrow them — it returns the same set as
+        // the no-arg form.
+        String q = PREAMBLE
+                + "SELECT * WHERE { GRAPH <urn:graph:a> { ?s ?p ?o } GRAPH <urn:graph:b> { ?x ?y ?z } }";
+        Collection<Node> withProfiles =
+                api.getGraphDependencies(q, List.of(VersionIri.of(PROFILE_EQ)));
+        Collection<Node> noArg = api.getGraphDependencies(q);
+        assertTrue(withProfiles.contains(NodeFactory.createURI("urn:graph:a")));
+        assertTrue(withProfiles.contains(NodeFactory.createURI("urn:graph:b")));
+        assertEquals("profile list must not narrow syntactic graph references",
+                noArg, withProfiles);
+    }
+
     // 17. CONSTRUCT template terms are validated and tracked.
     @Test
     public void constructTemplateUnknownClassEmitsError() {

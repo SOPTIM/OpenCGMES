@@ -66,12 +66,12 @@ final class SchemaManager {
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
     private volatile Path workspaceRoot;
-    private volatile LanguageClient client;
+    private final AtomicReference<LanguageClient> client = new AtomicReference<>();
 
     // ---- API -------------------------------------------------------------------------------
 
     void setClient(LanguageClient client) {
-        this.client = client;
+        this.client.set(client);
     }
 
     /** Registers a callback invoked (on the schema-loader thread) after each successful load. */
@@ -187,7 +187,7 @@ final class SchemaManager {
     }
 
     private void notify(MessageType type, String message) {
-        LanguageClient c = client;
+        LanguageClient c = client.get();
         if (c != null) c.showMessage(new MessageParams(type, message));
     }
 }

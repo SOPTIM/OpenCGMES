@@ -115,10 +115,11 @@ public final class SparqlQueryValidator {
         String plan = QueryPlanFormatter.format(a.query(), a.algebra());
         List<TriplePatternReference> triples =
                 augmentWithTypeHints(a.triples(), subjectTypeHints);
-        List<SparqlValidationAnnotation> ann = validateReferences(
+        var refs = new AnalysisRefs(
                 a.graphs(), a.classes(), a.properties(),
-                triples, a.pathChains(), a.dynamicPredicate(), a.dynamicClass(),
-                scope, a.query().getPrefixMapping(), originalText);
+                triples, a.pathChains(), a.dynamicPredicate(), a.dynamicClass());
+        List<SparqlValidationAnnotation> ann = validateReferences(
+                refs, scope, a.query().getPrefixMapping(), originalText);
         return new SparqlValidationResult(originalText, plan, ann);
     }
 
@@ -158,10 +159,11 @@ public final class SparqlQueryValidator {
         Objects.requireNonNull(scope, "scope");
         try {
             SparqlUpdateAnalysis a = analyzer.analyzeUpdate(updateText);
-            List<SparqlValidationAnnotation> ann = validateReferences(
+            var refs = new AnalysisRefs(
                     a.graphs(), a.classes(), a.properties(),
-                    a.triples(), a.pathChains(), a.dynamicPredicate(), a.dynamicClass(),
-                    scope, a.updateRequest().getPrefixMapping(), updateText);
+                    a.triples(), a.pathChains(), a.dynamicPredicate(), a.dynamicClass());
+            List<SparqlValidationAnnotation> ann = validateReferences(
+                    refs, scope, a.updateRequest().getPrefixMapping(), updateText);
             return new SparqlValidationResult(updateText, null, ann);
         } catch (InvalidQueryException e) {
             return new SparqlValidationResult(updateText, null, List.of(syntaxAnnotation(e)));
@@ -181,19 +183,34 @@ public final class SparqlQueryValidator {
     // ---- internal validation ---------------------------------------------------------------
 
     /**
-     * Core validation logic shared by both SPARQL query and SPARQL Update paths.
+     * The analysis-derived references validated by {@link #validateReferences}. Bundles the seven
+     * collections/flags that both the SPARQL query and SPARQL Update paths feed into validation.
      */
-    private List<SparqlValidationAnnotation> validateReferences(
+    private record AnalysisRefs(
             List<GraphReference> graphs,
             List<ClassReference> classes,
             List<PropertyReference> properties,
             List<TriplePatternReference> triples,
             List<PathChainReference> pathChains,
             boolean dynamicPredicate,
-            boolean dynamicClass,
+            boolean dynamicClass) {}
+
+    /**
+     * Core validation logic shared by both SPARQL query and SPARQL Update paths.
+     */
+    private List<SparqlValidationAnnotation> validateReferences(
+            AnalysisRefs refs,
             ValidationScope scope,
             PrefixMapping prefixes,
             String original) {
+
+        List<GraphReference> graphs = refs.graphs();
+        List<ClassReference> classes = refs.classes();
+        List<PropertyReference> properties = refs.properties();
+        List<TriplePatternReference> triples = refs.triples();
+        List<PathChainReference> pathChains = refs.pathChains();
+        boolean dynamicPredicate = refs.dynamicPredicate();
+        boolean dynamicClass = refs.dynamicClass();
 
         var annotations = new ArrayList<SparqlValidationAnnotation>();
 
@@ -251,7 +268,7 @@ public final class SparqlQueryValidator {
                     elsewhereOutOfScope,
                     original,
                     prefixes,
-                    formatClassMessage(c.classNode(), c.graph(), selected, elsewhereOutOfScope)));
+                    formatMissingTermMessage("Class", c.classNode(), c.graph(), selected, elsewhereOutOfScope)));
         }
 
         // 4. Properties.
@@ -269,7 +286,7 @@ public final class SparqlQueryValidator {
                     elsewhereOutOfScope,
                     original,
                     prefixes,
-                    formatPropertyMessage(p.propertyNode(), p.graph(), selected, elsewhereOutOfScope)));
+                    formatMissingTermMessage("Property", p.propertyNode(), p.graph(), selected, elsewhereOutOfScope)));
         }
 
         // 5. Semantic checks: domain/range/datatype/path-chain.
@@ -308,29 +325,20 @@ public final class SparqlQueryValidator {
 
     // ---- message rendering -----------------------------------------------------------------
 
-    private static String formatClassMessage(
-            Node classNode, Node graph,
+    /**
+     * Formats a "&lt;term&gt; does not exist" message for a missing class or property.
+     *
+     * @param kind {@code "Class"} or {@code "Property"} — the leading noun of the message
+     */
+    private static String formatMissingTermMessage(
+            String kind, Node term, Node graph,
             Collection<VersionIri> selected, Collection<VersionIri> elsewhere) {
-        var msg = new StringBuilder("Class <").append(classNode.getURI()).append("> does not exist in ");
+        var msg = new StringBuilder(kind).append(" <").append(term.getURI()).append("> does not exist in ");
         appendScopeLabel(msg, graph, selected);
         msg.append('.');
         if (!elsewhere.isEmpty()) {
             msg.append(" Exists in profile").append(elsewhere.size() == 1 ? " " : "s ");
-            appendIris(msg, elsewhere);
-            msg.append('.');
-        }
-        return msg.toString();
-    }
-
-    private static String formatPropertyMessage(
-            Node propNode, Node graph,
-            Collection<VersionIri> selected, Collection<VersionIri> elsewhere) {
-        var msg = new StringBuilder("Property <").append(propNode.getURI()).append("> does not exist in ");
-        appendScopeLabel(msg, graph, selected);
-        msg.append('.');
-        if (!elsewhere.isEmpty()) {
-            msg.append(" Exists in profile").append(elsewhere.size() == 1 ? " " : "s ");
-            appendIris(msg, elsewhere);
+            IriFormat.appendIris(msg, elsewhere);
             msg.append('.');
         }
         return msg.toString();
@@ -346,26 +354,8 @@ public final class SparqlQueryValidator {
             msg.append("selected schema/profile scope (empty)");
         } else {
             msg.append("selected profile").append(selected.size() == 1 ? " " : "s ");
-            appendIris(msg, selected);
+            IriFormat.appendIris(msg, selected);
         }
-    }
-
-    private static void appendIris(StringBuilder msg, Collection<VersionIri> profiles) {
-        msg.append('[');
-        boolean first = true;
-        for (VersionIri v : profiles) {
-            if (!first) msg.append(", ");
-            msg.append(shortIri(v.iri()));
-            first = false;
-        }
-        msg.append(']');
-    }
-
-    private static String shortIri(String iri) {
-        int last = Math.max(iri.lastIndexOf('/'), iri.lastIndexOf('#'));
-        if (last < 0) return iri;
-        int prev = Math.max(iri.lastIndexOf('/', last - 1), iri.lastIndexOf('#', last - 1));
-        return prev >= 0 ? iri.substring(prev + 1) : iri.substring(last + 1);
     }
 
     private static SparqlValidationAnnotation buildAnnotation(
@@ -376,7 +366,7 @@ public final class SparqlQueryValidator {
             Collection<VersionIri> selected,
             Collection<VersionIri> elsewhere,
             String original,
-            org.apache.jena.shared.PrefixMapping prefixes,
+            PrefixMapping prefixes,
             String message) {
         var loc = SourceLocator.locate(original, term, prefixes);
         return new SparqlValidationAnnotation(
