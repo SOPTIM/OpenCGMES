@@ -112,8 +112,7 @@
     </dependencies>
 
     <build>
-        <!-- Produce cimcheck.jar as the primary artifact -->
-        <finalName>cimcheck</finalName>
+        <finalName>cimcheck-cli-${project.version}</finalName>
 
         <plugins>
             <plugin>

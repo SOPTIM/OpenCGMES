@@ -141,19 +141,19 @@ jobs:
       - name: Copy LSP JAR into extension
         run: |
           mkdir -p cimcheck/vscode/server
-          cp cimcheck/lsp/target/cimcheck-lsp.jar cimcheck/vscode/server/
+          cp cimcheck/lsp/target/cimcheck-lsp-*.jar cimcheck/vscode/server/cimcheck-lsp.jar
 
       - name: Build and package VS Code extension
         run: |
           npm run bundle
-          npx @vscode/vsce package
+          npx @vscode/vsce package --out "cimcheck-vscode-$(node -p "require('./package.json').version").vsix"
         working-directory: cimcheck/vscode
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cimcheck-vscode-${{ github.sha }}
-          path: cimcheck/vscode/cimcheck-*.vsix
+          path: cimcheck/vscode/cimcheck-vscode-*.vsix
           retention-days: 30
 
   # ---- IntelliJ plugin build + artifact upload ----------------------------

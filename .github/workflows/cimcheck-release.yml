@@ -203,24 +203,17 @@ jobs:
       - name: Copy LSP JAR into VS Code extension
         run: |
           mkdir -p cimcheck/vscode/server
-          cp cimcheck/lsp/target/cimcheck-lsp.jar cimcheck/vscode/server/
+          cp cimcheck/lsp/target/cimcheck-lsp-*.jar cimcheck/vscode/server/cimcheck-lsp.jar
 
       - name: Build and package VS Code extension
         run: |
           npm run bundle
-          npx @vscode/vsce package
+          npx @vscode/vsce package --out "cimcheck-vscode-${{ env.RELEASE_VERSION }}.vsix"
         working-directory: cimcheck/vscode
 
       - name: Build IntelliJ plugin
         run: gradle buildPlugin
         working-directory: cimcheck/intellij
-
-      - name: Rename JARs to include version
-        run: |
-          cp cimcheck/cli/target/cimcheck.jar \
-             "cimcheck/cli/target/cimcheck-${{ env.RELEASE_VERSION }}.jar"
-          cp cimcheck/lsp/target/cimcheck-lsp.jar \
-             "cimcheck/lsp/target/cimcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
 
       - name: Create draft GitHub Release
         env:
@@ -231,9 +224,9 @@ jobs:
             --generate-notes \
             --draft \
             "cimcheck/core/target/cimcheck-core-${{ env.RELEASE_VERSION }}.jar" \
-            "cimcheck/cli/target/cimcheck-${{ env.RELEASE_VERSION }}.jar" \
+            "cimcheck/cli/target/cimcheck-cli-${{ env.RELEASE_VERSION }}.jar" \
             "cimcheck/lsp/target/cimcheck-lsp-${{ env.RELEASE_VERSION }}.jar" \
-            cimcheck/vscode/cimcheck-*.vsix \
+            "cimcheck/vscode/cimcheck-vscode-${{ env.RELEASE_VERSION }}.vsix" \
             cimcheck/intellij/build/distributions/cimcheck-intellij-*.zip
 
   # ---- JetBrains Marketplace -----------------------------------------------

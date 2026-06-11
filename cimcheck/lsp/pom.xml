@@ -112,8 +112,7 @@
     </dependencies>
 
     <build>
-        <!-- Produce cimcheck-lsp.jar as the primary artifact -->
-        <finalName>cimcheck-lsp</finalName>
+        <finalName>cimcheck-lsp-${project.version}</finalName>
 
         <plugins>
             <plugin>

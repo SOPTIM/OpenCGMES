@@ -137,17 +137,24 @@ intellijPlatform {
 tasks {
     val copyServerJar by registering(Copy::class) {
         description = "Copies cimcheck-lsp.jar from the Maven build output into resources."
-        from("../lsp/target/cimcheck-lsp.jar")
+        from(fileTree("../lsp/target") {
+            include("cimcheck-lsp-*.jar")
+            exclude("*original*", "*sources*", "*javadoc*")
+        })
         into("src/main/resources/server")
+        rename { "cimcheck-lsp.jar" }
         onlyIf {
-            val src = file("../lsp/target/cimcheck-lsp.jar")
-            if (!src.exists()) {
+            val jars = fileTree("../lsp/target") {
+                include("cimcheck-lsp-*.jar")
+                exclude("*original*", "*sources*", "*javadoc*")
+            }.files
+            if (jars.isEmpty()) {
                 logger.warn(
-                    "[CIMcheck] ${src.absolutePath} not found — " +
+                    "[CIMcheck] No cimcheck-lsp-*.jar found in ../lsp/target — " +
                     "run 'mvn -f ../lsp/pom.xml package -DskipTests' first."
                 )
             }
-            src.exists()
+            jars.isNotEmpty()
         }
     }
 
