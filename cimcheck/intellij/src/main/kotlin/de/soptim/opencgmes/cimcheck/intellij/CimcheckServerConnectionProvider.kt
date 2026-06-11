@@ -16,7 +16,7 @@
  */
 package de.soptim.opencgmes.cimcheck.intellij
 
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
@@ -110,6 +110,7 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
     }
 
     private fun pluginVersion(): String =
-        PluginManagerCore.getPlugin(PluginId.getId("de.soptim.opencgmes.cimcheck"))
+        PluginManager.getInstance()
+            .findEnabledPlugin(PluginId.getId("de.soptim.opencgmes.cimcheck"))
             ?.version ?: "unknown"
 }

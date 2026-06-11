@@ -18,6 +18,7 @@ package de.soptim.opencgmes.cimcheck.intellij.settings
 
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -36,12 +37,13 @@ class CimcheckSettingsConfigurable : Configurable {
     override fun getDisplayName() = "CIMcheck"
 
     override fun createComponent(): JComponent {
-        serverJarField.addBrowseFolderListener(
-            "Select Server JAR",
-            "Select the cimcheck-lsp.jar file. Leave empty to use the JAR bundled with the plugin.",
-            null,
-            FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
-        )
+        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
+            .withTitle("Select Server JAR")
+            .withDescription(
+                "Select the cimcheck-lsp.jar file. " +
+                "Leave empty to use the JAR bundled with the plugin."
+            )
+        serverJarField.addBrowseFolderListener(null, TextBrowseFolderListener(descriptor))
 
         panel = FormBuilder.createFormBuilder()
             .addLabeledComponent(JBLabel("Server JAR:"),      serverJarField, 1, false)
