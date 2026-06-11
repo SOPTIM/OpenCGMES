@@ -16,15 +16,14 @@
  */
 package de.soptim.opencgmes.cimcheck.intellij
 
-import com.intellij.ide.plugins.PluginManager
 import com.intellij.openapi.application.PathManager
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.redhat.devtools.lsp4ij.LanguageServerFactory
 import com.redhat.devtools.lsp4ij.server.ProcessStreamConnectionProvider
 import de.soptim.opencgmes.cimcheck.intellij.settings.CimcheckSettings
 import java.io.File
 import java.nio.file.Files
+import java.util.Properties
 
 /**
  * Launches cimcheck-lsp.jar as a subprocess and connects to it via stdio.
@@ -119,10 +118,16 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
         return cached.absolutePath
     }
 
+    /**
+     * Plugin version, read from a build-time-generated classpath resource. This avoids
+     * the IntelliJ plugin-manager APIs (`PluginManagerCore.getPlugin`,
+     * `PluginManager.findEnabledPlugin`), which are internal and/or removed across
+     * supported IDE versions. Used only to key the extracted server-JAR cache.
+     */
     private fun pluginVersion(): String =
-        PluginManager.getInstance()
-            .findEnabledPlugin(PluginId.getId("de.soptim.opencgmes.cimcheck"))
-            ?.version ?: "unknown"
+        javaClass.classLoader.getResourceAsStream("cimcheck-plugin.properties")?.use { stream ->
+            Properties().apply { load(stream) }.getProperty("version")
+        }?.takeIf { it.isNotBlank() } ?: "unknown"
 
     companion object {
         /** The bundled language server is compiled for Java 21. */

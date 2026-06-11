@@ -16,9 +16,9 @@
  */
 package de.soptim.opencgmes.cimcheck.intellij.settings
 
+import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
-import com.intellij.openapi.ui.TextBrowseFolderListener
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
@@ -43,7 +43,15 @@ class CimcheckSettingsConfigurable : Configurable {
                 "Select the cimcheck-lsp.jar file. " +
                 "Leave empty to use the JAR bundled with the plugin."
             )
-        serverJarField.addBrowseFolderListener(null, TextBrowseFolderListener(descriptor))
+        // Wire the browse button directly via addActionListener + FileChooser.chooseFile.
+        // The addBrowseFolderListener(...) convenience overloads are all either deprecated,
+        // scheduled-for-removal, or already removed across 2024.2–2026.1; these two APIs are
+        // long-standing and stable across that range.
+        serverJarField.addActionListener {
+            FileChooser.chooseFile(descriptor, null, null)?.let { file ->
+                serverJarField.text = file.path
+            }
+        }
 
         panel = FormBuilder.createFormBuilder()
             .addLabeledComponent(JBLabel("Server JAR:"),      serverJarField, 1, false)

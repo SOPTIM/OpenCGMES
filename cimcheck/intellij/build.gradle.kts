@@ -85,6 +85,33 @@ intellijPlatform {
     // causing a non-fatal SEVERE log that fails the task.  The plugin works correctly
     // without the index; the settings page is still fully functional.
     buildSearchableOptions = false
+
+    // ── Plugin Verifier (./gradlew verifyPlugin) ─────────────────────────────
+    // Runs the IntelliJ Plugin Verifier — the same tool the JetBrains Marketplace
+    // runs on upload. Catches internal-API and scheduled-for-removal usages (which
+    // previously slipped through to the Marketplace) plus binary incompatibilities
+    // against the IDEs we claim to support.
+    pluginVerification {
+        // Verify against a curated set spanning our since-build (242) and the latest
+        // releases in range, so an API removed in a newer IDE is caught here.
+        ides {
+            recommended()
+        }
+        // Fail the build on the categories the Marketplace cares about. Plain
+        // DEPRECATED_API_USAGES is intentionally omitted: the only non-removal
+        // 2024.2 API for the file-chooser browse button is plain-deprecated, and
+        // failing on it would force a premature Kotlin-UI-DSL rewrite.
+        failureLevel = listOf(
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.NON_EXTENDABLE_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.PLUGIN_STRUCTURE_WARNINGS,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.MISSING_DEPENDENCIES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -122,5 +149,13 @@ tasks {
 
     processResources {
         dependsOn(copyServerJar)
+
+        // Bake the plugin version into cimcheck-plugin.properties so the runtime can read
+        // it from the classpath instead of querying the (internal) plugin-manager API.
+        val pluginVersionValue = providers.gradleProperty("pluginVersion").get()
+        inputs.property("pluginVersion", pluginVersionValue)
+        filesMatching("cimcheck-plugin.properties") {
+            expand("pluginVersion" to pluginVersionValue)
+        }
     }
 }
