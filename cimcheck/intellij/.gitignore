@@ -4,3 +4,7 @@ build/
 .intellijPlatform/
 # Bundled server JAR is copied by Gradle from the LSP Maven module — not committed.
 src/main/resources/server/*.jar
+
+# The repo-wide '*.jar' ignore (root .gitignore) also catches the Gradle wrapper jar,
+# which MUST be committed so './gradlew' works on a fresh clone. Re-include it.
+!gradle/wrapper/gradle-wrapper.jar
