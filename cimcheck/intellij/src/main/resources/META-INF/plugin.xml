@@ -116,6 +116,12 @@
                   extensions="ttl;shacl"
                   fieldName="INSTANCE"/>
 
+        <!-- ── Parser definitions (minimal — provides token boundaries for Ctrl+hover) -->
+        <lang.parserDefinition language="SPARQL"
+            implementationClass="de.soptim.opencgmes.cimcheck.intellij.SparqlParserDefinition"/>
+        <lang.parserDefinition language="SHACL"
+            implementationClass="de.soptim.opencgmes.cimcheck.intellij.ShaclParserDefinition"/>
+
         <!-- ── Syntax highlighting ───────────────────────────────────────── -->
         <lang.syntaxHighlighterFactory
             language="SPARQL"
