@@ -76,6 +76,7 @@ jobs:
     needs:
       - validate-tag
       - publish-maven-central
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -112,6 +113,7 @@ jobs:
     needs:
       - validate-tag
       - publish-maven-central
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       contents: write

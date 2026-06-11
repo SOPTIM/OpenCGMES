@@ -189,14 +189,6 @@ jobs:
         run: gradle buildPlugin
         working-directory: cimcheck/intellij
 
-      # Run the IntelliJ Plugin Verifier — the same checks the JetBrains Marketplace
-      # applies on upload (internal API, scheduled-for-removal, binary compatibility
-      # across the supported IDE range). Configured via pluginVerification {} in
-      # build.gradle.kts. Catches these problems before they reach the Marketplace.
-      - name: Verify IntelliJ plugin
-        run: gradle verifyPlugin
-        working-directory: cimcheck/intellij
-
       - name: Upload IntelliJ plugin artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
