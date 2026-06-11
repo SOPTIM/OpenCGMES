@@ -47,6 +47,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Setup Java 21 for GitHub Packages
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -59,15 +61,13 @@ jobs:
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
 
-      - name: Enforce snapshot version on main
+      - name: Compute and apply snapshot version
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(mvn -q -f cimxml/pom.xml help:evaluate -Dexpression=project.version -DforceStdout)"
-          if [[ "${VERSION}" != *-SNAPSHOT ]]; then
-            echo "Expected cimxml version to end with -SNAPSHOT on main, found: ${VERSION}" >&2
-            exit 1
-          fi
+          CIMXML_VERSION="$(bash scripts/compute-version.sh cimxml)"
+          echo "cimxml version: ${CIMXML_VERSION}"
+          bash scripts/set-versions.sh "${CIMXML_VERSION}"
 
       - name: Deploy snapshot to GitHub Packages
         env:

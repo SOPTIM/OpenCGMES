@@ -22,7 +22,7 @@
 
     <groupId>de.soptim.opencgmes</groupId>
     <artifactId>cimcheck-core</artifactId>
-    <version>0.2.1-SNAPSHOT</version>
+    <version>0.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>CIMcheck - Core</name>
@@ -65,7 +65,7 @@
 
         <!-- Main dependencies -->
         <ver.jena>5.5.0</ver.jena>
-        <ver.cimxml>1.0.0-SNAPSHOT</ver.cimxml>
+        <ver.cimxml>0.0.0-SNAPSHOT</ver.cimxml>
 
         <!-- Logging -->
         <ver.slf4j>2.0.17</ver.slf4j>
