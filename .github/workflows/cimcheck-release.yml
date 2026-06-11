@@ -215,13 +215,15 @@ jobs:
         run: gradle buildPlugin
         working-directory: cimcheck/intellij
 
-      - name: Create GitHub Release
+      - name: Create draft GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" \
             --title "CIMcheck ${{ env.RELEASE_VERSION }}" \
             --generate-notes \
+            --draft \
+            "cimcheck/core/target/cimcheck-core-${{ env.RELEASE_VERSION }}.jar" \
             cimcheck/cli/target/cimcheck.jar \
             cimcheck/lsp/target/cimcheck-lsp.jar \
             cimcheck/vscode/cimcheck-*.vsix \
