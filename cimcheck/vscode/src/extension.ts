@@ -137,6 +137,9 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         documentSelector: [
             { scheme: 'file', language: 'sparql' },
             { scheme: 'file', language: 'shacl' },
+            { scheme: 'file', language: 'turtle' },
+            { scheme: 'file', pattern: '**/*.ttl' },
+            { scheme: 'file', pattern: '**/*.shacl' },
             // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
             // under the vscode-notebook-cell scheme, validated per-cell by the server.
             { scheme: 'vscode-notebook-cell', language: 'sparql' },

@@ -250,6 +250,49 @@ public class CompletionTest {
     }
 
     // ============================================================================================
+    // Standard vocabulary completion (rdf/rdfs/owl/sh)
+    // ============================================================================================
+
+    private static final String SH = "@prefix sh: <http://www.w3.org/ns/shacl#> .\n";
+    private static final String RDF = "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n";
+
+    @Test
+    public void standardVocab_offersShaclPropertiesForShPrefix() {
+        String text = SH + "  sh:min";
+        int col = text.split("\n")[1].indexOf("sh:min") + "sh:min".length();
+        List<CompletionItem> items = SparqlTextDocumentService.buildCompletionItems(text, 1, col, index);
+        assertTrue("should offer sh:minCount", items.stream().anyMatch(i -> i.getLabel().equals("sh:minCount")));
+    }
+
+    @Test
+    public void standardVocab_offersClassesInClassContextOnly() {
+        String text = SH + "  a sh:Node";
+        int col = text.split("\n")[1].indexOf("sh:Node") + "sh:Node".length();
+        List<CompletionItem> items = SparqlTextDocumentService.buildCompletionItems(text, 1, col, index);
+        assertTrue("should offer sh:NodeShape (class) after 'a'",
+                items.stream().anyMatch(i -> i.getLabel().equals("sh:NodeShape")));
+        assertTrue("class context must not offer properties",
+                items.stream().noneMatch(i -> i.getKind() == CompletionItemKind.Property));
+    }
+
+    @Test
+    public void standardVocab_offersRdfType() {
+        String text = RDF + "  ?s rdf:ty";
+        int col = text.split("\n")[1].indexOf("rdf:ty") + "rdf:ty".length();
+        List<CompletionItem> items = SparqlTextDocumentService.buildCompletionItems(text, 1, col, index);
+        assertTrue("should offer rdf:type", items.stream().anyMatch(i -> i.getLabel().equals("rdf:type")));
+    }
+
+    @Test
+    public void standardVocab_notOfferedForCimPrefix() {
+        // Typing cim: must not pull in standard-vocab terms (regression guard).
+        String text = "PREFIX cim: <" + CIM + ">\nSELECT * WHERE { ?s cim: ?o }";
+        int col = text.split("\n")[1].indexOf("cim:") + 4;
+        List<CompletionItem> items = SparqlTextDocumentService.buildCompletionItems(text, 1, col, index);
+        assertTrue("cim completions only", items.stream().allMatch(i -> i.getLabel().startsWith("cim:")));
+    }
+
+    // ============================================================================================
     // Helper
     // ============================================================================================
 

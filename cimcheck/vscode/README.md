@@ -219,10 +219,10 @@ Set `cimcheck.javaExecutable` to the full path of a Java 21+ executable, e.g. `/
 **No diagnostics appearing**
 Check that the file extension is recognised (`.rq`, `.sparql`, `.ttl`, `.shacl`) and that the schema loaded successfully. The status notification "SPARQL Validation: Schema loaded successfully." confirms the schema is ready.
 
-## Known Limitations
+**No diagnostics on a SHACL/`.ttl` file (but SPARQL works)**
+This usually means another installed RDF/Turtle extension (or a `files.associations` entry) has claimed `.ttl`, so the file's language mode is **Turtle** or **Plain Text** instead of **SHACL**. Check the language indicator in the bottom-right of the status bar. CIMcheck now also matches `.ttl`/`.shacl` files by path, so it validates them regardless of language mode — but make sure you are running an up-to-date build of the extension. You can also force the mode by clicking the language indicator and selecting **SHACL**, or add `"files.associations": { "*.ttl": "shacl" }` to your settings.
 
-**Standard vocabulary terms are not validated**
-Terms from well-known standard namespaces (`rdf:`, `rdfs:`, `owl:`, `xsd:`, `sh:`, `dcat:`, `dcterms:`, `skos:`, `cims:`, `cimuml:`) are silently accepted regardless of whether the exact term is defined in those vocabularies. A typo like `rdfs:Classs` will not be flagged. This is intentional — these vocabularies are not part of CIM profile files, so the schema index has no information about them.
+## Known Limitations
 
 **Notebook endpoint schemas: diagnostics only**
 Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (`.cgmes/validation.json`), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from an endpoint is cached for the session — edit `.cgmes/validation.json` (which triggers a reload) or reload the window to re-fetch it.
