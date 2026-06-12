@@ -88,4 +88,12 @@ public class DocumentClassificationTest {
         assertEquals(Path.of("/home/u/proj"),
                 SparqlTextDocumentService.documentDir("file:///home/u/proj/query.rq"));
     }
+
+    @Test
+    public void documentDirOfWindowsNotebookCellStripsDriveSlash() {
+        // On Windows the cell URI path is "/C:/Users/u/proj/analysis.sparqlbook"; the leading
+        // slash before the drive letter must be stripped or Path.of would reject it.
+        String cellUri = "vscode-notebook-cell:/C:/Users/u/proj/analysis.sparqlbook#W0sZmlsZQ";
+        assertEquals(Path.of("C:/Users/u/proj"), SparqlTextDocumentService.documentDir(cellUri));
+    }
 }

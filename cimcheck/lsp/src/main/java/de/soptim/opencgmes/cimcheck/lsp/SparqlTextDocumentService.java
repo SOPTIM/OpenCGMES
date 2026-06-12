@@ -740,8 +740,15 @@ final class SparqlTextDocumentService implements TextDocumentService {
         try {
             int hash = uri.indexOf('#');
             String noFragment = hash >= 0 ? uri.substring(0, hash) : uri;
-            String p = URI.create(noFragment).getPath();
+            URI parsed = URI.create(noFragment);
+            if ("file".equalsIgnoreCase(parsed.getScheme())) {
+                return Path.of(parsed).getParent();
+            }
+            String p = parsed.getPath();
             if (p == null || p.isBlank()) return null;
+            if (p.length() >= 3 && p.charAt(0) == '/' && p.charAt(2) == ':') {
+                p = p.substring(1);
+            }
             return Path.of(p).getParent();
         } catch (Exception e) {
             return null;
