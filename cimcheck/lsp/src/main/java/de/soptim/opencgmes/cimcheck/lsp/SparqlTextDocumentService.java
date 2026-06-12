@@ -21,6 +21,7 @@ package de.soptim.opencgmes.cimcheck.lsp;
 import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SourceLocator;
+import de.soptim.opencgmes.cimcheck.core.StandardVocabulary;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
@@ -808,6 +809,21 @@ final class SparqlTextDocumentService implements TextDocumentService {
             for (Node prop : index.allProperties()) {
                 addIfMatching(prop, ns, pfx, localFilter, replaceRange,
                         CompletionItemKind.Property, index, allProfiles, items);
+            }
+        }
+
+        // Standard vocabulary terms (rdf/rdfs/owl/sh) when the typed prefix resolves to a closed
+        // standard namespace — e.g. sh:minCount, sh:NodeShape, owl:Class, rdf:type, rdfs:label.
+        if (StandardVocabulary.isClosedNamespaceUri(ns)) {
+            for (Node cls : StandardVocabulary.classNodes()) {
+                addIfMatching(cls, ns, pfx, localFilter, replaceRange,
+                        CompletionItemKind.Class, index, allProfiles, items);
+            }
+            if (!classCtx) {
+                for (Node prop : StandardVocabulary.propertyNodes()) {
+                    addIfMatching(prop, ns, pfx, localFilter, replaceRange,
+                            CompletionItemKind.Property, index, allProfiles, items);
+                }
             }
         }
 

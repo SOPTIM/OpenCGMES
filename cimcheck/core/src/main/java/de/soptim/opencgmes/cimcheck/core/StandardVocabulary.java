@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimcheck.core;
 
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.RDFNode;
@@ -26,6 +27,7 @@ import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdf.model.StmtIterator;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
+import org.apache.jena.vocabulary.RDF;
 
 import java.io.InputStream;
 import java.util.HashSet;
@@ -66,10 +68,54 @@ public final class StandardVocabulary {
             "/vocab/rdf.ttl", "/vocab/rdfs.ttl", "/vocab/owl.ttl", "/vocab/shacl.ttl"
     };
 
+    /** {@code rdf:type} objects that mark a subject as a class, for completion categorisation. */
+    private static final Set<String> CLASS_TYPES = Set.of(
+            "http://www.w3.org/2000/01/rdf-schema#Class",
+            "http://www.w3.org/2002/07/owl#Class");
+
+    /** {@code rdf:type} objects that mark a subject as a property, for completion categorisation. */
+    private static final Set<String> PROPERTY_TYPES = Set.of(
+            "http://www.w3.org/1999/02/22-rdf-syntax-ns#Property",
+            "http://www.w3.org/2002/07/owl#ObjectProperty",
+            "http://www.w3.org/2002/07/owl#DatatypeProperty",
+            "http://www.w3.org/2002/07/owl#AnnotationProperty",
+            "http://www.w3.org/2002/07/owl#OntologyProperty",
+            "http://www.w3.org/2002/07/owl#FunctionalProperty",
+            "http://www.w3.org/2002/07/owl#InverseFunctionalProperty",
+            "http://www.w3.org/2002/07/owl#TransitiveProperty",
+            "http://www.w3.org/2002/07/owl#SymmetricProperty",
+            "http://www.w3.org/2002/07/owl#AsymmetricProperty",
+            "http://www.w3.org/2002/07/owl#ReflexiveProperty",
+            "http://www.w3.org/2002/07/owl#IrreflexiveProperty");
+
+    /** All loaded term sets, computed once from the bundled vocabulary files. */
+    private static final Loaded LOADED = load();
+
     /** Every IRI that appears in a closed-vocabulary namespace across all bundled files. */
-    private static final Set<String> KNOWN_TERMS = loadKnownTerms();
+    private static final Set<String> KNOWN_TERMS = LOADED.terms;
+
+    /** Closed-vocabulary terms typed as classes — completion candidates in class position. */
+    private static final Set<Node> CLASS_NODES = LOADED.classes;
+
+    /** Closed-vocabulary terms typed as properties — completion candidates in predicate position. */
+    private static final Set<Node> PROPERTY_NODES = LOADED.properties;
 
     private StandardVocabulary() {}
+
+    /** @return closed-vocabulary terms declared as classes (e.g. {@code sh:NodeShape}, {@code owl:Class}). */
+    public static Set<Node> classNodes() {
+        return CLASS_NODES;
+    }
+
+    /** @return closed-vocabulary terms declared as properties (e.g. {@code sh:path}, {@code rdfs:label}). */
+    public static Set<Node> propertyNodes() {
+        return PROPERTY_NODES;
+    }
+
+    /** @return {@code true} iff {@code namespace} is exactly one of the closed standard namespaces. */
+    public static boolean isClosedNamespaceUri(String namespace) {
+        return namespace != null && CLOSED_NAMESPACES.containsKey(namespace);
+    }
 
     /**
      * Returns the closed-vocabulary namespace {@code uri} belongs to, or {@code null} if it is
@@ -104,8 +150,13 @@ public final class StandardVocabulary {
         return ns == null ? "standard" : CLOSED_NAMESPACES.get(ns);
     }
 
-    private static Set<String> loadKnownTerms() {
-        var terms = new HashSet<String>();
+    /** The three derived term sets, returned together from a single parse of the bundled files. */
+    private record Loaded(Set<String> terms, Set<Node> classes, Set<Node> properties) {}
+
+    private static Loaded load() {
+        var terms      = new HashSet<String>();
+        var classes    = new HashSet<Node>();
+        var properties = new HashSet<Node>();
         for (String resource : RESOURCES) {
             try (InputStream in = StandardVocabulary.class.getResourceAsStream(resource)) {
                 if (in == null) {
@@ -119,6 +170,7 @@ public final class StandardVocabulary {
                     collect(terms, s.getSubject());
                     collect(terms, s.getPredicate());
                     collect(terms, s.getObject());
+                    classify(classes, properties, s);
                 }
             } catch (RuntimeException e) {
                 throw e;
@@ -126,13 +178,31 @@ public final class StandardVocabulary {
                 throw new IllegalStateException("Failed to load vocabulary resource: " + resource, e);
             }
         }
-        return Set.copyOf(terms);
+        return new Loaded(Set.copyOf(terms), Set.copyOf(classes), Set.copyOf(properties));
     }
 
     private static void collect(Set<String> terms, RDFNode node) {
         if (node != null && node.isURIResource()) {
             String uri = node.asResource().getURI();
             if (closedNamespaceOf(uri) != null) terms.add(uri);
+        }
+    }
+
+    /**
+     * Categorises a closed-namespace subject as a class or property from its {@code rdf:type},
+     * for completion. Terms that are neither (e.g. the {@code sh:IRI} node-kind individual) are
+     * not added to either set, so they are simply not offered as completions.
+     */
+    private static void classify(Set<Node> classes, Set<Node> properties, Statement s) {
+        if (!RDF.type.asNode().equals(s.getPredicate().asNode())) return;
+        if (!s.getSubject().isURIResource() || !s.getObject().isURIResource()) return;
+        String subjectUri = s.getSubject().getURI();
+        if (closedNamespaceOf(subjectUri) == null) return;
+        String typeUri = s.getObject().asResource().getURI();
+        if (CLASS_TYPES.contains(typeUri)) {
+            classes.add(NodeFactory.createURI(subjectUri));
+        } else if (PROPERTY_TYPES.contains(typeUri)) {
+            properties.add(NodeFactory.createURI(subjectUri));
         }
     }
 }

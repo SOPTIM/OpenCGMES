@@ -19,7 +19,12 @@
 package de.soptim.opencgmes.cimcheck.core;
 
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimcheck.core.shacl.ShaclValidationResult;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFParser;
+import org.apache.jena.sparql.graph.GraphFactory;
 import org.junit.Test;
 
 import java.util.List;
@@ -145,7 +150,65 @@ public class StandardVocabularyTest {
         assertTrue(r.isValid());
     }
 
+    // ---- SHACL validation -----------------------------------------------------------------
+
+    private static final String SHACL_PREAMBLE =
+            "@prefix sh:   <http://www.w3.org/ns/shacl#> .\n"
+            + "@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
+            + "@prefix owl:  <http://www.w3.org/2002/07/owl#> .\n"
+            + "@prefix cim:  <" + CIM + "> .\n"
+            + "@prefix ex:   <http://example.org/> .\n";
+
+    @Test
+    public void shaclValidShapeHasNoVocabularyErrors() {
+        var r = shacl(true, SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ;\n"
+                + "  sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCount 1 ] .\n");
+        assertTrue(vocabErrors(r).isEmpty());
+    }
+
+    @Test
+    public void shaclMisspelledConstraintPredicateIsReported() {
+        // sh:minCountt is a predicate typo — the most common SHACL mistake the user reported.
+        var r = shacl(true, SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ;\n"
+                + "  sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCountt 1 ] .\n");
+        var hits = vocabErrors(r);
+        assertEquals("expected exactly one vocab error, got: " + r.shapeAnnotations(), 1, hits.size());
+        assertTrue(hits.get(0).message().contains("SHACL"));
+    }
+
+    @Test
+    public void shaclMisspelledTypeObjectIsReported() {
+        var r = shacl(true, SHACL_PREAMBLE
+                + "ex:S a sh:NodeShapee ;\n"
+                + "  sh:targetClass cim:ACLineSegment .\n");
+        assertEquals(1, vocabErrors(r).size());
+    }
+
+    @Test
+    public void shaclIgnoreModeSuppressesVocabularyErrors() {
+        var r = shacl(false, SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ;\n"
+                + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCountt 1 ] .\n");
+        assertTrue(vocabErrors(r).isEmpty());
+    }
+
     // ---- helpers --------------------------------------------------------------------------
+
+    private static ShaclValidationResult shacl(boolean check, String turtle) {
+        Graph g = GraphFactory.createDefaultGraph();
+        RDFParser.fromString(turtle, Lang.TURTLE).parse(g);
+        return api(check).validateShacl(g);
+    }
+
+    private static List<SparqlValidationAnnotation> vocabErrors(ShaclValidationResult r) {
+        return r.shapeAnnotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM)
+                .toList();
+    }
 
     private static boolean isKnown(String uri) {
         return StandardVocabulary.isKnownTerm(NodeFactory.createURI(uri));

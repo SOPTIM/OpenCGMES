@@ -70,6 +70,7 @@ public class CgmesShacl30IntegrationTest {
 
     private static final String EQ_SIMPLE_SHACL = "61970-600-2_Equipment-AP-Con-Simple-SHACL.ttl";
     private static final String EQ_COMPLEX_SHACL = "61970-301_Equipment-AP-Con-Complex-SHACL.ttl";
+    private static final String HEADER_SHACL = "61970-552-Header-AP-Con-Simple-SHACL.ttl";
 
     private SparqlValidationApi api;
 
@@ -159,6 +160,38 @@ public class CgmesShacl30IntegrationTest {
                 .toList();
         assertTrue("Embedded SPARQL in Complex Equipment SHACL must not reference unknown CIM100 classes; got: "
                 + embeddedClassErrors, embeddedClassErrors.isEmpty());
+    }
+
+    // ---- Standard-vocabulary false-positive guard ----------------------------------------
+
+    /**
+     * The official CIM-552 header profile legitimately uses non-standard {@code rdf:} names
+     * ({@code rdf:Statements}, {@code rdf:Statements.subject}) inside {@code sh:in} value lists
+     * and {@code sh:path} sequence paths. These are data-property positions, not vocabulary, so
+     * standard-vocabulary checking must produce zero {@code UNKNOWN_VOCABULARY_TERM} errors on it.
+     */
+    @Test
+    public void headerProfileShapes_noFalseVocabularyErrors() throws IOException {
+        Graph g = loadShacl(HEADER_SHACL);
+        var r = api.validateShacl(g);
+        var vocabErrors = r.shapeAnnotations().stream()
+                .filter(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM)
+                .toList();
+        assertTrue("Official header profile must not produce vocabulary errors; got: "
+                + vocabErrors, vocabErrors.isEmpty());
+    }
+
+    /** Equipment shapes use {@code rdf:type} in sh:path sequence paths — a known term, never flagged. */
+    @Test
+    public void equipmentShapes_noFalseVocabularyErrors() throws IOException {
+        for (String file : List.of(EQ_SIMPLE_SHACL, EQ_COMPLEX_SHACL)) {
+            var r = api.validateShacl(loadShacl(file));
+            var vocabErrors = r.shapeAnnotations().stream()
+                    .filter(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM)
+                    .toList();
+            assertTrue(file + " must not produce vocabulary errors; got: " + vocabErrors,
+                    vocabErrors.isEmpty());
+        }
     }
 
     // ---- helpers ---------------------------------------------------------------------------

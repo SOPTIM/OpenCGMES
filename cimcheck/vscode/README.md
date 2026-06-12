@@ -37,7 +37,7 @@ Hover over any CIM term (e.g. `cim:ACLineSegment`) to see its full IRI and the s
 
 ### Auto-completion
 
-Typing `:` after a prefix (e.g. `cim:`) triggers completion suggestions for all classes and properties in the loaded schema.
+Typing `:` after a prefix (e.g. `cim:`) triggers completion suggestions for all classes and properties in the loaded schema. Typing after a standard-vocabulary prefix (`rdf:`, `rdfs:`, `owl:`, `sh:`) suggests that vocabulary's terms (e.g. `sh:minCount`, `sh:NodeShape`, `rdf:type`), so SHACL shapes and SPARQL queries complete the same way.
 
 ### Go-to-definition
 

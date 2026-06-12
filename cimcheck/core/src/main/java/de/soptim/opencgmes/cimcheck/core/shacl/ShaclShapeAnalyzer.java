@@ -100,8 +100,43 @@ public final class ShaclShapeAnalyzer {
         checkClassReferences(shapesGraph, Shacl.TARGET_CLASS, "sh:targetClass", scope, out);
         checkClassReferences(shapesGraph, Shacl.CLASS, "sh:class", scope, out);
         checkPropertyShapes(shapesGraph, scope, out);
+        checkVocabularyTerms(shapesGraph, out);
 
         return List.copyOf(out);
+    }
+
+    /**
+     * Flags typos in closed standard vocabularies ({@code rdf}/{@code rdfs}/{@code owl}/{@code sh})
+     * used anywhere in the shapes graph as a predicate or as an {@code rdf:type} object — e.g.
+     * {@code sh:minCountt}, {@code sh:NodeShap}, {@code owl:Clas}. Each distinct unknown term is
+     * reported once. Known terms, open namespaces (xsd, dcterms, …) and CIM terms are left alone;
+     * the latter are validated by the targeted shape checks above.
+     */
+    private void checkVocabularyTerms(Graph g, List<SparqlValidationAnnotation> out) {
+        if (!checkStandardVocabulary) return;
+        var seen = new HashSet<Node>();
+        var it = g.find(Node.ANY, Node.ANY, Node.ANY);
+        try {
+            while (it.hasNext()) {
+                Triple t = it.next();
+                checkVocabularyTerm(t.getPredicate(), "Predicate", seen, out);
+                if (RDF.type.asNode().equals(t.getPredicate())) {
+                    checkVocabularyTerm(t.getObject(), "rdf:type", seen, out);
+                }
+            }
+        } finally {
+            if (it instanceof AutoCloseable c) try { c.close(); } catch (Exception ignored) {}
+        }
+    }
+
+    /** Reports {@code term} as an unknown vocabulary term if it is an unknown closed-namespace URI, once. */
+    private void checkVocabularyTerm(Node term, String context, Set<Node> seen,
+                                     List<SparqlValidationAnnotation> out) {
+        if (StandardVocabulary.isClosedNamespace(term)
+                && !StandardVocabulary.isKnownTerm(term)
+                && seen.add(term)) {
+            addVocabularyAnnotation(term, context, out);
+        }
     }
 
     // ---- Shape-structure dependency extraction (no scope / no validation) -----------------
@@ -323,10 +358,12 @@ public final class ShaclShapeAnalyzer {
             Graph g, Node path, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
         walkPath(g, path,
                 uri -> {
-                    if (ExemptVocabulary.isExempt(uri)) return;
-                    if (StandardVocabulary.isClosedNamespace(uri)) {
-                        addVocabularyAnnotation(uri, out);
-                    } else if (!schemaIndex.propertyExists(uri, scope)) {
+                    // sh:path values name data properties (CIM properties, or domain extensions such
+                    // as the CIM-552 header's rdf:Statements.subject). They are not vocabulary terms,
+                    // so closed standard namespaces are skipped here — vocabulary typos are caught by
+                    // checkVocabularyTerms in predicate / rdf:type position instead.
+                    if (ExemptVocabulary.isExempt(uri) || StandardVocabulary.isClosedNamespace(uri)) return;
+                    if (!schemaIndex.propertyExists(uri, scope)) {
                         out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
                     }
                 },
@@ -347,11 +384,8 @@ public final class ShaclShapeAnalyzer {
         var known   = new ArrayList<Node>();
         var unknown = new ArrayList<Node>();
         for (Node prop : allProps) {
-            if (ExemptVocabulary.isExempt(prop)) continue;
-            if (StandardVocabulary.isClosedNamespace(prop)) {
-                addVocabularyAnnotation(prop, out);
-                continue;
-            }
+            // See checkPathPropertyExistence: sh:path values are data properties, not vocabulary.
+            if (ExemptVocabulary.isExempt(prop) || StandardVocabulary.isClosedNamespace(prop)) continue;
             if (schemaIndex.propertyExists(prop, scope)) {
                 known.add(prop);
             } else {
@@ -423,16 +457,17 @@ public final class ShaclShapeAnalyzer {
 
     /**
      * Emits an {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM} annotation for an unknown term
-     * in a closed standard vocabulary used in an {@code sh:path}. No-op when standard-vocabulary
+     * in a closed standard vocabulary. {@code context} is a short human label for where the term
+     * was used (e.g. {@code "Shape sh:path"}, {@code "Predicate"}). No-op when standard-vocabulary
      * checking is disabled.
      */
-    private void addVocabularyAnnotation(Node term, List<SparqlValidationAnnotation> out) {
+    private void addVocabularyAnnotation(Node term, String context, List<SparqlValidationAnnotation> out) {
         if (!checkStandardVocabulary) return;
         String vocab = StandardVocabulary.vocabularyName(term.getURI());
         out.add(new SparqlValidationAnnotation(
                 SparqlValidationSeverity.ERROR,
                 null, null,
-                "Shape sh:path: <" + term.getURI() + "> is not a term in the " + vocab + " vocabulary.",
+                context + ": <" + term.getURI() + "> is not a term in the " + vocab + " vocabulary.",
                 SparqlValidationCode.UNKNOWN_VOCABULARY_TERM,
                 term,
                 List.of(),
