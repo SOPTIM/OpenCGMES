@@ -21,6 +21,7 @@ package de.soptim.opencgmes.cimcheck.core.shacl;
 import de.soptim.opencgmes.cimcheck.core.ExemptVocabulary;
 import de.soptim.opencgmes.cimcheck.core.IriFormat;
 import de.soptim.opencgmes.cimcheck.core.SparqlQueryValidator;
+import de.soptim.opencgmes.cimcheck.core.StandardVocabulary;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
@@ -73,9 +74,20 @@ public final class ShaclShapeAnalyzer {
             Shacl.ZERO_OR_ONE_PATH);
 
     private final SchemaIndex schemaIndex;
+    private final boolean checkStandardVocabulary;
 
     public ShaclShapeAnalyzer(SchemaIndex schemaIndex) {
+        this(schemaIndex, true);
+    }
+
+    /**
+     * @param checkStandardVocabulary when {@code false}, unknown terms in the closed standard
+     *        vocabularies (rdf/rdfs/owl/sh) are silently accepted instead of being reported as
+     *        {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM}.
+     */
+    public ShaclShapeAnalyzer(SchemaIndex schemaIndex, boolean checkStandardVocabulary) {
         this.schemaIndex = schemaIndex;
+        this.checkStandardVocabulary = checkStandardVocabulary;
     }
 
     /**
@@ -311,7 +323,10 @@ public final class ShaclShapeAnalyzer {
             Graph g, Node path, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
         walkPath(g, path,
                 uri -> {
-                    if (!ExemptVocabulary.isExempt(uri) && !schemaIndex.propertyExists(uri, scope)) {
+                    if (ExemptVocabulary.isExempt(uri)) return;
+                    if (StandardVocabulary.isClosedNamespace(uri)) {
+                        addVocabularyAnnotation(uri, out);
+                    } else if (!schemaIndex.propertyExists(uri, scope)) {
                         out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
                     }
                 },
@@ -333,6 +348,10 @@ public final class ShaclShapeAnalyzer {
         var unknown = new ArrayList<Node>();
         for (Node prop : allProps) {
             if (ExemptVocabulary.isExempt(prop)) continue;
+            if (StandardVocabulary.isClosedNamespace(prop)) {
+                addVocabularyAnnotation(prop, out);
+                continue;
+            }
             if (schemaIndex.propertyExists(prop, scope)) {
                 known.add(prop);
             } else {
@@ -400,6 +419,25 @@ public final class ShaclShapeAnalyzer {
                 List.copyOf(scope),
                 List.copyOf(elsewhere),
                 null);
+    }
+
+    /**
+     * Emits an {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM} annotation for an unknown term
+     * in a closed standard vocabulary used in an {@code sh:path}. No-op when standard-vocabulary
+     * checking is disabled.
+     */
+    private void addVocabularyAnnotation(Node term, List<SparqlValidationAnnotation> out) {
+        if (!checkStandardVocabulary) return;
+        String vocab = StandardVocabulary.vocabularyName(term.getURI());
+        out.add(new SparqlValidationAnnotation(
+                SparqlValidationSeverity.ERROR,
+                null, null,
+                "Shape sh:path: <" + term.getURI() + "> is not a term in the " + vocab + " vocabulary.",
+                SparqlValidationCode.UNKNOWN_VOCABULARY_TERM,
+                term,
+                List.of(),
+                List.of(),
+                null));
     }
 
     private static SparqlValidationAnnotation propertyAnnotation(

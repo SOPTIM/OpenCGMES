@@ -95,7 +95,8 @@ public enum StrictnessLevel {
      */
     private static boolean isStructural(SparqlValidationCode code) {
         return switch (code) {
-            case SYNTAX_ERROR, UNKNOWN_CLASS, UNKNOWN_PROPERTY, INVALID_CARDINALITY -> true;
+            case SYNTAX_ERROR, UNKNOWN_CLASS, UNKNOWN_PROPERTY,
+                 UNKNOWN_VOCABULARY_TERM, INVALID_CARDINALITY -> true;
             default -> false;
         };
     }

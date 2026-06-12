@@ -45,7 +45,8 @@ public record CliConfig(
         @JsonProperty("schemas")          List<String> schemas,
         @JsonProperty("namedGraphs")      Map<String, List<String>> namedGraphs,
         @JsonProperty("strictness")       String strictness,
-        @JsonProperty("prefixes")         Map<String, String> prefixes
+        @JsonProperty("prefixes")         Map<String, String> prefixes,
+        @JsonProperty("standardVocabulary") String standardVocabulary
 ) implements ValidationConfig {
     public CliConfig {
         if (schemas     == null) schemas     = List.of();

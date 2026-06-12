@@ -44,6 +44,12 @@
                 "type": "string",
                 "description": "Namespace IRI for this prefix, e.g. \"http://iec.ch/TC57/CIM100#\""
             }
+        },
+        "standardVocabulary": {
+            "type": "string",
+            "description": "Controls checking of terms in the closed standard vocabularies (rdf, rdfs, owl, sh).\n\n• check — terms are validated against the official vocabularies, so typos like rdf:typ or sh:minCountt are reported as UNKNOWN_VOCABULARY_TERM errors (default).\n• ignore — terms in these namespaces are accepted without inspection (legacy behaviour).\n\nOpen annotation/datatype namespaces (xsd, dcterms, skos, …) are always accepted regardless of this setting.",
+            "enum": ["check", "ignore"],
+            "default": "check"
         }
     },
     "anyOf": [

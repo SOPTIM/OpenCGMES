@@ -46,9 +46,25 @@ public interface ValidationConfig {
     /** Custom prefix map, or {@code null} to use built-in defaults. */
     Map<String, String> prefixes();
 
+    /**
+     * Whether terms in the closed standard vocabularies ({@code rdf}/{@code rdfs}/{@code owl}/
+     * {@code sh}) are checked for typos. One of {@code "check"} (default) or {@code "ignore"};
+     * {@code null} means the default. See {@link #checkStandardVocabulary()}.
+     */
+    String standardVocabulary();
+
     /** @return {@code true} iff {@link #namedGraphs()} is non-null and non-empty. */
     default boolean hasNamedGraphs() {
         Map<String, List<String>> ng = namedGraphs();
         return ng != null && !ng.isEmpty();
+    }
+
+    /**
+     * Resolves {@link #standardVocabulary()} to a boolean: {@code true} (check) unless explicitly
+     * set to {@code "ignore"} (case-insensitive). Unknown values fall back to checking enabled.
+     */
+    default boolean checkStandardVocabulary() {
+        String v = standardVocabulary();
+        return v == null || !v.trim().equalsIgnoreCase("ignore");
     }
 }

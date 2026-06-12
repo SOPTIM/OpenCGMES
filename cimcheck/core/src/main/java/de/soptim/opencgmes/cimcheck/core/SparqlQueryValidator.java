@@ -56,10 +56,22 @@ import java.util.Set;
 public final class SparqlQueryValidator {
 
     private final SchemaIndex schemaIndex;
+    private final boolean checkStandardVocabulary;
     private final SparqlQueryAnalyzer analyzer = new SparqlQueryAnalyzer();
 
+    /** Validator that checks closed standard-vocabulary terms (rdf/rdfs/owl/sh) for typos. */
     public SparqlQueryValidator(SchemaIndex schemaIndex) {
+        this(schemaIndex, true);
+    }
+
+    /**
+     * @param checkStandardVocabulary when {@code false}, unknown terms in the closed standard
+     *        vocabularies are silently accepted (the legacy "ignore" behaviour) instead of being
+     *        reported as {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM}.
+     */
+    public SparqlQueryValidator(SchemaIndex schemaIndex, boolean checkStandardVocabulary) {
         this.schemaIndex = Objects.requireNonNull(schemaIndex, "schemaIndex");
+        this.checkStandardVocabulary = checkStandardVocabulary;
     }
 
     public SchemaIndex schemaIndex() {
@@ -255,6 +267,10 @@ public final class SparqlQueryValidator {
 
         // 3. Classes.
         for (ClassReference c : classes) {
+            if (StandardVocabulary.isClosedNamespace(c.classNode())) {
+                addVocabularyAnnotation(annotations, c.classNode(), c.graph(), original, prefixes);
+                continue;
+            }
             Collection<VersionIri> selected = scopeProfiles(scope, c.graph());
             if (schemaIndex.classExists(c.classNode(), selected)) continue;
             List<VersionIri> elsewhere = schemaIndex.findClass(c.classNode());
@@ -273,6 +289,10 @@ public final class SparqlQueryValidator {
 
         // 4. Properties.
         for (PropertyReference p : properties) {
+            if (StandardVocabulary.isClosedNamespace(p.propertyNode())) {
+                addVocabularyAnnotation(annotations, p.propertyNode(), p.graph(), original, prefixes);
+                continue;
+            }
             Collection<VersionIri> selected = scopeProfiles(scope, p.graph());
             if (schemaIndex.propertyExists(p.propertyNode(), selected)) continue;
             List<VersionIri> elsewhere = schemaIndex.findProperty(p.propertyNode());
@@ -321,6 +341,24 @@ public final class SparqlQueryValidator {
                 yield List.copyOf(union);
             }
         };
+    }
+
+    /**
+     * Emits an {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM} annotation for an unknown term
+     * in a closed standard vocabulary (rdf/rdfs/owl/sh). No-op when standard-vocabulary checking is
+     * disabled. The term is known to be invalid here: genuine vocabulary terms are filtered out at
+     * analysis time by {@link ExemptVocabulary}, so only typos reach this point.
+     */
+    private void addVocabularyAnnotation(
+            List<SparqlValidationAnnotation> annotations, Node term, Node graph,
+            String original, PrefixMapping prefixes) {
+        if (!checkStandardVocabulary) return;
+        String vocab = StandardVocabulary.vocabularyName(term.getURI());
+        annotations.add(buildAnnotation(
+                SparqlValidationSeverity.ERROR,
+                SparqlValidationCode.UNKNOWN_VOCABULARY_TERM,
+                term, graph, List.of(), List.of(), original, prefixes,
+                "<" + term.getURI() + "> is not a term in the " + vocab + " vocabulary."));
     }
 
     // ---- message rendering -----------------------------------------------------------------

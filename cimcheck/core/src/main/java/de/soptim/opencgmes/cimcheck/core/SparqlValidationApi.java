@@ -98,8 +98,22 @@ public final class SparqlValidationApi {
      * custom map to replace the built-in defaults with workspace-specific prefixes.</p>
      */
     public SparqlValidationApi(SchemaIndex schemaIndex, Map<String, String> defaultPrefixes) {
-        this.validator = new SparqlQueryValidator(Objects.requireNonNull(schemaIndex, "schemaIndex"));
-        this.shaclAnalyzer = new ShaclShapeAnalyzer(schemaIndex);
+        this(schemaIndex, defaultPrefixes, true);
+    }
+
+    /**
+     * Constructs the API with a custom default prefix map and explicit control over
+     * standard-vocabulary checking.
+     *
+     * @param checkStandardVocabulary when {@code false}, unknown terms in the closed standard
+     *        vocabularies ({@code rdf}/{@code rdfs}/{@code owl}/{@code sh}) are silently accepted
+     *        instead of reported as {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM}.
+     */
+    public SparqlValidationApi(SchemaIndex schemaIndex, Map<String, String> defaultPrefixes,
+                               boolean checkStandardVocabulary) {
+        Objects.requireNonNull(schemaIndex, "schemaIndex");
+        this.validator = new SparqlQueryValidator(schemaIndex, checkStandardVocabulary);
+        this.shaclAnalyzer = new ShaclShapeAnalyzer(schemaIndex, checkStandardVocabulary);
         this.defaultPrefixes = Map.copyOf(Objects.requireNonNull(defaultPrefixes, "defaultPrefixes"));
     }
 

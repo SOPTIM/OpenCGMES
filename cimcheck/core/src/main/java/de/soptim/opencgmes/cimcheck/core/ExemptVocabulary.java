@@ -23,21 +23,29 @@ import org.apache.jena.graph.Node;
 import java.util.List;
 
 /**
- * Standard W3C/IETF/IEC vocabulary namespaces whose terms are never validated against the CIM
- * schema index. Terms from these namespaces are correct by definition and do not appear as
- * properties or classes in CIM profile RDFS files.
+ * Vocabulary namespaces whose terms are not validated against the CIM schema index.
  *
- * <p>Used by both the SPARQL algebra visitor and the SHACL shape analyzer to identify
- * terms that should be silently accepted without an existence check.</p>
+ * <p>Two kinds of namespace are handled here:</p>
+ * <ul>
+ *   <li><b>Open namespaces</b> ({@code xsd}, {@code dcterms}, {@code dc}, {@code skos},
+ *       {@code dcat}, and the IEC extension namespaces) are accepted wholesale: any term in
+ *       them is silently allowed. These are open-ended annotation / datatype vocabularies where
+ *       enforcing a closed term list would produce false positives.</li>
+ *   <li><b>Closed namespaces</b> ({@code rdf}, {@code rdfs}, {@code owl}, {@code sh}) are
+ *       delegated to {@link StandardVocabulary}: a term is exempt only if it is a genuine,
+ *       known term of that vocabulary. An <em>unknown</em> term in a closed namespace
+ *       (e.g. {@code rdf:typ}) is <b>not</b> exempt — it flows through to the validator, which
+ *       reports it as an unknown vocabulary term.</li>
+ * </ul>
+ *
+ * <p>Used by both the SPARQL algebra visitor and the SHACL shape analyzer to identify terms
+ * that should be accepted without a CIM existence check.</p>
  */
 public final class ExemptVocabulary {
 
+    /** Open annotation/datatype namespaces accepted wholesale, without a term-level check. */
     public static final List<String> NAMESPACES = List.of(
-            "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-            "http://www.w3.org/2000/01/rdf-schema#",
-            "http://www.w3.org/2002/07/owl#",
             "http://www.w3.org/2001/XMLSchema#",
-            "http://www.w3.org/ns/shacl#",
             "http://www.w3.org/ns/dcat#",
             "http://purl.org/dc/terms/",
             "http://purl.org/dc/elements/1.1/",
@@ -48,9 +56,14 @@ public final class ExemptVocabulary {
 
     private ExemptVocabulary() {}
 
-    /** Returns {@code true} when {@code node} is a URI in one of the exempt namespaces. */
+    /**
+     * Returns {@code true} when {@code node} should be accepted without a CIM existence check:
+     * either it is in an open namespace, or it is a known term of a closed standard vocabulary.
+     * An unknown term in a closed standard namespace returns {@code false} so it can be reported.
+     */
     public static boolean isExempt(Node node) {
         if (!node.isURI()) return false;
+        if (StandardVocabulary.isKnownTerm(node)) return true;
         String uri = node.getURI();
         for (String ns : NAMESPACES) {
             if (uri.startsWith(ns)) return true;

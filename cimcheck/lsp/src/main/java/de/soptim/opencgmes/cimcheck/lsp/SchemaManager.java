@@ -49,6 +49,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -71,6 +72,7 @@ final class SchemaManager {
     private final AtomicReference<StrictnessLevel>                  levelRef     = new AtomicReference<>(StrictnessLevel.DEFAULT);
     private final AtomicReference<DefinitionIndex>                  defRef       = new AtomicReference<>();
     private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef = new AtomicReference<>(Map.of());
+    private final AtomicBoolean checkStdVocabRef = new AtomicBoolean(true);
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
     /** Per-query timeout for fetching a schema from a remote SPARQL endpoint. */
@@ -228,7 +230,7 @@ final class SchemaManager {
     /** Builds a {@link ResolvedSchema} from an index, using default prefixes and full-profile scope. */
     private ResolvedSchema buildSchema(RdfsSchemaIndex index) {
         var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
-        var api      = new SparqlValidationApi(index, prefixes);
+        var api      = new SparqlValidationApi(index, prefixes, checkStdVocabRef.get());
         return new ResolvedSchema(api, levelRef.get(), Map.of());
     }
 
@@ -271,7 +273,8 @@ final class SchemaManager {
             var effectivePrefixes = config.prefixes() != null
                     ? config.prefixes()
                     : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, loaded.index());
-            apiRef.set(new SparqlValidationApi(loaded.index(), effectivePrefixes));
+            checkStdVocabRef.set(config.checkStandardVocabulary());
+            apiRef.set(new SparqlValidationApi(loaded.index(), effectivePrefixes, config.checkStandardVocabulary()));
             levelRef.set(parseLevel(config));
             defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));
             namedGraphRef.set(SparqlValidationApi.buildNamedGraphScope(

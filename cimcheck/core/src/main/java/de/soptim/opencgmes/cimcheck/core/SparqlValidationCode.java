@@ -26,6 +26,9 @@ public enum SparqlValidationCode {
     UNKNOWN_CLASS,
     /** Property IRI was not found in the selected schema scope. */
     UNKNOWN_PROPERTY,
+    /** Term in a closed standard vocabulary ({@code rdf}/{@code rdfs}/{@code owl}/{@code sh})
+     *  that the vocabulary does not define — almost always a typo (e.g. {@code rdf:typ}). */
+    UNKNOWN_VOCABULARY_TERM,
     /** A named graph is used by the query but no profiles were configured for it. */
     GRAPH_NOT_CONFIGURED,
     /** A variable predicate / class is used and cannot be validated statically. */

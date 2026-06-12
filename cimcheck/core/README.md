@@ -335,7 +335,7 @@ Set `"strictness"` in `.cgmes/validation.json` to control how the validator repo
 
 | Level | Behaviour |
 | --- | --- |
-| `permissive` | Structural errors only (`SYNTAX_ERROR`, `UNKNOWN_CLASS`, `UNKNOWN_PROPERTY`, `INVALID_CARDINALITY`) |
+| `permissive` | Structural errors only (`SYNTAX_ERROR`, `UNKNOWN_CLASS`, `UNKNOWN_PROPERTY`, `UNKNOWN_VOCABULARY_TERM`, `INVALID_CARDINALITY`) |
 | `default` | All findings as-is (errors are errors, warnings are warnings) |
 | `strict` | Warnings promoted to errors — suitable for CI |
 | `pedantic` | Warnings and infos promoted to errors |
@@ -344,6 +344,24 @@ Set `"strictness"` in `.cgmes/validation.json` to control how the validator repo
 {
   "schemasDirectory": ".cgmes/schemas",
   "strictness": "strict"
+}
+```
+
+### Standard-vocabulary checking
+
+Terms in the closed standard vocabularies (`rdf:`, `rdfs:`, `owl:`, `sh:`) are validated
+against the official W3C vocabularies, so typos such as `rdf:typ` or `sh:minCountt` are
+reported as `UNKNOWN_VOCABULARY_TERM` errors. Open annotation/datatype namespaces (`xsd:`,
+`dcterms:`, `dc:`, `skos:`, `dcat:`, and the IEC extension namespaces) are always accepted
+without inspection.
+
+Set `"standardVocabulary": "ignore"` to turn the checking off and accept these namespaces
+wholesale (the legacy behaviour):
+
+```json
+{
+  "schemasDirectory": ".cgmes/schemas",
+  "standardVocabulary": "ignore"
 }
 ```
 

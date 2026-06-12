@@ -187,6 +187,18 @@ empty object `{}` to disable all automatic prefix injection.
 
 Prefixes already declared inside the query file are never overwritten.
 
+### `standardVocabulary`
+
+Controls checking of terms in the closed standard vocabularies (`rdf`, `rdfs`, `owl`, `sh`):
+
+| Value | Behaviour |
+|-------|-----------|
+| `check` (default) | Terms are validated against the official W3C vocabularies. Typos such as `rdf:typ` or `sh:minCountt` are reported as `UNKNOWN_VOCABULARY_TERM` errors. |
+| `ignore` | Terms in these namespaces are accepted without inspection (legacy behaviour). |
+
+Open annotation/datatype namespaces (`xsd`, `dcterms`, `dc`, `skos`, `dcat`, and the IEC
+extension namespaces) are always accepted regardless of this setting.
+
 ## Commands
 
 | Command | Description |
