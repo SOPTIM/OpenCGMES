@@ -275,12 +275,18 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String endpoint = EndpointDirective.parse(text).orElse(null);
         var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (schemaOpt.isEmpty()) {
-            var range = new Range(new Position(0, 0), new Position(0, 1));
-            String msg = endpoint != null
-                    ? "Schema endpoint '" + endpoint + "' could not be loaded — see CIMcheck output."
-                    : "No schema loaded. Add .cgmes/validation.json to enable validation.";
-            var hint = new Diagnostic(range, msg, DiagnosticSeverity.Information, "cimcheck");
-            publishDiagnostics(uri, List.of(hint));
+            // With an endpoint directive the schema may still be loading (async) or have failed;
+            // status is reported via notifications, so just clear diagnostics here. Without one,
+            // hint that a workspace config is needed.
+            if (endpoint != null) {
+                publishDiagnostics(uri, List.of());
+            } else {
+                var range = new Range(new Position(0, 0), new Position(0, 1));
+                var hint = new Diagnostic(range,
+                        "No schema loaded. Add .cgmes/validation.json to enable validation.",
+                        DiagnosticSeverity.Information, "cimcheck");
+                publishDiagnostics(uri, List.of(hint));
+            }
             return;
         }
 

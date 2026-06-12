@@ -59,10 +59,10 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 ```
 
 - **Local file endpoint** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for that cell. Relative paths resolve against the notebook's own directory.
-- **Remote SPARQL endpoint** (`https://…`) — recognised, but loading the schema from a live endpoint is not yet available (planned).
+- **Remote SPARQL endpoint** (`https://…`) — CIMcheck loads the schema from the endpoint itself. It enumerates the named graphs that hold the CGMES profiles and reads them into the schema index. The schema is fetched in the background; diagnostics appear once it has loaded.
 - **No directive** — the cell falls back to the workspace schema from `.cgmes/validation.json`, exactly like a `.rq` file.
 
-The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded); CIMcheck validates against that schema and never queries live instance data.
+The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded **in per-profile named graphs**); CIMcheck validates against that schema and never queries live instance data.
 
 ## Requirements
 
@@ -213,7 +213,10 @@ Check that the file extension is recognised (`.rq`, `.sparql`, `.ttl`, `.shacl`)
 Terms from well-known standard namespaces (`rdf:`, `rdfs:`, `owl:`, `xsd:`, `sh:`, `dcat:`, `dcterms:`, `skos:`, `cims:`, `cimuml:`) are silently accepted regardless of whether the exact term is defined in those vocabularies. A typo like `rdfs:Classs` will not be flagged. This is intentional — these vocabularies are not part of CIM profile files, so the schema index has no information about them.
 
 **Notebook endpoint schemas: diagnostics only**
-Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (`.cgmes/validation.json`), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from a local-file endpoint is cached for the session — edit the config file or reload the window to pick up changes to the endpoint file itself.
+Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (`.cgmes/validation.json`), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from an endpoint is cached for the session — edit `.cgmes/validation.json` (which triggers a reload) or reload the window to re-fetch it.
+
+**Remote endpoint schema layout**
+Loading a schema from a remote SPARQL endpoint assumes the CGMES profiles are stored in **per-profile named graphs** (graphs that declare `rdfs:Class`/`owl:Ontology`); instance-data graphs are skipped. Endpoints that store the whole schema in the default graph, or mixed with instance data in one graph, are not supported.
 
 ## License
 

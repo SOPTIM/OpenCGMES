@@ -23,9 +23,12 @@ import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
+import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimcheck.lsp.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
+import de.soptim.opencgmes.cimcheck.lsp.schema.EndpointGraphFetcher;
 import de.soptim.opencgmes.cimcheck.lsp.schema.SchemaLoader;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.MessageType;
@@ -35,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -69,10 +73,15 @@ final class SchemaManager {
     private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef = new AtomicReference<>(Map.of());
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
+    /** Per-query timeout for fetching a schema from a remote SPARQL endpoint. */
+    private static final Duration REMOTE_TIMEOUT = Duration.ofSeconds(30);
+
     /** Schemas loaded from a {@code # [endpoint=...]} directive, keyed by resolved source. */
     private final Map<String, ResolvedSchema> endpointCache = new ConcurrentHashMap<>();
-    /** Endpoint sources already reported as failing, to avoid repeating the same notification. */
-    private final Set<String> warnedEndpoints = ConcurrentHashMap.newKeySet();
+    /** Endpoint sources whose load failed — negative cache to avoid re-fetching every keystroke. */
+    private final Set<String> failedEndpoints = ConcurrentHashMap.newKeySet();
+    /** Remote endpoints whose async load is in progress, so keystrokes don't resubmit it. */
+    private final Set<String> inFlightEndpoints = ConcurrentHashMap.newKeySet();
 
     private volatile Path workspaceRoot;
     private final AtomicReference<LanguageClient> client = new AtomicReference<>();
@@ -143,15 +152,9 @@ final class SchemaManager {
                     ? Optional.empty()
                     : Optional.of(new ResolvedSchema(api, levelRef.get(), namedGraphRef.get()));
         }
-        boolean remote = isRemote(endpoint);
-        String cacheKey = remote ? endpoint : resolveLocalEndpoint(endpoint, docDir).toString();
-        ResolvedSchema cached = endpointCache.get(cacheKey);
-        if (cached != null) return Optional.of(cached);
-        Optional<ResolvedSchema> loaded = remote
-                ? loadRemoteEndpoint(endpoint)
-                : loadLocalEndpoint(resolveLocalEndpoint(endpoint, docDir));
-        loaded.ifPresent(rs -> endpointCache.put(cacheKey, rs));
-        return loaded;
+        return isRemote(endpoint)
+                ? resolveRemote(endpoint)
+                : resolveLocal(resolveLocalEndpoint(endpoint, docDir));
     }
 
     private static boolean isRemote(String endpoint) {
@@ -165,36 +168,73 @@ final class SchemaManager {
         return base != null ? base.resolve(endpoint).normalize() : p.normalize();
     }
 
-    private Optional<ResolvedSchema> loadRemoteEndpoint(String endpoint) {
-        if (warnedEndpoints.add(endpoint)) {
-            notify(MessageType.Warning,
-                    "CIMcheck: Loading a schema from a remote SPARQL endpoint is not yet supported: "
-                    + endpoint);
+    /** Loads a schema from a local file synchronously (fast); caches success and failure. */
+    private Optional<ResolvedSchema> resolveLocal(Path file) {
+        String key = file.toString();
+        ResolvedSchema cached = endpointCache.get(key);
+        if (cached != null) return Optional.of(cached);
+        if (failedEndpoints.contains(key)) return Optional.empty();
+        try {
+            if (!Files.isRegularFile(file)) {
+                fail(key, MessageType.Warning, "CIMcheck: endpoint schema file not found: " + file);
+                return Optional.empty();
+            }
+            var index    = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndex();
+            ResolvedSchema schema = buildSchema(index);
+            endpointCache.put(key, schema);
+            LOG.info("Loaded endpoint schema from file {}", file);
+            return Optional.of(schema);
+        } catch (Exception e) {
+            fail(key, MessageType.Error,
+                    "CIMcheck: failed to load schema from " + file + " — " + e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Resolves a schema hosted on a remote SPARQL endpoint. The fetch (one enumeration query plus
+     * a CONSTRUCT per profile graph) runs on the background loader thread so the validator thread
+     * never blocks; open documents are revalidated once the schema lands. Returns empty until then.
+     */
+    private Optional<ResolvedSchema> resolveRemote(String endpoint) {
+        ResolvedSchema cached = endpointCache.get(endpoint);
+        if (cached != null) return Optional.of(cached);
+        if (failedEndpoints.contains(endpoint)) return Optional.empty();
+        if (inFlightEndpoints.add(endpoint)) {
+            notify(MessageType.Info, "CIMcheck: loading schema from endpoint " + endpoint + " …");
+            executor.submit(() -> loadRemoteEndpoint(endpoint));
         }
         return Optional.empty();
     }
 
-    private Optional<ResolvedSchema> loadLocalEndpoint(Path file) {
+    private void loadRemoteEndpoint(String endpoint) {
         try {
-            if (!Files.isRegularFile(file)) {
-                if (warnedEndpoints.add(file.toString())) {
-                    notify(MessageType.Warning, "CIMcheck: endpoint schema file not found: " + file);
-                }
-                return Optional.empty();
-            }
-            var index    = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndex();
-            var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
-            var api      = new SparqlValidationApi(index, prefixes);
-            LOG.info("Loaded endpoint schema from file {}", file);
-            return Optional.of(new ResolvedSchema(api, levelRef.get(), Map.of()));
+            List<Graph> graphs = EndpointGraphFetcher.fetchProfileGraphs(endpoint, REMOTE_TIMEOUT);
+            ResolvedSchema schema = buildSchema(CgmesSchemaLoader.indexFromGraphs(graphs));
+            endpointCache.put(endpoint, schema);
+            LOG.info("Loaded schema from endpoint {}", endpoint);
+            notify(MessageType.Info, "CIMcheck: schema loaded from endpoint " + endpoint + ".");
+            fireOnLoaded();  // revalidate open documents so the cell gets its diagnostics
         } catch (Exception e) {
-            LOG.error("Failed to load endpoint schema {}: {}", file, e.getMessage(), e);
-            if (warnedEndpoints.add(file.toString())) {
-                notify(MessageType.Error,
-                        "CIMcheck: failed to load schema from " + file + " — " + e.getMessage());
-            }
-            return Optional.empty();
+            LOG.error("Failed to load schema from endpoint {}: {}", endpoint, e.getMessage(), e);
+            failedEndpoints.add(endpoint);
+            notify(MessageType.Error,
+                    "CIMcheck: failed to load schema from endpoint " + endpoint + " — " + e.getMessage());
+        } finally {
+            inFlightEndpoints.remove(endpoint);
         }
+    }
+
+    /** Builds a {@link ResolvedSchema} from an index, using default prefixes and full-profile scope. */
+    private ResolvedSchema buildSchema(RdfsSchemaIndex index) {
+        var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
+        var api      = new SparqlValidationApi(index, prefixes);
+        return new ResolvedSchema(api, levelRef.get(), Map.of());
+    }
+
+    /** Records an endpoint as failed (negative cache) and notifies once. */
+    private void fail(String key, MessageType type, String message) {
+        if (failedEndpoints.add(key)) notify(type, message);
     }
 
     void shutdown() {
@@ -213,7 +253,7 @@ final class SchemaManager {
         // Endpoint schemas are cached for the session; drop them on reload so a strictness
         // change in the config propagates and any transient load failures get retried.
         endpointCache.clear();
-        warnedEndpoints.clear();
+        failedEndpoints.clear();
         try {
             var discovered = ConfigLoader.discover(root);
             if (discovered.isEmpty()) {
@@ -246,19 +286,24 @@ final class SchemaManager {
             } else {
                 notify(MessageType.Info, "SPARQL Validation: Schema loaded successfully.");
             }
-            for (Runnable cb : onLoadedCallbacks) {
-                try {
-                    cb.run();
-                } catch (Exception cbEx) {
-                    LOG.error("On-loaded callback failed: {}", cbEx.getMessage(), cbEx);
-                }
-            }
+            fireOnLoaded();
         } catch (Exception e) {
             LOG.error("Failed to load schema: {}", e.getMessage(), e);
             notify(MessageType.Error, "SPARQL Validation: Schema load failed — " + e.getMessage());
             apiRef.set(null);
             defRef.set(null);
             namedGraphRef.set(Map.of());
+        }
+    }
+
+    /** Runs every registered on-loaded callback (typically: revalidate all open documents). */
+    private void fireOnLoaded() {
+        for (Runnable cb : onLoadedCallbacks) {
+            try {
+                cb.run();
+            } catch (Exception cbEx) {
+                LOG.error("On-loaded callback failed: {}", cbEx.getMessage(), cbEx);
+            }
         }
     }
 

@@ -22,7 +22,9 @@ import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Triple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,6 +153,89 @@ public final class CgmesSchemaLoader {
      */
     public SparqlValidationApi load() throws SchemaLoadException {
         return new SparqlValidationApi(loadIndex());
+    }
+
+    // ---- Loading from in-memory graphs -----------------------------------------------------
+
+    /** The CIM schema namespaces this loader recognises (see {@code CimVersion.fromCimNamespace}). */
+    private static final List<String> CIM_NAMESPACES = List.of(
+            "http://iec.ch/TC57/2013/CIM-schema-cim16#",  // CIM 16 / CGMES 2.4
+            "http://iec.ch/TC57/CIM100#",                 // CIM 17 / CGMES 3.0
+            "https://cim.ucaiug.io/ns#");                 // CIM 18
+
+    /**
+     * Builds an {@link RdfsSchemaIndex} from in-memory profile graphs, e.g. one graph per
+     * named graph fetched from a SPARQL endpoint where the CGMES schema is hosted.
+     *
+     * <p>Each graph is wrapped as a {@link CimProfile} and registered. Graphs that are not CIM
+     * profiles (instance data, unrelated vocabularies) and duplicate profiles are skipped — the
+     * load only fails if no profile can be registered at all.</p>
+     *
+     * <p>Profile identification keys off the {@code cim} namespace prefix, which a graph fetched
+     * over SPARQL frequently lacks. This method therefore re-asserts the {@code cim} prefix by
+     * detecting a known CIM namespace among the graph's IRIs before wrapping.</p>
+     *
+     * @throws SchemaLoadException if no CIM profile could be registered from any graph
+     */
+    public static RdfsSchemaIndex indexFromGraphs(Iterable<Graph> graphs) throws SchemaLoadException {
+        var registry = new CimProfileRegistryStd();
+        int total = 0;
+        int skipped = 0;
+        for (Graph graph : graphs) {
+            total++;
+            try {
+                ensureCimPrefix(graph);
+                CimProfile profile = CimProfile.wrap(graph);
+                try {
+                    registry.register(profile);
+                } catch (IllegalArgumentException dup) {
+                    LOG.debug("Skipping duplicate profile graph: {}", dup.getMessage());
+                }
+            } catch (Exception e) {
+                skipped++;
+                LOG.debug("Graph is not a CIM profile, skipping: {}", e.getMessage());
+            }
+        }
+        if (registry.getRegisteredProfiles().isEmpty()) {
+            throw new SchemaLoadException(
+                    "No CIM profiles could be loaded from the supplied graphs ("
+                    + total + " graph(s) examined).");
+        }
+        LOG.info("Loaded {} profile(s) from {} graph(s) ({} non-profile graph(s) skipped).",
+                registry.getRegisteredProfiles().size(), total, skipped);
+        return RdfsSchemaIndex.fromCimRegistry(registry);
+    }
+
+    /**
+     * Ensures the graph carries a {@code cim} namespace prefix, which
+     * {@code CimProfile.wrap} relies on to detect the CIM version. A no-op when the prefix is
+     * already present (e.g. graphs parsed from RDF/XML files).
+     */
+    private static void ensureCimPrefix(Graph graph) {
+        if (graph.getPrefixMapping().getNsPrefixURI("cim") != null) return;
+        String ns = detectCimNamespace(graph);
+        if (ns != null) graph.getPrefixMapping().setNsPrefix("cim", ns);
+    }
+
+    /** Returns the first known CIM namespace found among the graph's IRIs, or {@code null}. */
+    private static String detectCimNamespace(Graph graph) {
+        var it = graph.find();
+        try {
+            while (it.hasNext()) {
+                Triple t = it.next();
+                for (Node n : new Node[]{t.getSubject(), t.getPredicate(), t.getObject()}) {
+                    if (n.isURI()) {
+                        String uri = n.getURI();
+                        for (String ns : CIM_NAMESPACES) {
+                            if (uri.startsWith(ns)) return ns;
+                        }
+                    }
+                }
+            }
+        } finally {
+            it.close();
+        }
+        return null;
     }
 
     // ---- Private ---------------------------------------------------------------------------
