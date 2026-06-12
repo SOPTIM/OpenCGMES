@@ -71,16 +71,42 @@ public final class EndpointGraphFetcher {
      * @return one graph per schema named graph; empty graphs are omitted
      */
     public static List<Graph> fetchProfileGraphs(String endpoint, Duration timeout) {
-        List<String> graphNames = listSchemaGraphs(endpoint, timeout);
-        LOG.info("Endpoint {} exposes {} schema graph(s)", endpoint, graphNames.size());
+        String queryEndpoint = toQueryEndpoint(endpoint);
+        if (!queryEndpoint.equals(endpoint)) {
+            LOG.info("Endpoint {} is an update endpoint; reading schema from {}", endpoint, queryEndpoint);
+        }
+        List<String> graphNames = listSchemaGraphs(queryEndpoint, timeout);
+        LOG.info("Endpoint {} exposes {} schema graph(s)", queryEndpoint, graphNames.size());
         List<Graph> graphs = new ArrayList<>(graphNames.size());
         for (String name : graphNames) {
-            Model model = constructGraph(endpoint, name, timeout);
+            Model model = constructGraph(queryEndpoint, name, timeout);
             if (!model.isEmpty()) {
                 graphs.add(model.getGraph());
             }
         }
         return graphs;
+    }
+
+    /**
+     * Normalizes a SPARQL endpoint URL to one that accepts read queries. Schema enumeration issues
+     * {@code SELECT}/{@code CONSTRUCT} queries, but a Fuseki <b>update</b> endpoint
+     * ({@code .../dataset/update}) only accepts {@code POST} updates and answers a query with
+     * {@code 405 Method Not Allowed}. By Fuseki convention the sibling query endpoint is
+     * {@code .../dataset/query}, so a trailing {@code /update} segment is rewritten to {@code /query}.
+     * All other endpoints are returned unchanged.
+     */
+    static String toQueryEndpoint(String endpoint) {
+        if (endpoint == null) {
+            return null;
+        }
+        String trimmed = endpoint;
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        if (trimmed.endsWith("/update")) {
+            return trimmed.substring(0, trimmed.length() - "/update".length()) + "/query";
+        }
+        return endpoint;
     }
 
     private static List<String> listSchemaGraphs(String endpoint, Duration timeout) {
