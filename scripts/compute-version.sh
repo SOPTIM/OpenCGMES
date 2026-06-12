@@ -23,7 +23,7 @@ if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
     fi
 fi
 
-LAST_TAG="$(git tag --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
+LAST_TAG="$(git tag --merged HEAD --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
 if [[ -z "${LAST_TAG}" ]]; then
     echo "0.0.0-SNAPSHOT"
     exit 0
