@@ -140,6 +140,16 @@
 
     </extensions>
 
+    <actions>
+        <!-- ── Explain Query (static algebra plan) ───────────────────────── -->
+        <action id="de.soptim.opencgmes.cimcheck.explainQuery"
+                class="de.soptim.opencgmes.cimcheck.intellij.ExplainQueryAction"
+                text="Explain Query (Algebra Plan)"
+                description="Show the static SPARQL algebra plan for the current query, like arq --explain.">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+
     <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
 
         <!-- ── Language server registration ─────────────────────────────── -->

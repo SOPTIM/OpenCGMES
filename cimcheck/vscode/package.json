@@ -71,8 +71,28 @@
                 "command": "cimcheck.showOutput",
                 "title": "Show Output",
                 "category": "CIMcheck"
+            },
+            {
+                "command": "cimcheck.explainQuery",
+                "title": "Explain Query (Algebra Plan)",
+                "category": "CIMcheck"
             }
         ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "cimcheck.explainQuery",
+                    "when": "editorLangId == sparql",
+                    "group": "cimcheck@1"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "cimcheck.explainQuery",
+                    "when": "editorLangId == sparql"
+                }
+            ]
+        },
         "configurationDefaults": {
             "[sparql]": {
                 "editor.quickSuggestions": {

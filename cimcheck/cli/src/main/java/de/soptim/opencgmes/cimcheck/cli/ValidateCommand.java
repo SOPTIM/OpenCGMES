@@ -80,7 +80,8 @@ import java.util.stream.Collectors;
         },
         mixinStandardHelpOptions = true,
         version     = "1.0.0",
-        sortOptions = false
+        sortOptions = false,
+        subcommands = { ExplainCommand.class }
 )
 public class ValidateCommand implements Callable<Integer> {
 
@@ -88,10 +89,10 @@ public class ValidateCommand implements Callable<Integer> {
 
     @Parameters(
             paramLabel = "<file>",
-            arity      = "1..*",
+            arity      = "0..*",
             description = "SPARQL query file(s) to validate. Use '-' to read from stdin."
     )
-    private List<String> inputs;
+    private List<String> inputs = List.of();
 
     // ---- Schema options ---------------------------------------------------------------------
 
@@ -149,6 +150,15 @@ public class ValidateCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        // With the 'explain' subcommand present, the positional <file> args are optional so that
+        // 'cimcheck explain ...' parses. When this (validate) command runs with no files, there is
+        // nothing to do — show usage rather than silently succeeding.
+        if (inputs.isEmpty()) {
+            System.err.println("Error: no input file(s) given. Pass SPARQL file(s) to validate, "
+                    + "or use the 'explain' subcommand. See --help.");
+            return ExitCode.USAGE;
+        }
+
         Format format;
         try {
             format = Format.parse(formatName);

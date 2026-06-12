@@ -50,6 +50,17 @@ public final class QueryPlanFormatter {
         return format(query, Algebra.compile(query));
     }
 
+    /**
+     * Compile the query, run Jena's static optimizer over the algebra and format the result.
+     *
+     * <p>The optimized form is what makes a plan instructive: it shows filter placement
+     * ({@code (filter ...)} pushed down into the relevant sub-op) and BGP/join reordering, mirroring
+     * what {@code arq.qparse --print=opt} prints.</p>
+     */
+    public static String formatOptimized(Query query) {
+        return format(query, Algebra.optimize(Algebra.compile(query)));
+    }
+
     /** Round-trip an Op back to a SPARQL string — handy for debugging. */
     public static String toSparql(Op op) {
         Query q = OpAsQuery.asQuery(op);

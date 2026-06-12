@@ -18,6 +18,10 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
+import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
+import de.soptim.opencgmes.cimcheck.core.explain.QueryExplanation;
 import org.eclipse.lsp4j.*;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.WorkspaceService;
@@ -38,6 +42,9 @@ import java.util.concurrent.CompletableFuture;
 final class SparqlWorkspaceService implements WorkspaceService {
 
     private static final Logger LOG = LoggerFactory.getLogger(SparqlWorkspaceService.class);
+
+    /** Command id for the static query-explain action (see {@link #executeCommand}). */
+    static final String CMD_EXPLAIN_QUERY = "cimcheck.explainQuery";
 
     private final SchemaManager schemaManager;
 
@@ -64,6 +71,44 @@ final class SparqlWorkspaceService implements WorkspaceService {
             LOG.error("Symbol search error: {}", e.getMessage(), e);
             return CompletableFuture.completedFuture(Either.forRight(List.of()));
         }
+    }
+
+    @Override
+    public CompletableFuture<Object> executeCommand(ExecuteCommandParams params) {
+        if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
+            LOG.warn("Unknown command: {}", params.getCommand());
+            return CompletableFuture.completedFuture(null);
+        }
+        try {
+            String queryText = firstStringArg(params.getArguments());
+            if (queryText == null || queryText.isBlank()) {
+                return CompletableFuture.completedFuture("# Query\n(no query text provided)\n");
+            }
+            // The algebra plan does not depend on the schema, only on prefix injection. Use the
+            // schema-aware API (with its detected cim: prefix) when it is loaded, otherwise fall back
+            // to the built-in prefixes so explain still works while the schema is loading.
+            QueryExplanation explanation = schemaManager.getApi()
+                    .map(api -> api.explain(queryText))
+                    .orElseGet(() -> SparqlValidationApi.explainStatic(queryText));
+            return CompletableFuture.completedFuture(explanation.render());
+        } catch (Exception e) {
+            LOG.error("explainQuery failed: {}", e.getMessage(), e);
+            return CompletableFuture.completedFuture(
+                    "# Error\nCould not explain query: " + e.getMessage() + "\n");
+        }
+    }
+
+    /**
+     * Extracts the first command argument as a String. Over JSON-RPC, lsp4j delivers arguments as
+     * Gson {@link JsonElement}s; a direct in-process call may pass a plain {@link String}.
+     */
+    private static String firstStringArg(List<Object> args) {
+        if (args == null || args.isEmpty()) return null;
+        Object first = args.get(0);
+        if (first instanceof String s) return s;
+        if (first instanceof JsonPrimitive p) return p.getAsString();
+        if (first instanceof JsonElement el && el.isJsonPrimitive()) return el.getAsString();
+        return first == null ? null : first.toString();
     }
 
     @Override

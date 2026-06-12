@@ -24,6 +24,8 @@ import de.soptim.opencgmes.cimcheck.core.analysis.PropertyReference;
 import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalysis;
 import de.soptim.opencgmes.cimcheck.core.analysis.SparqlQueryAnalyzer;
 import de.soptim.opencgmes.cimcheck.core.analysis.SparqlUpdateAnalysis;
+import de.soptim.opencgmes.cimcheck.core.explain.QueryExplanation;
+import de.soptim.opencgmes.cimcheck.core.explain.QueryPlanFormatter;
 import de.soptim.opencgmes.cimcheck.core.schema.SchemaIndex;
 import de.soptim.opencgmes.cimcheck.core.schema.ValidationScope;
 import org.apache.jena.query.Query;
@@ -191,6 +193,58 @@ public final class SparqlValidationApi {
         return inj.injectedLineCount() > 0
                 ? adjustLineNumbers(raw, input, inj.injectedLineCount())
                 : raw;
+    }
+
+    // ---- explain (static query plan) -------------------------------------------------------
+
+    /**
+     * Produces the static "explain" of a SPARQL query — its normalized text plus the compiled and
+     * optimized algebra plans — without executing it. This is the CIMcheck equivalent of
+     * {@code arq.qparse --print=query,op,opt}.
+     *
+     * <p>The configured default prefixes are injected first (exactly as during validation) so that
+     * use of {@code cim:} and friends without an explicit {@code PREFIX} line still parses. The
+     * algebra plan itself does not depend on the schema, only on the prefixes used for parsing.</p>
+     *
+     * <p>SPARQL Update requests have no algebra plan; for them — and for input that does not parse —
+     * the returned explanation carries an explanatory note instead of an algebra tree
+     * ({@link QueryExplanation#hasPlan()} is {@code false}).</p>
+     */
+    public QueryExplanation explain(String input) {
+        Objects.requireNonNull(input, "input");
+        String text = DefaultPrefixes.inject(input, defaultPrefixes).text();
+        return explainText(text, input);
+    }
+
+    /**
+     * Schema-independent explain, using only the {@linkplain DefaultPrefixes#BUILT_IN built-in}
+     * prefixes. Useful when no {@link SparqlValidationApi} instance is available yet (e.g. the schema
+     * is still loading) — the algebra plan does not depend on the schema.
+     */
+    public static QueryExplanation explainStatic(String input) {
+        Objects.requireNonNull(input, "input");
+        String text = DefaultPrefixes.inject(input, DefaultPrefixes.BUILT_IN).text();
+        return explainText(text, input);
+    }
+
+    private static QueryExplanation explainText(String text, String originalInput) {
+        try {
+            Query query = QueryFactory.create(text, SparqlQueryAnalyzer.RELATIVE_IRI_BASE);
+            return QueryExplanation.of(
+                    query.serialize(),
+                    QueryPlanFormatter.format(query),
+                    QueryPlanFormatter.formatOptimized(query));
+        } catch (QueryException e) {
+            // Not a query: most commonly a SPARQL Update (no algebra plan), otherwise a syntax error.
+            try {
+                new SparqlQueryAnalyzer().parseUpdate(text);
+                return QueryExplanation.ofMessage(originalInput,
+                        "This is a SPARQL Update request, which has no algebra plan to explain.");
+            } catch (InvalidQueryException ignored) {
+                return QueryExplanation.ofMessage(originalInput,
+                        "Could not parse as a SPARQL query: " + e.getMessage());
+            }
+        }
     }
 
     private SparqlValidationResult validateAutoDetect(String input, ValidationScope scope) {

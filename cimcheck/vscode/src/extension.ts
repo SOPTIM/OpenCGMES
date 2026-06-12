@@ -27,6 +27,11 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cimcheck.showOutput', () => out.show(true))
     );
 
+    // Command: "CIMcheck: Explain Query" — show the static algebra plan for the current query.
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cimcheck.explainQuery', explainQuery)
+    );
+
     try {
         doActivate(context);
     } catch (err) {
@@ -75,6 +80,43 @@ function doActivate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): Thenable<void> | undefined {
     return client?.stop();
+}
+
+/**
+ * Sends the current selection (or the whole document when nothing is selected) to the language
+ * server's `cimcheck.explainQuery` command and opens the returned algebra plan in a read-only
+ * editor tab beside the query.
+ */
+async function explainQuery(): Promise<void> {
+    if (!client) {
+        vscode.window.showWarningMessage('CIMcheck: language server is not running.');
+        return;
+    }
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showWarningMessage('CIMcheck: open a SPARQL query to explain.');
+        return;
+    }
+    const sel = editor.selection;
+    const text = sel.isEmpty ? editor.document.getText() : editor.document.getText(sel);
+    try {
+        const plan = await client.sendRequest<string>('workspace/executeCommand', {
+            command: 'cimcheck.explainQuery',
+            arguments: [text],
+        });
+        const doc = await vscode.workspace.openTextDocument({
+            content: plan ?? '(no plan returned)',
+            language: 'sparql',
+        });
+        await vscode.window.showTextDocument(doc, {
+            viewColumn: vscode.ViewColumn.Beside,
+            preview: true,
+        });
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        out.appendLine(`Explain Query failed: ${msg}`);
+        vscode.window.showErrorMessage(`CIMcheck: Explain Query failed: ${msg}`);
+    }
 }
 
 // ---- Helpers -------------------------------------------------------------------------------
