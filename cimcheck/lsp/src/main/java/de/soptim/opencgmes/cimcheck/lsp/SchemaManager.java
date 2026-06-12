@@ -48,8 +48,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -66,6 +68,21 @@ final class SchemaManager {
         Thread t = new Thread(r, "schema-loader");
         t.setDaemon(true);
         return t;
+    });
+
+    /**
+     * Separate pool for remote endpoint fetches. A remote load is a SELECT plus a CONSTRUCT per
+     * profile graph, each with a {@link #REMOTE_TIMEOUT} timeout, so a slow or unreachable endpoint
+     * can take a long time. Keeping it off the single {@link #executor} ensures a config reload
+     * (validation.json edit) and other endpoint loads stay responsive instead of queueing behind it.
+     */
+    private final ExecutorService endpointExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
+        private final AtomicInteger n = new AtomicInteger(1);
+        @Override public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "schema-endpoint-loader-" + n.getAndIncrement());
+            t.setDaemon(true);
+            return t;
+        }
     });
 
     private final AtomicReference<SparqlValidationApi>              apiRef       = new AtomicReference<>();
@@ -202,8 +219,9 @@ final class SchemaManager {
 
     /**
      * Resolves a schema hosted on a remote SPARQL endpoint. The fetch (one enumeration query plus
-     * a CONSTRUCT per profile graph) runs on the background loader thread so the validator thread
-     * never blocks; open documents are revalidated once the schema lands. Returns empty until then.
+     * a CONSTRUCT per profile graph) runs on the dedicated {@link #endpointExecutor} so neither the
+     * validator thread nor workspace reloads block on it; open documents are revalidated once the
+     * schema lands. Returns empty until then.
      */
     private Optional<ResolvedSchema> resolveRemote(String endpoint) {
         ResolvedSchema cached = endpointCache.get(endpoint);
@@ -211,7 +229,7 @@ final class SchemaManager {
         if (isFailed(endpoint)) return Optional.empty();
         if (inFlightEndpoints.add(endpoint)) {
             notify(MessageType.Info, "CIMcheck: loading schema from endpoint " + endpoint + " …");
-            executor.submit(() -> loadRemoteEndpoint(endpoint));
+            endpointExecutor.submit(() -> loadRemoteEndpoint(endpoint));
         }
         return Optional.empty();
     }
@@ -272,10 +290,13 @@ final class SchemaManager {
 
     void shutdown() {
         executor.shutdown();
+        endpointExecutor.shutdown();
         try {
             if (!executor.awaitTermination(2, TimeUnit.SECONDS)) executor.shutdownNow();
+            if (!endpointExecutor.awaitTermination(2, TimeUnit.SECONDS)) endpointExecutor.shutdownNow();
         } catch (InterruptedException e) {
             executor.shutdownNow();
+            endpointExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }
     }
