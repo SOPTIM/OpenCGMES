@@ -414,14 +414,21 @@ final class SparqlTextDocumentService implements TextDocumentService {
         LanguageClient c = client.get();
         if (c == null) return;
 
-        var apiOpt = schemaManager.getApi();
-        if (apiOpt.isEmpty()) {
-            publishDiagnostics(uri, List.of(new Diagnostic(
-                    new Range(new Position(0, 0), new Position(0, 1)),
-                    "No schema loaded. Add .cgmes/validation.json to enable SHACL validation.",
-                    DiagnosticSeverity.Information, "cimcheck")));
+        String endpoint = EndpointDirective.parse(text).orElse(null);
+        var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
+        if (schemaOpt.isEmpty()) {
+            // With an endpoint directive the schema may still be loading (async) or have failed
+            if (endpoint != null) {
+                publishDiagnostics(uri, List.of());
+            } else {
+                publishDiagnostics(uri, List.of(new Diagnostic(
+                        new Range(new Position(0, 0), new Position(0, 1)),
+                        "No schema loaded. Add .cgmes/validation.json to enable SHACL validation.",
+                        DiagnosticSeverity.Information, "cimcheck")));
+            }
             return;
         }
+        ResolvedSchema schema = schemaOpt.get();
 
         var diagnostics = new ArrayList<Diagnostic>();
 
@@ -444,8 +451,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
         }
 
         try {
-            ShaclValidationResult result = apiOpt.get().validateShacl(model.getGraph());
-            var strictness = schemaManager.strictnessLevel();
+            ShaclValidationResult result = schema.api().validateShacl(model.getGraph());
+            var strictness = schema.strictness();
 
             // Shape-structure annotations: apply strictness, then locate in Turtle source.
             for (var a : strictness.apply(result.shapeAnnotations())) {
