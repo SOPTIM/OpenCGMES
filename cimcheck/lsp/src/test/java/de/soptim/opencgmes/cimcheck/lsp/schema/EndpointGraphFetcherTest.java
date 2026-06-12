@@ -26,39 +26,37 @@ import static org.junit.Assert.assertNull;
 public class EndpointGraphFetcherTest {
 
     @Test
-    public void rewritesFusekiUpdateEndpointToQuery() {
-        // A Fuseki /update endpoint only accepts POST updates; reading the schema needs the /query sibling.
+    public void derivesQuerySiblingForFusekiUpdateEndpoint() {
+        // The /query sibling is only used as a 405 fallback; a Fuseki /update endpoint maps to it.
         assertEquals("http://localhost:3030/svedala/query",
-                EndpointGraphFetcher.toQueryEndpoint("http://localhost:3030/svedala/update"));
+                EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala/update"));
     }
 
     @Test
-    public void rewritesUpdateEndpointWithTrailingSlash() {
+    public void derivesQuerySiblingForUpdateEndpointWithTrailingSlash() {
         assertEquals("http://localhost:3030/svedala/query",
-                EndpointGraphFetcher.toQueryEndpoint("http://localhost:3030/svedala/update/"));
+                EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala/update/"));
     }
 
     @Test
-    public void leavesQueryEndpointUnchanged() {
-        assertEquals("http://localhost:3030/svedala/query",
-                EndpointGraphFetcher.toQueryEndpoint("http://localhost:3030/svedala/query"));
+    public void hasNoSiblingForQueryEndpoint() {
+        // Already a query endpoint — nothing to fall back to.
+        assertNull(EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala/query"));
     }
 
     @Test
-    public void leavesPlainDatasetEndpointUnchanged() {
-        assertEquals("http://localhost:3030/svedala",
-                EndpointGraphFetcher.toQueryEndpoint("http://localhost:3030/svedala"));
+    public void hasNoSiblingForPlainDatasetEndpoint() {
+        assertNull(EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala"));
     }
 
     @Test
-    public void doesNotRewriteWhenUpdateIsNotTheLastSegment() {
+    public void hasNoSiblingWhenUpdateIsNotTheLastSegment() {
         // "update" embedded in a dataset name, not the Fuseki service suffix.
-        assertEquals("http://localhost:3030/update/query",
-                EndpointGraphFetcher.toQueryEndpoint("http://localhost:3030/update/query"));
+        assertNull(EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/update/query"));
     }
 
     @Test
     public void toleratesNull() {
-        assertNull(EndpointGraphFetcher.toQueryEndpoint(null));
+        assertNull(EndpointGraphFetcher.queryEndpointSibling(null));
     }
 }

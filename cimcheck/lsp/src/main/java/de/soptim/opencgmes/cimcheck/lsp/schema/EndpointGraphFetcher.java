@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimcheck.lsp.schema;
 
+import org.apache.jena.atlas.web.HttpException;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.query.ParameterizedSparqlString;
 import org.apache.jena.query.QueryExecution;
@@ -28,6 +29,8 @@ import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.net.HttpURLConnection;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -71,11 +74,9 @@ public final class EndpointGraphFetcher {
      * @return one graph per schema named graph; empty graphs are omitted
      */
     public static List<Graph> fetchProfileGraphs(String endpoint, Duration timeout) {
-        String queryEndpoint = toQueryEndpoint(endpoint);
-        if (!queryEndpoint.equals(endpoint)) {
-            LOG.info("Endpoint {} is an update endpoint; reading schema from {}", endpoint, queryEndpoint);
-        }
-        List<String> graphNames = listSchemaGraphs(queryEndpoint, timeout);
+        Enumeration enumeration = enumerateSchemaGraphs(endpoint, timeout);
+        String queryEndpoint = enumeration.endpoint();
+        List<String> graphNames = enumeration.graphNames();
         LOG.info("Endpoint {} exposes {} schema graph(s)", queryEndpoint, graphNames.size());
         List<Graph> graphs = new ArrayList<>(graphNames.size());
         for (String name : graphNames) {
@@ -87,15 +88,40 @@ public final class EndpointGraphFetcher {
         return graphs;
     }
 
+    /** The schema graph names enumerated at an endpoint, paired with the endpoint that answered. */
+    private record Enumeration(String endpoint, List<String> graphNames) {}
+
     /**
-     * Normalizes a SPARQL endpoint URL to one that accepts read queries. Schema enumeration issues
-     * {@code SELECT}/{@code CONSTRUCT} queries, but a Fuseki <b>update</b> endpoint
-     * ({@code .../dataset/update}) only accepts {@code POST} updates and answers a query with
-     * {@code 405 Method Not Allowed}. By Fuseki convention the sibling query endpoint is
-     * {@code .../dataset/query}, so a trailing {@code /update} segment is rewritten to {@code /query}.
-     * All other endpoints are returned unchanged.
+     * Enumerates the schema named graphs, determining which endpoint URL actually accepts read
+     * queries in the process.
+     *
+     * <p>The given {@code endpoint} is tried first — so a dataset literally named {@code update}
+     * (queried directly) is honoured rather than blindly rewritten. Only if it answers the
+     * enumeration query with {@code 405 Method Not Allowed} — the response a Fuseki <b>update</b>
+     * endpoint ({@code .../dataset/update}) gives to a query — do we fall back to its sibling query
+     * endpoint ({@code .../dataset/query}). When no sibling can be derived, the original 405 is
+     * propagated so the failure is reported faithfully.</p>
      */
-    static String toQueryEndpoint(String endpoint) {
+    private static Enumeration enumerateSchemaGraphs(String endpoint, Duration timeout) {
+        try {
+            return new Enumeration(endpoint, listSchemaGraphs(endpoint, timeout));
+        } catch (HttpException e) {
+            String sibling = queryEndpointSibling(endpoint);
+            if (e.getStatusCode() == HttpURLConnection.HTTP_BAD_METHOD && sibling != null) {
+                LOG.info("Endpoint {} rejected a query with 405; falling back to its query sibling {}",
+                        endpoint, sibling);
+                return new Enumeration(sibling, listSchemaGraphs(sibling, timeout));
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Returns the Fuseki sibling <b>query</b> endpoint for an <b>update</b> endpoint
+     * ({@code .../dataset/update} → {@code .../dataset/query}), or {@code null} when the URL does
+     * not end in an {@code /update} segment and so has no conventional query sibling to try.
+     */
+    static String queryEndpointSibling(String endpoint) {
         if (endpoint == null) {
             return null;
         }
@@ -106,7 +132,7 @@ public final class EndpointGraphFetcher {
         if (trimmed.endsWith("/update")) {
             return trimmed.substring(0, trimmed.length() - "/update".length()) + "/query";
         }
-        return endpoint;
+        return null;
     }
 
     private static List<String> listSchemaGraphs(String endpoint, Duration timeout) {
