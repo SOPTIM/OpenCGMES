@@ -43,6 +43,8 @@ import org.eclipse.lsp4j.services.TextDocumentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -72,8 +74,16 @@ final class SparqlTextDocumentService implements TextDocumentService {
     private final SchemaManager schemaManager;
     private final AtomicReference<LanguageClient> client = new AtomicReference<>();
 
+    /** Whether a document is validated as SPARQL or as SHACL/Turtle. */
+    enum Kind { SPARQL, SHACL }
+
     /** Current text content for each open document URI. */
     private final Map<String, String> documents = new ConcurrentHashMap<>();
+    /**
+     * Classification per open document URI, captured at {@code didOpen}. {@code didChange} does
+     * not carry a languageId, so it must be remembered here rather than recomputed per keystroke.
+     */
+    private final Map<String, Kind> kinds = new ConcurrentHashMap<>();
     /** Pending debounced validation task per URI. */
     private final Map<String, ScheduledFuture<?>> pending = new ConcurrentHashMap<>();
 
@@ -95,10 +105,13 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     @Override
     public void didOpen(DidOpenTextDocumentParams params) {
-        String uri  = params.getTextDocument().getUri();
-        String text = params.getTextDocument().getText();
-        if (isSupportedFile(uri)) {
+        String uri        = params.getTextDocument().getUri();
+        String text       = params.getTextDocument().getText();
+        String languageId = params.getTextDocument().getLanguageId();
+        Kind kind = classify(uri, languageId);
+        if (kind != null) {
             documents.put(uri, text);
+            kinds.put(uri, kind);
             scheduleValidation(uri, text);
         }
     }
@@ -106,7 +119,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
     @Override
     public void didChange(DidChangeTextDocumentParams params) {
         String uri = params.getTextDocument().getUri();
-        if (!isSupportedFile(uri)) return;
+        // didChange carries no languageId; rely on the classification captured at didOpen.
+        if (!kinds.containsKey(uri)) return;
         var changes = params.getContentChanges();
         if (changes == null || changes.isEmpty()) return;
         // TextDocumentSyncKind.Full: each change carries the complete new text.
@@ -119,6 +133,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     public void didClose(DidCloseTextDocumentParams params) {
         String uri = params.getTextDocument().getUri();
         documents.remove(uri);
+        kinds.remove(uri);
         cancelPending(uri);
         publishDiagnostics(uri, List.of()); // clear squiggles
     }
@@ -238,7 +253,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     private void scheduleValidation(String uri, String text) {
         cancelPending(uri);
-        Runnable task = isTurtleFile(uri)
+        Kind kind = kinds.getOrDefault(uri, Kind.SPARQL);
+        Runnable task = kind == Kind.SHACL
                 ? () -> validateShacl(uri, text)
                 : () -> validateSparql(uri, text);
         ScheduledFuture<?> future = scheduler.schedule(task, DEBOUNCE_MS, TimeUnit.MILLISECONDS);
@@ -254,22 +270,27 @@ final class SparqlTextDocumentService implements TextDocumentService {
         LanguageClient c = client.get();
         if (c == null) return;
 
-        var apiOpt = schemaManager.getApi();
-        if (apiOpt.isEmpty()) {
+        // A SPARQL Notebook cell may declare its schema source via "# [endpoint=...]"; fall back
+        // to the default workspace schema (.cgmes/validation.json) when absent.
+        String endpoint = EndpointDirective.parse(text).orElse(null);
+        var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
+        if (schemaOpt.isEmpty()) {
             var range = new Range(new Position(0, 0), new Position(0, 1));
-            var hint  = new Diagnostic(range,
-                    "No schema loaded. Add .cgmes/validation.json to enable validation.",
-                    DiagnosticSeverity.Information, "cimcheck");
+            String msg = endpoint != null
+                    ? "Schema endpoint '" + endpoint + "' could not be loaded — see CIMcheck output."
+                    : "No schema loaded. Add .cgmes/validation.json to enable validation.";
+            var hint = new Diagnostic(range, msg, DiagnosticSeverity.Information, "cimcheck");
             publishDiagnostics(uri, List.of(hint));
             return;
         }
 
+        ResolvedSchema schema = schemaOpt.get();
         try {
-            var namedGraphScope = schemaManager.namedGraphScope();
+            var namedGraphScope = schema.namedGraphScope();
             SparqlValidationResult result = namedGraphScope.isEmpty()
-                    ? apiOpt.get().validateSparql(text)
-                    : apiOpt.get().validateSparql(text, namedGraphScope);
-            var effective   = schemaManager.strictnessLevel().apply(result.annotations());
+                    ? schema.api().validateSparql(text)
+                    : schema.api().validateSparql(text, namedGraphScope);
+            var effective   = schema.strictness().apply(result.annotations());
             var diagnostics = effective.stream()
                     .map(a -> convertSparqlAnnotation(a, text))
                     .toList();
@@ -681,8 +702,43 @@ final class SparqlTextDocumentService implements TextDocumentService {
         if (c != null) c.publishDiagnostics(new PublishDiagnosticsParams(uri, diagnostics));
     }
 
-    private static boolean isSupportedFile(String uri) {
-        return isSparqlFile(uri) || isTurtleFile(uri);
+    /**
+     * Classifies a document as SPARQL or SHACL, or {@code null} when it is not a document this
+     * server validates.
+     *
+     * <p>File-extension detection runs first so the file-based path (and the IntelliJ client,
+     * which opens real files) is unaffected. languageId detection then catches documents without
+     * a recognised extension — notably SPARQL Notebook cells, which arrive under the
+     * {@code vscode-notebook-cell} scheme with a bare cell URI.</p>
+     */
+    static Kind classify(String uri, String languageId) {
+        if (isTurtleFile(uri)) return Kind.SHACL;
+        if (isSparqlFile(uri)) return Kind.SPARQL;
+        if (languageId != null) {
+            String id = languageId.toLowerCase(Locale.ROOT);
+            if (id.equals("shacl") || id.equals("turtle")) return Kind.SHACL;
+            if (id.equals("sparql")) return Kind.SPARQL;
+        }
+        return null;
+    }
+
+    /**
+     * Best-effort parent directory of a document URI, used to resolve relative endpoint paths.
+     *
+     * <p>Handles both {@code file://} URIs and notebook cell URIs such as
+     * {@code vscode-notebook-cell:/path/to/notebook.sparqlbook#<cell-id>} — the fragment (cell id)
+     * is stripped so the notebook file's directory is returned.</p>
+     */
+    static Path documentDir(String uri) {
+        try {
+            int hash = uri.indexOf('#');
+            String noFragment = hash >= 0 ? uri.substring(0, hash) : uri;
+            String p = URI.create(noFragment).getPath();
+            if (p == null || p.isBlank()) return null;
+            return Path.of(p).getParent();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static boolean isSparqlFile(String uri) {

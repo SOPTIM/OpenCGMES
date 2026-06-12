@@ -137,6 +137,10 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         documentSelector: [
             { scheme: 'file', language: 'sparql' },
             { scheme: 'file', language: 'shacl' },
+            // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
+            // under the vscode-notebook-cell scheme, validated per-cell by the server.
+            { scheme: 'vscode-notebook-cell', language: 'sparql' },
+            { scheme: 'vscode-notebook-cell', language: 'shacl' },
         ],
         // Route all server output (stderr) into our output channel.
         outputChannel: out,

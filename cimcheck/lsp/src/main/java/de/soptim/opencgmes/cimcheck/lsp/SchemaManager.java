@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
+import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
@@ -32,11 +33,14 @@ import org.eclipse.lsp4j.services.LanguageClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -64,6 +68,11 @@ final class SchemaManager {
     private final AtomicReference<DefinitionIndex>                  defRef       = new AtomicReference<>();
     private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef = new AtomicReference<>(Map.of());
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
+
+    /** Schemas loaded from a {@code # [endpoint=...]} directive, keyed by resolved source. */
+    private final Map<String, ResolvedSchema> endpointCache = new ConcurrentHashMap<>();
+    /** Endpoint sources already reported as failing, to avoid repeating the same notification. */
+    private final Set<String> warnedEndpoints = ConcurrentHashMap.newKeySet();
 
     private volatile Path workspaceRoot;
     private final AtomicReference<LanguageClient> client = new AtomicReference<>();
@@ -116,6 +125,78 @@ final class SchemaManager {
         return namedGraphRef.get();
     }
 
+    /**
+     * Resolves the schema a document should be validated against.
+     *
+     * <p>When {@code endpoint} is {@code null}/blank, the default workspace schema (from
+     * {@code .cgmes/validation.json}) is used. Otherwise the schema is loaded from the endpoint —
+     * a local {@code .ttl}/{@code .rdf}/{@code .owl} file for now — and cached by resolved source.
+     * Remote SPARQL endpoints are recognised but not yet loaded (handled in a later stage).</p>
+     *
+     * @param endpoint the {@code # [endpoint=...]} value, or {@code null} for the default schema
+     * @param docDir   the document's own directory, used to resolve relative endpoint paths
+     */
+    Optional<ResolvedSchema> resolveSchema(String endpoint, Path docDir) {
+        if (endpoint == null || endpoint.isBlank()) {
+            SparqlValidationApi api = apiRef.get();
+            return api == null
+                    ? Optional.empty()
+                    : Optional.of(new ResolvedSchema(api, levelRef.get(), namedGraphRef.get()));
+        }
+        boolean remote = isRemote(endpoint);
+        String cacheKey = remote ? endpoint : resolveLocalEndpoint(endpoint, docDir).toString();
+        ResolvedSchema cached = endpointCache.get(cacheKey);
+        if (cached != null) return Optional.of(cached);
+        Optional<ResolvedSchema> loaded = remote
+                ? loadRemoteEndpoint(endpoint)
+                : loadLocalEndpoint(resolveLocalEndpoint(endpoint, docDir));
+        loaded.ifPresent(rs -> endpointCache.put(cacheKey, rs));
+        return loaded;
+    }
+
+    private static boolean isRemote(String endpoint) {
+        return endpoint.startsWith("http://") || endpoint.startsWith("https://");
+    }
+
+    private Path resolveLocalEndpoint(String endpoint, Path docDir) {
+        Path p = Path.of(endpoint);
+        if (p.isAbsolute()) return p.normalize();
+        Path base = docDir != null ? docDir : workspaceRoot;
+        return base != null ? base.resolve(endpoint).normalize() : p.normalize();
+    }
+
+    private Optional<ResolvedSchema> loadRemoteEndpoint(String endpoint) {
+        if (warnedEndpoints.add(endpoint)) {
+            notify(MessageType.Warning,
+                    "CIMcheck: Loading a schema from a remote SPARQL endpoint is not yet supported: "
+                    + endpoint);
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ResolvedSchema> loadLocalEndpoint(Path file) {
+        try {
+            if (!Files.isRegularFile(file)) {
+                if (warnedEndpoints.add(file.toString())) {
+                    notify(MessageType.Warning, "CIMcheck: endpoint schema file not found: " + file);
+                }
+                return Optional.empty();
+            }
+            var index    = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndex();
+            var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
+            var api      = new SparqlValidationApi(index, prefixes);
+            LOG.info("Loaded endpoint schema from file {}", file);
+            return Optional.of(new ResolvedSchema(api, levelRef.get(), Map.of()));
+        } catch (Exception e) {
+            LOG.error("Failed to load endpoint schema {}: {}", file, e.getMessage(), e);
+            if (warnedEndpoints.add(file.toString())) {
+                notify(MessageType.Error,
+                        "CIMcheck: failed to load schema from " + file + " — " + e.getMessage());
+            }
+            return Optional.empty();
+        }
+    }
+
     void shutdown() {
         executor.shutdown();
         try {
@@ -129,6 +210,10 @@ final class SchemaManager {
     // ---- Private ---------------------------------------------------------------------------
 
     private void loadSync(Path root) {
+        // Endpoint schemas are cached for the session; drop them on reload so a strictness
+        // change in the config propagates and any transient load failures get retried.
+        endpointCache.clear();
+        warnedEndpoints.clear();
         try {
             var discovered = ConfigLoader.discover(root);
             if (discovered.isEmpty()) {

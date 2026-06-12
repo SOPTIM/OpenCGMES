@@ -47,6 +47,23 @@ Press `F12` or `Ctrl+Click` on any CIM IRI to jump directly to its declaration l
 
 Press `Ctrl+T` (or `Cmd+T` on macOS) and type a CIM class or property name to find and navigate to any schema term across the workspace. Supports partial, case-insensitive matching (e.g. `aclineseg` matches `ACLineSegment`).
 
+### SPARQL Notebook support
+
+CIMcheck validates SPARQL **cells** inside [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook) documents, not just `.rq`/`.sparql` files. Each cell is validated independently as you edit it.
+
+A cell can point at the schema to validate against with the SPARQL Notebook endpoint directive:
+
+```sparql
+# [endpoint=./schemas/cgmes-3.0/EquipmentCore.ttl]
+SELECT * WHERE { ?s a cim:ACLineSegment }
+```
+
+- **Local file endpoint** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for that cell. Relative paths resolve against the notebook's own directory.
+- **Remote SPARQL endpoint** (`https://…`) — recognised, but loading the schema from a live endpoint is not yet available (planned).
+- **No directive** — the cell falls back to the workspace schema from `.cgmes/validation.json`, exactly like a `.rq` file.
+
+The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded); CIMcheck validates against that schema and never queries live instance data.
+
 ## Requirements
 
 - **Java 21 or later** must be available on your system. The extension launches the language server as a Java process.
@@ -194,6 +211,9 @@ Check that the file extension is recognised (`.rq`, `.sparql`, `.ttl`, `.shacl`)
 
 **Standard vocabulary terms are not validated**
 Terms from well-known standard namespaces (`rdf:`, `rdfs:`, `owl:`, `xsd:`, `sh:`, `dcat:`, `dcterms:`, `skos:`, `cims:`, `cimuml:`) are silently accepted regardless of whether the exact term is defined in those vocabularies. A typo like `rdfs:Classs` will not be flagged. This is intentional — these vocabularies are not part of CIM profile files, so the schema index has no information about them.
+
+**Notebook endpoint schemas: diagnostics only**
+Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (`.cgmes/validation.json`), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from a local-file endpoint is cached for the session — edit the config file or reload the window to pick up changes to the endpoint file itself.
 
 ## License
 
