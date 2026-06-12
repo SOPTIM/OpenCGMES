@@ -78,10 +78,17 @@ final class SchemaManager {
     /** Per-query timeout for fetching a schema from a remote SPARQL endpoint. */
     private static final Duration REMOTE_TIMEOUT = Duration.ofSeconds(30);
 
+    /** How long a failed endpoint load is negatively cached before a retry is allowed. */
+    private static final Duration FAILURE_TTL = Duration.ofSeconds(30);
+
     /** Schemas loaded from a {@code # [endpoint=...]} directive, keyed by resolved source. */
     private final Map<String, ResolvedSchema> endpointCache = new ConcurrentHashMap<>();
-    /** Endpoint sources whose load failed — negative cache to avoid re-fetching every keystroke. */
-    private final Set<String> failedEndpoints = ConcurrentHashMap.newKeySet();
+    /**
+     * Endpoint sources whose load failed, mapped to the {@link System#nanoTime()} after which a
+     * retry is allowed. A negative cache avoids re-fetching every keystroke, but it expires after
+     * {@link #FAILURE_TTL} so a transient outage doesn't disable the cell for the whole session.
+     */
+    private final Map<String, Long> failedEndpoints = new ConcurrentHashMap<>();
     /** Remote endpoints whose async load is in progress, so keystrokes don't resubmit it. */
     private final Set<String> inFlightEndpoints = ConcurrentHashMap.newKeySet();
 
@@ -175,7 +182,7 @@ final class SchemaManager {
         String key = file.toString();
         ResolvedSchema cached = endpointCache.get(key);
         if (cached != null) return Optional.of(cached);
-        if (failedEndpoints.contains(key)) return Optional.empty();
+        if (isFailed(key)) return Optional.empty();
         try {
             if (!Files.isRegularFile(file)) {
                 fail(key, MessageType.Warning, "CIMcheck: endpoint schema file not found: " + file);
@@ -201,7 +208,7 @@ final class SchemaManager {
     private Optional<ResolvedSchema> resolveRemote(String endpoint) {
         ResolvedSchema cached = endpointCache.get(endpoint);
         if (cached != null) return Optional.of(cached);
-        if (failedEndpoints.contains(endpoint)) return Optional.empty();
+        if (isFailed(endpoint)) return Optional.empty();
         if (inFlightEndpoints.add(endpoint)) {
             notify(MessageType.Info, "CIMcheck: loading schema from endpoint " + endpoint + " …");
             executor.submit(() -> loadRemoteEndpoint(endpoint));
@@ -219,7 +226,7 @@ final class SchemaManager {
             fireOnLoaded();  // revalidate open documents so the cell gets its diagnostics
         } catch (Exception e) {
             LOG.error("Failed to load schema from endpoint {}: {}", endpoint, e.getMessage(), e);
-            failedEndpoints.add(endpoint);
+            markFailed(endpoint);
             notify(MessageType.Error,
                     "CIMcheck: failed to load schema from endpoint " + endpoint + " — " + e.getMessage());
         } finally {
@@ -234,9 +241,33 @@ final class SchemaManager {
         return new ResolvedSchema(api, levelRef.get(), Map.of());
     }
 
-    /** Records an endpoint as failed (negative cache) and notifies once. */
+    /** Records an endpoint as failed (negative cache) and notifies once per failure window. */
     private void fail(String key, MessageType type, String message) {
-        if (failedEndpoints.add(key)) notify(type, message);
+        if (markFailed(key)) notify(type, message);
+    }
+
+    /**
+     * Records {@code key} as failed until {@link #FAILURE_TTL} elapses.
+     *
+     * @return {@code true} if this opens a fresh failure window (no live entry was present), so the
+     *         caller should notify; {@code false} if a still-valid failure was already recorded.
+     */
+    private boolean markFailed(String key) {
+        long expiry = System.nanoTime() + FAILURE_TTL.toNanos();
+        Long prev = failedEndpoints.put(key, expiry);
+        return prev == null || prev - System.nanoTime() <= 0;
+    }
+
+    /**
+     * Returns whether {@code key}'s last failure is still within {@link #FAILURE_TTL}. An expired
+     * entry is evicted so the next {@code resolveSchema} retries the load.
+     */
+    private boolean isFailed(String key) {
+        Long expiry = failedEndpoints.get(key);
+        if (expiry == null) return false;
+        if (expiry - System.nanoTime() > 0) return true;
+        failedEndpoints.remove(key, expiry);
+        return false;
     }
 
     void shutdown() {

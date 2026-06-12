@@ -150,6 +150,49 @@ public final class SparqlValidationApi {
                 new ValidationScope.NamedGraphProfileScope(namedGraphsToProfiles));
     }
 
+    /**
+     * Performs a schema-independent syntax check, returning only {@code SYNTAX_ERROR} annotations.
+     *
+     * <p>Used as a fallback when no schema can be resolved (for example a {@code # [endpoint=...]}
+     * is briefly unreachable) so that a cell containing broken SPARQL still gets squiggles rather
+     * than silently showing nothing. The input is auto-detected as a query or an update exactly as
+     * {@link #validateSparql(String)}; the built-in default prefixes are injected first so that use
+     * of {@code cim:} and friends without an explicit {@code PREFIX} line is not mis-reported as a
+     * syntax error.</p>
+     *
+     * @return a result whose annotations are empty when the input parses as either a query or an
+     *         update, or hold a single {@code SYNTAX_ERROR} when neither parser accepts it
+     */
+    public static SparqlValidationResult checkSyntaxOnly(String input) {
+        Objects.requireNonNull(input, "input");
+        DefaultPrefixes.InjectionResult inj = DefaultPrefixes.inject(input, DefaultPrefixes.BUILT_IN);
+        SparqlQueryAnalyzer analyzer = new SparqlQueryAnalyzer();
+        InvalidQueryException queryError;
+        try {
+            analyzer.parse(inj.text());
+            return new SparqlValidationResult(input, null, List.of());
+        } catch (InvalidQueryException e) {
+            queryError = e; // remember the query error; it is more informative than the update one
+        }
+        try {
+            analyzer.parseUpdate(inj.text());
+            return new SparqlValidationResult(input, null, List.of());
+        } catch (InvalidQueryException ignored) {
+            // Both parsers rejected the input — fall through and report the query parse error.
+        }
+        var annotation = new SparqlValidationAnnotation(
+                SparqlValidationSeverity.ERROR,
+                queryError.line(), queryError.column(),
+                queryError.getMessage(),
+                SparqlValidationCode.SYNTAX_ERROR,
+                null, List.of(), List.of(), null);
+        SparqlValidationResult raw =
+                new SparqlValidationResult(inj.text(), null, List.of(annotation));
+        return inj.injectedLineCount() > 0
+                ? adjustLineNumbers(raw, input, inj.injectedLineCount())
+                : raw;
+    }
+
     private SparqlValidationResult validateAutoDetect(String input, ValidationScope scope) {
         DefaultPrefixes.InjectionResult inj = DefaultPrefixes.inject(input, defaultPrefixes);
         SparqlValidationResult raw = validateAutoDetectRaw(inj.text(), scope);

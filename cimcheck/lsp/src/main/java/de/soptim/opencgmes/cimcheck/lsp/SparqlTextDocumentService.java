@@ -22,6 +22,7 @@ import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimcheck.core.StandardVocabulary;
+import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationCode;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
@@ -277,10 +278,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
         var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (schemaOpt.isEmpty()) {
             // With an endpoint directive the schema may still be loading (async) or have failed;
-            // status is reported via notifications, so just clear diagnostics here. Without one,
-            // hint that a workspace config is needed.
+            // status is reported via notifications. Rather than show nothing, fall back to a
+            // schema-independent syntax check so broken SPARQL still gets squiggles. Without an
+            // endpoint, hint that a workspace config is needed.
             if (endpoint != null) {
-                publishDiagnostics(uri, List.of());
+                publishSyntaxOnly(uri, text);
             } else {
                 var range = new Range(new Position(0, 0), new Position(0, 1));
                 var hint = new Diagnostic(range,
@@ -305,6 +307,24 @@ final class SparqlTextDocumentService implements TextDocumentService {
             LOG.debug("Validated {}: {} annotation(s)", uri, diagnostics.size());
         } catch (Exception e) {
             LOG.error("Error validating {}: {}", uri, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Publishes a schema-independent syntax check for a SPARQL document whose schema could not be
+     * resolved (endpoint still loading or failed). Semantic checks are skipped, but syntax errors
+     * are surfaced so the cell never silently shows zero diagnostics.
+     */
+    private void publishSyntaxOnly(String uri, String text) {
+        try {
+            var result = SparqlValidationApi.checkSyntaxOnly(text);
+            var diagnostics = result.annotations().stream()
+                    .map(a -> convertSparqlAnnotation(a, text))
+                    .toList();
+            publishDiagnostics(uri, diagnostics);
+        } catch (Exception e) {
+            LOG.error("Error syntax-checking {}: {}", uri, e.getMessage(), e);
+            publishDiagnostics(uri, List.of());
         }
     }
 
