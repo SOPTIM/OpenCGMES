@@ -81,7 +81,8 @@
                     "strings": "off"
                 },
                 "editor.suggestOnTriggerCharacters": true,
-                "editor.wordBasedSuggestions": "off"
+                "editor.wordBasedSuggestions": "off",
+                "editor.links": false
             },
             "[shacl]": {
                 "editor.quickSuggestions": {
@@ -90,7 +91,8 @@
                     "strings": "off"
                 },
                 "editor.suggestOnTriggerCharacters": true,
-                "editor.wordBasedSuggestions": "off"
+                "editor.wordBasedSuggestions": "off",
+                "editor.links": false
             }
         },
         "configuration": {
