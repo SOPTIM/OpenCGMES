@@ -18,11 +18,11 @@
 
 package de.soptim.opencgmes.cimcheck.cli.output;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
@@ -78,9 +78,8 @@ public final class JsonFormatter {
         root.put("summary", summary);
         root.put("results", results.stream().map(this::toResultMap).toList());
         try {
-            MAPPER.writeValue(out, root);
-            out.println();
-        } catch (IOException e) {
+            out.println(MAPPER.writeValueAsString(root));
+        } catch (JsonProcessingException e) {
             throw new UncheckedIOException(e);
         }
     }
