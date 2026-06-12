@@ -195,6 +195,36 @@ public final class SparqlValidationApi {
                 : raw;
     }
 
+    /**
+     * Performs a schema-independent syntax check of every SPARQL fragment embedded in
+     * {@code shapesGraph} ({@code sh:select}, {@code sh:ask}, {@code sh:construct}), returning only
+     * {@code SYNTAX_ERROR} annotations.
+     *
+     * <p>This is the SHACL counterpart of {@link #checkSyntaxOnly(String)}: it is the fallback used
+     * when no schema can be resolved (for example a {@code # [endpoint=...]} is briefly unreachable)
+     * so that a shapes file with broken embedded SPARQL still gets squiggles rather than silently
+     * showing nothing. No schema is consulted — only the SHACL extractor and the SPARQL parser are
+     * used, both of which are schema-independent.</p>
+     *
+     * <p>The returned result carries no {@link ShaclValidationResult#shapeAnnotations() shape
+     * annotations} (those require a schema); its {@link ShaclValidationResult#embeddedResults()
+     * embedded results} mirror those of {@link #validateShacl(Graph)} so the same rendering code can
+     * map annotation positions back into the Turtle source. Each embedded result holds at most a
+     * single {@code SYNTAX_ERROR}, or no annotations when the fragment parses cleanly. Turtle parse
+     * errors of {@code shapesGraph} itself are out of scope — the caller parses the Turtle and is
+     * expected to report those separately.</p>
+     */
+    public static ShaclValidationResult checkShaclSyntaxOnly(Graph shapesGraph) {
+        Objects.requireNonNull(shapesGraph, "shapesGraph");
+        var extractor = new ShaclSparqlExtractor();
+        var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
+        for (EmbeddedSparql q : extractor.extract(shapesGraph)) {
+            SparqlValidationResult r = checkSyntaxOnly(q.renderedQuery());
+            embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
+        }
+        return new ShaclValidationResult(List.of(), embeddedResults);
+    }
+
     // ---- explain (static query plan) -------------------------------------------------------
 
     /**

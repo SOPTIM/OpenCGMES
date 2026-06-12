@@ -437,9 +437,12 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String endpoint = EndpointDirective.parse(text).orElse(null);
         var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (schemaOpt.isEmpty()) {
-            // With an endpoint directive the schema may still be loading (async) or have failed
+            // With an endpoint directive the schema may still be loading (async) or have failed;
+            // rather than show nothing, fall back to a schema-independent syntax check (Turtle parse
+            // plus embedded-SPARQL syntax) so broken shapes still get squiggles. Without an endpoint,
+            // hint that a workspace config is needed.
             if (endpoint != null) {
-                publishDiagnostics(uri, List.of());
+                publishShaclSyntaxOnly(uri, text);
             } else {
                 publishDiagnostics(uri, List.of(new Diagnostic(
                         new Range(new Position(0, 0), new Position(0, 1)),
@@ -450,25 +453,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
         }
         ResolvedSchema schema = schemaOpt.get();
 
-        var diagnostics = new ArrayList<Diagnostic>();
-
         // Parse Turtle. On failure, collect the parse error and attempt recovery so that
         // CIMcheck schema errors are still shown alongside the syntax problem.
-        Model model = ModelFactory.createDefaultModel();
-        try {
-            RDFParser.fromString(text, Lang.TURTLE).parse(model);
-        } catch (Exception e) {
-            diagnostics.add(turtleParseErrorDiagnostic(e, text));
-            // Recovery: replace unrecognised @keyword directives with @prefix
-            // so Jena can parse the rest of the file and CIMcheck errors still appear.
-            String recovered = fixWrongTurtleDirectives(text);
-            if (!recovered.equals(text)) {
-                model = ModelFactory.createDefaultModel();
-                try {
-                    RDFParser.fromString(recovered, Lang.TURTLE).parse(model);
-                } catch (Exception ignored) { /* recovery also failed; model stays empty */ }
-            }
-        }
+        ParsedTurtle parsed = parseTurtle(text);
+        Model model = parsed.model();
+        var diagnostics = new ArrayList<>(parsed.parseErrors());
 
         try {
             ShaclValidationResult result = schema.api().validateShacl(model.getGraph());
@@ -493,6 +482,60 @@ final class SparqlTextDocumentService implements TextDocumentService {
             LOG.error("Error validating SHACL {}: {}", uri, e.getMessage(), e);
             publishDiagnostics(uri, diagnostics); // still publish any parse errors
         }
+    }
+
+    /**
+     * Publishes a schema-independent syntax check for a SHACL/Turtle document whose schema could not
+     * be resolved (endpoint still loading or failed). Reports Turtle parse errors and the syntax of
+     * any embedded SPARQL fragments, but skips all schema-dependent semantic checks, so the document
+     * never silently shows zero diagnostics. The SHACL analogue of {@link #publishSyntaxOnly}.
+     */
+    private void publishShaclSyntaxOnly(String uri, String text) {
+        try {
+            ParsedTurtle parsed = parseTurtle(text);
+            var diagnostics = new ArrayList<>(parsed.parseErrors());
+            ShaclValidationResult result =
+                    SparqlValidationApi.checkShaclSyntaxOnly(parsed.model().getGraph());
+            for (var er : result.embeddedResults()) {
+                String kind = er.embedded().kind().toString();
+                for (var a : er.result().annotations()) {
+                    diagnostics.add(convertEmbeddedAnnotation(a, kind, er.embedded(), text));
+                }
+            }
+            publishDiagnostics(uri, diagnostics);
+        } catch (Exception e) {
+            LOG.error("Error syntax-checking SHACL {}: {}", uri, e.getMessage(), e);
+            publishDiagnostics(uri, List.of());
+        }
+    }
+
+    /** A parsed Turtle model paired with any parse-error diagnostics collected while parsing it. */
+    private record ParsedTurtle(Model model, List<Diagnostic> parseErrors) {}
+
+    /**
+     * Parses {@code text} as Turtle, recovering from an unrecognised {@code @keyword} directive so
+     * that as much of the file as possible is still loaded into the returned model. Any parse error
+     * is returned as a diagnostic rather than thrown, so callers can surface it alongside (or
+     * instead of) semantic diagnostics.
+     */
+    private static ParsedTurtle parseTurtle(String text) {
+        var parseErrors = new ArrayList<Diagnostic>();
+        Model model = ModelFactory.createDefaultModel();
+        try {
+            RDFParser.fromString(text, Lang.TURTLE).parse(model);
+        } catch (Exception e) {
+            parseErrors.add(turtleParseErrorDiagnostic(e, text));
+            // Recovery: replace unrecognised @keyword directives with @prefix so Jena can parse the
+            // rest of the file and downstream (schema or embedded-SPARQL) errors still appear.
+            String recovered = fixWrongTurtleDirectives(text);
+            if (!recovered.equals(text)) {
+                model = ModelFactory.createDefaultModel();
+                try {
+                    RDFParser.fromString(recovered, Lang.TURTLE).parse(model);
+                } catch (Exception ignored) { /* recovery also failed; model stays empty */ }
+            }
+        }
+        return new ParsedTurtle(model, parseErrors);
     }
 
     private static Diagnostic convertShapeAnnotation(
