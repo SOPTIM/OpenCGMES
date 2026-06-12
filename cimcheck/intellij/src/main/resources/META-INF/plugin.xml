@@ -131,10 +131,6 @@
             language="SHACL"
             implementationClass="de.soptim.opencgmes.cimcheck.intellij.CimcheckSyntaxHighlighterFactory"/>
 
-        <!-- ── Application-level settings service ────────────────────────── -->
-        <applicationService
-            serviceImplementation="de.soptim.opencgmes.cimcheck.intellij.settings.CimcheckSettings"/>
-
         <!-- ── Settings page under Settings > Tools > CIMcheck ───────────── -->
         <applicationConfigurable
             parentId="tools"
