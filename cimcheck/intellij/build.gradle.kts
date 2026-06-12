@@ -149,10 +149,21 @@ tasks {
                 exclude("*original*", "*sources*", "*javadoc*")
             }.files
             if (jars.isEmpty()) {
-                logger.warn(
+                val hint =
                     "[CIMcheck] No cimcheck-lsp-*.jar found in ../lsp/target — " +
                     "run 'mvn -f ../lsp/pom.xml package -DskipTests' first."
-                )
+                val packaging = gradle.taskGraph.allTasks.any {
+                    it.name == "buildPlugin" || it.name == "publishPlugin"
+                }
+                val ci = providers.gradleProperty("ci").isPresent
+                if (ci || packaging) {
+                    throw GradleException(
+                        "$hint The bundled language server is mandatory for a packaged or " +
+                        "published plugin; failing the build instead of producing a broken " +
+                        "plugin zip."
+                    )
+                }
+                logger.warn(hint)
             }
             jars.isNotEmpty()
         }
