@@ -156,7 +156,7 @@
         "bundle": "node esbuild.js",
         "compile": "tsc --noEmit",
         "watch": "node esbuild.js --watch",
-        "copy-jar": "cp ../lsp/target/cimcheck-lsp.jar server/"
+        "copy-jar": "cp ../lsp/target/cimcheck-lsp-*.jar server/cimcheck-lsp.jar"
     },
     "dependencies": {
         "vscode-languageclient": "^9.0.1"
