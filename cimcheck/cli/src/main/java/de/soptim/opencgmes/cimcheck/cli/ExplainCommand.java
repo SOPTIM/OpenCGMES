@@ -43,7 +43,7 @@ import java.util.concurrent.Callable;
  * query files, like Apache Jena's {@code arq.qparse --print=query,op,opt}. No data is executed.
  *
  * <p>A schema is optional. When one is available (via {@code --config}/{@code --schema} or an
- * auto-discovered {@code .cgmes/validation.json}) its detected {@code cim:} prefix is injected so
+ * auto-discovered {@code opencgmes.json}) its detected {@code cim:} prefix is injected so
  * prefix-free queries parse; otherwise the built-in default prefixes are used. The algebra plan
  * itself does not depend on the schema.</p>
  *
@@ -77,7 +77,7 @@ public class ExplainCommand implements Callable<Integer> {
     @Option(
             names       = {"-c", "--config"},
             paramLabel  = "<file>",
-            description = "Config file (default: auto-discovers .cgmes/validation.json upward from CWD)."
+            description = "Config file (default: auto-discovers opencgmes.json upward from CWD)."
     )
     private Path configFile;
 

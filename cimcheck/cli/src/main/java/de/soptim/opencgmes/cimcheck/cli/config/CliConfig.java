@@ -25,14 +25,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Deserialized form of {@code .cgmes/validation.json}.
+ * Deserialized form of the {@code "cimcheck"} section of {@code opencgmes.json}.
  *
- * <p>Example config:</p>
+ * <p>All fields are optional. When neither {@code schemas} nor {@code schemasDirectory} is given,
+ * the bundled CGMES 3.0 profiles are used.</p>
+ *
+ * <p>Example {@code opencgmes.json}:</p>
  * <pre>{@code
  * {
- *   "schemasDirectory": ".cgmes/schemas",
- *   "namedGraphs": {
- *     "urn:uuid:eq-network": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"]
+ *   "cimcheck": {
+ *     "schemasDirectory": "schemas",
+ *     "namedGraphs": {
+ *       "urn:uuid:eq-network": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"]
+ *     }
  *   }
  * }
  * }</pre>

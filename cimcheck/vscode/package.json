@@ -62,7 +62,7 @@
         ],
         "jsonValidation": [
             {
-                "fileMatch": "**/.cgmes/validation.json",
+                "fileMatch": "**/opencgmes.json",
                 "url": "./schemas/validation.schema.json"
             }
         ],
@@ -75,6 +75,11 @@
             {
                 "command": "cimcheck.explainQuery",
                 "title": "Explain Query (Algebra Plan)",
+                "category": "CIMcheck"
+            },
+            {
+                "command": "cimcheck.createConfig",
+                "title": "Create Config File (opencgmes.json)",
                 "category": "CIMcheck"
             }
         ],
@@ -90,6 +95,9 @@
                 {
                     "command": "cimcheck.explainQuery",
                     "when": "editorLangId == sparql"
+                },
+                {
+                    "command": "cimcheck.createConfig"
                 }
             ]
         },

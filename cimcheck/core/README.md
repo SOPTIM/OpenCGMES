@@ -142,7 +142,8 @@ shows a Markdown tooltip with:
 - The `rdfs:comment` description from the schema
 - A summary table of `rdfs:domain`, `rdfs:range`, and the declaring profile(s)
 
-Works for terms declared in any profile loaded by `.cgmes/validation.json`.
+Works for terms declared in any loaded profile (the bundled CGMES 3.0 schemas, or the
+profiles configured in `opencgmes.json`).
 
 #### Code completion
 
@@ -211,36 +212,54 @@ Or open VS Code → Extensions panel → `⋯` menu → **Install from VSIX…**
 
 ### Configuring your workspace
 
-Create `.cgmes/validation.json` in your workspace root. The server discovers this file
-automatically by walking up the directory tree from each open file.
+**No configuration is required.** Out of the box, CIMcheck validates against the
+**CGMES 3.0 RDFS profiles bundled with the extension** (vendored from the ENTSO-E
+[Application Profiles Library](https://github.com/entsoe/application-profiles-library),
+Apache-2.0). Open a `.rq` file and validation just works.
 
-**Option A — point at a directory of RDFS files** (`.rdf`, `.ttl`, `.owl`):
+To customise, add an `opencgmes.json` file. All CIMcheck settings live under a top-level
+`"cimcheck"` section (so `opencgmes.json` can host config for other OpenCGMES tools too).
+The file is **discovered git-style**: CIMcheck walks up the directory tree from each open
+file and uses the nearest `opencgmes.json`, so different subtrees can use different configs.
+JSON comments (`//`) and trailing commas are allowed.
+
+Generate a commented starter file with the **CIMcheck: Create Config File** command (or
+`cimcheck init` from the CLI).
+
+**Use your own RDFS profiles instead of the bundled ones** — point at a directory
+(`.rdf`, `.ttl`, `.owl`) or list files. Paths are relative to `opencgmes.json`:
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas"
+  "cimcheck": {
+    "schemasDirectory": "schemas"
+  }
 }
 ```
 
-**Option B — list individual schema files:**
-
 ```json
 {
-  "schemas": [
-    ".cgmes/61970-600-2_Equipment-AP-Voc-RDFS2020.rdf",
-    ".cgmes/61970-600-2_Topology-AP-Voc-RDFS2020.rdf"
-  ]
+  "cimcheck": {
+    "schemas": [
+      "schemas/61970-600-2_Equipment-AP-Voc-RDFS2020.rdf",
+      "schemas/61970-600-2_Topology-AP-Voc-RDFS2020.rdf"
+    ]
+  }
 }
 ```
 
-**Option C — also map named graphs to specific profiles:**
+Omit both `schemas` and `schemasDirectory` to keep the bundled CGMES 3.0 schemas while still
+setting `strictness`, `namedGraphs`, etc.
+
+**Map named graphs to specific profiles:**
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas",
-  "namedGraphs": {
-    "urn:uuid:my-equipment-graph": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-    "urn:uuid:my-topology-graph":  ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+  "cimcheck": {
+    "namedGraphs": {
+      "urn:uuid:my-equipment-graph": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+      "urn:uuid:my-topology-graph":  ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+    }
   }
 }
 ```
@@ -251,10 +270,11 @@ multiple profiles. Short relative names work too — a SPARQL query that writes
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas",
-  "namedGraphs": {
-    "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-    "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+  "cimcheck": {
+    "namedGraphs": {
+      "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+      "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+    }
   }
 }
 ```
@@ -266,8 +286,8 @@ the map produce a `GRAPH_NOT_CONFIGURED` warning-level diagnostic.
 When `namedGraphs` is **not** configured (the default), validation runs against all loaded
 profiles and no `GRAPH_NOT_CONFIGURED` diagnostics are emitted.
 
-If no config file is found, a single information-level diagnostic is shown at the top of
-each file asking you to create one.
+If no config file is found, validation falls back to the bundled CGMES 3.0 schemas — there
+is no error or empty state to clear before you can start.
 
 ### VS Code settings
 
@@ -303,15 +323,16 @@ SELECT ?s ?p ?o
 WHERE { ?s a cim:ACLineSegment ; cim:ACLineSegment.r ?r }
 ```
 
-Override or disable the defaults via `"prefixes"` in `.cgmes/validation.json`:
+Override or disable the defaults via `"prefixes"` in `opencgmes.json`:
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas",
-  "prefixes": {
-    "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "cim":  "http://iec.ch/TC57/CIM100#",
-    "mycim": "http://example.com/my-extension#"
+  "cimcheck": {
+    "prefixes": {
+      "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+      "cim":  "http://iec.ch/TC57/CIM100#",
+      "mycim": "http://example.com/my-extension#"
+    }
   }
 }
 ```
@@ -321,8 +342,9 @@ all automatic prefix injection:
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas",
-  "prefixes": {}
+  "cimcheck": {
+    "prefixes": {}
+  }
 }
 ```
 
@@ -331,7 +353,7 @@ the query file are never overwritten.
 
 ### Strictness mode
 
-Set `"strictness"` in `.cgmes/validation.json` to control how the validator reports findings:
+Set `"strictness"` in `opencgmes.json` to control how the validator reports findings:
 
 | Level | Behaviour |
 | --- | --- |
@@ -342,8 +364,9 @@ Set `"strictness"` in `.cgmes/validation.json` to control how the validator repo
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas",
-  "strictness": "strict"
+  "cimcheck": {
+    "strictness": "strict"
+  }
 }
 ```
 
@@ -360,8 +383,9 @@ wholesale (the legacy behaviour):
 
 ```json
 {
-  "schemasDirectory": ".cgmes/schemas",
-  "standardVocabulary": "ignore"
+  "cimcheck": {
+    "standardVocabulary": "ignore"
+  }
 }
 ```
 
@@ -372,7 +396,8 @@ If the extension is installed but no diagnostics appear:
 1. Run **CIMcheck: Show Output** from the Command Palette to open the
    output channel — startup errors and schema-load failures are logged there.
 2. Check that Java 21+ is on `PATH`, or set `cimcheck.javaExecutable` explicitly.
-3. Verify that `.cgmes/validation.json` exists and points to valid schema files.
+3. Validation works with no config; if you added an `opencgmes.json`, verify its `cimcheck`
+   section points to valid schema files.
 4. Set `cimcheck.trace.server` to `messages` to see raw LSP traffic.
 
 ---
@@ -383,10 +408,10 @@ If the extension is installed but no diagnostics appear:
 server that wraps the `cimcheck-core` library. It communicates over `stdio` and can be
 integrated into any LSP-capable editor.
 
-The server reads `.cgmes/validation.json` from the workspace root (walked up from the
-workspace root path reported by the client on `initialize`), loads the configured RDFS
-profiles once, and re-loads them whenever `validation.json` changes. All open documents
-are revalidated after a schema reload.
+The server discovers the nearest `opencgmes.json` (walking up from each document, falling
+back to the bundled CGMES 3.0 schemas when none is found), loads the configured RDFS
+profiles, and re-loads them whenever an `opencgmes.json` changes. All open documents are
+revalidated after a schema reload.
 
 To build the fat JAR only:
 

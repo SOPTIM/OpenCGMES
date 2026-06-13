@@ -74,7 +74,7 @@ final class SchemaManager {
      * Separate pool for remote endpoint fetches. A remote load is a SELECT plus a CONSTRUCT per
      * profile graph, each with a {@link #REMOTE_TIMEOUT} timeout, so a slow or unreachable endpoint
      * can take a long time. Keeping it off the single {@link #executor} ensures a config reload
-     * (validation.json edit) and other endpoint loads stay responsive instead of queueing behind it.
+     * (opencgmes.json edit) and other endpoint loads stay responsive instead of queueing behind it.
      */
     private final ExecutorService endpointExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
         private final AtomicInteger n = new AtomicInteger(1);
@@ -85,12 +85,32 @@ final class SchemaManager {
         }
     });
 
+    /**
+     * The <em>primary</em> workspace schema — the one discovered from the workspace root (or the
+     * bundled default). It backs the workspace-global operations that have no document context
+     * (workspace symbols, the explain command) and the endpoint-schema builds.
+     */
     private final AtomicReference<SparqlValidationApi>              apiRef       = new AtomicReference<>();
     private final AtomicReference<StrictnessLevel>                  levelRef     = new AtomicReference<>(StrictnessLevel.DEFAULT);
     private final AtomicReference<DefinitionIndex>                  defRef       = new AtomicReference<>();
     private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef = new AtomicReference<>(Map.of());
     private final AtomicBoolean checkStdVocabRef = new AtomicBoolean(true);
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
+
+    /** Cache key (in {@link #workspaceSchemaCache} and {@link #primaryConfigKey}) for the bundled default. */
+    private static final String BUNDLED = "<bundled>";
+
+    /**
+     * Per-config-source schema cache for git-style nearest-config resolution: a document is
+     * validated against the nearest {@code opencgmes.json} above it, falling back to the bundled
+     * default. Keyed by resolved config-file path (or {@link #BUNDLED}). The primary config's entry
+     * is served from the {@code *Ref} fields above rather than this map; only <em>other</em> configs
+     * found below the root land here. Cleared on every reload.
+     */
+    private final Map<String, WorkspaceSchema> workspaceSchemaCache = new ConcurrentHashMap<>();
+
+    /** Cache key of the primary (workspace-root) config, set on each load. */
+    private volatile String primaryConfigKey;
 
     /** Per-query timeout for fetching a schema from a remote SPARQL endpoint. */
     private static final Duration REMOTE_TIMEOUT = Duration.ofSeconds(30);
@@ -163,24 +183,63 @@ final class SchemaManager {
     /**
      * Resolves the schema a document should be validated against.
      *
-     * <p>When {@code endpoint} is {@code null}/blank, the default workspace schema (from
-     * {@code .cgmes/validation.json}) is used. Otherwise the schema is loaded from the endpoint —
-     * a local {@code .ttl}/{@code .rdf}/{@code .owl} file for now — and cached by resolved source.
-     * Remote SPARQL endpoints are recognised but not yet loaded (handled in a later stage).</p>
+     * <p>When {@code endpoint} is {@code null}/blank, the document's workspace schema is used: the
+     * nearest {@code opencgmes.json} above the document, or the bundled CGMES 3.0 default when none
+     * is found. Otherwise the schema is loaded from the endpoint — a local
+     * {@code .ttl}/{@code .rdf}/{@code .owl} file or a remote SPARQL endpoint — and cached by
+     * resolved source.</p>
      *
-     * @param endpoint the {@code # [endpoint=...]} value, or {@code null} for the default schema
-     * @param docDir   the document's own directory, used to resolve relative endpoint paths
+     * @param endpoint the {@code # [endpoint=...]} value, or {@code null} for the workspace schema
+     * @param docDir   the document's own directory, used for config discovery and relative endpoints
      */
     Optional<ResolvedSchema> resolveSchema(String endpoint, Path docDir) {
         if (endpoint == null || endpoint.isBlank()) {
-            SparqlValidationApi api = apiRef.get();
-            return api == null
-                    ? Optional.empty()
-                    : Optional.of(new ResolvedSchema(api, levelRef.get(), namedGraphRef.get()));
+            return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
         }
         return isRemote(endpoint)
                 ? resolveRemote(endpoint)
                 : resolveLocal(resolveLocalEndpoint(endpoint, docDir));
+    }
+
+    /**
+     * Resolves the {@link WorkspaceSchema} for a document directory using git-style nearest-config
+     * discovery: the nearest {@code opencgmes.json} at or above {@code docDir} wins, else the
+     * bundled default. The primary (workspace-root) config is served from the cached primary
+     * schema; other configs are built lazily and cached per config path.
+     *
+     * @param docDir the document's directory, or {@code null} to use the primary workspace schema
+     * @return the resolved schema, or empty if it has not loaded yet or failed to load
+     */
+    Optional<WorkspaceSchema> workspaceSchemaFor(Path docDir) {
+        String key = (docDir == null)
+                ? primaryConfigKey
+                : ConfigLoader.discoverFile(docDir).map(Path::toString).orElse(BUNDLED);
+        if (key == null) return Optional.empty();  // not initialised yet
+        if (key.equals(primaryConfigKey)) {
+            return primarySchema();
+        }
+        WorkspaceSchema ws = workspaceSchemaCache.computeIfAbsent(key, this::buildForKey);
+        return ws.api() == null ? Optional.empty() : Optional.of(ws);
+    }
+
+    /** Synthesizes the primary workspace schema from the {@code *Ref} fields, or empty if unloaded. */
+    private Optional<WorkspaceSchema> primarySchema() {
+        SparqlValidationApi api = apiRef.get();
+        if (api == null) return Optional.empty();
+        return Optional.of(new WorkspaceSchema(
+                api, levelRef.get(), defRef.get(), namedGraphRef.get(), checkStdVocabRef.get()));
+    }
+
+    /** Builds (and notifies on failure) the schema for a non-primary config key. */
+    private WorkspaceSchema buildForKey(String key) {
+        try {
+            Optional<Path> configFile = BUNDLED.equals(key) ? Optional.empty() : Optional.of(Path.of(key));
+            return buildSchemaForConfig(configFile);
+        } catch (Exception e) {
+            LOG.error("Failed to load schema for {}: {}", key, e.getMessage(), e);
+            notify(MessageType.Error, "CIMcheck: schema load failed for " + key + " — " + e.getMessage());
+            return new WorkspaceSchema(null, StrictnessLevel.DEFAULT, null, Map.of(), true);
+        }
     }
 
     private static boolean isRemote(String endpoint) {
@@ -304,51 +363,76 @@ final class SchemaManager {
     // ---- Private ---------------------------------------------------------------------------
 
     private void loadSync(Path root) {
-        // Endpoint schemas are cached for the session; drop them on reload so a strictness
-        // change in the config propagates and any transient load failures get retried.
+        // Endpoint schemas and per-config schemas are cached for the session; drop them on reload so
+        // a strictness change propagates and any transient load failures get retried.
         endpointCache.clear();
         failedEndpoints.clear();
+        workspaceSchemaCache.clear();
+
+        Optional<Path> configFile = ConfigLoader.discoverFile(root);
+        primaryConfigKey = configFile.map(Path::toString).orElse(BUNDLED);
         try {
-            var discovered = ConfigLoader.discover(root);
-            if (discovered.isEmpty()) {
-                LOG.warn("No .cgmes/validation.json found under {}", root);
-                notify(MessageType.Warning,
-                        "SPARQL Validation: No .cgmes/validation.json found — " +
-                        "validation is disabled until a config is added.");
-                apiRef.set(null);
-                defRef.set(null);
-                namedGraphRef.set(Map.of());
-                return;
-            }
-            LspConfig config = discovered.get();
-            var loaded = SchemaLoader.loadWithSources(config, root);
-            var effectivePrefixes = config.prefixes() != null
-                    ? config.prefixes()
-                    : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, loaded.index());
-            checkStdVocabRef.set(config.checkStandardVocabulary());
-            apiRef.set(new SparqlValidationApi(loaded.index(), effectivePrefixes, config.checkStandardVocabulary()));
-            levelRef.set(parseLevel(config));
-            defRef.set(DefinitionIndex.build(loaded.index(), loaded.sourcePaths()));
-            namedGraphRef.set(SparqlValidationApi.buildNamedGraphScope(
-                    config.namedGraphs(), loaded.index(), msg -> LOG.warn("{}", msg)));
-            LOG.info("Schema loaded successfully from {} (strictness: {})", root, levelRef.get());
-            if (!loaded.skippedFiles().isEmpty()) {
-                String detail = String.join("\n", loaded.skippedFiles());
-                notify(MessageType.Warning,
-                        "SPARQL Validation: Schema loaded with warnings — "
-                        + loaded.skippedFiles().size()
-                        + " file(s) could not be parsed and were skipped:\n" + detail);
+            WorkspaceSchema primary = buildSchemaForConfig(configFile);
+            apiRef.set(primary.api());
+            levelRef.set(primary.level());
+            defRef.set(primary.definitionIndex());
+            namedGraphRef.set(primary.namedGraphScope());
+            checkStdVocabRef.set(primary.checkStandardVocab());
+
+            if (configFile.isEmpty()) {
+                LOG.info("No opencgmes.json found under {} — using bundled CGMES 3.0 schemas", root);
+                notify(MessageType.Info,
+                        "CIMcheck: no opencgmes.json found — validating against the bundled CGMES 3.0 schemas.");
             } else {
-                notify(MessageType.Info, "SPARQL Validation: Schema loaded successfully.");
+                LOG.info("Schema loaded successfully from {} (strictness: {})", configFile.get(), primary.level());
+                notify(MessageType.Info, "CIMcheck: schema loaded successfully.");
             }
             fireOnLoaded();
         } catch (Exception e) {
             LOG.error("Failed to load schema: {}", e.getMessage(), e);
-            notify(MessageType.Error, "SPARQL Validation: Schema load failed — " + e.getMessage());
+            notify(MessageType.Error, "CIMcheck: schema load failed — " + e.getMessage());
             apiRef.set(null);
             defRef.set(null);
             namedGraphRef.set(Map.of());
         }
+    }
+
+    /**
+     * Builds a {@link WorkspaceSchema} from a discovered config file, or from the bundled CGMES 3.0
+     * profiles when {@code configFile} is empty. Config-relative schema paths resolve against the
+     * config file's own directory.
+     */
+    private WorkspaceSchema buildSchemaForConfig(Optional<Path> configFile) throws Exception {
+        if (configFile.isEmpty()) {
+            return assemble(emptyConfig(), SchemaLoader.loadBundledWithSources());
+        }
+        Path base = configFile.get().toAbsolutePath().getParent();
+        LspConfig config = ConfigLoader.load(configFile.get());
+        return assemble(config, SchemaLoader.loadWithSources(config, base));
+    }
+
+    /** Assembles the API, strictness, definition index, and named-graph scope from a config + schema. */
+    private WorkspaceSchema assemble(LspConfig config, SchemaLoader.SchemaAndSources loaded) {
+        var prefixes = config.prefixes() != null
+                ? config.prefixes()
+                : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, loaded.index());
+        boolean checkStd = config.checkStandardVocabulary();
+        var api   = new SparqlValidationApi(loaded.index(), prefixes, checkStd);
+        var level = parseLevel(config);
+        var defIndex = DefinitionIndex.build(loaded.index(), loaded.sourcePaths());
+        var scope = SparqlValidationApi.buildNamedGraphScope(
+                config.namedGraphs(), loaded.index(), msg -> LOG.warn("{}", msg));
+        if (!loaded.skippedFiles().isEmpty()) {
+            notify(MessageType.Warning,
+                    "CIMcheck: schema loaded with warnings — " + loaded.skippedFiles().size()
+                    + " file(s) could not be parsed and were skipped:\n"
+                    + String.join("\n", loaded.skippedFiles()));
+        }
+        return new WorkspaceSchema(api, level, defIndex, scope, checkStd);
+    }
+
+    private static LspConfig emptyConfig() {
+        return new LspConfig(null, null, null, null, null, null);
     }
 
     /** Runs every registered on-loaded callback (typically: revalidate all open documents). */

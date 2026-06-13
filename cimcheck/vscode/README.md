@@ -60,7 +60,7 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 
 - **Local file endpoint** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for that cell. Relative paths resolve against the notebook's own directory.
 - **Remote SPARQL endpoint** (`https://…`) — CIMcheck loads the schema from the endpoint itself. It enumerates the named graphs that hold the CGMES profiles and reads them into the schema index. The schema is fetched in the background; diagnostics appear once it has loaded.
-- **No directive** — the cell falls back to the workspace schema from `.cgmes/validation.json`, exactly like a `.rq` file.
+- **No directive** — the cell falls back to the workspace schema (the nearest `opencgmes.json`, or the bundled CGMES 3.0 default), exactly like a `.rq` file.
 
 The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded **in per-profile named graphs**); CIMcheck validates against that schema and never queries live instance data.
 
@@ -71,32 +71,31 @@ The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki se
 
 ## Getting started
 
-### 1. Create a configuration file
+### 1. Open a SPARQL or SHACL file — that's it
 
-Create a file at `.cgmes/validation.json` in your workspace root. This file tells the extension where your RDFS profile files are located.
+No configuration is required. CIMcheck validates against the **CGMES 3.0 RDFS profiles
+bundled with the extension** (from the ENTSO-E
+[Application Profiles Library](https://github.com/entsoe/application-profiles-library),
+Apache-2.0). Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file and diagnostics appear.
 
-**Example — directory of profiles:**
+### 2. (Optional) Customise with `opencgmes.json`
+
+To use your own profiles or tune validation, run **CIMcheck: Create Config File** from the
+Command Palette (or write the file yourself). All settings live under a `"cimcheck"` section;
+the file is discovered by walking up from each file (nearest one wins), and comments are
+allowed. To use your own RDFS profiles instead of the bundled ones:
 
 ```json
 {
-  "schemasDirectory": "schemas/cgmes-3.0"
+  "cimcheck": {
+    "schemasDirectory": "schemas/cgmes-3.0"
+  }
 }
 ```
 
-**Example — individual files:**
+The extension watches `opencgmes.json` and reloads the schema automatically whenever it changes.
 
-```json
-{
-  "schemas": [
-    "schemas/EquipmentCore.rdf",
-    "schemas/Topology.rdf"
-  ]
-}
-```
-
-The extension watches this file and reloads the schema automatically whenever it changes.
-
-### 2. Open a SPARQL or SHACL file
+### 3. Open a SPARQL or SHACL file
 
 Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file. The extension activates, loads the schema in the background, and begins validating. A notification confirms when the schema has loaded successfully.
 
@@ -111,25 +110,28 @@ Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file. The extension activates, lo
 
 ## Validation configuration reference
 
-The `.cgmes/validation.json` file supports these fields:
+The `opencgmes.json` file nests all CIMcheck settings under a `"cimcheck"` section:
 
 ```json
 {
-  "schemasDirectory": "path/to/profiles",
-  "schemas": ["path/to/Profile.rdf"],
-  "strictness": "default",
-  "namedGraphs": {
-    "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-    "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
-  },
-  "prefixes": {
-    "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "cim":  "http://iec.ch/TC57/CIM100#"
+  "cimcheck": {
+    "schemasDirectory": "path/to/profiles",
+    "schemas": ["path/to/Profile.rdf"],
+    "strictness": "default",
+    "namedGraphs": {
+      "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+      "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+    },
+    "prefixes": {
+      "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+      "cim":  "http://iec.ch/TC57/CIM100#"
+    }
   }
 }
 ```
 
-Either `schemasDirectory` or `schemas` is required (or both).
+All fields are optional. When neither `schemasDirectory` nor `schemas` is set, the bundled
+CGMES 3.0 profiles are used.
 
 ### `strictness`
 
@@ -210,8 +212,8 @@ extension namespaces) are always accepted regardless of this setting.
 **The extension shows "Schema load failed"**
 Open the CIMcheck output channel (`CIMcheck: Show Output`) to see the full error. Common causes: incorrect path in `schemasDirectory`/`schemas`, or a malformed RDF file.
 
-**"No .cgmes/validation.json found"**
-The extension looks for this file in your workspace root. Create it with at least a `schemasDirectory` or `schemas` entry.
+**No diagnostics at all**
+Validation needs no config (it uses the bundled CGMES 3.0 schemas), so this usually points to a server-launch problem — check **CIMcheck: Show Output** and confirm Java 21+ is available.
 
 **Java not found or wrong version**
 Set `cimcheck.javaExecutable` to the full path of a Java 21+ executable, e.g. `/usr/lib/jvm/java-21/bin/java`.
@@ -225,7 +227,7 @@ This usually means another installed RDF/Turtle extension (or a `files.associati
 ## Known Limitations
 
 **Notebook endpoint schemas: diagnostics only**
-Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (`.cgmes/validation.json`), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from an endpoint is cached for the session — edit `.cgmes/validation.json` (which triggers a reload) or reload the window to re-fetch it.
+Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (the nearest `opencgmes.json`, or the bundled default), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from an endpoint is cached for the session — edit `opencgmes.json` (which triggers a reload) or reload the window to re-fetch it.
 
 **Remote endpoint schema layout**
 Loading a schema from a remote SPARQL endpoint assumes the CGMES profiles are stored in **per-profile named graphs** (graphs that declare `rdfs:Class`/`owl:Ontology`); instance-data graphs are skipped. Endpoints that store the whole schema in the default graph, or mixed with instance data in one graph, are not supported.

@@ -52,7 +52,7 @@ import java.util.stream.Stream;
  * <p>Usage:</p>
  * <pre>
  * // Load every .rdf/.ttl/.owl file from a directory
- * SparqlValidationApi api = CgmesSchemaLoader.fromDirectory(Path.of(".cgmes/schemas")).load();
+ * SparqlValidationApi api = CgmesSchemaLoader.fromDirectory(Path.of("schemas")).load();
  *
  * // Load specific files
  * SparqlValidationApi api = CgmesSchemaLoader.fromFiles(eqPath, tpPath).load();
@@ -83,6 +83,21 @@ public final class CgmesSchemaLoader {
      */
     public static CgmesSchemaLoader fromDirectory(Path dir) {
         return new CgmesSchemaLoader(Objects.requireNonNull(dir, "dir"), null);
+    }
+
+    /**
+     * Loads the CGMES 3.0 RDFS profiles bundled with CIMcheck. The profiles are extracted from the
+     * jar into the user cache directory on first use (see {@link BundledSchemas}) and loaded from
+     * there, so validation works with no project configuration at all.
+     *
+     * @throws SchemaLoadException if the bundled resources cannot be extracted
+     */
+    public static CgmesSchemaLoader bundledDefault() throws SchemaLoadException {
+        try {
+            return fromDirectory(BundledSchemas.extractedDir());
+        } catch (IOException e) {
+            throw new SchemaLoadException("Cannot extract bundled CGMES 3.0 schemas: " + e.getMessage(), e);
+        }
     }
 
     /**

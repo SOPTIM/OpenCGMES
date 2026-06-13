@@ -165,11 +165,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
             String text = documents.get(uri);
             if (text == null) return noDefinition();
 
-            var apiOpt = schemaManager.getApi();
-            if (apiOpt.isEmpty()) return noDefinition();
-
-            var defIndexOpt = schemaManager.getDefinitionIndex();
-            if (defIndexOpt.isEmpty()) return noDefinition();
+            var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
+            if (wsOpt.isEmpty() || wsOpt.get().definitionIndex() == null) return noDefinition();
 
             int line = params.getPosition().getLine();
             int col  = params.getPosition().getCharacter();
@@ -178,7 +175,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             Node term = termAtPosition(text, line, col, prefixes);
             if (term == null) return noDefinition();
 
-            return defIndexOpt.get().locationOf(term)
+            return wsOpt.get().definitionIndex().locationOf(term)
                     .map(loc -> CompletableFuture.completedFuture(
                             Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(
                                     List.of(loc))))
@@ -208,9 +205,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String uri  = params.getTextDocument().getUri();
         String text = documents.get(uri);
         if (text == null) return List.of();
-        var apiOpt = schemaManager.getApi();
-        if (apiOpt.isEmpty()) return List.of();
-        SchemaIndex index = apiOpt.get().schemaIndex();
+        var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
+        if (wsOpt.isEmpty()) return List.of();
+        SchemaIndex index = wsOpt.get().api().schemaIndex();
         int line = params.getPosition().getLine();
         int col  = params.getPosition().getCharacter();
         return buildCompletionItems(text, line, col, index);
@@ -221,10 +218,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String text = documents.get(uri);
         if (text == null) return null;
 
-        var apiOpt = schemaManager.getApi();
-        if (apiOpt.isEmpty()) return null;
+        var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
+        if (wsOpt.isEmpty()) return null;
 
-        SchemaIndex index = apiOpt.get().schemaIndex();
+        SchemaIndex index = wsOpt.get().api().schemaIndex();
         int line = params.getPosition().getLine();
         int col  = params.getPosition().getCharacter();
 
@@ -273,7 +270,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
         if (c == null) return;
 
         // A SPARQL Notebook cell may declare its schema source via "# [endpoint=...]"; fall back
-        // to the default workspace schema (.cgmes/validation.json) when absent.
+        // to the document's workspace schema (nearest opencgmes.json, or bundled default) when absent.
         String endpoint = EndpointDirective.parse(text).orElse(null);
         var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (schemaOpt.isEmpty()) {
@@ -286,7 +283,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             } else {
                 var range = new Range(new Position(0, 0), new Position(0, 1));
                 var hint = new Diagnostic(range,
-                        "No schema loaded. Add .cgmes/validation.json to enable validation.",
+                        "No schema loaded yet.",
                         DiagnosticSeverity.Information, "cimcheck");
                 publishDiagnostics(uri, List.of(hint));
             }
@@ -446,7 +443,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
             } else {
                 publishDiagnostics(uri, List.of(new Diagnostic(
                         new Range(new Position(0, 0), new Position(0, 1)),
-                        "No schema loaded. Add .cgmes/validation.json to enable SHACL validation.",
+                        "No schema loaded yet.",
                         DiagnosticSeverity.Information, "cimcheck")));
             }
             return;

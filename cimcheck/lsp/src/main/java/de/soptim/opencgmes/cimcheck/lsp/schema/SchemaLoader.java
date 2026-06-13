@@ -75,6 +75,20 @@ public final class SchemaLoader {
         }
     }
 
+    /**
+     * Loads the bundled CGMES 3.0 profiles (the zero-config default), with source-file navigation.
+     *
+     * @throws SchemaLoadException if the bundled resources cannot be extracted or parsed
+     */
+    public static SchemaAndSources loadBundledWithSources() throws SchemaLoadException {
+        try {
+            LoadedIndex loaded = CgmesSchemaLoader.bundledDefault().loadIndexWithSources();
+            return new SchemaAndSources(loaded.index(), loaded.sourcePaths(), loaded.skippedFiles());
+        } catch (CgmesSchemaLoader.SchemaLoadException e) {
+            throw new SchemaLoadException(e.getMessage(), e);
+        }
+    }
+
     // ---- Private ---------------------------------------------------------------------------
 
     private static CgmesSchemaLoader resolveLoader(LspConfig config, Path base)
@@ -89,7 +103,12 @@ public final class SchemaLoader {
             Path dir = base.resolve(config.schemasDirectory()).normalize();
             return CgmesSchemaLoader.fromDirectory(dir);
         }
-        throw new SchemaLoadException("Config must specify 'schemasDirectory' or 'schemas'.");
+        // No schemas configured — fall back to the bundled CGMES 3.0 profiles.
+        try {
+            return CgmesSchemaLoader.bundledDefault();
+        } catch (CgmesSchemaLoader.SchemaLoadException e) {
+            throw new SchemaLoadException(e.getMessage(), e);
+        }
     }
 
     // ---- Exception -------------------------------------------------------------------------

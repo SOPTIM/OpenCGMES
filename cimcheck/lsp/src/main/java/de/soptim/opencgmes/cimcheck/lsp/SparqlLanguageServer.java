@@ -35,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Lifecycle:</p>
  * <ol>
  *   <li>{@code initialize} — declare capabilities, start async schema load</li>
- *   <li>{@code initialized} — register a file watcher for {@code .cgmes/validation.json}</li>
+ *   <li>{@code initialized} — register a file watcher for {@code opencgmes.json}</li>
  *   <li>Normal operation — text-document events drive validation via
  *       {@link SparqlTextDocumentService}</li>
  *   <li>{@code shutdown} / {@code exit} — clean up threads</li>
@@ -83,7 +83,9 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
         caps.setDefinitionProvider(true);
         caps.setWorkspaceSymbolProvider(true);
         caps.setExecuteCommandProvider(
-                new ExecuteCommandOptions(List.of(SparqlWorkspaceService.CMD_EXPLAIN_QUERY)));
+                new ExecuteCommandOptions(List.of(
+                        SparqlWorkspaceService.CMD_EXPLAIN_QUERY,
+                        SparqlWorkspaceService.CMD_CREATE_CONFIG)));
 
         InitializeResult result = new InitializeResult(caps);
         result.setServerInfo(new ServerInfo("SPARQL Validation Server", "1.0.0"));
@@ -96,7 +98,7 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
         if (client != null) {
             try {
                 FileSystemWatcher watcher = new FileSystemWatcher();
-                watcher.setGlobPattern(Either.forLeft("**/.cgmes/validation.json"));
+                watcher.setGlobPattern(Either.forLeft("**/opencgmes.json"));
 
                 var regOptions = new DidChangeWatchedFilesRegistrationOptions(List.of(watcher));
                 var reg = new Registration(
@@ -104,7 +106,7 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
                         "workspace/didChangeWatchedFiles",
                         regOptions);
                 client.registerCapability(new RegistrationParams(List.of(reg)));
-                LOG.info("Registered file watcher for .cgmes/validation.json");
+                LOG.info("Registered file watcher for opencgmes.json");
             } catch (Exception e) {
                 LOG.warn("Could not register file watcher: {}", e.getMessage());
             }

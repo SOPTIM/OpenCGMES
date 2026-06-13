@@ -48,8 +48,22 @@ public final class SchemaLoader {
      * @throws SchemaLoadException if no schema files are found or any file fails to parse
      */
     public static RdfsSchemaIndex load(CliConfig config, Path configBase) throws SchemaLoadException {
+        if (config.schemas().isEmpty() && config.schemasDirectory() == null) {
+            return loadBundled();
+        }
         List<Path> files = resolveFiles(config, configBase);
         return buildIndex(files);
+    }
+
+    /** Loads the bundled CGMES 3.0 profiles (the zero-config default). */
+    public static RdfsSchemaIndex loadBundled() throws SchemaLoadException {
+        try {
+            var loaded = CgmesSchemaLoader.bundledDefault().loadIndexWithSources();
+            loaded.skippedFiles().forEach(f -> LOG.warn("Skipped unparseable bundled schema file: {}", f));
+            return loaded.index();
+        } catch (CgmesSchemaLoader.SchemaLoadException e) {
+            throw new SchemaLoadException(e.getMessage(), e.getCause());
+        }
     }
 
     /**

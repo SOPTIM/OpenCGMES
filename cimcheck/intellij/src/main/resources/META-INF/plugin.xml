@@ -17,7 +17,7 @@
 <idea-plugin>
     <id>de.soptim.opencgmes.cimcheck</id>
     <name>CIMcheck</name>
-    <vendor email="info@soptim.de" url="https://www.soptim.de/">SOPTIM AG</vendor>
+    <vendor email="opencgmes@soptim.de" url="https://www.soptim.de/">SOPTIM AG</vendor>
 
     <description><![CDATA[
         <p>
@@ -49,17 +49,15 @@
         <h3>Getting started</h3>
         <ol>
             <li><b>Install LSP4IJ</b> if prompted — it is a required dependency and provides the LSP client.</li>
-            <li><b>Create a configuration file</b> at <code>.cgmes/validation.json</code> in your project root. This tells CIMcheck where your RDFS profile files are:
+            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> No configuration is required — CIMcheck validates against the CGMES 3.0 RDFS profiles bundled with the plugin. The server starts, loads the schema in the background, and begins validating.</li>
+            <li><b>(Optional) Customise</b> via <b>Tools → CIMcheck: Create Config File</b>, which scaffolds an <code>opencgmes.json</code>. All settings live under a <code>"cimcheck"</code> section; the nearest file (walking up from each query) wins. To use your own RDFS profiles:
                 <pre>{
-  "schemasDirectory": "schemas/cgmes-3.0"
-}</pre>
-                or list individual files:
-                <pre>{
-  "schemas": ["schemas/EquipmentCore.rdf", "schemas/Topology.rdf"]
+  "cimcheck": {
+    "schemasDirectory": "schemas/cgmes-3.0"
+  }
 }</pre>
                 The file is watched and the schema reloads automatically whenever it changes.
             </li>
-            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> The server starts, loads the schema in the background, and begins validating.</li>
         </ol>
 
         <h3>Settings</h3>
@@ -72,7 +70,7 @@
 
         <h3>Validation configuration</h3>
         <p>
-            <code>.cgmes/validation.json</code> also supports <code>strictness</code>
+            <code>opencgmes.json</code> (the <code>"cimcheck"</code> section) also supports <code>strictness</code>
             (<code>permissive</code> / <code>default</code> / <code>strict</code> /
             <code>pedantic</code>), <code>namedGraphs</code> (map graph IRIs to profile
             versions) and <code>prefixes</code> (default PREFIX declarations injected into
@@ -82,7 +80,7 @@
         <h3>Troubleshooting</h3>
         <ul>
             <li><b>No syntax highlighting / file not recognised</b> — confirm the file extension is one of <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code>, <code>.shacl</code>. If a previously installed plugin already claimed <code>.ttl</code>, add the association under <b>Settings → Editor → File Types → SHACL</b>.</li>
-            <li><b>No diagnostics appearing</b> — make sure <code>.cgmes/validation.json</code> exists in the project root and that LSP4IJ is enabled. Open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMcheck's status and logs.</li>
+            <li><b>No diagnostics appearing</b> — validation needs no config (bundled CGMES 3.0 schemas), so this usually means the server did not start. Make sure LSP4IJ is enabled and open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMcheck's status and logs.</li>
             <li><b>Server fails to start</b> — usually a Java version problem. Set <b>Settings → Tools → CIMcheck → Java executable</b> to a Java 21+ path.</li>
         </ul>
     ]]></description>
@@ -147,6 +145,14 @@
                 text="Explain Query (Algebra Plan)"
                 description="Show the static SPARQL algebra plan for the current query, like arq --explain.">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- ── Create Config File (opencgmes.json) ───────────────────────── -->
+        <action id="de.soptim.opencgmes.cimcheck.createConfig"
+                class="de.soptim.opencgmes.cimcheck.intellij.CreateConfigAction"
+                text="CIMcheck: Create Config File"
+                description="Scaffold an opencgmes.json config file in the project root.">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
     </actions>
 

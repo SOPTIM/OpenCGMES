@@ -36,26 +36,22 @@ Install **CIMcheck** from the Marketplace (Settings → Plugins → Marketplace)
 
 > If you install CIMcheck from a downloaded `.zip` instead (Install Plugin from Disk), IntelliJ does **not** resolve Marketplace dependencies — install **LSP4IJ** manually first (Settings → Plugins → Marketplace → search "LSP4IJ").
 
-### 2. Create a configuration file
+### 2. (Optional) Create a configuration file
 
-Create a file at `.cgmes/validation.json` in your **project root**. This tells CIMcheck where your RDFS profile files are.
+No configuration is required: CIMcheck validates against the **CGMES 3.0 RDFS profiles
+bundled with the plugin** (from the ENTSO-E
+[Application Profiles Library](https://github.com/entsoe/application-profiles-library),
+Apache-2.0). To use your own profiles or tune validation, run **Tools → CIMcheck: Create
+Config File** to scaffold an `opencgmes.json`, or create it by hand.
 
-**A directory of profiles:**
-
-```json
-{
-  "schemasDirectory": "schemas/cgmes-3.0"
-}
-```
-
-**Individual files:**
+All settings live under a `"cimcheck"` section. CIMcheck discovers the nearest `opencgmes.json`
+by walking up from each file, and JSON comments are allowed. To use your own RDFS profiles:
 
 ```json
 {
-  "schemas": [
-    "schemas/EquipmentCore.rdf",
-    "schemas/Topology.rdf"
-  ]
+  "cimcheck": {
+    "schemasDirectory": "schemas/cgmes-3.0"
+  }
 }
 ```
 
@@ -122,25 +118,30 @@ Under **Settings / Preferences → Tools → CIMcheck**:
 
 ## Validation configuration reference
 
-The `.cgmes/validation.json` file supports these fields:
+The `opencgmes.json` file nests all CIMcheck settings under a `"cimcheck"` section. All fields
+are optional; when neither `schemasDirectory` nor `schemas` is set, the bundled CGMES 3.0
+profiles are used.
 
 ```json
 {
-  "schemasDirectory": "path/to/profiles",
-  "schemas": ["path/to/Profile.rdf"],
-  "strictness": "default",
-  "namedGraphs": {
-    "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-    "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
-  },
-  "prefixes": {
-    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-    "cim": "http://iec.ch/TC57/CIM100#"
+  "cimcheck": {
+    "schemasDirectory": "path/to/profiles",
+    "schemas": ["path/to/Profile.rdf"],
+    "strictness": "default",
+    "namedGraphs": {
+      "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+      "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+    },
+    "prefixes": {
+      "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+      "cim": "http://iec.ch/TC57/CIM100#"
+    }
   }
 }
 ```
 
-Either `schemasDirectory` or `schemas` is required (or both).
+Both `schemasDirectory` and `schemas` are optional — omit them to validate against the
+bundled CGMES 3.0 profiles.
 
 ### `strictness`
 
@@ -165,7 +166,7 @@ Default PREFIX declarations automatically injected into every SPARQL query that 
 Confirm the file extension is one of `.rq`, `.sparql`, `.ttl`, `.shacl`. If another plugin already claimed `.ttl`, add the association under **Settings → Editor → File Types → SHACL**.
 
 **No diagnostics appearing**
-Make sure `.cgmes/validation.json` exists in the project root and that LSP4IJ is enabled. Open the **Language Servers** tool window (provided by LSP4IJ) to see CIMcheck's status and message log — this is the IntelliJ equivalent of an LSP output channel and the best place to diagnose startup and schema-loading issues.
+Validation needs no config (it uses the bundled CGMES 3.0 schemas), so missing diagnostics usually mean the server did not start — make sure LSP4IJ is enabled. Open the **Language Servers** tool window (provided by LSP4IJ) to see CIMcheck's status and message log — this is the IntelliJ equivalent of an LSP output channel and the best place to diagnose startup and schema-loading issues.
 
 **Server fails to start, or "Schema load failed"**
 Usually a Java problem. Set **Settings → Tools → CIMcheck → Java executable** to the full path of a Java 21+ executable, e.g. `/usr/lib/jvm/java-21/bin/java`. The LSP4IJ **Language Servers** console shows the full error.

@@ -32,6 +32,11 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('cimcheck.explainQuery', explainQuery)
     );
 
+    // Command: "CIMcheck: Create Config File" — scaffold opencgmes.json in the workspace root.
+    context.subscriptions.push(
+        vscode.commands.registerCommand('cimcheck.createConfig', createConfig)
+    );
+
     try {
         doActivate(context);
     } catch (err) {
@@ -80,6 +85,51 @@ function doActivate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): Thenable<void> | undefined {
     return client?.stop();
+}
+
+/**
+ * Scaffolds an `opencgmes.json` in the workspace root. CIMcheck works without it (validating against
+ * the bundled CGMES 3.0 schemas); the generated file is fully commented and exists for customisation.
+ * The template text comes from the language server's `cimcheck.createConfig` command so the CLI and
+ * editors stay in sync.
+ */
+async function createConfig(): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+        vscode.window.showWarningMessage('CIMcheck: open a folder to create opencgmes.json in.');
+        return;
+    }
+    const target = vscode.Uri.joinPath(folder.uri, 'opencgmes.json');
+    try {
+        await vscode.workspace.fs.stat(target);
+        const choice = await vscode.window.showWarningMessage(
+            'CIMcheck: opencgmes.json already exists.', 'Open', 'Overwrite');
+        if (choice === 'Open') {
+            await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
+            return;
+        }
+        if (choice !== 'Overwrite') {
+            return;
+        }
+    } catch {
+        // Does not exist yet — fall through and create it.
+    }
+    try {
+        let content: string | undefined;
+        if (client) {
+            content = await client.sendRequest<string>('workspace/executeCommand', {
+                command: 'cimcheck.createConfig',
+                arguments: [],
+            });
+        }
+        await vscode.workspace.fs.writeFile(
+            target, Buffer.from(content ?? '{\n  "cimcheck": {}\n}\n', 'utf8'));
+        await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        out.appendLine(`Create Config failed: ${msg}`);
+        vscode.window.showErrorMessage(`CIMcheck: Create Config failed: ${msg}`);
+    }
 }
 
 /**
@@ -190,7 +240,7 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher('**/.cgmes/validation.json'),
+            fileEvents: vscode.workspace.createFileSystemWatcher('**/opencgmes.json'),
         },
         traceOutputChannel: traceChannel,
     };

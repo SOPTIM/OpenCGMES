@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  *
  * <p>The built-in set covers the standard RDF vocabularies and the main CIM 100
  * namespace.  Users can override via {@code "prefixes"} in
- * {@code .cgmes/validation.json}: an explicit object replaces the built-in set
+ * {@code opencgmes.json}: an explicit object replaces the built-in set
  * entirely; use {@code {}} to disable all defaults.</p>
  */
 public final class DefaultPrefixes {

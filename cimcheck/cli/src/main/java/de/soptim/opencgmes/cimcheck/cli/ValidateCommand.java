@@ -81,7 +81,7 @@ import java.util.stream.Collectors;
         mixinStandardHelpOptions = true,
         version     = "1.0.0",
         sortOptions = false,
-        subcommands = { ExplainCommand.class }
+        subcommands = { ExplainCommand.class, InitCommand.class }
 )
 public class ValidateCommand implements Callable<Integer> {
 
@@ -99,7 +99,7 @@ public class ValidateCommand implements Callable<Integer> {
     @Option(
             names       = {"-c", "--config"},
             paramLabel  = "<file>",
-            description = "Config file (default: auto-discovers .cgmes/validation.json upward from CWD)."
+            description = "Config file (default: auto-discovers opencgmes.json upward from CWD)."
     )
     private Path configFile;
 
@@ -140,7 +140,7 @@ public class ValidateCommand implements Callable<Integer> {
             names       = {"--strictness"},
             paramLabel  = "<level>",
             description = "Validation strictness: permissive, default, strict, or pedantic. " +
-                          "Overrides the 'strictness' field in .cgmes/validation.json. " +
+                          "Overrides the 'strictness' field in opencgmes.json. " +
                           "strict promotes WARN to ERROR; pedantic also promotes INFO to ERROR; " +
                           "permissive suppresses everything except unknown-term and syntax errors."
     )
@@ -188,16 +188,16 @@ public class ValidateCommand implements Callable<Integer> {
                 Path base = configFile.toAbsolutePath().getParent();
                 index = SchemaLoader.load(config, base);
             } else {
-                // Auto-discover config.
+                // Auto-discover config; fall back to the bundled CGMES 3.0 schemas when none exists.
                 var discovered = ConfigLoader.discover(Path.of("."));
                 if (discovered.isEmpty()) {
-                    System.err.println("Error: No .cgmes/validation.json found and no --schema or --config given.");
-                    System.err.println("       Create .cgmes/validation.json or pass schema files with --schema.");
-                    return ExitCode.USAGE;
+                    System.err.println("Info: No opencgmes.json found — validating against the bundled CGMES 3.0 schemas.");
+                    index = SchemaLoader.loadBundled();
+                } else {
+                    config = discovered.get();
+                    Path base = Path.of(".").toAbsolutePath();
+                    index = SchemaLoader.load(config, base);
                 }
-                config = discovered.get();
-                Path base = Path.of(".").toAbsolutePath();
-                index = SchemaLoader.load(config, base);
             }
         } catch (ConfigLoader.ConfigException | SchemaLoader.SchemaLoadException e) {
             System.err.println("Error: " + e.getMessage());

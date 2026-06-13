@@ -34,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Handles workspace-level events.
  *
- * <p>Both configuration changes and watched-file changes (the {@code .cgmes/validation.json}
+ * <p>Both configuration changes and watched-file changes (the {@code opencgmes.json}
  * file registered during {@code initialized}) trigger a schema reload. Revalidation of all
  * open documents is driven by the {@code onLoaded} callback registered in
  * {@link SparqlLanguageServer}.</p>
@@ -45,6 +45,12 @@ final class SparqlWorkspaceService implements WorkspaceService {
 
     /** Command id for the static query-explain action (see {@link #executeCommand}). */
     static final String CMD_EXPLAIN_QUERY = "cimcheck.explainQuery";
+
+    /**
+     * Command id for generating the {@code opencgmes.json} scaffold. Returns the file contents as a
+     * String; the client decides where to write it.
+     */
+    static final String CMD_CREATE_CONFIG = "cimcheck.createConfig";
 
     private final SchemaManager schemaManager;
 
@@ -75,6 +81,10 @@ final class SparqlWorkspaceService implements WorkspaceService {
 
     @Override
     public CompletableFuture<Object> executeCommand(ExecuteCommandParams params) {
+        if (CMD_CREATE_CONFIG.equals(params.getCommand())) {
+            return CompletableFuture.completedFuture(
+                    de.soptim.opencgmes.cimcheck.core.ConfigTemplate.defaultJson());
+        }
         if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
             LOG.warn("Unknown command: {}", params.getCommand());
             return CompletableFuture.completedFuture(null);
@@ -121,9 +131,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
     public void didChangeWatchedFiles(DidChangeWatchedFilesParams params) {
         if (params.getChanges() == null) return;
         boolean configChanged = params.getChanges().stream()
-                .anyMatch(e -> e.getUri().contains(".cgmes/validation.json"));
+                .anyMatch(e -> e.getUri().endsWith("opencgmes.json"));
         if (configChanged) {
-            LOG.info(".cgmes/validation.json changed — reloading schema");
+            LOG.info("opencgmes.json changed — reloading schema");
             schemaManager.reloadAsync();
         }
     }

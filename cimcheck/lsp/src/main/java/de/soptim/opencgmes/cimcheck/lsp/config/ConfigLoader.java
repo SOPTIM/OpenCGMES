@@ -18,7 +18,9 @@
 
 package de.soptim.opencgmes.cimcheck.lsp.config;
 
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -27,48 +29,89 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Locates and parses {@code .cgmes/validation.json}.
+ * Locates and parses the project config file {@code opencgmes.json}.
  *
- * <p>Auto-discovery walks up from a start directory; explicit loading takes a direct path.</p>
+ * <p>All CIMcheck settings live under a top-level {@code "cimcheck"} object so {@code opencgmes.json}
+ * can host configuration for other OpenCGMES tools alongside it:</p>
+ * <pre>{@code
+ * {
+ *   "cimcheck": {
+ *     "strictness": "strict",
+ *     "namedGraphs": { "urn:uuid:eq": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"] }
+ *   }
+ * }
+ * }</pre>
+ *
+ * <p>The file is optional: when none is found, callers fall back to the bundled CGMES 3.0 schemas.
+ * A file with no {@code "cimcheck"} section (or one omitting {@code schemas}/{@code schemasDirectory})
+ * likewise inherits the bundled schemas.</p>
+ *
+ * <p>Auto-discovery walks upward from a start directory; explicit loading takes a direct path.</p>
  */
 public final class ConfigLoader {
 
-    private static final String CONFIG_SUBPATH = ".cgmes/validation.json";
+    /** The config file name, looked for in each directory while walking up the tree. */
+    public static final String CONFIG_FILENAME = "opencgmes.json";
+
+    /** Top-level key under which all CIMcheck settings live. */
+    private static final String SECTION = "cimcheck";
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .configure(JsonReadFeature.ALLOW_JAVA_COMMENTS.mappedFeature(), true)
+            .configure(JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature(), true);
 
     private ConfigLoader() {}
 
     /**
-     * Loads config from an explicit path.
+     * Loads config from an explicit {@code opencgmes.json} path, returning the {@code cimcheck}
+     * section. A missing section yields an empty config (which inherits the bundled schemas).
      *
      * @throws ConfigException if the file cannot be read or parsed
      */
     public static LspConfig load(Path configFile) throws ConfigException {
         try {
-            return MAPPER.readValue(configFile.toFile(), LspConfig.class);
+            JsonNode root = MAPPER.readTree(configFile.toFile());
+            JsonNode section = root == null ? null : root.get(SECTION);
+            if (section == null || section.isNull()) {
+                return emptyConfig();
+            }
+            return MAPPER.treeToValue(section, LspConfig.class);
         } catch (IOException e) {
             throw new ConfigException("Cannot read config " + configFile + ": " + e.getMessage(), e);
         }
     }
 
     /**
-     * Walks upward from {@code startDir} looking for {@code .cgmes/validation.json}.
+     * Walks upward from {@code startDir} looking for {@code opencgmes.json}.
      *
-     * @return the config, or empty if no file is found anywhere in the hierarchy
+     * @return the parsed {@code cimcheck} section, or empty if no file is found in the hierarchy
      * @throws ConfigException if a file is found but cannot be parsed
      */
     public static Optional<LspConfig> discover(Path startDir) throws ConfigException {
+        Optional<Path> file = discoverFile(startDir);
+        return file.isPresent() ? Optional.of(load(file.get())) : Optional.empty();
+    }
+
+    /**
+     * Walks upward from {@code startDir} returning the path of the nearest {@code opencgmes.json},
+     * or empty if none exists anywhere in the hierarchy. The file is not parsed.
+     */
+    public static Optional<Path> discoverFile(Path startDir) {
+        if (startDir == null) return Optional.empty();
         Path dir = startDir.toAbsolutePath().normalize();
         while (dir != null) {
-            Path candidate = dir.resolve(CONFIG_SUBPATH);
+            Path candidate = dir.resolve(CONFIG_FILENAME);
             if (Files.isRegularFile(candidate)) {
-                return Optional.of(load(candidate));
+                return Optional.of(candidate);
             }
             dir = dir.getParent();
         }
         return Optional.empty();
+    }
+
+    private static LspConfig emptyConfig() {
+        return new LspConfig(null, null, null, null, null, null);
     }
 
     /** Thrown when the config file cannot be loaded or parsed. */

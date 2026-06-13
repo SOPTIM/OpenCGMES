@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Common interface for {@code .cgmes/validation.json} config records shared by the CLI and
+ * Common interface for the {@code cimcheck} section of {@code opencgmes.json}, config records shared by the CLI and
  * LSP modules.
  *
  * <p>Both {@code CliConfig} and {@code LspConfig} implement this interface. Having the shared
