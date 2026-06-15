@@ -227,8 +227,9 @@ public class ValidateCommand implements Callable<Integer> {
             } else {
                 index = es.index();
                 endpointScope = es.namedGraphScope();
-                System.err.println("Info: endpoint schema loaded — " + endpointScope.size()
-                        + " named graph(s) auto-mapped to profiles.");
+                System.err.println("Info: endpoint schema loaded — " + es.instanceGraphsMapped()
+                        + " instance graph(s) auto-mapped to profiles, "
+                        + es.schemaGraphNames().size() + " schema graph(s) detected.");
                 if (!es.unmatchedGraphs().isEmpty()) {
                     System.err.println("Warning: could not auto-detect a CGMES profile for "
                             + es.unmatchedGraphs().size()

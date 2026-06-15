@@ -306,10 +306,11 @@ final class SchemaManager {
             }
             ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope());
             endpointCache.put(endpoint, schema);
-            LOG.info("Loaded schema from endpoint {} ({} graph(s) auto-mapped, {} unmatched)",
-                    endpoint, es.namedGraphScope().size(), es.unmatchedGraphs().size());
+            LOG.info("Loaded schema from endpoint {} ({} instance graph(s) auto-mapped, {} unmatched, {} schema graph(s))",
+                    endpoint, es.instanceGraphsMapped(), es.unmatchedGraphs().size(), es.schemaGraphNames().size());
             notify(MessageType.Info, "CIMcheck: schema loaded from endpoint " + endpoint
-                    + " — " + es.namedGraphScope().size() + " named graph(s) auto-mapped to profiles.");
+                    + " — " + es.instanceGraphsMapped() + " instance graph(s) auto-mapped to profiles, "
+                    + es.schemaGraphNames().size() + " schema graph(s) detected.");
             if (!es.unmatchedGraphs().isEmpty()) {
                 notify(MessageType.Warning, "CIMcheck: could not auto-detect a CGMES profile for "
                         + es.unmatchedGraphs().size() + " named graph(s); terms in "

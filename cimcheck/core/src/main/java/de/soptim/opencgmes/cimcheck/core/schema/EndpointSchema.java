@@ -35,9 +35,12 @@ import java.util.Map;
  *
  * @param index            the schema index built from the endpoint's schema graphs, or {@code null}
  *                         when no schema could be resolved
- * @param namedGraphScope  instance graph → detected profile(s), ready for
- *                         {@code SparqlValidationApi.validateSparql(query, scope)}; empty when no
- *                         instance graph could be classified
+ * @param namedGraphScope  graph → profile(s), ready for
+ *                         {@code SparqlValidationApi.validateSparql(query, scope)}. Holds each
+ *                         classified instance graph mapped to its detected profile(s), plus each
+ *                         schema graph mapped to all profiles (so queries that navigate the RDFS
+ *                         schema directly validate permissively instead of being reported as
+ *                         {@code GRAPH_NOT_CONFIGURED})
  * @param schemaGraphNames the named graphs identified as holding the schema
  * @param unmatchedGraphs  instance graphs whose terms matched no known profile
  */
@@ -56,6 +59,15 @@ public record EndpointSchema(
     /** Whether a usable schema was resolved from the endpoint. */
     public boolean hasSchema() {
         return index != null;
+    }
+
+    /**
+     * Number of instance graphs auto-mapped to a profile, i.e. the scope entries that are not
+     * schema graphs. (Schema graphs are also present in {@link #namedGraphScope()} but mapped to
+     * all profiles.)
+     */
+    public int instanceGraphsMapped() {
+        return namedGraphScope.size() - schemaGraphNames.size();
     }
 
     /** An {@link EndpointSchema} carrying no schema (endpoint exposed no CIM profiles). */

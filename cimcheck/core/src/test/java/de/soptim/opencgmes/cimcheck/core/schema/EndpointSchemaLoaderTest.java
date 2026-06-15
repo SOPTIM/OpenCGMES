@@ -97,8 +97,13 @@ public class EndpointSchemaLoaderTest {
         assertEquals(VersionIri.of(TP_VERSION),
                 scope.get(NodeFactory.createURI("http://ex.org/data/tp")).iterator().next());
         assertTrue("no graph should be unmatched", es.unmatchedGraphs().isEmpty());
-        // Schema graphs are not classified as instance data.
-        assertFalse(scope.containsKey(NodeFactory.createURI("http://ex.org/schema/eq")));
+        assertEquals("two instance graphs mapped", 2, es.instanceGraphsMapped());
+        // Schema graphs are mapped to all profiles so schema-navigation queries
+        // (GRAPH <schema:eq> { ... }) validate permissively rather than GRAPH_NOT_CONFIGURED.
+        var schemaScope = scope.get(NodeFactory.createURI("http://ex.org/schema/eq"));
+        assertTrue("schema graph maps to all profiles",
+                schemaScope.contains(VersionIri.of(EQ_VERSION))
+                        && schemaScope.contains(VersionIri.of(TP_VERSION)));
     }
 
     @Test

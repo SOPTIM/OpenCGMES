@@ -20,12 +20,17 @@ package de.soptim.opencgmes.cimcheck.core.schema;
 
 import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader.SchemaLoadException;
+import de.soptim.opencgmes.cimcheck.core.VersionIri;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -94,8 +99,16 @@ public final class EndpointSchemaLoader {
 
         NamedGraphProfileResolver.Result detected =
                 NamedGraphProfileResolver.resolve(source, index, schemaGraphNames);
-        LOG.info("Auto-mapped {} instance graph(s) to profiles ({} unmatched)",
-                detected.scope().size(), detected.unmatched().size());
-        return new EndpointSchema(index, detected.scope(), schemaGraphNames, detected.unmatched());
+
+        var scope = new LinkedHashMap<Node, Collection<VersionIri>>(detected.scope());
+        List<VersionIri> allProfiles = index.getAllProfiles();
+        for (String schemaGraph : schemaGraphNames) {
+            scope.putIfAbsent(NodeFactory.createURI(schemaGraph), allProfiles);
+        }
+
+        LOG.info("Auto-mapped {} instance graph(s) to profiles ({} unmatched); "
+                        + "{} schema graph(s) mapped to all profiles",
+                detected.scope().size(), detected.unmatched().size(), schemaGraphNames.size());
+        return new EndpointSchema(index, scope, schemaGraphNames, detected.unmatched());
     }
 }
