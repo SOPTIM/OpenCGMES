@@ -447,6 +447,18 @@ java -jar cimcheck.jar --schema path/to/rdfs --strictness strict path/to/query.r
 
 The `--strictness` flag mirrors the VS Code setting.
 
+To validate against a SPARQL endpoint that hosts both the schema and the data, use `--endpoint`.
+The schema is loaded from the endpoint and named graphs are auto-mapped to profiles (see
+[Loading the schema from a SPARQL endpoint](#loading-the-schema-from-a-sparql-endpoint-with-auto-graphprofile-mapping)):
+
+```bash
+java -jar cimcheck.jar --endpoint http://localhost:3030/cgmes/query path/to/query.rq
+```
+
+If the endpoint exposes no CIM schema graphs, validation falls back to a syntax-only check with a
+warning. Pass `--strict-endpoint` to make that case a hard failure (exit 2) instead — useful so a
+misconfigured pipeline breaks visibly rather than silently checking only syntax.
+
 ---
 
 ## API
@@ -472,6 +484,45 @@ CimProfileRegistry registry = new CimProfileRegistryStd();
 // ... register profiles ...
 SparqlValidationApi api = new SparqlValidationApi(RdfsSchemaIndex.fromCimRegistry(registry));
 ```
+
+### Loading the schema from a SPARQL endpoint (with auto graph→profile mapping)
+
+When a SPARQL 1.1 endpoint (e.g. Apache Jena Fuseki) hosts **both** the CGMES RDFS schema and the
+instance data as named graphs, the schema and the per-graph profile scope can be discovered
+automatically — no `namedGraphs` config required. This makes endpoint-backed validation usable
+straight from a pipeline:
+
+```java
+import de.soptim.opencgmes.cimcheck.core.schema.EndpointSchema;
+import de.soptim.opencgmes.cimcheck.core.schema.EndpointSchemaLoader;
+import java.time.Duration;
+
+EndpointSchema es = EndpointSchemaLoader.loadFromEndpoint(
+        "http://localhost:3030/cgmes/query", Duration.ofSeconds(30));
+
+if (!es.hasSchema()) {
+    // Endpoint is reachable but exposes no CIM schema graphs — warn loudly and fall back
+    // to SparqlValidationApi.checkSyntaxOnly(...) rather than validating against nothing.
+} else {
+    SparqlValidationApi api = new SparqlValidationApi(es.index());
+    // es.namedGraphScope() maps each instance graph to its detected profile(s):
+    SparqlValidationResult r = api.validateSparql(queryText, es.namedGraphScope());
+    // es.unmatchedGraphs() lists instance graphs that matched no known profile.
+}
+```
+
+`EndpointSchemaLoader`:
+
+1. enumerates the **schema graphs** (those declaring an `rdfs:Class` / `owl:Ontology`) and builds
+   the index from them;
+2. classifies every other **instance graph** by sampling its predicates and `rdf:type` objects and
+   matching them against the schema, preferring *discriminating* terms (declared by exactly one
+   profile) — i.e. a graph that uses an EQ-only property is mapped to EQ.
+
+The classification only ever samples a graph to decide *which profile it is* — it never validates
+the instance data itself. A Fuseki `…/update` URL is tolerated (its `…/query` sibling is used
+automatically). For testing or in-process datasets, pass a `DatasetSparqlGraphSource` to
+`EndpointSchemaLoader.load(SparqlGraphSource)` instead.
 
 ### SPARQL validation
 

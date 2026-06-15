@@ -16,47 +16,45 @@
  * limitations under the License.
  */
 
-package de.soptim.opencgmes.cimcheck.lsp.schema;
+package de.soptim.opencgmes.cimcheck.core.schema;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class EndpointGraphFetcherTest {
+/** Covers the Fuseki {@code update}→{@code query} sibling derivation used as a 405 fallback. */
+public class HttpSparqlGraphSourceTest {
 
     @Test
     public void derivesQuerySiblingForFusekiUpdateEndpoint() {
-        // The /query sibling is only used as a 405 fallback; a Fuseki /update endpoint maps to it.
         assertEquals("http://localhost:3030/svedala/query",
-                EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala/update"));
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala/update"));
     }
 
     @Test
     public void derivesQuerySiblingForUpdateEndpointWithTrailingSlash() {
         assertEquals("http://localhost:3030/svedala/query",
-                EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala/update/"));
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala/update/"));
     }
 
     @Test
     public void hasNoSiblingForQueryEndpoint() {
-        // Already a query endpoint — nothing to fall back to.
-        assertNull(EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala/query"));
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala/query"));
     }
 
     @Test
     public void hasNoSiblingForPlainDatasetEndpoint() {
-        assertNull(EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/svedala"));
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala"));
     }
 
     @Test
     public void hasNoSiblingWhenUpdateIsNotTheLastSegment() {
-        // "update" embedded in a dataset name, not the Fuseki service suffix.
-        assertNull(EndpointGraphFetcher.queryEndpointSibling("http://localhost:3030/update/query"));
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/update/query"));
     }
 
     @Test
     public void toleratesNull() {
-        assertNull(EndpointGraphFetcher.queryEndpointSibling(null));
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling(null));
     }
 }

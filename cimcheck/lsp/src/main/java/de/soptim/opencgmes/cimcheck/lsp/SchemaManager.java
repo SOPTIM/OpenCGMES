@@ -23,12 +23,12 @@ import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
+import de.soptim.opencgmes.cimcheck.core.schema.EndpointSchema;
+import de.soptim.opencgmes.cimcheck.core.schema.EndpointSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimcheck.lsp.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
-import de.soptim.opencgmes.cimcheck.lsp.schema.EndpointGraphFetcher;
 import de.soptim.opencgmes.cimcheck.lsp.schema.SchemaLoader;
-import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.MessageType;
@@ -265,7 +265,7 @@ final class SchemaManager {
                 return Optional.empty();
             }
             var index    = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndex();
-            ResolvedSchema schema = buildSchema(index);
+            ResolvedSchema schema = buildSchema(index, Map.of());
             endpointCache.put(key, schema);
             LOG.info("Loaded endpoint schema from file {}", file);
             return Optional.of(schema);
@@ -295,11 +295,27 @@ final class SchemaManager {
 
     private void loadRemoteEndpoint(String endpoint) {
         try {
-            List<Graph> graphs = EndpointGraphFetcher.fetchProfileGraphs(endpoint, REMOTE_TIMEOUT);
-            ResolvedSchema schema = buildSchema(CgmesSchemaLoader.indexFromGraphs(graphs));
+            EndpointSchema es = EndpointSchemaLoader.loadFromEndpoint(endpoint, REMOTE_TIMEOUT);
+            if (!es.hasSchema()) {
+                // Reachable, but no CIM schema graphs to validate against. Negatively cache it so we
+                // don't re-fetch on every keystroke; the document falls back to syntax-only checking.
+                markFailed(endpoint);
+                notify(MessageType.Warning, "CIMcheck: endpoint " + endpoint
+                        + " exposes no CIM schema graphs — validating SPARQL syntax only.");
+                return;
+            }
+            ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope());
             endpointCache.put(endpoint, schema);
-            LOG.info("Loaded schema from endpoint {}", endpoint);
-            notify(MessageType.Info, "CIMcheck: schema loaded from endpoint " + endpoint + ".");
+            LOG.info("Loaded schema from endpoint {} ({} graph(s) auto-mapped, {} unmatched)",
+                    endpoint, es.namedGraphScope().size(), es.unmatchedGraphs().size());
+            notify(MessageType.Info, "CIMcheck: schema loaded from endpoint " + endpoint
+                    + " — " + es.namedGraphScope().size() + " named graph(s) auto-mapped to profiles.");
+            if (!es.unmatchedGraphs().isEmpty()) {
+                notify(MessageType.Warning, "CIMcheck: could not auto-detect a CGMES profile for "
+                        + es.unmatchedGraphs().size() + " named graph(s); terms in "
+                        + (es.unmatchedGraphs().size() == 1 ? "it" : "them")
+                        + " will be reported as unknown. Graph(s): " + describeGraphs(es.unmatchedGraphs()));
+            }
             fireOnLoaded();  // revalidate open documents so the cell gets its diagnostics
         } catch (Exception e) {
             LOG.error("Failed to load schema from endpoint {}: {}", endpoint, e.getMessage(), e);
@@ -311,11 +327,23 @@ final class SchemaManager {
         }
     }
 
-    /** Builds a {@link ResolvedSchema} from an index, using default prefixes and full-profile scope. */
-    private ResolvedSchema buildSchema(RdfsSchemaIndex index) {
+    /** Renders up to a few graph names for a warning message, eliding the rest. */
+    private static String describeGraphs(List<Node> graphs) {
+        int shown = Math.min(graphs.size(), 3);
+        var sb = new StringBuilder();
+        for (int i = 0; i < shown; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append('<').append(graphs.get(i).getURI()).append('>');
+        }
+        if (graphs.size() > shown) sb.append(", … (").append(graphs.size() - shown).append(" more)");
+        return sb.toString();
+    }
+
+    /** Builds a {@link ResolvedSchema} from an index, using default prefixes and the given scope. */
+    private ResolvedSchema buildSchema(RdfsSchemaIndex index, Map<Node, Collection<VersionIri>> scope) {
         var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
         var api      = new SparqlValidationApi(index, prefixes, checkStdVocabRef.get());
-        return new ResolvedSchema(api, levelRef.get(), Map.of());
+        return new ResolvedSchema(api, levelRef.get(), scope);
     }
 
     /** Records an endpoint as failed (negative cache) and notifies once per failure window. */
