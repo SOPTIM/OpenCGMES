@@ -18,7 +18,6 @@
 
 package de.soptim.opencgmes.cimcheck.core.schema;
 
-import org.apache.jena.atlas.web.HttpException;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.query.ParameterizedSparqlString;
@@ -26,14 +25,15 @@ import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.RDFNode;
+import org.apache.jena.sparql.engine.http.QueryExceptionHTTP;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.HttpURLConnection;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -75,12 +75,16 @@ public final class HttpSparqlGraphSource implements SparqlGraphSource {
               }
             }""";
 
+    /** Fuseki service operations that are not SPARQL query and so map to a {@code /query} sibling. */
+    private static final Set<String> NON_QUERY_OPERATIONS =
+            Set.of("update", "shacl", "data", "get", "upload");
+
     private final String endpoint;
     private final Duration timeout;
     private String resolvedEndpoint; // memoized after the first successful query
 
     public HttpSparqlGraphSource(String endpoint, Duration timeout) {
-        this.endpoint = endpoint;
+        this.endpoint = stripQuery(endpoint);
         this.timeout = timeout;
     }
 
@@ -131,47 +135,83 @@ public final class HttpSparqlGraphSource implements SparqlGraphSource {
     // ---- endpoint resolution ---------------------------------------------------------------
 
     /**
-     * Returns the working query endpoint, resolving the Fuseki {@code update}→{@code query} sibling
-     * fallback once on first use. A lightweight {@code ASK {}} probe decides which URL accepts
-     * queries; the result is memoized.
+     * Returns the working query endpoint, resolving a Fuseki operation→{@code query} sibling once on
+     * first use. A lightweight {@code ASK {}} probe decides whether the given URL accepts queries;
+     * the result is memoized.
+     *
+     * <p>The given URL is probed first — so a dataset literally named {@code shacl}/{@code update}
+     * (queried directly) is honoured. If it does not answer a SPARQL query (any HTTP error — a
+     * Fuseki {@code /update} endpoint replies {@code 405} to a query, a {@code /shacl} endpoint
+     * {@code 404} to a GET), and the URL looks like a known non-query operation
+     * ({@code /shacl}, {@code /update}, {@code /data}, {@code /get}, {@code /upload}), its
+     * {@code /query} sibling is probed and used instead. When no usable sibling exists, the original
+     * failure is surfaced faithfully.</p>
      */
     private String endpoint() {
         if (resolvedEndpoint != null) return resolvedEndpoint;
         try {
-            try (QueryExecution qe = service(endpoint, "ASK {}")) {
-                qe.execAsk();
-            }
+            probe(endpoint);
             resolvedEndpoint = endpoint;
-        } catch (HttpException e) {
+        } catch (QueryExceptionHTTP e) {
             String sibling = queryEndpointSibling(endpoint);
-            if (e.getStatusCode() == HttpURLConnection.HTTP_BAD_METHOD && sibling != null) {
-                LOG.info("Endpoint {} rejected a query with 405; falling back to its query sibling {}",
-                        endpoint, sibling);
-                resolvedEndpoint = sibling;
-            } else {
-                throw e;
+            if (sibling != null && !sibling.equals(endpoint)) {
+                try {
+                    probe(sibling);
+                    LOG.info("Endpoint {} did not answer a SPARQL query ({}); "
+                            + "using its query sibling {}", endpoint, e.getMessage(), sibling);
+                    resolvedEndpoint = sibling;
+                    return resolvedEndpoint;
+                } catch (QueryExceptionHTTP siblingError) {
+                    LOG.debug("Query sibling {} also failed: {}", sibling, siblingError.getMessage());
+                }
             }
+            throw e; // no usable sibling — surface the original failure
         }
         return resolvedEndpoint;
     }
 
+    /** Runs a trivial {@code ASK {}} against {@code ep} to check it accepts SPARQL queries. */
+    private void probe(String ep) {
+        try (QueryExecution qe = service(ep, "ASK {}")) {
+            qe.execAsk();
+        }
+    }
+
     /**
-     * Returns the Fuseki sibling <b>query</b> endpoint for an <b>update</b> endpoint
-     * ({@code .../dataset/update} → {@code .../dataset/query}), or {@code null} when the URL does
-     * not end in an {@code /update} segment and so has no conventional query sibling to try.
+     * Returns the Fuseki <b>query</b> sibling of a non-query service-operation endpoint, or
+     * {@code null} when the URL is already a query endpoint or names no known operation.
+     *
+     * <p>Maps the last path segment {@code update}/{@code shacl}/{@code data}/{@code get}/
+     * {@code upload} to {@code query} (e.g. {@code .../test/shacl} → {@code .../test/query}).
+     * Any query string is dropped first. {@code query}/{@code sparql} and a bare dataset URL (whose
+     * last segment is the dataset name) return {@code null} — they are already usable for queries.</p>
      */
     public static String queryEndpointSibling(String endpoint) {
         if (endpoint == null) {
             return null;
         }
-        String trimmed = endpoint;
+        String trimmed = stripQuery(endpoint);
         while (trimmed.endsWith("/")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
-        if (trimmed.endsWith("/update")) {
-            return trimmed.substring(0, trimmed.length() - "/update".length()) + "/query";
+        int slash = trimmed.lastIndexOf('/');
+        if (slash < 0) {
+            return null;
+        }
+        String lastSegment = trimmed.substring(slash + 1);
+        if (NON_QUERY_OPERATIONS.contains(lastSegment)) {
+            return trimmed.substring(0, slash) + "/query";
         }
         return null;
+    }
+
+    /** Strips a {@code ?query-string} from {@code url}, if present. */
+    private static String stripQuery(String url) {
+        if (url == null) {
+            return null;
+        }
+        int q = url.indexOf('?');
+        return q >= 0 ? url.substring(0, q) : url;
     }
 
     private List<String> selectUris(String query, String var) {

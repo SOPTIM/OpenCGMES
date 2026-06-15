@@ -28,24 +28,55 @@ public class HttpSparqlGraphSourceTest {
 
     @Test
     public void derivesQuerySiblingForFusekiUpdateEndpoint() {
-        assertEquals("http://localhost:3030/svedala/query",
-                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala/update"));
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/update"));
     }
 
     @Test
     public void derivesQuerySiblingForUpdateEndpointWithTrailingSlash() {
-        assertEquals("http://localhost:3030/svedala/query",
-                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala/update/"));
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/update/"));
+    }
+
+    @Test
+    public void derivesQuerySiblingForFusekiShaclEndpoint() {
+        // The workshop notebook points SHACL cells at Fuseki's /shacl operation; for schema loading
+        // we must read from the dataset's /query service instead.
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/shacl"));
+    }
+
+    @Test
+    public void stripsQueryStringWhenDerivingSibling() {
+        // A Fuseki SHACL/GSP "?graph=..." must be dropped — it is meaningless to a SPARQL query.
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling(
+                        "http://localhost:3030/test/shacl?graph=cgmes:model:SSH"));
+    }
+
+    @Test
+    public void derivesQuerySiblingForGspOperations() {
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/data"));
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/get"));
+        assertEquals("http://localhost:3030/test/query",
+                HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/upload"));
     }
 
     @Test
     public void hasNoSiblingForQueryEndpoint() {
-        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala/query"));
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/query"));
+    }
+
+    @Test
+    public void hasNoSiblingForSparqlEndpoint() {
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test/sparql"));
     }
 
     @Test
     public void hasNoSiblingForPlainDatasetEndpoint() {
-        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/svedala"));
+        assertNull(HttpSparqlGraphSource.queryEndpointSibling("http://localhost:3030/test"));
     }
 
     @Test
