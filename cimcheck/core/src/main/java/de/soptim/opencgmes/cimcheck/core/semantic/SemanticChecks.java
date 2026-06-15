@@ -108,6 +108,7 @@ public final class SemanticChecks {
         var ctx = new Ctx(schemaIndex, scopeResolver, originalText, prefixes);
         var annotations = new ArrayList<SparqlValidationAnnotation>();
         Map<Integer, Map<Node, Set<Node>>> scopedTypes = SubjectTypeInference.inferScoped(triples);
+        Set<Node> dynamicallyTyped = SubjectTypeInference.subjectsWithVariableType(triples);
 
         for (TriplePatternReference t : triples) {
             Node s = t.triple().getSubject();
@@ -121,7 +122,8 @@ public final class SemanticChecks {
             Set<Node> ranges  = schemaIndex.rangesOf(p, scope);
 
             Set<Node> declared = SubjectTypeInference.typesFor(s, t.scopeChain(), scopedTypes);
-            checkDomain(annotations, ctx, scope, declared, s, p, t.graph(), domains);
+            checkDomain(annotations, ctx, scope, declared, s, p, t.graph(), domains,
+                    dynamicallyTyped.contains(s));
             checkLiteralRange(annotations, ctx, scope, p, o, s, t.graph(), ranges);
         }
 
@@ -183,12 +185,15 @@ public final class SemanticChecks {
             Collection<VersionIri> scope,
             Set<Node> declared,
             Node subject, Node property, Node graph,
-            Set<Node> domains) {
+            Set<Node> domains,
+            boolean subjectDynamicallyTyped) {
 
         if (domains.isEmpty()) return;
         if (declared.isEmpty()) {
-            // No explicit type → can't fault, but we can hint when the domain is unambiguous.
-            if (domains.size() == 1) {
+            // No explicit (URI) type → can't fault the domain. We can hint when the domain is
+            // unambiguous, UNLESS the subject is typed dynamically (?s a ?var): the author has
+            // already typed it (commonly via ?var rdfs:subClassOf* SomeClass), so the hint is noise.
+            if (domains.size() == 1 && !subjectDynamicallyTyped) {
                 Node only = domains.iterator().next();
                 var loc = ctx.locateNear(property, subject);
                 out.add(new SparqlValidationAnnotation(

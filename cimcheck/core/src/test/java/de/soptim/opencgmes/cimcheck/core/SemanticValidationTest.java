@@ -151,6 +151,17 @@ public class SemanticValidationTest {
         assertTrue(a.message().contains("ACLineSegment.r"));
     }
 
+    @Test
+    public void noImpliedTypeHintWhenSubjectTypedDynamically() {
+        // ?s is typed dynamically (?s a ?t), the canonical CGMES subClassOf* idiom. The author
+        // has typed it, so the implied-type hint would be noise and must be suppressed.
+        var r = api.validateSparql(PREAMBLE
+                + "SELECT * WHERE { ?s a ?t . ?s cim:ACLineSegment.r ?x . }");
+        long hints = r.annotations().stream()
+                .filter(an -> an.code() == SparqlValidationCode.QUERY_IMPLIED_TYPE).count();
+        assertEquals("dynamically-typed subject should not get an implied-type hint", 0, hints);
+    }
+
     // -- DATATYPE_MISMATCH WARN when literal does not match range ---------------------------
 
     @Test

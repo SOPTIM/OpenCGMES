@@ -64,6 +64,27 @@ public final class SubjectTypeInference {
     }
 
     /**
+     * Subjects carrying a <em>variable</em> {@code rdf:type} assertion ({@code ?s a ?var}).
+     *
+     * <p>The query author has typed these dynamically — the canonical CGMES idiom is
+     * {@code ?sw a ?type} where {@code ?type} is bound by {@code ?type rdfs:subClassOf* cim:Switch}.
+     * A concrete type is not statically known, so {@link #infer}/{@link #inferScoped} (which only
+     * record URI types) report them as untyped; callers use this set to suppress the
+     * domain-based {@code QUERY_IMPLIED_TYPE} hint, which would be noise for an already-typed
+     * subject.</p>
+     *
+     * @return immutable set of subject nodes (variables or URIs) with a variable type assertion
+     */
+    public static Set<Node> subjectsWithVariableType(List<TriplePatternReference> triples) {
+        var out = new LinkedHashSet<Node>();
+        for (TriplePatternReference t : triples) {
+            if (!RDF_TYPE.equals(t.triple().getPredicate())) continue;
+            if (t.triple().getObject().isVariable()) out.add(t.triple().getSubject());
+        }
+        return Set.copyOf(out);
+    }
+
+    /**
      * Scope-aware inference for domain/range checks.
      *
      * <p>Returns a two-level map keyed by the <em>leaf scope ID</em> (the last element of
