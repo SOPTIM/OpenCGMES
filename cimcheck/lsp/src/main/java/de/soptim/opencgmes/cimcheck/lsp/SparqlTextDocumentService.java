@@ -493,6 +493,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
             var diagnostics = new ArrayList<>(parsed.parseErrors());
             ShaclValidationResult result =
                     SparqlValidationApi.checkShaclSyntaxOnly(parsed.model().getGraph());
+            // Schema-independent shape findings (vocabulary typos such as sh:taaargetClass).
+            for (var a : result.shapeAnnotations()) {
+                diagnostics.add(convertShapeAnnotation(a, text, parsed.model()));
+            }
             for (var er : result.embeddedResults()) {
                 String kind = er.embedded().kind().toString();
                 for (var a : er.result().annotations()) {

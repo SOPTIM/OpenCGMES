@@ -380,7 +380,7 @@ public class ValidateCommand implements Callable<Integer> {
             return new FileResult(source, false, List.of(parseError));
         }
         ShaclValidationResult r = SparqlValidationApi.checkShaclSyntaxOnly(graph);
-        var annotations = new ArrayList<SparqlValidationAnnotation>();
+        var annotations = new ArrayList<SparqlValidationAnnotation>(r.shapeAnnotations());
         for (var er : r.embeddedResults()) {
             String kind = er.embedded().kind().toString();
             for (var a : er.result().annotations()) {

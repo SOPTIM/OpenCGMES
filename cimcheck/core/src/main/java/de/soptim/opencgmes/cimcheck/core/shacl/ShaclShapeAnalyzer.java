@@ -100,8 +100,23 @@ public final class ShaclShapeAnalyzer {
         checkClassReferences(shapesGraph, Shacl.TARGET_CLASS, "sh:targetClass", scope, out);
         checkClassReferences(shapesGraph, Shacl.CLASS, "sh:class", scope, out);
         checkPropertyShapes(shapesGraph, scope, out);
-        checkVocabularyTerms(shapesGraph, out);
+        checkVocabularyTerms(shapesGraph, checkStandardVocabulary, out);
 
+        return List.copyOf(out);
+    }
+
+    /**
+     * Runs <em>only</em> the schema-independent vocabulary-typo check on {@code shapesGraph}.
+     *
+     * <p>Unlike {@link #analyze(Graph, Collection)}, this needs no schema and no profile scope —
+     * {@code sh:}/{@code rdf:}/{@code rdfs:}/{@code owl:} terms are validated against the bundled
+     * W3C vocabularies alone. It is the right check for the syntax-only fallback (e.g. when an
+     * endpoint schema is unreachable), so a typo such as {@code sh:taaargetClass} is still reported
+     * rather than silently ignored.</p>
+     */
+    public static List<SparqlValidationAnnotation> checkVocabularyOnly(Graph shapesGraph) {
+        var out = new ArrayList<SparqlValidationAnnotation>();
+        checkVocabularyTerms(shapesGraph, true, out);
         return List.copyOf(out);
     }
 
@@ -110,9 +125,10 @@ public final class ShaclShapeAnalyzer {
      * used anywhere in the shapes graph as a predicate or as an {@code rdf:type} object — e.g.
      * {@code sh:minCountt}, {@code sh:NodeShap}, {@code owl:Clas}. Each distinct unknown term is
      * reported once. Known terms, open namespaces (xsd, dcterms, …) and CIM terms are left alone;
-     * the latter are validated by the targeted shape checks above.
+     * the latter are validated by the targeted shape checks above. Schema-independent.
      */
-    private void checkVocabularyTerms(Graph g, List<SparqlValidationAnnotation> out) {
+    private static void checkVocabularyTerms(
+            Graph g, boolean checkStandardVocabulary, List<SparqlValidationAnnotation> out) {
         if (!checkStandardVocabulary) return;
         var seen = new HashSet<Node>();
         var it = g.find(Node.ANY, Node.ANY, Node.ANY);
@@ -130,8 +146,8 @@ public final class ShaclShapeAnalyzer {
     }
 
     /** Reports {@code term} as an unknown vocabulary term if it is an unknown closed-namespace URI, once. */
-    private void checkVocabularyTerm(Node term, String context, Set<Node> seen,
-                                     List<SparqlValidationAnnotation> out) {
+    private static void checkVocabularyTerm(Node term, String context, Set<Node> seen,
+                                            List<SparqlValidationAnnotation> out) {
         if (StandardVocabulary.isClosedNamespace(term)
                 && !StandardVocabulary.isKnownTerm(term)
                 && seen.add(term)) {
@@ -461,8 +477,7 @@ public final class ShaclShapeAnalyzer {
      * was used (e.g. {@code "Shape sh:path"}, {@code "Predicate"}). No-op when standard-vocabulary
      * checking is disabled.
      */
-    private void addVocabularyAnnotation(Node term, String context, List<SparqlValidationAnnotation> out) {
-        if (!checkStandardVocabulary) return;
+    private static void addVocabularyAnnotation(Node term, String context, List<SparqlValidationAnnotation> out) {
         String vocab = StandardVocabulary.vocabularyName(term.getURI());
         out.add(new SparqlValidationAnnotation(
                 SparqlValidationSeverity.ERROR,

@@ -206,13 +206,15 @@ public final class SparqlValidationApi {
      * showing nothing. No schema is consulted — only the SHACL extractor and the SPARQL parser are
      * used, both of which are schema-independent.</p>
      *
-     * <p>The returned result carries no {@link ShaclValidationResult#shapeAnnotations() shape
-     * annotations} (those require a schema); its {@link ShaclValidationResult#embeddedResults()
-     * embedded results} mirror those of {@link #validateShacl(Graph)} so the same rendering code can
-     * map annotation positions back into the Turtle source. Each embedded result holds at most a
-     * single {@code SYNTAX_ERROR}, or no annotations when the fragment parses cleanly. Turtle parse
-     * errors of {@code shapesGraph} itself are out of scope — the caller parses the Turtle and is
-     * expected to report those separately.</p>
+     * <p>The returned result's {@link ShaclValidationResult#shapeAnnotations() shape annotations}
+     * carry only the schema-independent vocabulary-typo findings (a misspelt {@code sh:}/{@code rdf:}
+     * /{@code rdfs:}/{@code owl:} term such as {@code sh:taaargetClass}); the schema-dependent shape
+     * checks are skipped. Its {@link ShaclValidationResult#embeddedResults() embedded results} mirror
+     * those of {@link #validateShacl(Graph)} so the same rendering code can map annotation positions
+     * back into the Turtle source. Each embedded result holds at most a single {@code SYNTAX_ERROR},
+     * or no annotations when the fragment parses cleanly. Turtle parse errors of {@code shapesGraph}
+     * itself are out of scope — the caller parses the Turtle and is expected to report those
+     * separately.</p>
      */
     public static ShaclValidationResult checkShaclSyntaxOnly(Graph shapesGraph) {
         Objects.requireNonNull(shapesGraph, "shapesGraph");
@@ -222,7 +224,11 @@ public final class SparqlValidationApi {
             SparqlValidationResult r = checkSyntaxOnly(q.renderedQuery());
             embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
         }
-        return new ShaclValidationResult(List.of(), embeddedResults);
+        // The vocabulary-typo check is schema-independent (it consults only the bundled W3C
+        // vocabularies), so run it even in the syntax-only fallback — otherwise a misspelt SHACL
+        // term would go unreported whenever a schema can't be resolved (e.g. unreachable endpoint).
+        var shapeAnnotations = ShaclShapeAnalyzer.checkVocabularyOnly(shapesGraph);
+        return new ShaclValidationResult(shapeAnnotations, embeddedResults);
     }
 
     // ---- explain (static query plan) -------------------------------------------------------
