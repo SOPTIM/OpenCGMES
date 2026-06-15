@@ -1,0 +1,151 @@
+{
+  "bomFormat" : "CycloneDX",
+  "specVersion" : "1.6",
+  "version" : 1,
+  "metadata" : {
+    "tools" : {
+      "components" : [
+        {
+          "type" : "application",
+          "author" : "CycloneDX",
+          "name" : "cyclonedx-gradle-plugin",
+          "version" : "2.3.1"
+        }
+      ],
+      "services" : [ ]
+    },
+    "component" : {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/de.soptim.opencgmes/cimcheck-intellij@0.0.0?project_path=%3A",
+      "group" : "de.soptim.opencgmes",
+      "name" : "cimcheck-intellij",
+      "version" : "0.0.0",
+      "purl" : "pkg:maven/de.soptim.opencgmes/cimcheck-intellij@0.0.0?project_path=%3A",
+      "modified" : false,
+      "externalReferences" : [
+        {
+          "type" : "vcs",
+          "url" : "ssh://git@github.com:SOPTIM/OpenCGMES.git"
+        }
+      ]
+    },
+    "licenses" : [ ]
+  },
+  "components" : [
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/com.jetbrains.plugins/com.redhat.devtools.lsp4ij@0.7.0?type=jar",
+      "group" : "com.jetbrains.plugins",
+      "name" : "com.redhat.devtools.lsp4ij",
+      "version" : "0.7.0",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "b46531abbc4d2dd66f711a241eb17167"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "494808283452f11b9a945f3b04462dd4930820d5"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "5c8abac4f48d102d371126dfd702ecb9ef12f8cb0cf3e151f9489de7b5ee28cf"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "3a6ee1a0f10c8343676b1630df16ab3e790675f0258147dddff229b0db9f3b30e57ab22539fdd528a569cd06e6f6c1d388b1a7b25dda1898550aafa9991b5a54"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "45200733a320828759653b25f9401b0707f84819ddbd8da290436189e48914def7ddbd8e132b4bc3b2f46e4af52f9c44"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "f60fbf005d9fe1b1fb3e43a03fba01bbc9aa857235ea5730a0913ddb7d3190895beed85111617a1d6d2ac1342a719aed"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "9a5b5678b54b80accc95cbc8281ba57e0b01969176e3d1c98762c10ea116155b"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "daedf71b2dffd2c548f25e841ff104470236ff72636db915c664aa96a2c785534953e4f4c57f096fe8e6cdd7581649309f22f971fc15b65c448e029b78e675ab"
+        }
+      ],
+      "purl" : "pkg:maven/com.jetbrains.plugins/com.redhat.devtools.lsp4ij@0.7.0?type=jar",
+      "modified" : false,
+      "properties" : [
+        {
+          "name" : "cdx:maven:package:test",
+          "value" : "false"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/idea/ideaIC@2024.2?type=jar",
+      "group" : "idea",
+      "name" : "ideaIC",
+      "version" : "2024.2",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "5b3447d8bf812ccdc1c910c12fa695da"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "2876ed2e52de91c6c0c559472197782ad92295c9"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "1905f5d4a5d62c181b935d887c96e420dce226c0d90a5e5fe2928484cafcb739"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "98e3f624cf455d4eeff7fe1075e3779778d9a0405d31362809d3432fe664eb73ca3b88e2c1387fd209d657fac7200ee359d4ab4e5a83105df1dfdbc18bc5c1ba"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "35f405254e161692b35b05092c1e3945b78bd8d4302f0c3e9a688d1e0f4d4f16106d263a0928f955507ea2c1be90cc62"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "6ea506339bd2cba5707a0b63a46306c986dfb79a4a1390e740d051834a31af5ac1825f020c3b7ed957dbb027cda86f6b"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "cc8eb3195f956bd3d72475faf898385e82e7bbdd24a1618cd1f25a32b69bcfb5"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "7ff04c83b148db5735fd3a196a2f7079a3ac02396b66e82ed610ae8c53b9dbf2ec810a9de641bdd3132986abbcf1027169169894bb2ddb45a1d90739d833cfb5"
+        }
+      ],
+      "purl" : "pkg:maven/idea/ideaIC@2024.2?type=jar",
+      "modified" : false,
+      "properties" : [
+        {
+          "name" : "cdx:maven:package:test",
+          "value" : "false"
+        }
+      ]
+    }
+  ],
+  "dependencies" : [
+    {
+      "ref" : "pkg:maven/com.jetbrains.plugins/com.redhat.devtools.lsp4ij@0.7.0?type=jar",
+      "dependsOn" : [ ]
+    },
+    {
+      "ref" : "pkg:maven/de.soptim.opencgmes/cimcheck-intellij@0.0.0?project_path=%3A",
+      "dependsOn" : [
+        "pkg:maven/idea/ideaIC@2024.2?type=jar",
+        "pkg:maven/com.jetbrains.plugins/com.redhat.devtools.lsp4ij@0.7.0?type=jar"
+      ]
+    },
+    {
+      "ref" : "pkg:maven/idea/ideaIC@2024.2?type=jar",
+      "dependsOn" : [ ]
+    }
+  ]
+}

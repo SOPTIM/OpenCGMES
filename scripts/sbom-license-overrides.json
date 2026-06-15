@@ -1,0 +1,16 @@
+{
+  "comment": [
+    "License assertions for SBOM components that ship no per-artifact license",
+    "metadata, keyed by 'group:name'. Each license is taken from the upstream",
+    "project's published LICENSE. Used by scripts/check-sbom-licenses.py.",
+    "",
+    "idea:ideaIC                                  IntelliJ IDEA Community Edition,",
+    "                                             Apache-2.0 (JetBrains/intellij-community LICENSE.txt).",
+    "com.jetbrains.plugins:...lsp4ij              LSP4IJ by Red Hat, EPL-2.0",
+    "                                             (redhat-developer/lsp4ij LICENSE)."
+  ],
+  "overrides": {
+    "idea:ideaIC": "Apache-2.0",
+    "com.jetbrains.plugins:com.redhat.devtools.lsp4ij": "EPL-2.0"
+  }
+}

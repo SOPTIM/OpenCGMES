@@ -6,6 +6,9 @@ on:
       - "cimcheck/**"
       - "cimxml/**"
       - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/check-sbom-licenses.py"
+      - "scripts/sbom-license-overrides.json"
       - ".github/workflows/cimcheck-ci.yml"
       - ".github/workflows/cimcheck-release.yml"
   push:
@@ -13,6 +16,9 @@ on:
       - "cimcheck/**"
       - "cimxml/**"
       - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/check-sbom-licenses.py"
+      - "scripts/sbom-license-overrides.json"
       - ".github/workflows/cimcheck-ci.yml"
       - ".github/workflows/cimcheck-release.yml"
 
@@ -216,6 +222,59 @@ jobs:
           path: cimcheck/intellij/build/distributions/cimcheck-intellij-*.zip
           retention-days: 30
 
+  # ---- SBOM generation + license compliance --------------------------------
+  # Covers all three distributables: the Maven library/CLI/LSP, the VS Code
+  # extension's shipped npm deps, and the IntelliJ plugin's compile-time
+  # IntelliJ Platform libraries. Needs all three toolchains (Java/Node/Gradle).
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Java 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimcheck/core/pom.xml
+            cimcheck/cli/pom.xml
+            cimcheck/lsp/pom.xml
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: cimcheck/vscode/package-lock.json
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        with:
+          gradle-version: "9.5.0"
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # Regenerates cimcheck/sbom/{maven,vscode,intellij}/{bom.json,THIRD-PARTY.txt}.
+      # FAILS here if any dependency uses a license that is not on the reviewed
+      # open-source allow-list (or declares no resolvable license at all).
+      - name: Generate SBOMs + enforce license allow-list
+        env:
+          GRADLE: gradle
+        run: bash scripts/generate-sbom.sh
+
+      # FAILS if the committed SBOMs / attribution no longer match the current
+      # dependency set (i.e. someone changed deps without regenerating).
+      - name: Verify committed SBOMs are up to date
+        run: |
+          if ! git diff --exit-code -- cimcheck/sbom; then
+            echo "::error::cimcheck/sbom is out of date. Run scripts/generate-sbom.sh and commit the result."
+            exit 1
+          fi
+
   # ---- Snapshot publish (main branch only) ---------------------------------
   publish-snapshot:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -225,6 +284,7 @@ jobs:
       - typecheck-vscode
       - build-vsix
       - build-intellij-plugin
+      - sbom
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -19,6 +19,7 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.2.0"
     id("org.jetbrains.intellij.platform") version "2.16.0"
+    id("org.cyclonedx.bom") version "2.3.1"
 }
 
 group   = providers.gradleProperty("pluginGroup").get()
@@ -69,6 +70,31 @@ dependencies {
         // Update lsp4ijVersion in gradle.properties to the latest available release.
         plugins("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").get()}")
     }
+}
+
+// ---------------------------------------------------------------------------
+// CycloneDX SBOM (org.cyclonedx.bom)
+//
+// Inventories the IntelliJ Platform libraries (2024.2) + LSP4IJ + any other
+// library the plugin builds against. Scoped to `compileClasspath` ONLY: the
+// default scans every resolvable configuration, which pulls in the
+// `intellijPluginVerifierIdes` configs (multiple extra IDE versions used by
+// verifyPlugin) and test runtimes — that is both noisy and non-reproducible
+// across machines. (runtimeClasspath is empty: the platform is a provided,
+// compile-time dependency, not shipped in the plugin zip.) compileClasspath
+// resolves deterministically from the pinned platformVersion / lsp4ijVersion.
+//
+// Output goes to the committed ../sbom/intellij/bom.json; the build timestamp is
+// normalised away by scripts/generate-sbom.sh so re-runs are byte-identical.
+// License compliance + attribution is handled by scripts/check-sbom-licenses.py.
+// ---------------------------------------------------------------------------
+tasks.cyclonedxBom {
+    setIncludeConfigs(listOf("compileClasspath"))
+    setOutputFormat("json")
+    setOutputName("bom")
+    setSchemaVersion("1.6")
+    setIncludeBomSerialNumber(false)
+    setDestination(layout.projectDirectory.dir("../sbom/intellij").asFile)
 }
 
 intellijPlatform {

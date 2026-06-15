@@ -56,4 +56,110 @@
         <module>cimxml</module>
         <module>cimcheck</module>
     </modules>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Supply-chain tooling (SBOM + license compliance) -->
+        <ver.plugin.cyclonedx>2.9.1</ver.plugin.cyclonedx>
+        <ver.plugin.license>2.5.0</ver.plugin.license>
+
+        <!-- Directory holding the committed, drift-checked supply-chain artifacts.
+             The editor integrations get sibling cimcheck/sbom/{vscode,intellij}/ dirs. -->
+        <sbom.outputDirectory>${project.basedir}/cimcheck/sbom/maven</sbom.outputDirectory>
+    </properties>
+
+    <!--
+        Supply-chain plugins are configured here on the aggregator pom but are NOT
+        bound to any lifecycle phase, so a normal `mvn install` / CI build never runs
+        them. They are invoked explicitly by scripts/generate-sbom.sh (and the
+        cimcheck-ci `sbom` job) via their goals:
+
+            mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom
+            mvn license:aggregate-add-third-party
+
+        Running them from the root reactor lets the inter-module SNAPSHOT deps
+        (cimcheck-core -> cimxml) resolve from the reactor without a prior install,
+        and produces a single aggregate view of everything the CIMcheck toolchain
+        ships (cimxml + cimcheck-core/cli/lsp and all of their transitive deps).
+    -->
+    <build>
+        <plugins>
+            <!-- CycloneDX Software Bill of Materials (SBOM) -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>${ver.plugin.cyclonedx}</version>
+                <configuration>
+                    <projectType>application</projectType>
+                    <schemaVersion>1.6</schemaVersion>
+                    <outputFormat>json</outputFormat>
+                    <outputName>bom</outputName>
+                    <outputDirectory>${sbom.outputDirectory}</outputDirectory>
+                    <!-- Deterministic serial number + tool metadata for drift checking.
+                         (The metadata timestamp is normalised away by generate-sbom.sh.) -->
+                    <outputReproducible>true</outputReproducible>
+                    <includeBomSerialNumber>true</includeBomSerialNumber>
+                    <!-- Only what is actually shipped: compile + runtime, no test deps. -->
+                    <includeCompileScope>true</includeCompileScope>
+                    <includeRuntimeScope>true</includeRuntimeScope>
+                    <includeProvidedScope>false</includeProvidedScope>
+                    <includeSystemScope>false</includeSystemScope>
+                    <includeTestScope>false</includeTestScope>
+                </configuration>
+            </plugin>
+
+            <!--
+                License compliance + attribution. `aggregate-add-third-party` writes a
+                single THIRD-PARTY.txt crediting every shipped dependency, and the
+                allow-list below (includedLicenses) FAILS THE BUILD if any dependency
+                uses a license that is not on the reviewed open-source allow-list, or
+                has no detectable license at all (failOnMissing).
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${ver.plugin.license}</version>
+                <configuration>
+                    <outputDirectory>${sbom.outputDirectory}</outputDirectory>
+                    <thirdPartyFilename>THIRD-PARTY.txt</thirdPartyFilename>
+                    <!-- Credit only what we distribute; test/provided deps are not shipped. -->
+                    <excludedScopes>test,provided,system</excludedScopes>
+                    <!-- Our own first-party modules are not "third party". -->
+                    <excludedGroups>de\.soptim\.opencgmes</excludedGroups>
+                    <sortArtifactByName>true</sortArtifactByName>
+                    <useMissingFile>false</useMissingFile>
+
+                    <!-- Fail if a dependency declares no resolvable license. -->
+                    <failOnMissing>true</failOnMissing>
+                    <!-- Fail if a dependency's license is not on the allow-list below. -->
+                    <failOnBlacklist>true</failOnBlacklist>
+
+                    <!-- Collapse the many spellings upstreams use into canonical SPDX-ish ids. -->
+                    <licenseMerges>
+                        <licenseMerge>Apache-2.0|Apache License, Version 2.0|The Apache License, Version 2.0|The Apache Software License, Version 2.0|The Apache Software License, version 2.0|Apache 2.0|Apache 2|Apache License 2.0</licenseMerge>
+                        <licenseMerge>MIT|MIT License|The MIT License</licenseMerge>
+                        <licenseMerge>BSD-3-Clause|New BSD License|BSD Licence 3|The New BSD License|3-Clause BSD License</licenseMerge>
+                        <licenseMerge>BSD-2-Clause|The BSD 2-Clause License|BSD 2-Clause License</licenseMerge>
+                        <licenseMerge>EPL-1.0|Eclipse Public License 1.0|Eclipse Public License - v 1.0|Eclipse Public License, Version 1.0</licenseMerge>
+                        <licenseMerge>EPL-2.0|Eclipse Public License 2.0|Eclipse Public License, Version 2.0|Eclipse Public License v2.0</licenseMerge>
+                        <licenseMerge>GPL-2.0-with-classpath-exception|GNU General Public License, version 2 with the GNU Classpath Exception</licenseMerge>
+                    </licenseMerges>
+
+                    <!-- Reviewed, OSI-approved open-source licenses we accept. Adding a
+                         dependency under any other license makes the build fail until the
+                         license is reviewed and (if acceptable) added here. -->
+                    <includedLicenses>
+                        <includedLicense>Apache-2.0</includedLicense>
+                        <includedLicense>MIT</includedLicense>
+                        <includedLicense>BSD-3-Clause</includedLicense>
+                        <includedLicense>BSD-2-Clause</includedLicense>
+                        <includedLicense>EPL-1.0</includedLicense>
+                        <includedLicense>EPL-2.0</includedLicense>
+                        <includedLicense>GPL-2.0-with-classpath-exception</includedLicense>
+                    </includedLicenses>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
