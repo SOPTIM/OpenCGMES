@@ -367,7 +367,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     /**
-     * A first-line {@code WARNING} marking a document as syntax-only: its {@code # [endpoint=...]}
+     * A first-line {@code ERROR} marking a document as syntax-only: its {@code # [endpoint=...]}
      * schema could not be resolved (still loading, or the endpoint failed — details are also shown
      * as a notification), so only syntax is checked and no schema-based validation is performed.
      */
@@ -379,7 +379,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
         return new Diagnostic(range,
                 "Schema could not be loaded from the endpoint — only syntax is checked "
                         + "(no schema-based validation).",
-                DiagnosticSeverity.Warning, "cimcheck");
+                DiagnosticSeverity.Error, "cimcheck");
     }
 
     /**

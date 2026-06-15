@@ -393,16 +393,16 @@ public class SparqlSquigglePositionTest {
     }
 
     // ===========================================================================================
-    // syntaxOnlyNotice — first-line WARNING when an endpoint schema can't be resolved
+    // syntaxOnlyNotice — first-line ERROR when an endpoint schema can't be resolved
     // ===========================================================================================
 
     @Test
-    public void syntaxOnlyNotice_isWarningOnFirstLine() {
+    public void syntaxOnlyNotice_isErrorOnFirstLine() {
         String text = "# [endpoint=http://localhost:3030/test/shacl]\r\n"
                 + "SELECT * WHERE { ?s ?p ?o }";
         Diagnostic d = SparqlTextDocumentService.syntaxOnlyNotice(text);
 
-        assertEquals(org.eclipse.lsp4j.DiagnosticSeverity.Warning, d.getSeverity());
+        assertEquals(org.eclipse.lsp4j.DiagnosticSeverity.Error, d.getSeverity());
         assertEquals("cimcheck", d.getSource());
         assertEquals("starts on first line", 0, d.getRange().getStart().getLine());
         assertEquals("ends on first line", 0, d.getRange().getEnd().getLine());
