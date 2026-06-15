@@ -66,6 +66,10 @@ public final class HttpSparqlGraphSource implements SparqlGraphSource {
     private static final String CONSTRUCT_GRAPH =
             "CONSTRUCT { ?s ?p ?o } WHERE { GRAPH ?g { ?s ?p ?o } }";
 
+    /** All triples that have a given resource as their subject, across every named graph. */
+    private static final String CONSTRUCT_RESOURCE =
+            "CONSTRUCT { ?s ?p ?o } WHERE { GRAPH ?g { ?s ?p ?o } }";
+
     private static final String SAMPLE_TERMS_QUERY = """
             SELECT DISTINCT ?term WHERE {
               GRAPH ?g {
@@ -108,6 +112,21 @@ public final class HttpSparqlGraphSource implements SparqlGraphSource {
         ParameterizedSparqlString pss = new ParameterizedSparqlString();
         pss.setCommandText(CONSTRUCT_GRAPH);
         pss.setIri("g", graphName); // escapes the IRI safely
+        try (QueryExecution qe = service(endpoint(), pss.toString())) {
+            return qe.execConstruct().getGraph();
+        }
+    }
+
+    /**
+     * Fetches every triple that has {@code iri} as its subject, across all named graphs — the
+     * resource's definition (its {@code rdf:type}, {@code rdfs:label}/{@code comment},
+     * {@code rdfs:domain}/{@code range}, {@code cims:*} annotations, …). Used to render a
+     * go-to-definition "peek" for a schema term hosted on the endpoint.
+     */
+    public Graph fetchResource(String iri) {
+        ParameterizedSparqlString pss = new ParameterizedSparqlString();
+        pss.setCommandText(CONSTRUCT_RESOURCE);
+        pss.setIri("s", iri); // escapes the IRI safely and binds ?s to it
         try (QueryExecution qe = service(endpoint(), pss.toString())) {
             return qe.execConstruct().getGraph();
         }

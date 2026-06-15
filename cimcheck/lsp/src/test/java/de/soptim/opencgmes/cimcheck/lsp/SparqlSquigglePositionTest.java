@@ -398,7 +398,7 @@ public class SparqlSquigglePositionTest {
 
     @Test
     public void syntaxOnlyNotice_isWarningOnFirstLine() {
-        String text = "# [endpoint=http://localhost:3030/svedala/shacl]\r\n"
+        String text = "# [endpoint=http://localhost:3030/test/shacl]\r\n"
                 + "SELECT * WHERE { ?s ?p ?o }";
         Diagnostic d = SparqlTextDocumentService.syntaxOnlyNotice(text);
 
@@ -407,7 +407,7 @@ public class SparqlSquigglePositionTest {
         assertEquals("starts on first line", 0, d.getRange().getStart().getLine());
         assertEquals("ends on first line", 0, d.getRange().getEnd().getLine());
         // Range spans the first line's content, excluding the trailing CR.
-        assertEquals(48, d.getRange().getEnd().getCharacter());
+        assertEquals(45, d.getRange().getEnd().getCharacter());
         assertTrue(d.getMessage().toLowerCase().contains("only syntax"));
     }
 

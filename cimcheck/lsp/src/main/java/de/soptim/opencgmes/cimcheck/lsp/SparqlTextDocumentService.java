@@ -47,9 +47,11 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -94,6 +96,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
         t.setDaemon(true);
         return t;
     });
+
+    /** Generates go-to-definition "peek" documents for terms hosted on a remote endpoint. */
+    private final EndpointDefinitionPeek endpointPeek =
+            new EndpointDefinitionPeek(Duration.ofSeconds(15));
 
     SparqlTextDocumentService(SchemaManager schemaManager) {
         this.schemaManager = schemaManager;
@@ -165,20 +171,30 @@ final class SparqlTextDocumentService implements TextDocumentService {
             String text = documents.get(uri);
             if (text == null) return noDefinition();
 
-            var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
-            if (wsOpt.isEmpty() || wsOpt.get().definitionIndex() == null) return noDefinition();
-
             int line = params.getPosition().getLine();
             int col  = params.getPosition().getCharacter();
-
             PrefixMapping prefixes = extractPrefixes(text);
             Node term = termAtPosition(text, line, col, prefixes);
-            if (term == null) return noDefinition();
+            if (term == null || !term.isURI()) return noDefinition();
 
+            // Endpoint document: resolve against the endpoint schema, never the workspace/bundled
+            // files. When the term lives in the endpoint schema, open a generated Turtle "peek".
+            String endpoint = EndpointDirective.parse(text).orElse(null);
+            if (endpoint != null) {
+                var rsOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
+                if (rsOpt.isEmpty() || !termKnown(rsOpt.get().api().schemaIndex(), term)) {
+                    return noDefinition();
+                }
+                return endpointPeek.locationFor(endpoint, term.getURI())
+                        .map(SparqlTextDocumentService::definitionAt)
+                        .orElseGet(SparqlTextDocumentService::noDefinition);
+            }
+
+            // Workspace document: jump into the local RDFS source file.
+            var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
+            if (wsOpt.isEmpty() || wsOpt.get().definitionIndex() == null) return noDefinition();
             return wsOpt.get().definitionIndex().locationOf(term)
-                    .map(loc -> CompletableFuture.completedFuture(
-                            Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(
-                                    List.of(loc))))
+                    .map(SparqlTextDocumentService::definitionAt)
                     .orElseGet(SparqlTextDocumentService::noDefinition);
         } catch (Exception e) {
             LOG.error("Definition error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
@@ -189,6 +205,18 @@ final class SparqlTextDocumentService implements TextDocumentService {
     private static CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>>
             noDefinition() {
         return CompletableFuture.completedFuture(Either.forLeft(List.of()));
+    }
+
+    /** Wraps a single {@link Location} as the result of a {@code textDocument/definition} request. */
+    private static CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>>
+            definitionAt(Location loc) {
+        return CompletableFuture.completedFuture(
+                Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(List.of(loc)));
+    }
+
+    /** Whether {@code term} is declared as a class or property in the given schema index. */
+    private static boolean termKnown(SchemaIndex index, Node term) {
+        return !index.findClass(term).isEmpty() || !index.findProperty(term).isEmpty();
     }
 
     @Override
@@ -205,12 +233,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String uri  = params.getTextDocument().getUri();
         String text = documents.get(uri);
         if (text == null) return List.of();
-        var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
-        if (wsOpt.isEmpty()) return List.of();
-        SchemaIndex index = wsOpt.get().api().schemaIndex();
+        var indexOpt = documentSchemaIndex(uri, text);
+        if (indexOpt.isEmpty()) return List.of();
         int line = params.getPosition().getLine();
         int col  = params.getPosition().getCharacter();
-        return buildCompletionItems(text, line, col, index);
+        return buildCompletionItems(text, line, col, indexOpt.get());
     }
 
     private Hover computeHover(HoverParams params) {
@@ -218,10 +245,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String text = documents.get(uri);
         if (text == null) return null;
 
-        var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
-        if (wsOpt.isEmpty()) return null;
+        var indexOpt = documentSchemaIndex(uri, text);
+        if (indexOpt.isEmpty()) return null;
 
-        SchemaIndex index = wsOpt.get().api().schemaIndex();
+        SchemaIndex index = indexOpt.get();
         int line = params.getPosition().getLine();
         int col  = params.getPosition().getCharacter();
 
@@ -233,6 +260,20 @@ final class SparqlTextDocumentService implements TextDocumentService {
         if (markdown == null || markdown.isBlank()) return null;
 
         return new Hover(new MarkupContent(MarkupKind.MARKDOWN, markdown));
+    }
+
+    /**
+     * The schema index a document's IDE features (hover, completion, definition) should consult:
+     * the {@code # [endpoint=...]} schema when the document declares one and it has resolved,
+     * otherwise the document's workspace schema (nearest {@code opencgmes.json} or the bundled
+     * default). Returns empty when an endpoint is declared but its schema is not yet available
+     * (still loading, or the load failed) — so the editor never shows information from the wrong
+     * (workspace) schema for an endpoint document.
+     */
+    private Optional<SchemaIndex> documentSchemaIndex(String uri, String text) {
+        String endpoint = EndpointDirective.parse(text).orElse(null);
+        return schemaManager.resolveSchema(endpoint, documentDir(uri))
+                .map(rs -> rs.api().schemaIndex());
     }
 
     // ---- Internal API ----------------------------------------------------------------------
