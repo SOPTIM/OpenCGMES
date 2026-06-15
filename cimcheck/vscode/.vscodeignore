@@ -1,4 +1,5 @@
 .gitignore
+icon.svg
 node_modules/**
 src/**
 tsconfig.json
