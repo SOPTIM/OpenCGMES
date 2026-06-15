@@ -391,4 +391,30 @@ public class SparqlSquigglePositionTest {
                 org.eclipse.lsp4j.DiagnosticSeverity.Error,
                 "cimcheck");
     }
+
+    // ===========================================================================================
+    // syntaxOnlyNotice — first-line WARNING when an endpoint schema can't be resolved
+    // ===========================================================================================
+
+    @Test
+    public void syntaxOnlyNotice_isWarningOnFirstLine() {
+        String text = "# [endpoint=http://localhost:3030/svedala/shacl]\r\n"
+                + "SELECT * WHERE { ?s ?p ?o }";
+        Diagnostic d = SparqlTextDocumentService.syntaxOnlyNotice(text);
+
+        assertEquals(org.eclipse.lsp4j.DiagnosticSeverity.Warning, d.getSeverity());
+        assertEquals("cimcheck", d.getSource());
+        assertEquals("starts on first line", 0, d.getRange().getStart().getLine());
+        assertEquals("ends on first line", 0, d.getRange().getEnd().getLine());
+        // Range spans the first line's content, excluding the trailing CR.
+        assertEquals(48, d.getRange().getEnd().getCharacter());
+        assertTrue(d.getMessage().toLowerCase().contains("only syntax"));
+    }
+
+    @Test
+    public void syntaxOnlyNotice_singleLineInput() {
+        Diagnostic d = SparqlTextDocumentService.syntaxOnlyNotice("ASK {}");
+        assertEquals(0, d.getRange().getStart().getLine());
+        assertEquals(6, d.getRange().getEnd().getCharacter());
+    }
 }

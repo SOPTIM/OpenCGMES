@@ -314,15 +314,31 @@ final class SparqlTextDocumentService implements TextDocumentService {
      */
     private void publishSyntaxOnly(String uri, String text) {
         try {
-            var result = SparqlValidationApi.checkSyntaxOnly(text);
-            var diagnostics = result.annotations().stream()
-                    .map(a -> convertSparqlAnnotation(a, text))
-                    .toList();
+            var diagnostics = new ArrayList<Diagnostic>();
+            diagnostics.add(syntaxOnlyNotice(text));
+            SparqlValidationApi.checkSyntaxOnly(text).annotations()
+                    .forEach(a -> diagnostics.add(convertSparqlAnnotation(a, text)));
             publishDiagnostics(uri, diagnostics);
         } catch (Exception e) {
             LOG.error("Error syntax-checking {}: {}", uri, e.getMessage(), e);
             publishDiagnostics(uri, List.of());
         }
+    }
+
+    /**
+     * A first-line {@code WARNING} marking a document as syntax-only: its {@code # [endpoint=...]}
+     * schema could not be resolved (still loading, or the endpoint failed — details are also shown
+     * as a notification), so only syntax is checked and no schema-based validation is performed.
+     */
+    static Diagnostic syntaxOnlyNotice(String text) {
+        int eol = text.indexOf('\n');
+        int firstLineLen = (eol < 0) ? text.length() : eol;
+        if (firstLineLen > 0 && text.charAt(firstLineLen - 1) == '\r') firstLineLen--;
+        var range = new Range(new Position(0, 0), new Position(0, Math.max(1, firstLineLen)));
+        return new Diagnostic(range,
+                "Schema could not be loaded from the endpoint — only syntax is checked "
+                        + "(no schema-based validation).",
+                DiagnosticSeverity.Warning, "cimcheck");
     }
 
     /**
@@ -491,6 +507,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
         try {
             ParsedTurtle parsed = parseTurtle(text);
             var diagnostics = new ArrayList<>(parsed.parseErrors());
+            diagnostics.add(syntaxOnlyNotice(text));
             ShaclValidationResult result =
                     SparqlValidationApi.checkShaclSyntaxOnly(parsed.model().getGraph());
             // Schema-independent shape findings (vocabulary typos such as sh:taaargetClass).
