@@ -31,8 +31,9 @@ import java.util.concurrent.Callable;
 
 /**
  * The {@code cimcheck init} subcommand: scaffolds a commented {@code opencgmes.json} so users do
- * not have to author config by hand. CIMcheck works with zero configuration against the bundled
- * CGMES 3.0 profiles, so the generated file is fully commented out and serves as documentation.
+ * not have to author config by hand. Point its {@code schemas}/{@code schemasDirectory} at the
+ * profiles to validate against; the generated file is mostly commented out and serves as
+ * documentation.
  *
  * <h2>Exit codes</h2>
  * <ul>
@@ -44,7 +45,7 @@ import java.util.concurrent.Callable;
         name        = "init",
         description = {
             "Create a commented opencgmes.json config scaffold in the current directory.",
-            "CIMcheck works without it (bundled CGMES 3.0 schemas); the file is for customisation."
+            "Set 'schemas' to point CIMcheck at the profiles to validate against."
         },
         mixinStandardHelpOptions = true,
         sortOptions = false
@@ -78,8 +79,8 @@ public class InitCommand implements Callable<Integer> {
             return ExitCode.SOFTWARE;
         }
         System.out.println("Created " + target);
-        System.out.println("CIMcheck already validates against the bundled CGMES 3.0 schemas; "
-                + "edit this file to customise.");
+        System.out.println("Edit \"schemas\"/\"schemasDirectory\" to point CIMcheck at your "
+                + "CGMES profiles (without them, validation is syntax-only).");
         return ExitCode.OK;
     }
 }

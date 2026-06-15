@@ -36,13 +36,12 @@ Install **CIMcheck** from the Marketplace (Settings → Plugins → Marketplace)
 
 > If you install CIMcheck from a downloaded `.zip` instead (Install Plugin from Disk), IntelliJ does **not** resolve Marketplace dependencies — install **LSP4IJ** manually first (Settings → Plugins → Marketplace → search "LSP4IJ").
 
-### 2. (Optional) Create a configuration file
+### 2. Configure a schema
 
-No configuration is required: CIMcheck validates against the **CGMES 3.0 RDFS profiles
-bundled with the plugin** (from the ENTSO-E
-[Application Profiles Library](https://github.com/entsoe/application-profiles-library),
-Apache-2.0). To use your own profiles or tune validation, run **Tools → CIMcheck: Create
-Config File** to scaffold an `opencgmes.json`, or create it by hand.
+For schema-based validation, point CIMcheck at your CGMES profiles — via an `opencgmes.json`
+or a `# [endpoint=...]` directive in the query. There is no bundled default schema, so without
+one of those CIMcheck checks syntax only. Run **Tools → CIMcheck: Create Config File** to
+scaffold an `opencgmes.json`, or create it by hand.
 
 All settings live under a `"cimcheck"` section. CIMcheck discovers the nearest `opencgmes.json`
 by walking up from each file, and JSON comments are allowed. To use your own RDFS profiles:
@@ -119,8 +118,8 @@ Under **Settings / Preferences → Tools → CIMcheck**:
 ## Validation configuration reference
 
 The `opencgmes.json` file nests all CIMcheck settings under a `"cimcheck"` section. All fields
-are optional; when neither `schemasDirectory` nor `schemas` is set, the bundled CGMES 3.0
-profiles are used.
+are optional; when neither `schemasDirectory` nor `schemas` is set, no schema is loaded and
+files are checked syntax-only (there is no bundled default schema).
 
 ```json
 {
@@ -140,8 +139,8 @@ profiles are used.
 }
 ```
 
-Both `schemasDirectory` and `schemas` are optional — omit them to validate against the
-bundled CGMES 3.0 profiles.
+Both `schemasDirectory` and `schemas` are optional — omit them and validation is syntax-only
+(unless a query declares a `# [endpoint=...]` that supplies the schema).
 
 ### `strictness`
 
@@ -166,7 +165,7 @@ Default PREFIX declarations automatically injected into every SPARQL query that 
 Confirm the file extension is one of `.rq`, `.sparql`, `.ttl`, `.shacl`. If another plugin already claimed `.ttl`, add the association under **Settings → Editor → File Types → SHACL**.
 
 **No diagnostics appearing**
-Validation needs no config (it uses the bundled CGMES 3.0 schemas), so missing diagnostics usually mean the server did not start — make sure LSP4IJ is enabled. Open the **Language Servers** tool window (provided by LSP4IJ) to see CIMcheck's status and message log — this is the IntelliJ equivalent of an LSP output channel and the best place to diagnose startup and schema-loading issues.
+With no schema configured, CIMcheck reports only syntax errors — add an `opencgmes.json` with `schemas`, or a `# [endpoint=...]` directive, for full validation. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled. Open the **Language Servers** tool window (provided by LSP4IJ) to see CIMcheck's status and message log — this is the IntelliJ equivalent of an LSP output channel and the best place to diagnose startup and schema-loading issues.
 
 **Server fails to start, or "Schema load failed"**
 Usually a Java problem. Set **Settings → Tools → CIMcheck → Java executable** to the full path of a Java 21+ executable, e.g. `/usr/lib/jvm/java-21/bin/java`. The LSP4IJ **Language Servers** console shows the full error.
@@ -195,3 +194,7 @@ The resulting plugin zip is written to `build/distributions/`.
 ## License
 
 Apache License 2.0 — see [LICENSE](../../LICENSE).
+
+The bundled language server includes W3C standard vocabularies (`rdf`, `rdfs`, `owl`, `sh`),
+used for standard-vocabulary term checking and redistributed under the W3C Software and
+Document License. © World Wide Web Consortium.

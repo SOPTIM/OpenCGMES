@@ -39,11 +39,11 @@ public class ConfigLoaderTest {
     @Rule public TemporaryFolder tmp = new TemporaryFolder();
 
     @Test
-    public void generatedTemplateParsesAndInheritsBundledSchemas() throws Exception {
+    public void generatedTemplateParsesWithNoSchemasConfigured() throws Exception {
         Path file = write(tmp.getRoot().toPath(), ConfigTemplate.defaultJson());
         LspConfig cfg = ConfigLoader.load(file);
-        // The scaffold leaves schemas commented out -> empty -> bundled default applies.
-        assertTrue("schemas should be empty (inherit bundled)", cfg.schemas().isEmpty());
+        // The scaffold leaves schemas commented out -> empty -> syntax-only (no bundled default).
+        assertTrue("schemas should be empty", cfg.schemas().isEmpty());
         assertNull("schemasDirectory should be unset", cfg.schemasDirectory());
         assertEquals("default", cfg.strictness());
     }

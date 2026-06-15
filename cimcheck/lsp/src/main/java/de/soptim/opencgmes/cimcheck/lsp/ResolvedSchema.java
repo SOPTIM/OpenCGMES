@@ -30,9 +30,9 @@ import java.util.Map;
  * The schema a single document is validated against, bundled with the strictness and
  * named-graph scope that should be applied to its annotations.
  *
- * <p>The default workspace schema (from {@code opencgmes.json}, or the bundled default) and schemas loaded from
- * a SPARQL Notebook {@code # [endpoint=...]} directive are both represented uniformly here so the
- * validation path does not care where the schema came from.</p>
+ * <p>The workspace schema (from {@code opencgmes.json}) and schemas loaded from a SPARQL Notebook
+ * {@code # [endpoint=...]} directive are both represented uniformly here so the validation path
+ * does not care where the schema came from.</p>
  */
 record ResolvedSchema(
         SparqlValidationApi api,

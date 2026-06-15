@@ -29,6 +29,7 @@ import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,26 +45,17 @@ public final class SchemaLoader {
     /**
      * Loads an index from the given config (either {@code schemasDirectory} or explicit
      * {@code schemas} list). Paths in the config are resolved relative to {@code configBase}.
+     * Returns {@link Optional#empty()} when the config declares no schemas — there is no bundled
+     * default, so the caller validates syntax-only.
      *
-     * @throws SchemaLoadException if no schema files are found or any file fails to parse
+     * @throws SchemaLoadException if schema files are configured but none can be found/parsed
      */
-    public static RdfsSchemaIndex load(CliConfig config, Path configBase) throws SchemaLoadException {
+    public static Optional<RdfsSchemaIndex> load(CliConfig config, Path configBase)
+            throws SchemaLoadException {
         if (config.schemas().isEmpty() && config.schemasDirectory() == null) {
-            return loadBundled();
+            return Optional.empty();
         }
-        List<Path> files = resolveFiles(config, configBase);
-        return buildIndex(files);
-    }
-
-    /** Loads the bundled CGMES 3.0 profiles (the zero-config default). */
-    public static RdfsSchemaIndex loadBundled() throws SchemaLoadException {
-        try {
-            var loaded = CgmesSchemaLoader.bundledDefault().loadIndexWithSources();
-            loaded.skippedFiles().forEach(f -> LOG.warn("Skipped unparseable bundled schema file: {}", f));
-            return loaded.index();
-        } catch (CgmesSchemaLoader.SchemaLoadException e) {
-            throw new SchemaLoadException(e.getMessage(), e.getCause());
-        }
+        return Optional.of(buildIndex(resolveFiles(config, configBase)));
     }
 
     /**

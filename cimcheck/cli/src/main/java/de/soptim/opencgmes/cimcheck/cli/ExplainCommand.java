@@ -137,14 +137,18 @@ public class ExplainCommand implements Callable<Integer> {
             CliConfig config = null;
             if (!schemaFiles.isEmpty()) {
                 index = SchemaLoader.load(schemaFiles);
-            } else if (configFile != null) {
-                config = ConfigLoader.load(configFile);
-                index = SchemaLoader.load(config, configFile.toAbsolutePath().getParent());
             } else {
-                var discovered = ConfigLoader.discover(Path.of("."));
-                if (discovered.isEmpty()) return null; // no schema — use static explain
-                config = discovered.get();
-                index = SchemaLoader.load(config, Path.of(".").toAbsolutePath());
+                Path base;
+                if (configFile != null) {
+                    config = ConfigLoader.load(configFile);
+                    base = configFile.toAbsolutePath().getParent();
+                } else {
+                    config = ConfigLoader.discover(Path.of(".")).orElse(null);
+                    base = Path.of(".").toAbsolutePath();
+                }
+                // No config, or a config without schemas → no schema; use static explain.
+                index = (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
+                if (index == null) return null;
             }
             var prefixes = (config != null && config.prefixes() != null)
                     ? config.prefixes()

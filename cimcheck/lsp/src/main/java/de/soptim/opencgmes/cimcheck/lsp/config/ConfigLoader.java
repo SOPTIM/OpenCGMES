@@ -42,9 +42,9 @@ import java.util.Optional;
  * }
  * }</pre>
  *
- * <p>The file is optional: when none is found, callers fall back to the bundled CGMES 3.0 schemas.
- * A file with no {@code "cimcheck"} section (or one omitting {@code schemas}/{@code schemasDirectory})
- * likewise inherits the bundled schemas.</p>
+ * <p>The file is optional: when none is found (or it omits {@code schemas}/{@code schemasDirectory}),
+ * no schema is loaded and documents are validated syntax-only — there is no bundled default schema —
+ * unless a document declares a {@code # [endpoint=...]} that supplies the schema.</p>
  *
  * <p>Auto-discovery walks upward from a start directory; explicit loading takes a direct path.</p>
  */
@@ -65,7 +65,7 @@ public final class ConfigLoader {
 
     /**
      * Loads config from an explicit {@code opencgmes.json} path, returning the {@code cimcheck}
-     * section. A missing section yields an empty config (which inherits the bundled schemas).
+     * section. A missing section yields an empty config (no schemas → syntax-only validation).
      *
      * @throws ConfigException if the file cannot be read or parsed
      */

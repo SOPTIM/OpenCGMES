@@ -86,21 +86,6 @@ public final class CgmesSchemaLoader {
     }
 
     /**
-     * Loads the CGMES 3.0 RDFS profiles bundled with CIMcheck. The profiles are extracted from the
-     * jar into the user cache directory on first use (see {@link BundledSchemas}) and loaded from
-     * there, so validation works with no project configuration at all.
-     *
-     * @throws SchemaLoadException if the bundled resources cannot be extracted
-     */
-    public static CgmesSchemaLoader bundledDefault() throws SchemaLoadException {
-        try {
-            return fromDirectory(BundledSchemas.extractedDir());
-        } catch (IOException e) {
-            throw new SchemaLoadException("Cannot extract bundled CGMES 3.0 schemas: " + e.getMessage(), e);
-        }
-    }
-
-    /**
      * Loads specific schema files.
      *
      * @param files one or more schema file paths; must be non-empty

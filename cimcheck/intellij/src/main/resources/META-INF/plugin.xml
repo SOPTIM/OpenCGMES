@@ -49,7 +49,7 @@
         <h3>Getting started</h3>
         <ol>
             <li><b>Install LSP4IJ</b> if prompted — it is a required dependency and provides the LSP client.</li>
-            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> No configuration is required — CIMcheck validates against the CGMES 3.0 RDFS profiles bundled with the plugin. The server starts, loads the schema in the background, and begins validating.</li>
+            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> Point CIMcheck at your CGMES profiles via an <code>opencgmes.json</code> (see below) or a <code># [endpoint=...]</code> directive in the query; without either, CIMcheck checks syntax only. The server starts, loads the schema in the background, and begins validating.</li>
             <li><b>(Optional) Customise</b> via <b>Tools → CIMcheck: Create Config File</b>, which scaffolds an <code>opencgmes.json</code>. All settings live under a <code>"cimcheck"</code> section; the nearest file (walking up from each query) wins. To use your own RDFS profiles:
                 <pre>{
   "cimcheck": {
@@ -80,7 +80,7 @@
         <h3>Troubleshooting</h3>
         <ul>
             <li><b>No syntax highlighting / file not recognised</b> — confirm the file extension is one of <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code>, <code>.shacl</code>. If a previously installed plugin already claimed <code>.ttl</code>, add the association under <b>Settings → Editor → File Types → SHACL</b>.</li>
-            <li><b>No diagnostics appearing</b> — validation needs no config (bundled CGMES 3.0 schemas), so this usually means the server did not start. Make sure LSP4IJ is enabled and open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMcheck's status and logs.</li>
+            <li><b>No diagnostics appearing</b> — with no schema configured CIMcheck reports only syntax errors; for full validation add an <code>opencgmes.json</code> with <code>schemas</code> or a <code># [endpoint=...]</code> directive. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMcheck's status and logs.</li>
             <li><b>Server fails to start</b> — usually a Java version problem. Set <b>Settings → Tools → CIMcheck → Java executable</b> to a Java 21+ path.</li>
         </ul>
     ]]></description>

@@ -142,8 +142,8 @@ shows a Markdown tooltip with:
 - The `rdfs:comment` description from the schema
 - A summary table of `rdfs:domain`, `rdfs:range`, and the declaring profile(s)
 
-Works for terms declared in any loaded profile (the bundled CGMES 3.0 schemas, or the
-profiles configured in `opencgmes.json`).
+Works for terms declared in any loaded profile (the profiles configured in `opencgmes.json`,
+or a schema loaded from a `# [endpoint=...]` directive).
 
 #### Code completion
 
@@ -212,22 +212,22 @@ Or open VS Code → Extensions panel → `⋯` menu → **Install from VSIX…**
 
 ### Configuring your workspace
 
-**No configuration is required.** Out of the box, CIMcheck validates against the
-**CGMES 3.0 RDFS profiles bundled with the extension** (vendored from the ENTSO-E
-[Application Profiles Library](https://github.com/entsoe/application-profiles-library),
-Apache-2.0). Open a `.rq` file and validation just works.
+**Point CIMcheck at a schema** for full validation. There are two ways: an `opencgmes.json`
+config, or a `# [endpoint=...]` directive in the query (a SPARQL endpoint that hosts the
+schema). With neither, CIMcheck performs a **syntax-only** check — there is no bundled
+default schema.
 
-To customise, add an `opencgmes.json` file. All CIMcheck settings live under a top-level
-`"cimcheck"` section (so `opencgmes.json` can host config for other OpenCGMES tools too).
-The file is **discovered git-style**: CIMcheck walks up the directory tree from each open
-file and uses the nearest `opencgmes.json`, so different subtrees can use different configs.
-JSON comments (`//`) and trailing commas are allowed.
+Add an `opencgmes.json` file: all CIMcheck settings live under a top-level `"cimcheck"`
+section (so `opencgmes.json` can host config for other OpenCGMES tools too). The file is
+**discovered git-style**: CIMcheck walks up the directory tree from each open file and uses
+the nearest `opencgmes.json`, so different subtrees can use different configs. JSON comments
+(`//`) and trailing commas are allowed.
 
 Generate a commented starter file with the **CIMcheck: Create Config File** command (or
 `cimcheck init` from the CLI).
 
-**Use your own RDFS profiles instead of the bundled ones** — point at a directory
-(`.rdf`, `.ttl`, `.owl`) or list files. Paths are relative to `opencgmes.json`:
+**Configure your RDFS profiles** — point at a directory (`.rdf`, `.ttl`, `.owl`) or list
+files. Paths are relative to `opencgmes.json`:
 
 ```json
 {
@@ -248,8 +248,9 @@ Generate a commented starter file with the **CIMcheck: Create Config File** comm
 }
 ```
 
-Omit both `schemas` and `schemasDirectory` to keep the bundled CGMES 3.0 schemas while still
-setting `strictness`, `namedGraphs`, etc.
+If you omit both `schemas` and `schemasDirectory`, no schema is loaded and validation is
+syntax-only (the other settings like `strictness` still apply); add a schema, or use a
+`# [endpoint=...]` directive, for schema-based validation.
 
 **Map named graphs to specific profiles:**
 
@@ -286,8 +287,8 @@ the map produce a `GRAPH_NOT_CONFIGURED` warning-level diagnostic.
 When `namedGraphs` is **not** configured (the default), validation runs against all loaded
 profiles and no `GRAPH_NOT_CONFIGURED` diagnostics are emitted.
 
-If no config file is found, validation falls back to the bundled CGMES 3.0 schemas — there
-is no error or empty state to clear before you can start.
+If no config file is found (and the query declares no `# [endpoint=...]`), validation is
+syntax-only — there is no bundled default schema.
 
 ### VS Code settings
 
@@ -378,6 +379,11 @@ reported as `UNKNOWN_VOCABULARY_TERM` errors. Open annotation/datatype namespace
 `dcterms:`, `dc:`, `skos:`, `dcat:`, and the IEC extension namespaces) are always accepted
 without inspection.
 
+The W3C vocabulary documents are vendored under
+[`src/main/resources/vocab/`](src/main/resources/vocab) and redistributed under the W3C
+Software and Document License; see [`vocab/NOTICE.md`](src/main/resources/vocab/NOTICE.md) for
+attribution.
+
 Set `"standardVocabulary": "ignore"` to turn the checking off and accept these namespaces
 wholesale (the legacy behaviour):
 
@@ -396,8 +402,8 @@ If the extension is installed but no diagnostics appear:
 1. Run **CIMcheck: Show Output** from the Command Palette to open the
    output channel — startup errors and schema-load failures are logged there.
 2. Check that Java 21+ is on `PATH`, or set `cimcheck.javaExecutable` explicitly.
-3. Validation works with no config; if you added an `opencgmes.json`, verify its `cimcheck`
-   section points to valid schema files.
+3. With no config (or endpoint) validation is syntax-only; for full validation verify your
+   `opencgmes.json` `cimcheck` section points to valid schema files.
 4. Set `cimcheck.trace.server` to `messages` to see raw LSP traffic.
 
 ---
@@ -408,9 +414,10 @@ If the extension is installed but no diagnostics appear:
 server that wraps the `cimcheck-core` library. It communicates over `stdio` and can be
 integrated into any LSP-capable editor.
 
-The server discovers the nearest `opencgmes.json` (walking up from each document, falling
-back to the bundled CGMES 3.0 schemas when none is found), loads the configured RDFS
-profiles, and re-loads them whenever an `opencgmes.json` changes. All open documents are
+The server discovers the nearest `opencgmes.json` (walking up from each document; when none
+is found, or it declares no schemas, documents are validated syntax-only — there is no bundled
+default schema), loads the configured RDFS profiles, and re-loads them whenever an
+`opencgmes.json` changes. All open documents are
 revalidated after a schema reload.
 
 To build the fat JAR only:

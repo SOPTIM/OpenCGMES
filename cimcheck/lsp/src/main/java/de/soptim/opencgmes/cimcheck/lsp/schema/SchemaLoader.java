@@ -27,6 +27,7 @@ import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -48,42 +49,24 @@ public final class SchemaLoader {
                                    List<String> skippedFiles) {}
 
     /**
-     * Loads an index from the given LSP config. Paths are resolved relative to {@code configBase}.
-     *
-     * @throws SchemaLoadException if no schema files are found, any file fails to parse, or
-     *                             no CIM profiles are registered
-     */
-    public static RdfsSchemaIndex load(LspConfig config, Path configBase) throws SchemaLoadException {
-        return loadWithSources(config, configBase).index();
-    }
-
-    /**
-     * Loads both the index and the source-file map from the given LSP config.
+     * Loads the index and source-file map from the given LSP config, or {@link Optional#empty()}
+     * when the config declares no {@code schemas}/{@code schemasDirectory} — in which case the
+     * caller validates syntax only (no bundled default schema). Paths resolve relative to
+     * {@code configBase}.
      *
      * <p>Files that cannot be parsed are recorded in {@link SchemaAndSources#skippedFiles()}
      * rather than causing a hard failure; the load only fails if no valid CIM profile loads.</p>
      *
-     * @throws SchemaLoadException if no schema files are found or no CIM profiles could be registered
+     * @throws SchemaLoadException if schema files are configured but none could be parsed/registered
      */
-    public static SchemaAndSources loadWithSources(LspConfig config, Path configBase)
+    public static Optional<SchemaAndSources> loadWithSources(LspConfig config, Path configBase)
             throws SchemaLoadException {
+        Optional<CgmesSchemaLoader> loader = resolveLoader(config, configBase);
+        if (loader.isEmpty()) return Optional.empty();
         try {
-            LoadedIndex loaded = resolveLoader(config, configBase).loadIndexWithSources();
-            return new SchemaAndSources(loaded.index(), loaded.sourcePaths(), loaded.skippedFiles());
-        } catch (CgmesSchemaLoader.SchemaLoadException e) {
-            throw new SchemaLoadException(e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Loads the bundled CGMES 3.0 profiles (the zero-config default), with source-file navigation.
-     *
-     * @throws SchemaLoadException if the bundled resources cannot be extracted or parsed
-     */
-    public static SchemaAndSources loadBundledWithSources() throws SchemaLoadException {
-        try {
-            LoadedIndex loaded = CgmesSchemaLoader.bundledDefault().loadIndexWithSources();
-            return new SchemaAndSources(loaded.index(), loaded.sourcePaths(), loaded.skippedFiles());
+            LoadedIndex loaded = loader.get().loadIndexWithSources();
+            return Optional.of(
+                    new SchemaAndSources(loaded.index(), loaded.sourcePaths(), loaded.skippedFiles()));
         } catch (CgmesSchemaLoader.SchemaLoadException e) {
             throw new SchemaLoadException(e.getMessage(), e);
         }
@@ -91,24 +74,18 @@ public final class SchemaLoader {
 
     // ---- Private ---------------------------------------------------------------------------
 
-    private static CgmesSchemaLoader resolveLoader(LspConfig config, Path base)
-            throws SchemaLoadException {
+    private static Optional<CgmesSchemaLoader> resolveLoader(LspConfig config, Path base) {
         if (!config.schemas().isEmpty()) {
             List<Path> files = config.schemas().stream()
                     .map(s -> base.resolve(s).normalize())
                     .collect(Collectors.toList());
-            return CgmesSchemaLoader.fromFiles(files);
+            return Optional.of(CgmesSchemaLoader.fromFiles(files));
         }
         if (config.schemasDirectory() != null) {
             Path dir = base.resolve(config.schemasDirectory()).normalize();
-            return CgmesSchemaLoader.fromDirectory(dir);
+            return Optional.of(CgmesSchemaLoader.fromDirectory(dir));
         }
-        // No schemas configured — fall back to the bundled CGMES 3.0 profiles.
-        try {
-            return CgmesSchemaLoader.bundledDefault();
-        } catch (CgmesSchemaLoader.SchemaLoadException e) {
-            throw new SchemaLoadException(e.getMessage(), e);
-        }
+        return Optional.empty(); // no schemas configured — syntax-only (no bundled default)
     }
 
     // ---- Exception -------------------------------------------------------------------------

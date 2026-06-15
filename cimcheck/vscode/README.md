@@ -60,7 +60,7 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 
 - **Local file endpoint** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for that cell. Relative paths resolve against the notebook's own directory.
 - **Remote SPARQL endpoint** (`https://…`) — CIMcheck loads the schema from the endpoint itself. It enumerates the named graphs that hold the CGMES profiles and reads them into the schema index. The schema is fetched in the background; diagnostics appear once it has loaded.
-- **No directive** — the cell falls back to the workspace schema (the nearest `opencgmes.json`, or the bundled CGMES 3.0 default), exactly like a `.rq` file.
+- **No directive** — the cell falls back to the workspace schema (the nearest `opencgmes.json`), exactly like a `.rq` file; with no schema configured, it is checked syntax-only.
 
 The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded **in per-profile named graphs**); CIMcheck validates against that schema and never queries live instance data.
 
@@ -71,19 +71,18 @@ The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki se
 
 ## Getting started
 
-### 1. Open a SPARQL or SHACL file — that's it
+### 1. Open a SPARQL or SHACL file
 
-No configuration is required. CIMcheck validates against the **CGMES 3.0 RDFS profiles
-bundled with the extension** (from the ENTSO-E
-[Application Profiles Library](https://github.com/entsoe/application-profiles-library),
-Apache-2.0). Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file and diagnostics appear.
+Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file. Syntax errors are flagged immediately.
+For schema-based validation, point CIMcheck at your CGMES profiles — via an `opencgmes.json`
+(below) or a `# [endpoint=...]` directive in the query. There is no bundled default schema, so
+without one of those, validation is syntax-only.
 
-### 2. (Optional) Customise with `opencgmes.json`
+### 2. Configure a schema with `opencgmes.json`
 
-To use your own profiles or tune validation, run **CIMcheck: Create Config File** from the
-Command Palette (or write the file yourself). All settings live under a `"cimcheck"` section;
-the file is discovered by walking up from each file (nearest one wins), and comments are
-allowed. To use your own RDFS profiles instead of the bundled ones:
+Run **CIMcheck: Create Config File** from the Command Palette (or write the file yourself).
+All settings live under a `"cimcheck"` section; the file is discovered by walking up from each
+file (nearest one wins), and comments are allowed. Point it at your RDFS profiles:
 
 ```json
 {
@@ -130,8 +129,8 @@ The `opencgmes.json` file nests all CIMcheck settings under a `"cimcheck"` secti
 }
 ```
 
-All fields are optional. When neither `schemasDirectory` nor `schemas` is set, the bundled
-CGMES 3.0 profiles are used.
+All fields are optional. When neither `schemasDirectory` nor `schemas` is set, no schema is
+loaded and files are checked syntax-only (unless they declare a `# [endpoint=...]`).
 
 ### `strictness`
 
@@ -213,7 +212,7 @@ extension namespaces) are always accepted regardless of this setting.
 Open the CIMcheck output channel (`CIMcheck: Show Output`) to see the full error. Common causes: incorrect path in `schemasDirectory`/`schemas`, or a malformed RDF file.
 
 **No diagnostics at all**
-Validation needs no config (it uses the bundled CGMES 3.0 schemas), so this usually points to a server-launch problem — check **CIMcheck: Show Output** and confirm Java 21+ is available.
+With no schema configured, CIMcheck reports only syntax errors — add an `opencgmes.json` with `schemas`, or a `# [endpoint=...]` directive, for full validation. If even syntax errors are missing, it usually points to a server-launch problem — check **CIMcheck: Show Output** and confirm Java 21+ is available.
 
 **Java not found or wrong version**
 Set `cimcheck.javaExecutable` to the full path of a Java 21+ executable, e.g. `/usr/lib/jvm/java-21/bin/java`.
@@ -226,8 +225,8 @@ This usually means another installed RDF/Turtle extension (or a `files.associati
 
 ## Known Limitations
 
-**Notebook endpoint schemas: diagnostics only**
-Inside notebook cells, hover, auto-completion, and go-to-definition currently use the workspace schema (the nearest `opencgmes.json`, or the bundled default), not the per-cell `# [endpoint=...]` schema. Diagnostics (squiggles) are fully endpoint-aware. A schema loaded from an endpoint is cached for the session — edit `opencgmes.json` (which triggers a reload) or reload the window to re-fetch it.
+**Notebook endpoint schemas**
+Diagnostics, hover, auto-completion, and go-to-definition are all endpoint-aware: when a cell declares a `# [endpoint=...]`, they use that schema. Go-to-definition on an endpoint term opens a generated read-only Turtle "peek" of the term (fetched from the endpoint), since there is no local file. A schema loaded from an endpoint is cached for the session — edit `opencgmes.json` (which triggers a reload) or reload the window to re-fetch it.
 
 **Remote endpoint schema layout**
 Loading a schema from a remote SPARQL endpoint assumes the CGMES profiles are stored in **per-profile named graphs** (graphs that declare `rdfs:Class`/`owl:Ontology`); instance-data graphs are skipped. Endpoints that store the whole schema in the default graph, or mixed with instance data in one graph, are not supported.
@@ -235,3 +234,7 @@ Loading a schema from a remote SPARQL endpoint assumes the CGMES profiles are st
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
+
+The bundled language server includes W3C standard vocabularies (`rdf`, `rdfs`, `owl`, `sh`),
+used for standard-vocabulary term checking and redistributed under the W3C Software and
+Document License. © World Wide Web Consortium.

@@ -265,8 +265,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
     /**
      * The schema index a document's IDE features (hover, completion, definition) should consult:
      * the {@code # [endpoint=...]} schema when the document declares one and it has resolved,
-     * otherwise the document's workspace schema (nearest {@code opencgmes.json} or the bundled
-     * default). Returns empty when an endpoint is declared but its schema is not yet available
+     * otherwise the document's workspace schema (nearest {@code opencgmes.json}). Returns empty when
+     * no schema applies — no config / config without schemas, or an endpoint not yet available
      * (still loading, or the load failed) — so the editor never shows information from the wrong
      * (workspace) schema for an endpoint document.
      */
@@ -310,24 +310,16 @@ final class SparqlTextDocumentService implements TextDocumentService {
         LanguageClient c = client.get();
         if (c == null) return;
 
-        // A SPARQL Notebook cell may declare its schema source via "# [endpoint=...]"; fall back
-        // to the document's workspace schema (nearest opencgmes.json, or bundled default) when absent.
+        // A SPARQL Notebook cell may declare its schema source via "# [endpoint=...]"; otherwise the
+        // document's workspace schema (nearest opencgmes.json) is used. With neither, validation is
+        // syntax-only — there is no bundled default schema.
         String endpoint = EndpointDirective.parse(text).orElse(null);
         var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (schemaOpt.isEmpty()) {
-            // With an endpoint directive the schema may still be loading (async) or have failed;
-            // status is reported via notifications. Rather than show nothing, fall back to a
-            // schema-independent syntax check so broken SPARQL still gets squiggles. Without an
-            // endpoint, hint that a workspace config is needed.
-            if (endpoint != null) {
-                publishSyntaxOnly(uri, text);
-            } else {
-                var range = new Range(new Position(0, 0), new Position(0, 1));
-                var hint = new Diagnostic(range,
-                        "No schema loaded yet.",
-                        DiagnosticSeverity.Information, "cimcheck");
-                publishDiagnostics(uri, List.of(hint));
-            }
+            // No schema resolved: an endpoint that failed / is still loading, or no config + no
+            // endpoint. Fall back to a schema-independent syntax check so broken SPARQL still gets
+            // squiggles; flag the endpoint case as an error (the others are the normal no-config state).
+            publishSyntaxOnly(uri, text, endpoint != null);
             return;
         }
 
@@ -349,14 +341,16 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     /**
-     * Publishes a schema-independent syntax check for a SPARQL document whose schema could not be
-     * resolved (endpoint still loading or failed). Semantic checks are skipped, but syntax errors
-     * are surfaced so the cell never silently shows zero diagnostics.
+     * Publishes a schema-independent syntax check for a SPARQL document with no resolved schema —
+     * an endpoint that is still loading or failed, or simply no config and no endpoint. Semantic
+     * checks are skipped, but syntax errors are surfaced so the document never silently shows zero
+     * diagnostics. When {@code endpointDeclared} is true a first-line error notice is added (the
+     * endpoint could not be reached); for the plain no-config case no notice is shown.
      */
-    private void publishSyntaxOnly(String uri, String text) {
+    private void publishSyntaxOnly(String uri, String text, boolean endpointDeclared) {
         try {
             var diagnostics = new ArrayList<Diagnostic>();
-            diagnostics.add(syntaxOnlyNotice(text));
+            if (endpointDeclared) diagnostics.add(syntaxOnlyNotice(text));
             SparqlValidationApi.checkSyntaxOnly(text).annotations()
                     .forEach(a -> diagnostics.add(convertSparqlAnnotation(a, text)));
             publishDiagnostics(uri, diagnostics);
@@ -491,18 +485,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
         String endpoint = EndpointDirective.parse(text).orElse(null);
         var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (schemaOpt.isEmpty()) {
-            // With an endpoint directive the schema may still be loading (async) or have failed;
-            // rather than show nothing, fall back to a schema-independent syntax check (Turtle parse
-            // plus embedded-SPARQL syntax) so broken shapes still get squiggles. Without an endpoint,
-            // hint that a workspace config is needed.
-            if (endpoint != null) {
-                publishShaclSyntaxOnly(uri, text);
-            } else {
-                publishDiagnostics(uri, List.of(new Diagnostic(
-                        new Range(new Position(0, 0), new Position(0, 1)),
-                        "No schema loaded yet.",
-                        DiagnosticSeverity.Information, "cimcheck")));
-            }
+            // No schema resolved: an endpoint that failed / is still loading, or no config + no
+            // endpoint. Fall back to a schema-independent check (Turtle parse, embedded-SPARQL
+            // syntax, vocabulary typos); flag the endpoint case as an error.
+            publishShaclSyntaxOnly(uri, text, endpoint != null);
             return;
         }
         ResolvedSchema schema = schemaOpt.get();
@@ -544,11 +530,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
      * any embedded SPARQL fragments, but skips all schema-dependent semantic checks, so the document
      * never silently shows zero diagnostics. The SHACL analogue of {@link #publishSyntaxOnly}.
      */
-    private void publishShaclSyntaxOnly(String uri, String text) {
+    private void publishShaclSyntaxOnly(String uri, String text, boolean endpointDeclared) {
         try {
             ParsedTurtle parsed = parseTurtle(text);
             var diagnostics = new ArrayList<>(parsed.parseErrors());
-            diagnostics.add(syntaxOnlyNotice(text));
+            if (endpointDeclared) diagnostics.add(syntaxOnlyNotice(text));
             ShaclValidationResult result =
                     SparqlValidationApi.checkShaclSyntaxOnly(parsed.model().getGraph());
             // Schema-independent shape findings (vocabulary typos such as sh:taaargetClass).

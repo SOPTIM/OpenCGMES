@@ -33,8 +33,8 @@ import java.util.Optional;
  *
  * <p>All CIMcheck settings live under a top-level {@code "cimcheck"} object. Auto-discovery walks
  * the directory tree upward from the current working directory looking for {@code opencgmes.json};
- * an explicit path can also be provided. The file is optional — when none is found, callers fall
- * back to the bundled CGMES 3.0 schemas.</p>
+ * an explicit path can also be provided. The file is optional — when none is found (or it declares
+ * no schemas), validation is syntax-only; there is no bundled default schema.</p>
  */
 public final class ConfigLoader {
 
@@ -53,7 +53,7 @@ public final class ConfigLoader {
 
     /**
      * Loads the {@code cimcheck} section from an explicit {@code opencgmes.json} path. A missing
-     * section yields an empty config (which inherits the bundled schemas).
+     * section yields an empty config (no schemas → syntax-only validation).
      *
      * @throws ConfigException if the file cannot be read or parsed
      */

@@ -28,7 +28,7 @@ import java.util.Map;
  * Deserialized form of the {@code "cimcheck"} section of {@code opencgmes.json}.
  *
  * <p>All fields are optional. When neither {@code schemas} nor {@code schemasDirectory} is given,
- * the bundled CGMES 3.0 profiles are used.</p>
+ * no schema is loaded and inputs are checked syntax-only (there is no bundled default schema).</p>
  *
  * <p>Example {@code opencgmes.json}:</p>
  * <pre>{@code

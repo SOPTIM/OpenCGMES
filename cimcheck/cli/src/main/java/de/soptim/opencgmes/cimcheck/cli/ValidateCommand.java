@@ -240,20 +240,22 @@ public class ValidateCommand implements Callable<Integer> {
             try {
                 if (!schemaFiles.isEmpty()) {
                     index = SchemaLoader.load(schemaFiles);
-                } else if (configFile != null) {
-                    config = ConfigLoader.load(configFile);
-                    Path base = configFile.toAbsolutePath().getParent();
-                    index = SchemaLoader.load(config, base);
                 } else {
-                    // Auto-discover config; fall back to the bundled CGMES 3.0 schemas when none exists.
-                    var discovered = ConfigLoader.discover(Path.of("."));
-                    if (discovered.isEmpty()) {
-                        System.err.println("Info: No opencgmes.json found — validating against the bundled CGMES 3.0 schemas.");
-                        index = SchemaLoader.loadBundled();
+                    // Explicit --config, else an auto-discovered opencgmes.json. There is no bundled
+                    // default schema: a config without schemas (or no config at all) means syntax-only.
+                    Path base;
+                    if (configFile != null) {
+                        config = ConfigLoader.load(configFile);
+                        base = configFile.toAbsolutePath().getParent();
                     } else {
-                        config = discovered.get();
-                        Path base = Path.of(".").toAbsolutePath();
-                        index = SchemaLoader.load(config, base);
+                        config = ConfigLoader.discover(Path.of(".")).orElse(null);
+                        base = Path.of(".").toAbsolutePath();
+                    }
+                    index = (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
+                    if (index == null) {
+                        System.err.println("Info: no schema configured — checking syntax only. Use "
+                                + "--schema/--config (or --endpoint) for schema-based validation.");
+                        syntaxOnly = true;
                     }
                 }
             } catch (ConfigLoader.ConfigException | SchemaLoader.SchemaLoadException e) {
@@ -274,14 +276,16 @@ public class ValidateCommand implements Callable<Integer> {
         }
 
         // 3. Build scope: auto-detected from the endpoint, or from the config's namedGraphs.
-        Map<Node, Collection<VersionIri>> namedGraphScope = endpointScope != null
-                ? endpointScope
+        //    In syntax-only mode there is no index, so the scope is irrelevant (empty).
+        Map<Node, Collection<VersionIri>> namedGraphScope =
+                endpointScope != null ? endpointScope
+                : index == null ? Map.of()
                 : SparqlValidationApi.buildNamedGraphScope(
                         config == null ? Map.of() : config.namedGraphs(),
                         index,
                         msg -> System.err.println("Warning: " + msg));
 
-        // 4. Validate each input. In syntax-only mode (endpoint without a schema) no API is built.
+        // 4. Validate each input. In syntax-only mode (no schema source) no API is built.
         SparqlValidationApi api = null;
         if (!syntaxOnly) {
             var effectivePrefixes = (config != null && config.prefixes() != null)

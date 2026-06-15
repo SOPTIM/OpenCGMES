@@ -20,9 +20,9 @@ package de.soptim.opencgmes.cimcheck.core;
 
 /**
  * The scaffold written by {@code cimcheck init} (and the editor "Create config" actions): a
- * commented {@code opencgmes.json} that documents every CIMcheck setting. All settings are
- * pre-commented because CIMcheck works with zero configuration against the bundled CGMES 3.0
- * profiles; the file only needs uncommenting to customise behaviour.
+ * commented {@code opencgmes.json} that documents every CIMcheck setting. Most settings are
+ * pre-commented; configure {@code schemas}/{@code schemasDirectory} to point CIMcheck at the
+ * CGMES (or other RDFS/OWL) profiles to validate against.
  *
  * <p>The template relies on JSON-with-comments, which the config loaders accept.</p>
  */
@@ -37,12 +37,13 @@ public final class ConfigTemplate {
             {
               // Configuration for OpenCGMES tools. CIMcheck reads the "cimcheck" section.
               "cimcheck": {
-                // By default CIMcheck validates against the CGMES 3.0 profiles bundled with the
-                // extension, so this file is optional. Uncomment a setting below to customise.
+                // Point CIMcheck at the RDFS/OWL profiles to validate against. Without a schema
+                // here (and without a "# [endpoint=...]" directive in the query), CIMcheck performs
+                // a syntax-only check. A SPARQL endpoint that hosts the schema needs no config.
 
                 // --- Schemas -----------------------------------------------------------------
-                // Use your own RDFS/OWL profiles instead of the bundled CGMES 3.0 ones. Paths are
-                // relative to this file. Pick ONE of the following:
+                // Your CGMES (or other RDFS/OWL) profiles. Paths are relative to this file.
+                // Pick ONE of the following:
                 // "schemasDirectory": "schemas",
                 // "schemas": ["schemas/MyEquipment.rdf", "schemas/MyTopology.rdf"],
 

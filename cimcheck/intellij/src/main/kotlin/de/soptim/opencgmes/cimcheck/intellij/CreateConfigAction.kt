@@ -33,10 +33,10 @@ import java.nio.file.Path
 /**
  * "Create Config File (opencgmes.json)" action. Scaffolds an `opencgmes.json` in the project root.
  *
- * CIMcheck works without it (validating against the bundled CGMES 3.0 schemas); the generated file
- * is fully commented and exists for customisation. The template text is fetched from the language
- * server's `cimcheck.createConfig` command so the CLI and editors stay in sync, with a minimal
- * embedded fallback when the server is not running.
+ * The generated file points CIMcheck at the CGMES profiles to validate against (without a schema —
+ * or a `# [endpoint=...]` directive — validation is syntax-only). The template text is fetched from
+ * the language server's `cimcheck.createConfig` command so the CLI and editors stay in sync, with a
+ * minimal embedded fallback when the server is not running.
  */
 class CreateConfigAction : AnAction() {
 
@@ -100,7 +100,8 @@ class CreateConfigAction : AnAction() {
         private val FALLBACK = """
             {
               "cimcheck": {
-                // CIMcheck validates against the bundled CGMES 3.0 schemas by default.
+                // Point CIMcheck at your CGMES profiles; without them validation is syntax-only.
+                // "schemasDirectory": "schemas",
                 "strictness": "default"
               }
             }

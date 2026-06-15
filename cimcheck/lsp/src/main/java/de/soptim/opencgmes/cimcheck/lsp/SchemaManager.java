@@ -86,9 +86,10 @@ final class SchemaManager {
     });
 
     /**
-     * The <em>primary</em> workspace schema — the one discovered from the workspace root (or the
-     * bundled default). It backs the workspace-global operations that have no document context
-     * (workspace symbols, the explain command) and the endpoint-schema builds.
+     * The <em>primary</em> workspace schema — the one discovered from the workspace root, or
+     * {@code null} when no config (or a config without schemas) is found. It backs the
+     * workspace-global operations that have no document context (workspace symbols, the explain
+     * command) and the endpoint-schema builds.
      */
     private final AtomicReference<SparqlValidationApi>              apiRef       = new AtomicReference<>();
     private final AtomicReference<StrictnessLevel>                  levelRef     = new AtomicReference<>(StrictnessLevel.DEFAULT);
@@ -97,15 +98,13 @@ final class SchemaManager {
     private final AtomicBoolean checkStdVocabRef = new AtomicBoolean(true);
     private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
-    /** Cache key (in {@link #workspaceSchemaCache} and {@link #primaryConfigKey}) for the bundled default. */
-    private static final String BUNDLED = "<bundled>";
-
     /**
      * Per-config-source schema cache for git-style nearest-config resolution: a document is
-     * validated against the nearest {@code opencgmes.json} above it, falling back to the bundled
-     * default. Keyed by resolved config-file path (or {@link #BUNDLED}). The primary config's entry
-     * is served from the {@code *Ref} fields above rather than this map; only <em>other</em> configs
-     * found below the root land here. Cleared on every reload.
+     * validated against the nearest {@code opencgmes.json} above it. Keyed by resolved config-file
+     * path. When no config is found, or a config declares no schemas, there is no workspace schema
+     * and the document is validated syntax-only (there is no bundled default schema). The primary
+     * config's entry is served from the {@code *Ref} fields above rather than this map; only
+     * <em>other</em> configs found below the root land here. Cleared on every reload.
      */
     private final Map<String, WorkspaceSchema> workspaceSchemaCache = new ConcurrentHashMap<>();
 
@@ -184,10 +183,10 @@ final class SchemaManager {
      * Resolves the schema a document should be validated against.
      *
      * <p>When {@code endpoint} is {@code null}/blank, the document's workspace schema is used: the
-     * nearest {@code opencgmes.json} above the document, or the bundled CGMES 3.0 default when none
-     * is found. Otherwise the schema is loaded from the endpoint — a local
-     * {@code .ttl}/{@code .rdf}/{@code .owl} file or a remote SPARQL endpoint — and cached by
-     * resolved source.</p>
+     * nearest {@code opencgmes.json} above the document. When none is found (or it declares no
+     * schemas) the result is empty and the caller validates syntax-only. Otherwise the schema is
+     * loaded from the endpoint — a local {@code .ttl}/{@code .rdf}/{@code .owl} file or a remote
+     * SPARQL endpoint — and cached by resolved source.</p>
      *
      * @param endpoint the {@code # [endpoint=...]} value, or {@code null} for the workspace schema
      * @param docDir   the document's own directory, used for config discovery and relative endpoints
@@ -203,18 +202,20 @@ final class SchemaManager {
 
     /**
      * Resolves the {@link WorkspaceSchema} for a document directory using git-style nearest-config
-     * discovery: the nearest {@code opencgmes.json} at or above {@code docDir} wins, else the
-     * bundled default. The primary (workspace-root) config is served from the cached primary
-     * schema; other configs are built lazily and cached per config path.
+     * discovery: the nearest {@code opencgmes.json} at or above {@code docDir} wins. Returns empty
+     * when no config is found, the config declares no schemas, or the schema has not loaded / failed
+     * to load — in all of which cases the caller validates syntax-only. The primary (workspace-root)
+     * config is served from the cached primary schema; other configs are built lazily and cached.
      *
      * @param docDir the document's directory, or {@code null} to use the primary workspace schema
-     * @return the resolved schema, or empty if it has not loaded yet or failed to load
      */
     Optional<WorkspaceSchema> workspaceSchemaFor(Path docDir) {
-        String key = (docDir == null)
-                ? primaryConfigKey
-                : ConfigLoader.discoverFile(docDir).map(Path::toString).orElse(BUNDLED);
-        if (key == null) return Optional.empty();  // not initialised yet
+        if (docDir == null) {
+            return primaryConfigKey == null ? Optional.empty() : primarySchema();
+        }
+        Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
+        if (configFile.isEmpty()) return Optional.empty(); // no config → syntax-only
+        String key = configFile.get().toString();
         if (key.equals(primaryConfigKey)) {
             return primarySchema();
         }
@@ -233,13 +234,17 @@ final class SchemaManager {
     /** Builds (and notifies on failure) the schema for a non-primary config key. */
     private WorkspaceSchema buildForKey(String key) {
         try {
-            Optional<Path> configFile = BUNDLED.equals(key) ? Optional.empty() : Optional.of(Path.of(key));
-            return buildSchemaForConfig(configFile);
+            return buildSchemaForConfig(Path.of(key));
         } catch (Exception e) {
             LOG.error("Failed to load schema for {}: {}", key, e.getMessage(), e);
             notify(MessageType.Error, "CIMcheck: schema load failed for " + key + " — " + e.getMessage());
-            return new WorkspaceSchema(null, StrictnessLevel.DEFAULT, null, Map.of(), true);
+            return noSchemaWorkspace();
         }
+    }
+
+    /** A {@link WorkspaceSchema} carrying no schema — documents fall back to a syntax-only check. */
+    private static WorkspaceSchema noSchemaWorkspace() {
+        return new WorkspaceSchema(null, StrictnessLevel.DEFAULT, null, Map.of(), true);
     }
 
     private static boolean isRemote(String endpoint) {
@@ -399,19 +404,22 @@ final class SchemaManager {
         workspaceSchemaCache.clear();
 
         Optional<Path> configFile = ConfigLoader.discoverFile(root);
-        primaryConfigKey = configFile.map(Path::toString).orElse(BUNDLED);
+        primaryConfigKey = configFile.map(Path::toString).orElse(null);
         try {
-            WorkspaceSchema primary = buildSchemaForConfig(configFile);
+            WorkspaceSchema primary = configFile.isPresent()
+                    ? buildSchemaForConfig(configFile.get())
+                    : noSchemaWorkspace();
             apiRef.set(primary.api());
             levelRef.set(primary.level());
             defRef.set(primary.definitionIndex());
             namedGraphRef.set(primary.namedGraphScope());
             checkStdVocabRef.set(primary.checkStandardVocab());
 
-            if (configFile.isEmpty()) {
-                LOG.info("No opencgmes.json found under {} — using bundled CGMES 3.0 schemas", root);
-                notify(MessageType.Info,
-                        "CIMcheck: no opencgmes.json found — validating against the bundled CGMES 3.0 schemas.");
+            if (primary.api() == null) {
+                LOG.info("No schema configured under {} — syntax-only unless a # [endpoint=...] is used", root);
+                notify(MessageType.Info, "CIMcheck: no schema configured — checking SPARQL/SHACL syntax "
+                        + "only. Add \"schemas\" to opencgmes.json, or a \"# [endpoint=...]\" directive, "
+                        + "for schema-based validation.");
             } else {
                 LOG.info("Schema loaded successfully from {} (strictness: {})", configFile.get(), primary.level());
                 notify(MessageType.Info, "CIMcheck: schema loaded successfully.");
@@ -427,17 +435,20 @@ final class SchemaManager {
     }
 
     /**
-     * Builds a {@link WorkspaceSchema} from a discovered config file, or from the bundled CGMES 3.0
-     * profiles when {@code configFile} is empty. Config-relative schema paths resolve against the
-     * config file's own directory.
+     * Builds a {@link WorkspaceSchema} from a discovered config file. When the config declares no
+     * {@code schemas}/{@code schemasDirectory}, the result carries no schema (a syntax-only context);
+     * there is no bundled default. Config-relative schema paths resolve against the config's directory.
      */
-    private WorkspaceSchema buildSchemaForConfig(Optional<Path> configFile) throws Exception {
-        if (configFile.isEmpty()) {
-            return assemble(emptyConfig(), SchemaLoader.loadBundledWithSources());
+    private WorkspaceSchema buildSchemaForConfig(Path configFile) throws Exception {
+        Path base = configFile.toAbsolutePath().getParent();
+        LspConfig config = ConfigLoader.load(configFile);
+        Optional<SchemaLoader.SchemaAndSources> loaded = SchemaLoader.loadWithSources(config, base);
+        if (loaded.isEmpty()) {
+            // Config present but no schemas declared → syntax-only (unless documents use an endpoint).
+            return new WorkspaceSchema(
+                    null, parseLevel(config), null, Map.of(), config.checkStandardVocabulary());
         }
-        Path base = configFile.get().toAbsolutePath().getParent();
-        LspConfig config = ConfigLoader.load(configFile.get());
-        return assemble(config, SchemaLoader.loadWithSources(config, base));
+        return assemble(config, loaded.get());
     }
 
     /** Assembles the API, strictness, definition index, and named-graph scope from a config + schema. */
@@ -458,10 +469,6 @@ final class SchemaManager {
                     + String.join("\n", loaded.skippedFiles()));
         }
         return new WorkspaceSchema(api, level, defIndex, scope, checkStd);
-    }
-
-    private static LspConfig emptyConfig() {
-        return new LspConfig(null, null, null, null, null, null);
     }
 
     /** Runs every registered on-loaded callback (typically: revalidate all open documents). */
