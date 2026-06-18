@@ -36,12 +36,49 @@ flowchart TD
 
 1. **enumerates the schema graphs** — those declaring an `rdfs:Class` / `owl:Ontology` — and builds
    the index from them;
-2. **classifies every other (instance) graph** by sampling its predicates and `rdf:type` objects
-   and matching them against the schema, preferring *discriminating* terms declared by exactly one
-   profile. A graph that uses an EQ-only property is mapped to EQ.
+2. **classifies every other (instance) graph** by sampling up to 400 of its terms — the predicates
+   it uses and its `rdf:type` objects — and looking each one up in the schema. A term declared by
+   **exactly one** profile is *discriminating* (the "this property is in EQ but in no other profile"
+   signal); the graph is assigned to the profile with the **most discriminating terms**, with the
+   total number of matching terms as a tie-break. A graph whose sampled terms match no profile is
+   left **unmatched**.
 
 Classification only ever **samples** a graph to decide which profile it is — it never validates the
 instance data.
+
+## Per-graph validation — terms used in the wrong graph become errors
+
+Once every graph is mapped to a profile, your query is validated **per graph**: the terms inside a
+`GRAPH <g> { ... }` block are checked against **only** the profile detected for `<g>`, not the union
+of all profiles. This is what makes auto-resolution useful — it catches terms used in the wrong
+graph.
+
+For example, if the dataset's equipment graph was detected as **Equipment (EQ)** and the query uses
+a **Topology**-only property inside it:
+
+```sparql
+SELECT * WHERE {
+  GRAPH <urn:uuid:...-eq> {
+    ?n cim:TopologicalNode.nominalVoltage ?v .   # a TP property, inside the EQ graph
+  }
+}
+```
+
+CIMVocabCheck reports [`UNKNOWN_PROPERTY`](/cimvocabcheck/validation-checks) for
+`cim:TopologicalNode.nominalVoltage` against the EQ graph — and because the property *does* exist in
+the Topology profile, the finding lists Topology in its
+[*found in other profiles*](/cimvocabcheck/validation-checks) hint, telling you the term is real but
+sits in the wrong graph. Graphs the query references that were left **unmatched** (or that don't
+exist in the dataset) produce a [`GRAPH_NOT_CONFIGURED`](/cimvocabcheck/validation-checks) warning,
+and terms inside them cannot be resolved.
+
+:::note When per-graph scoping applies
+Auto-resolution is an **endpoint** feature. With a file-based schema and no
+[`namedGraphs`](/cimvocabcheck/configuration#namedgraphs) mapping, every term is validated against
+**all** loaded profiles at once, so there are no per-graph cross-profile errors. Per-graph scoping
+happens either here (auto-detected from the endpoint) or when you map graphs to profiles by hand
+with [`namedGraphs`](/cimvocabcheck/configuration#namedgraphs).
+:::
 
 ## From Java
 

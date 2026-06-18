@@ -1,7 +1,10 @@
 // @ts-check
 import { themes as prismThemes } from 'prism-react-renderer';
+import { createRequire } from 'node:module';
 import versionInfo from './src/versionInfo.mjs';
 import remarkVersions from './src/remark/versions.mjs';
+
+const require = createRequire(import.meta.url);
 
 const { versions, build } = versionInfo();
 
@@ -49,7 +52,25 @@ const config = {
     },
   },
 
-  themes: ['@docusaurus/theme-mermaid'],
+  themes: [
+    '@docusaurus/theme-mermaid',
+    // Offline full-text search (no Algolia / external service). Builds a static index at
+    // `docusaurus build`; works on `npm run serve` (not in `npm start` dev mode).
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        hashed: true,
+        language: ['en'],
+        indexDocs: true,
+        indexBlog: false,
+        indexPages: false,
+        docsRouteBasePath: '/',
+        highlightSearchTermsOnTargetPage: true,
+        searchResultLimits: 8,
+        searchResultContextMaxLength: 50,
+      },
+    ],
+  ],
 
   i18n: {
     defaultLocale: 'en',
@@ -130,6 +151,10 @@ const config = {
             sidebarId: 'referenceSidebar',
             position: 'left',
             label: 'Reference',
+          },
+          {
+            type: 'search',
+            position: 'right',
           },
           {
             href: 'https://github.com/SOPTIM/OpenCGMES',

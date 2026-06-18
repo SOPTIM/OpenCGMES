@@ -36,7 +36,10 @@ map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#st
 When a class or property does not exist in the *selected* profiles but **does** exist in another
 loaded profile, the `UNKNOWN_CLASS` / `UNKNOWN_PROPERTY` annotation carries a
 `foundInOtherProfiles` list naming where it lives — a hint that you may have the wrong profile in
-scope rather than a real typo. Editors surface this as a hint on the underline.
+scope rather than a real typo. Editors surface this as a hint on the underline. This is exactly what
+fires when a term is used in the wrong named graph under per-graph scoping — see
+[Endpoints → per-graph validation](/cimvocabcheck/endpoints) and
+[`namedGraphs`](/cimvocabcheck/configuration#namedgraphs).
 :::
 
 ## Existence checks

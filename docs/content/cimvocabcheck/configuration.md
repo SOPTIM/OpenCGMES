@@ -137,6 +137,12 @@ a query using `FROM NAMED <EQ>` or `GRAPH <EQ> {}` matches the key `"EQ"`:
 | All profiles, no `GRAPH_NOT_CONFIGURED` diagnostics | `namedGraphs` **not** set (default) |
 | Per-graph profiles; graphs not in the map produce `GRAPH_NOT_CONFIGURED` | `namedGraphs` set |
 
+:::tip Don't want to map graphs by hand?
+When the schema is loaded from a [SPARQL endpoint](/cimvocabcheck/endpoints), this graph→profile
+mapping is **auto-detected** from the data (each named graph is classified by its discriminating
+terms), so you can skip `namedGraphs` entirely.
+:::
+
 ### `prefixes`
 
 Default `PREFIX` declarations injected into every SPARQL query/update that does not already declare
