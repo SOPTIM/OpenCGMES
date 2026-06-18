@@ -1,24 +1,22 @@
-# OpenCGMES supply-chain artifacts
+# CIMVocabCheck supply-chain artifacts
 
 This directory holds the committed Software Bill of Materials (SBOM) and the
-third-party license attribution for **all three OpenCGMES distributables**. Every
-file here is generated, committed, and verified in CI.
+third-party license attribution for the **CIMVocabCheck** distributables (the Java
+library, CLI and language server). The CIMNotebook editor plugins keep their own
+SBOMs under [`cimnotebook/sbom/`](../../cimnotebook/sbom/). Every file here is
+generated, committed, and verified in CI.
 
-| Path                          | Distributable           | Tool                          | Covers                                                              |
-| ----------------------------- | ----------------------- | ----------------------------- | ------------------------------------------------------------------- |
-| `maven/bom.json`              | Java library / CLI / LSP | CycloneDX Maven plugin        | `cimxml` + `cimvocabcheck-core`/`cli`/`lsp` and all shipped (compile+runtime) deps |
-| `maven/THIRD-PARTY.txt`       | "                       | license-maven-plugin          | attribution for the above                                           |
-| `vscode/bom.json`             | VS Code extension       | `@cyclonedx/cyclonedx-npm`    | shipped npm deps (`vscode-languageclient` and its transitive deps)  |
-| `vscode/THIRD-PARTY.txt`      | "                       | `scripts/check-sbom-licenses.py` | attribution for the above                                        |
-| `intellij/bom.json`           | IntelliJ plugin         | CycloneDX Gradle plugin       | `compileClasspath`: the IntelliJ Platform (2024.2) + LSP4IJ         |
-| `intellij/THIRD-PARTY.txt`    | "                       | `scripts/check-sbom-licenses.py` | attribution for the above                                        |
+| Path                    | Distributable            | Tool                   | Covers                                                                             |
+| ----------------------- | ------------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| `maven/bom.json`        | Java library / CLI / LSP | CycloneDX Maven plugin | `cimxml` + `cimvocabcheck-core`/`cli`/`lsp` and all shipped (compile+runtime) deps |
+| `maven/THIRD-PARTY.txt` | "                        | license-maven-plugin   | attribution for the above                                                          |
 
 All BOMs are [CycloneDX](https://cyclonedx.org/) 1.6 JSON.
 
 ## Regenerating
 
 ```bash
-scripts/generate-sbom.sh        # requires mvn, node/npm and the Gradle wrapper
+scripts/generate-sbom.sh maven        # requires mvn
 ```
 
 The script regenerates every file in place and then **canonicalizes** each
@@ -32,24 +30,24 @@ from the local environment, which would otherwise churn the files:
   the canonical `https://github.com/…`, matching CI's https checkout);
 - the generating `npm` version recorded by `cyclonedx-npm`;
 - component / dependency ordering (sorted deterministically);
-- the per-file hashes in `intellij/bom.json` — the IntelliJ Platform Gradle
+- the per-file hashes in the IntelliJ plugin's `bom.json` (under
+  [`cimnotebook/sbom/`](../../cimnotebook/sbom/)) — the IntelliJ Platform Gradle
   plugin hashes the **bytecode-instrumented** platform jars
   (`instrumented-lsp4ij-*.jar`, …), and the instrumenter output is not
   reproducible across JDK/IDE builds. These cover compile-only, non-shipped
   artifacts, so the hashes are dropped (component, version and license — what
   the license gate needs — are kept).
 
-With those normalized, re-running with unchanged dependencies produces
-byte-identical files on any machine.
+Running `scripts/generate-sbom.sh` with no args regenerates all three components
+across both sbom directories. With the above normalized, re-running with
+unchanged dependencies produces byte-identical files on any machine.
 
-**Whenever you change a dependency** — a version in any `pom.xml`,
-`cimnotebook/vscode/package.json` / `package-lock.json`, or the
-`platformVersion`/`lsp4ijVersion` in `cimnotebook/intellij/gradle.properties` —
-re-run the script and commit the updated files in the same change.
+**Whenever you change a Maven dependency** — a version in any `pom.xml` — re-run the
+script and commit the updated files in the same change.
 
-## CI enforcement (`ci` → `sbom` job)
+## CI enforcement (`cimvocabcheck-ci` → `sbom` job)
 
-The job re-runs `scripts/generate-sbom.sh` (Java + Node + Gradle toolchains) and:
+The job re-runs `scripts/generate-sbom.sh maven` (Java toolchain) and:
 
 1. **License gate** — fails if any dependency uses a license that is **not** on
    the reviewed open-source allow-list, or has no detectable license.
@@ -69,11 +67,5 @@ The allow-list lives in two places, kept in sync:
 
 - **Maven**: `<includedLicenses>` + `<licenseMerges>` under the
   `license-maven-plugin` config in the root `pom.xml`.
-- **npm + Gradle**: `ALLOWED` / `MERGES` in `scripts/check-sbom-licenses.py`.
-
-Some components ship no per-artifact license metadata (notably the IntelliJ
-Platform jars and LSP4IJ). Their licenses are **asserted** from the upstream
-project's published LICENSE in `scripts/sbom-license-overrides.json`
-(`idea:ideaIC` → Apache-2.0; LSP4IJ → EPL-2.0). Adding a dependency under any
-other license makes CI fail until the license is reviewed and, if acceptable,
-added to the allow-list.
+- **npm + Gradle** (CIMNotebook plugins): `ALLOWED` / `MERGES` in
+  `scripts/check-sbom-licenses.py`.

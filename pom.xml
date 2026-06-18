@@ -65,7 +65,7 @@
         <ver.plugin.license>2.5.0</ver.plugin.license>
 
         <!-- Directory holding the committed, drift-checked supply-chain artifacts.
-             The editor integrations get sibling cimvocabcheck/sbom/{vscode,intellij}/ dirs. -->
+             The CIMNotebook editor plugins keep their SBOMs under cimnotebook/sbom/{vscode,intellij}/. -->
         <sbom.outputDirectory>${project.basedir}/cimvocabcheck/sbom/maven</sbom.outputDirectory>
     </properties>
 

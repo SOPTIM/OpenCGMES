@@ -115,10 +115,10 @@ dependencies {
 // compile-time dependency, not shipped in the plugin zip.) compileClasspath
 // resolves deterministically from the pinned platformVersion / lsp4ijVersion.
 //
-// Output goes to the committed ../../cimvocabcheck/sbom/intellij/bom.json. scripts/generate-sbom.sh
-// then canonicalizes it (normalises the build timestamp, the git remote URL form,
-// and drops the per-file hashes of the bytecode-instrumented platform jars, which
-// are not reproducible across JDK/IDE builds) so re-runs are byte-identical anywhere.
+// Output goes to the committed ../sbom/intellij/bom.json (i.e. cimnotebook/sbom/intellij).
+// scripts/generate-sbom.sh then canonicalizes it (normalises the build timestamp, the git
+// remote URL form, and drops the per-file hashes of the bytecode-instrumented platform jars,
+// which are not reproducible across JDK/IDE builds) so re-runs are byte-identical anywhere.
 // License compliance + attribution is handled by scripts/check-sbom-licenses.py.
 // ---------------------------------------------------------------------------
 tasks.cyclonedxBom {
@@ -127,7 +127,7 @@ tasks.cyclonedxBom {
     setOutputName("bom")
     setSchemaVersion("1.6")
     setIncludeBomSerialNumber(false)
-    setDestination(layout.projectDirectory.dir("../../cimvocabcheck/sbom/intellij").asFile)
+    setDestination(layout.projectDirectory.dir("../sbom/intellij").asFile)
 }
 
 intellijPlatform {
