@@ -18,70 +18,71 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFParser;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 /**
- * Covers the schema-independent rendering/locating helpers of {@link EndpointDefinitionPeek}
- * (the network fetch itself is exercised live against a Fuseki endpoint).
+ * Covers the schema-independent rendering/locating helpers of {@link EndpointDefinitionPeek} (the
+ * network fetch itself is exercised live against a Fuseki endpoint).
  */
 public class EndpointDefinitionPeekTest {
 
-    private static final String SWITCH_OPEN = "http://iec.ch/TC57/CIM100#Switch.open";
+  private static final String SWITCH_OPEN = "http://iec.ch/TC57/CIM100#Switch.open";
 
-    private static Graph termGraph() {
-        String ttl = """
-                @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-                @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-                @prefix cim:  <http://iec.ch/TC57/CIM100#> .
-                @prefix cims: <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#> .
+  private static Graph termGraph() {
+    String ttl =
+        """
+        @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix cim:  <http://iec.ch/TC57/CIM100#> .
+        @prefix cims: <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#> .
 
-                cim:Switch.open a rdf:Property ;
-                    rdfs:label "open" ;
-                    rdfs:comment "The attribute tells if the switch is considered open." ;
-                    rdfs:domain cim:Switch ;
-                    cims:dataType cim:Boolean .
-                """;
-        var m = ModelFactory.createDefaultModel();
-        RDFParser.fromString(ttl, Lang.TURTLE).parse(m);
-        return m.getGraph();
-    }
+        cim:Switch.open a rdf:Property ;
+            rdfs:label "open" ;
+            rdfs:comment "The attribute tells if the switch is considered open." ;
+            rdfs:domain cim:Switch ;
+            cims:dataType cim:Boolean .
+        """;
+    var m = ModelFactory.createDefaultModel();
+    RDFParser.fromString(ttl, Lang.TURTLE).parse(m);
+    return m.getGraph();
+  }
 
-    @Test
-    public void rendersTurtleWithStandardPrefixesAndTheTerm() {
-        String ttl = EndpointDefinitionPeek.renderTurtle(termGraph(), SWITCH_OPEN);
-        assertTrue("cim prefix declared", ttl.contains("@prefix cim:")
-                || ttl.contains("PREFIX cim:"));
-        assertTrue("the term appears", ttl.contains("Switch.open"));
-        assertTrue("its comment appears", ttl.contains("considered open"));
-    }
+  @Test
+  public void rendersTurtleWithStandardPrefixesAndTheTerm() {
+    String ttl = EndpointDefinitionPeek.renderTurtle(termGraph(), SWITCH_OPEN);
+    assertTrue("cim prefix declared", ttl.contains("@prefix cim:") || ttl.contains("PREFIX cim:"));
+    assertTrue("the term appears", ttl.contains("Switch.open"));
+    assertTrue("its comment appears", ttl.contains("considered open"));
+  }
 
-    @Test
-    public void subjectLineLandsOnTheTerm() {
-        String ttl = EndpointDefinitionPeek.renderTurtle(termGraph(), SWITCH_OPEN);
-        int line = EndpointDefinitionPeek.subjectLine(ttl, SWITCH_OPEN);
-        String[] lines = ttl.split("\n", -1);
-        assertTrue("located a real line", line >= 0 && line < lines.length);
-        assertTrue("the located line names the term: <" + lines[line] + ">",
-                lines[line].contains("Switch.open"));
-    }
+  @Test
+  public void subjectLineLandsOnTheTerm() {
+    String ttl = EndpointDefinitionPeek.renderTurtle(termGraph(), SWITCH_OPEN);
+    int line = EndpointDefinitionPeek.subjectLine(ttl, SWITCH_OPEN);
+    String[] lines = ttl.split("\n", -1);
+    assertTrue("located a real line", line >= 0 && line < lines.length);
+    assertTrue(
+        "the located line names the term: <" + lines[line] + ">",
+        lines[line].contains("Switch.open"));
+  }
 
-    @Test
-    public void namespaceAndLocalNameSplitOnHash() {
-        assertEquals("http://iec.ch/TC57/CIM100#", EndpointDefinitionPeek.namespaceOf(SWITCH_OPEN));
-        assertEquals("Switch.open", EndpointDefinitionPeek.localName(SWITCH_OPEN));
-    }
+  @Test
+  public void namespaceAndLocalNameSplitOnHash() {
+    assertEquals("http://iec.ch/TC57/CIM100#", EndpointDefinitionPeek.namespaceOf(SWITCH_OPEN));
+    assertEquals("Switch.open", EndpointDefinitionPeek.localName(SWITCH_OPEN));
+  }
 
-    @Test
-    public void remoteOnly_localOrNullEndpointYieldsNoPeek() {
-        var peek = new EndpointDefinitionPeek(java.time.Duration.ofSeconds(1));
-        assertTrue(peek.locationFor(null, SWITCH_OPEN).isEmpty());
-        assertTrue(peek.locationFor("./local-file.ttl", SWITCH_OPEN).isEmpty());
-    }
+  @Test
+  public void remoteOnly_localOrNullEndpointYieldsNoPeek() {
+    var peek = new EndpointDefinitionPeek(java.time.Duration.ofSeconds(1));
+    assertTrue(peek.locationFor(null, SWITCH_OPEN).isEmpty());
+    assertTrue(peek.locationFor("./local-file.ttl", SWITCH_OPEN).isEmpty());
+  }
 }

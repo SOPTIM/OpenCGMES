@@ -25,17 +25,16 @@ import com.intellij.openapi.components.service
 @Service(Service.Level.APP)
 @State(
     name = "CimcheckSettings",
-    storages = [Storage("cimcheck.xml")]
+    storages = [Storage("cimcheck.xml")],
 )
 class CimcheckSettings : PersistentStateComponent<CimcheckSettings.State> {
-
     data class State(
-        @JvmField var serverJar: String      = "",
+        @JvmField var serverJar: String = "",
         // Empty by default so CimcheckServerConnectionProvider.resolveJavaExecutable falls through
         // to IntelliJ's bundled JBR (always Java 21+). Defaulting to "java" here would short-circuit
         // that logic and break the plugin on machines where "java" is not on PATH (common on Windows).
         @JvmField var javaExecutable: String = "",
-        @JvmField var javaArgs: String       = ""
+        @JvmField var javaArgs: String = "",
     )
 
     private var _state = State()
@@ -49,7 +48,9 @@ class CimcheckSettings : PersistentStateComponent<CimcheckSettings.State> {
     /** Absolute path to cimcheck-lsp.jar, or empty to use the bundled JAR. */
     var serverJar: String
         get() = _state.serverJar
-        set(v) { _state.serverJar = v }
+        set(v) {
+            _state.serverJar = v
+        }
 
     /**
      * Java executable used to launch the language server (must be Java 21+).
@@ -57,12 +58,16 @@ class CimcheckSettings : PersistentStateComponent<CimcheckSettings.State> {
      */
     var javaExecutable: String
         get() = _state.javaExecutable
-        set(v) { _state.javaExecutable = v }
+        set(v) {
+            _state.javaExecutable = v
+        }
 
     /** Additional JVM arguments, space-separated, passed before -jar. */
     var javaArgs: String
         get() = _state.javaArgs
-        set(v) { _state.javaArgs = v }
+        set(v) {
+            _state.javaArgs = v
+        }
 
     companion object {
         @JvmStatic

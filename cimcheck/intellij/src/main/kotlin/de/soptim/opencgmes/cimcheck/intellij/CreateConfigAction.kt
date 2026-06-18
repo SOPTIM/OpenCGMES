@@ -39,7 +39,6 @@ import java.nio.file.Path
  * minimal embedded fallback when the server is not running.
  */
 class CreateConfigAction : AnAction() {
-
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
@@ -52,23 +51,30 @@ class CreateConfigAction : AnAction() {
         val target = Path.of(basePath, FILE_NAME)
 
         if (Files.exists(target)) {
-            val choice = Messages.showYesNoDialog(
-                project, "$FILE_NAME already exists. Overwrite it?", "CIMcheck", "Overwrite", "Cancel", null
-            )
+            val choice =
+                Messages.showYesNoDialog(
+                    project,
+                    "$FILE_NAME already exists. Overwrite it?",
+                    "CIMcheck",
+                    "Overwrite",
+                    "Cancel",
+                    null,
+                )
             if (choice != Messages.YES) {
                 openInEditor(project, target)
                 return
             }
         }
 
-        LanguageServerManager.getInstance(project)
+        LanguageServerManager
+            .getInstance(project)
             .getLanguageServer(SERVER_ID)
             .thenCompose { item ->
                 item?.workspaceService?.executeCommand(
-                    ExecuteCommandParams(CMD_CREATE_CONFIG, emptyList())
-                ) ?: java.util.concurrent.CompletableFuture.completedFuture<Any?>(null)
-            }
-            .whenComplete { result, _ ->
+                    ExecuteCommandParams(CMD_CREATE_CONFIG, emptyList()),
+                ) ?: java.util.concurrent.CompletableFuture
+                    .completedFuture<Any?>(null)
+            }.whenComplete { result, _ ->
                 val content = (result as? String)?.takeIf { it.isNotBlank() } ?: FALLBACK
                 ApplicationManager.getApplication().invokeLater {
                     writeAndOpen(project, target, content)
@@ -76,7 +82,11 @@ class CreateConfigAction : AnAction() {
             }
     }
 
-    private fun writeAndOpen(project: Project, target: Path, content: String) {
+    private fun writeAndOpen(
+        project: Project,
+        target: Path,
+        content: String,
+    ) {
         try {
             WriteCommandAction.runWriteCommandAction(project) {
                 Files.writeString(target, content)
@@ -88,7 +98,10 @@ class CreateConfigAction : AnAction() {
         }
     }
 
-    private fun openInEditor(project: Project, target: Path) {
+    private fun openInEditor(
+        project: Project,
+        target: Path,
+    ) {
         val vf = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(target) ?: return
         FileEditorManager.getInstance(project).openFile(vf, true)
     }
@@ -97,7 +110,8 @@ class CreateConfigAction : AnAction() {
         private const val SERVER_ID = "cimcheck-lsp"
         private const val CMD_CREATE_CONFIG = "cimcheck.createConfig"
         private const val FILE_NAME = "opencgmes.json"
-        private val FALLBACK = """
+        private val FALLBACK =
+            """
             {
               "cimcheck": {
                 // Point CIMcheck at your CGMES profiles; without them validation is syntax-only.
@@ -105,6 +119,6 @@ class CreateConfigAction : AnAction() {
                 "strictness": "default"
               }
             }
-        """.trimIndent() + "\n"
+            """.trimIndent() + "\n"
     }
 }

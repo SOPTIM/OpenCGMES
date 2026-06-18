@@ -26,11 +26,13 @@ import javax.swing.Icon
  * [SparqlFileType] for the rationale.
  */
 class ShaclFileType private constructor() : LanguageFileType(ShaclLanguage) {
+    override fun getName() = "SHACL"
 
-    override fun getName()             = "SHACL"
-    override fun getDescription()      = "SHACL / Turtle"
+    override fun getDescription() = "SHACL / Turtle"
+
     override fun getDefaultExtension() = "shacl"
-    override fun getIcon(): Icon?      = null
+
+    override fun getIcon(): Icon? = null
 
     companion object {
         @JvmField

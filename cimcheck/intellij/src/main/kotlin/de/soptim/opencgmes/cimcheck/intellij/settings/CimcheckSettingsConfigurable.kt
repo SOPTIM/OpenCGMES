@@ -27,22 +27,23 @@ import javax.swing.JComponent
 import javax.swing.JPanel
 
 class CimcheckSettingsConfigurable : Configurable {
-
     private var panel: JPanel? = null
 
-    private val serverJarField    = TextFieldWithBrowseButton()
-    private val javaExeField      = JBTextField()
-    private val javaArgsField     = JBTextField()
+    private val serverJarField = TextFieldWithBrowseButton()
+    private val javaExeField = JBTextField()
+    private val javaArgsField = JBTextField()
 
     override fun getDisplayName() = "CIMcheck"
 
     override fun createComponent(): JComponent {
-        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor("jar")
-            .withTitle("Select Server JAR")
-            .withDescription(
-                "Select the cimcheck-lsp.jar file. " +
-                "Leave empty to use the JAR bundled with the plugin."
-            )
+        val descriptor =
+            FileChooserDescriptorFactory
+                .createSingleFileDescriptor("jar")
+                .withTitle("Select Server JAR")
+                .withDescription(
+                    "Select the cimcheck-lsp.jar file. " +
+                        "Leave empty to use the JAR bundled with the plugin.",
+                )
         // Wire the browse button directly via addActionListener + FileChooser.chooseFile.
         // The addBrowseFolderListener(...) convenience overloads are all either deprecated,
         // scheduled-for-removal, or already removed across 2024.2–2026.1; these two APIs are
@@ -53,12 +54,14 @@ class CimcheckSettingsConfigurable : Configurable {
             }
         }
 
-        panel = FormBuilder.createFormBuilder()
-            .addLabeledComponent(JBLabel("Server JAR:"),      serverJarField, 1, false)
-            .addLabeledComponent(JBLabel("Java executable:"), javaExeField,   1, false)
-            .addLabeledComponent(JBLabel("JVM arguments:"),   javaArgsField,  1, false)
-            .addComponentFillVertically(JPanel(), 0)
-            .panel
+        panel =
+            FormBuilder
+                .createFormBuilder()
+                .addLabeledComponent(JBLabel("Server JAR:"), serverJarField, 1, false)
+                .addLabeledComponent(JBLabel("Java executable:"), javaExeField, 1, false)
+                .addLabeledComponent(JBLabel("JVM arguments:"), javaArgsField, 1, false)
+                .addComponentFillVertically(JPanel(), 0)
+                .panel
 
         reset()
         return panel!!
@@ -66,23 +69,23 @@ class CimcheckSettingsConfigurable : Configurable {
 
     override fun isModified(): Boolean {
         val s = CimcheckSettings.getInstance()
-        return serverJarField.text.trim() != s.serverJar  ||
-               javaExeField.text.trim()   != s.javaExecutable ||
-               javaArgsField.text.trim()  != s.javaArgs
+        return serverJarField.text.trim() != s.serverJar ||
+            javaExeField.text.trim() != s.javaExecutable ||
+            javaArgsField.text.trim() != s.javaArgs
     }
 
     override fun apply() {
         val s = CimcheckSettings.getInstance()
-        s.serverJar      = serverJarField.text.trim()
+        s.serverJar = serverJarField.text.trim()
         s.javaExecutable = javaExeField.text.trim()
-        s.javaArgs       = javaArgsField.text.trim()
+        s.javaArgs = javaArgsField.text.trim()
     }
 
     override fun reset() {
         val s = CimcheckSettings.getInstance()
         serverJarField.text = s.serverJar
-        javaExeField.text   = s.javaExecutable
-        javaArgsField.text  = s.javaArgs
+        javaExeField.text = s.javaExecutable
+        javaArgsField.text = s.javaArgs
     }
 
     override fun disposeUIResources() {

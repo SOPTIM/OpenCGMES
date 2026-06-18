@@ -21,59 +21,63 @@ package de.soptim.opencgmes.cimcheck.core.shacl;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
-
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Aggregated outcome of validating a SHACL shapes graph against a CIM schema.
  *
- * <p>Contains two complementary result sets:</p>
+ * <p>Contains two complementary result sets:
+ *
  * <ul>
- *   <li>{@link #shapeAnnotations} — errors found in the shape <em>structure</em> itself
- *       ({@code sh:targetClass}, {@code sh:class}, {@code sh:path}), produced by
- *       {@link ShaclShapeAnalyzer}.</li>
+ *   <li>{@link #shapeAnnotations} — errors found in the shape <em>structure</em> itself ({@code
+ *       sh:targetClass}, {@code sh:class}, {@code sh:path}), produced by {@link
+ *       ShaclShapeAnalyzer}.
  *   <li>{@link #embeddedResults} — one entry per SPARQL fragment embedded in the shapes graph
- *       ({@code sh:select}, {@code sh:ask}, {@code sh:construct}), produced by
- *       {@link ShaclSparqlExtractor} + the normal SPARQL validator.</li>
+ *       ({@code sh:select}, {@code sh:ask}, {@code sh:construct}), produced by {@link
+ *       ShaclSparqlExtractor} + the normal SPARQL validator.
  * </ul>
  */
 public record ShaclValidationResult(
-        List<SparqlValidationAnnotation> shapeAnnotations,
-        List<ShaclEmbeddedQueryResult> embeddedResults) {
+    List<SparqlValidationAnnotation> shapeAnnotations,
+    List<ShaclEmbeddedQueryResult> embeddedResults) {
 
-    public ShaclValidationResult {
-        Objects.requireNonNull(shapeAnnotations, "shapeAnnotations");
-        Objects.requireNonNull(embeddedResults, "embeddedResults");
-        shapeAnnotations = List.copyOf(shapeAnnotations);
-        embeddedResults  = List.copyOf(embeddedResults);
+  /** Canonical constructor; defensively copies the annotation lists. */
+  public ShaclValidationResult {
+    Objects.requireNonNull(shapeAnnotations, "shapeAnnotations");
+    Objects.requireNonNull(embeddedResults, "embeddedResults");
+    shapeAnnotations = List.copyOf(shapeAnnotations);
+    embeddedResults = List.copyOf(embeddedResults);
+  }
+
+  /** Returns whether neither shape structure nor any embedded query produced an ERROR. */
+  public boolean isValid() {
+    return isValid(StrictnessLevel.DEFAULT);
+  }
+
+  /** Returns whether validation passes after applying {@code level} to all annotations. */
+  public boolean isValid(StrictnessLevel level) {
+    for (var a : level.apply(shapeAnnotations)) {
+      if (a.severity() == SparqlValidationSeverity.ERROR) {
+        return false;
+      }
     }
-
-    /** @return {@code true} iff neither shape structure nor any embedded query produced an ERROR. */
-    public boolean isValid() {
-        return isValid(StrictnessLevel.DEFAULT);
-    }
-
-    /**
-     * @return {@code true} iff, after applying {@code level}, neither shape structure nor any
-     *         embedded query contains an annotation whose (possibly promoted) severity is ERROR.
-     */
-    public boolean isValid(StrictnessLevel level) {
-        for (var a : level.apply(shapeAnnotations)) {
-            if (a.severity() == SparqlValidationSeverity.ERROR) return false;
+    for (var r : embeddedResults) {
+      for (var a : level.apply(r.result().annotations())) {
+        if (a.severity() == SparqlValidationSeverity.ERROR) {
+          return false;
         }
-        for (var r : embeddedResults) {
-            for (var a : level.apply(r.result().annotations())) {
-                if (a.severity() == SparqlValidationSeverity.ERROR) return false;
-            }
-        }
-        return true;
+      }
     }
+    return true;
+  }
 
-    /** @return total annotation count across shape structure and all embedded queries. */
-    public int totalAnnotations() {
-        int n = shapeAnnotations.size();
-        for (var r : embeddedResults) n += r.result().annotations().size();
-        return n;
+  /** Returns the total annotation count across shape structure and all embedded queries. */
+  public int totalAnnotations() {
+    int n = shapeAnnotations.size();
+    for (var r : embeddedResults) {
+      n += r.result().annotations().size();
     }
+    return n;
+  }
 }

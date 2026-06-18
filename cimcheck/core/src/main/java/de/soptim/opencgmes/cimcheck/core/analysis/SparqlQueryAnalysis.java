@@ -18,38 +18,37 @@
 
 package de.soptim.opencgmes.cimcheck.core.analysis;
 
-import org.apache.jena.query.Query;
-import org.apache.jena.sparql.algebra.Op;
-
 import java.util.List;
 import java.util.Objects;
+import org.apache.jena.query.Query;
+import org.apache.jena.sparql.algebra.Op;
 
 /**
  * Result of a static {@link SparqlQueryAnalyzer} pass over a SPARQL query.
  *
- * <p>The collections are de-duplicated value lists in source order. A {@code dynamicPredicate}
- * flag of {@code true} means at least one triple in the query has a variable predicate, which
- * cannot be validated statically.</p>
+ * <p>The collections are de-duplicated value lists in source order. A {@code dynamicPredicate} flag
+ * of {@code true} means at least one triple in the query has a variable predicate, which cannot be
+ * validated statically.
  */
 public record SparqlQueryAnalysis(
-        Query query,
-        Op algebra,
-        List<TriplePatternReference> triples,
-        List<ClassReference> classes,
-        List<PropertyReference> properties,
-        List<GraphReference> graphs,
-        List<PathChainReference> pathChains,
-        boolean dynamicPredicate,
-        boolean dynamicClass
-) {
+    Query query,
+    Op algebra,
+    List<TriplePatternReference> triples,
+    List<ClassReference> classes,
+    List<PropertyReference> properties,
+    List<GraphReference> graphs,
+    List<PathChainReference> pathChains,
+    boolean dynamicPredicate,
+    boolean dynamicClass) {
 
-    public SparqlQueryAnalysis {
-        Objects.requireNonNull(query, "query");
-        Objects.requireNonNull(algebra, "algebra");
-        triples = List.copyOf(triples);
-        classes = List.copyOf(classes);
-        properties = List.copyOf(properties);
-        graphs = List.copyOf(graphs);
-        pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
-    }
+  /** Canonical constructor; validates required fields and defensively copies the lists. */
+  public SparqlQueryAnalysis {
+    Objects.requireNonNull(query, "query");
+    Objects.requireNonNull(algebra, "algebra");
+    triples = List.copyOf(triples);
+    classes = List.copyOf(classes);
+    properties = List.copyOf(properties);
+    graphs = List.copyOf(graphs);
+    pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
+  }
 }

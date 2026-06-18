@@ -21,35 +21,34 @@ package de.soptim.opencgmes.cimcheck.lsp;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import org.apache.jena.graph.Node;
-
 import java.util.Collection;
 import java.util.Map;
+import org.apache.jena.graph.Node;
 
 /**
  * The fully-resolved validation context for one {@code opencgmes.json} config source (or the
- * bundled default). One of these is built per discovered config and reused for every document
- * whose nearest config is that file.
+ * bundled default). One of these is built per discovered config and reused for every document whose
+ * nearest config is that file.
  *
  * <p>Unlike {@link ResolvedSchema} (which also covers per-document {@code # [endpoint=...]}
  * overrides), this bundles the {@link DefinitionIndex} needed for go-to-definition and workspace
- * symbol navigation, and the {@code checkStandardVocabulary} flag from the config.</p>
+ * symbol navigation, and the {@code checkStandardVocabulary} flag from the config.
  *
- * @param api                  the validation API built from the config's schemas
- * @param level                the strictness level from the config
- * @param definitionIndex      the source-navigation index
- * @param namedGraphScope      the per-graph profile scope from {@code namedGraphs}
- * @param checkStandardVocab   whether standard-vocabulary typo checking is enabled
+ * @param api the validation API built from the config's schemas
+ * @param level the strictness level from the config
+ * @param definitionIndex the source-navigation index
+ * @param namedGraphScope the per-graph profile scope from {@code namedGraphs}
+ * @param checkStandardVocab whether standard-vocabulary typo checking is enabled
  */
 record WorkspaceSchema(
-        SparqlValidationApi api,
-        StrictnessLevel level,
-        DefinitionIndex definitionIndex,
-        Map<Node, Collection<VersionIri>> namedGraphScope,
-        boolean checkStandardVocab) {
+    SparqlValidationApi api,
+    StrictnessLevel level,
+    DefinitionIndex definitionIndex,
+    Map<Node, Collection<VersionIri>> namedGraphScope,
+    boolean checkStandardVocab) {
 
-    /** Adapts this workspace schema to a {@link ResolvedSchema} for the document-validation path. */
-    ResolvedSchema toResolvedSchema() {
-        return new ResolvedSchema(api, level, namedGraphScope);
-    }
+  /** Adapts this workspace schema to a {@link ResolvedSchema} for the document-validation path. */
+  ResolvedSchema toResolvedSchema() {
+    return new ResolvedSchema(api, level, namedGraphScope);
+  }
 }

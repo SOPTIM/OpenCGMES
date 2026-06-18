@@ -23,7 +23,7 @@ import org.apache.jena.graph.Node;
 /**
  * Reference to a class IRI inside the query (right-hand side of {@code rdf:type} / {@code a}).
  *
- * @param classNode  the URI node referenced
- * @param graph      enclosing {@code GRAPH <g>} node, or {@code null} for default-graph context
+ * @param classNode the URI node referenced
+ * @param graph enclosing {@code GRAPH <g>} node, or {@code null} for default-graph context
  */
 public record ClassReference(Node classNode, Node graph) {}

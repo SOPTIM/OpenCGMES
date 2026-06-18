@@ -21,10 +21,10 @@ package de.soptim.opencgmes.cimcheck.core.analysis;
 import org.apache.jena.graph.Node;
 
 /**
- * Reference to a property IRI inside the query, either as a concrete triple predicate or as a
- * URI segment of a SPARQL property path.
+ * Reference to a property IRI inside the query, either as a concrete triple predicate or as a URI
+ * segment of a SPARQL property path.
  *
- * @param propertyNode  the URI node referenced
- * @param graph         enclosing {@code GRAPH <g>} node, or {@code null} for default-graph
+ * @param propertyNode the URI node referenced
+ * @param graph enclosing {@code GRAPH <g>} node, or {@code null} for default-graph
  */
 public record PropertyReference(Node propertyNode, Node graph) {}

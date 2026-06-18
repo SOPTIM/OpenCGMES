@@ -1,14 +1,14 @@
-import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as vscode from "vscode";
+import * as path from "path";
+import * as fs from "fs";
 import {
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
     TransportKind,
-} from 'vscode-languageclient/node';
+} from "vscode-languageclient/node";
 
-const CHANNEL = 'CIMcheck';
+const CHANNEL = "CIMcheck";
 
 let client: LanguageClient | undefined;
 // Created at the very start of activate() so it always appears in the Output dropdown.
@@ -18,23 +18,23 @@ export function activate(context: vscode.ExtensionContext): void {
     out = vscode.window.createOutputChannel(CHANNEL);
     context.subscriptions.push(out);
 
-    out.appendLine('Extension activating...');
+    out.appendLine("Extension activating...");
     out.appendLine(`Extension path: ${context.extensionPath}`);
     out.appendLine(`VS Code version: ${vscode.version}`);
 
     // Command: "CIMcheck: Show Output" — always opens the channel.
     context.subscriptions.push(
-        vscode.commands.registerCommand('cimcheck.showOutput', () => out.show(true))
+        vscode.commands.registerCommand("cimcheck.showOutput", () => out.show(true)),
     );
 
     // Command: "CIMcheck: Explain Query" — show the static algebra plan for the current query.
     context.subscriptions.push(
-        vscode.commands.registerCommand('cimcheck.explainQuery', explainQuery)
+        vscode.commands.registerCommand("cimcheck.explainQuery", explainQuery),
     );
 
     // Command: "CIMcheck: Create Config File" — scaffold opencgmes.json in the workspace root.
     context.subscriptions.push(
-        vscode.commands.registerCommand('cimcheck.createConfig', createConfig)
+        vscode.commands.registerCommand("cimcheck.createConfig", createConfig),
     );
 
     try {
@@ -50,36 +50,38 @@ export function activate(context: vscode.ExtensionContext): void {
 function doActivate(context: vscode.ExtensionContext): void {
     const serverJar = resolveServerJar(context);
     if (!serverJar) {
-        const hint = 'Cannot find cimcheck-lsp.jar. ' +
+        const hint =
+            "Cannot find cimcheck-lsp.jar. " +
             'Set "cimcheck.serverJar" to the JAR path in VS Code settings, ' +
             'or click "Show Output" to see where it was searched.';
         out.show(true);
-        vscode.window.showErrorMessage(`CIMcheck: ${hint}`, 'Show Output')
-            .then(c => { if (c === 'Show Output') out.show(true); });
+        vscode.window.showErrorMessage(`CIMcheck: ${hint}`, "Show Output").then((c) => {
+            if (c === "Show Output") out.show(true);
+        });
         return;
     }
 
     client = buildClient(serverJar, context);
     client.start();
-    out.appendLine('Language client started — waiting for server handshake.');
+    out.appendLine("Language client started — waiting for server handshake.");
 
     // Offer a reload when the user changes launch settings.
     context.subscriptions.push(
-        vscode.workspace.onDidChangeConfiguration(e => {
-            const keys = ['cimcheck.serverJar',
-                          'cimcheck.javaExecutable',
-                          'cimcheck.javaArgs'];
-            if (keys.some(k => e.affectsConfiguration(k))) {
-                vscode.window.showInformationMessage(
-                    'CIMcheck: Settings changed — reload window to apply.',
-                    'Reload Window'
-                ).then(c => {
-                    if (c === 'Reload Window') {
-                        vscode.commands.executeCommand('workbench.action.reloadWindow');
-                    }
-                });
+        vscode.workspace.onDidChangeConfiguration((e) => {
+            const keys = ["cimcheck.serverJar", "cimcheck.javaExecutable", "cimcheck.javaArgs"];
+            if (keys.some((k) => e.affectsConfiguration(k))) {
+                vscode.window
+                    .showInformationMessage(
+                        "CIMcheck: Settings changed — reload window to apply.",
+                        "Reload Window",
+                    )
+                    .then((c) => {
+                        if (c === "Reload Window") {
+                            vscode.commands.executeCommand("workbench.action.reloadWindow");
+                        }
+                    });
             }
-        })
+        }),
     );
 }
 
@@ -96,19 +98,22 @@ export function deactivate(): Thenable<void> | undefined {
 async function createConfig(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-        vscode.window.showWarningMessage('CIMcheck: open a folder to create opencgmes.json in.');
+        vscode.window.showWarningMessage("CIMcheck: open a folder to create opencgmes.json in.");
         return;
     }
-    const target = vscode.Uri.joinPath(folder.uri, 'opencgmes.json');
+    const target = vscode.Uri.joinPath(folder.uri, "opencgmes.json");
     try {
         await vscode.workspace.fs.stat(target);
         const choice = await vscode.window.showWarningMessage(
-            'CIMcheck: opencgmes.json already exists.', 'Open', 'Overwrite');
-        if (choice === 'Open') {
+            "CIMcheck: opencgmes.json already exists.",
+            "Open",
+            "Overwrite",
+        );
+        if (choice === "Open") {
             await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
             return;
         }
-        if (choice !== 'Overwrite') {
+        if (choice !== "Overwrite") {
             return;
         }
     } catch {
@@ -117,13 +122,15 @@ async function createConfig(): Promise<void> {
     try {
         let content: string | undefined;
         if (client) {
-            content = await client.sendRequest<string>('workspace/executeCommand', {
-                command: 'cimcheck.createConfig',
+            content = await client.sendRequest<string>("workspace/executeCommand", {
+                command: "cimcheck.createConfig",
                 arguments: [],
             });
         }
         await vscode.workspace.fs.writeFile(
-            target, Buffer.from(content ?? '{\n  "cimcheck": {}\n}\n', 'utf8'));
+            target,
+            Buffer.from(content ?? '{\n  "cimcheck": {}\n}\n', "utf8"),
+        );
         await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -139,24 +146,24 @@ async function createConfig(): Promise<void> {
  */
 async function explainQuery(): Promise<void> {
     if (!client) {
-        vscode.window.showWarningMessage('CIMcheck: language server is not running.');
+        vscode.window.showWarningMessage("CIMcheck: language server is not running.");
         return;
     }
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-        vscode.window.showWarningMessage('CIMcheck: open a SPARQL query to explain.');
+        vscode.window.showWarningMessage("CIMcheck: open a SPARQL query to explain.");
         return;
     }
     const sel = editor.selection;
     const text = sel.isEmpty ? editor.document.getText() : editor.document.getText(sel);
     try {
-        const plan = await client.sendRequest<string>('workspace/executeCommand', {
-            command: 'cimcheck.explainQuery',
+        const plan = await client.sendRequest<string>("workspace/executeCommand", {
+            command: "cimcheck.explainQuery",
             arguments: [text],
         });
         const doc = await vscode.workspace.openTextDocument({
-            content: plan ?? '(no plan returned)',
-            language: 'sparql',
+            content: plan ?? "(no plan returned)",
+            language: "sparql",
         });
         await vscode.window.showTextDocument(doc, {
             viewColumn: vscode.ViewColumn.Beside,
@@ -172,41 +179,39 @@ async function explainQuery(): Promise<void> {
 // ---- Helpers -------------------------------------------------------------------------------
 
 function resolveServerJar(context: vscode.ExtensionContext): string | undefined {
-    const config = vscode.workspace.getConfiguration('cimcheck');
+    const config = vscode.workspace.getConfiguration("cimcheck");
 
     // 1. Explicit user setting.
-    const configured = config.get<string>('serverJar', '').trim();
+    const configured = config.get<string>("serverJar", "").trim();
     if (configured) {
         out.appendLine(`[jar] Trying setting: ${configured}`);
         if (fs.existsSync(configured)) {
-            out.appendLine('[jar] Found ✓');
+            out.appendLine("[jar] Found ✓");
             return configured;
         }
-        out.appendLine('[jar] NOT FOUND — check the path in settings');
-        vscode.window.showWarningMessage(
-            `CIMcheck: serverJar not found: ${configured}`
-        );
+        out.appendLine("[jar] NOT FOUND — check the path in settings");
+        vscode.window.showWarningMessage(`CIMcheck: serverJar not found: ${configured}`);
     }
 
     // 2. Bundled JAR shipped inside the extension's server/ directory.
-    const bundled = context.asAbsolutePath(path.join('server', 'cimcheck-lsp.jar'));
+    const bundled = context.asAbsolutePath(path.join("server", "cimcheck-lsp.jar"));
     out.appendLine(`[jar] Trying bundled: ${bundled}`);
     if (fs.existsSync(bundled)) {
-        out.appendLine('[jar] Found ✓');
+        out.appendLine("[jar] Found ✓");
         return bundled;
     }
-    out.appendLine('[jar] NOT FOUND');
+    out.appendLine("[jar] NOT FOUND");
 
     return undefined;
 }
 
 function buildClient(serverJar: string, context: vscode.ExtensionContext): LanguageClient {
-    const config    = vscode.workspace.getConfiguration('cimcheck');
-    const javaExe   = config.get<string>('javaExecutable', 'java');
-    const extraArgs = config.get<string[]>('javaArgs', []);
-    const args      = [...extraArgs, '-jar', serverJar];
+    const config = vscode.workspace.getConfiguration("cimcheck");
+    const javaExe = config.get<string>("javaExecutable", "java");
+    const extraArgs = config.get<string[]>("javaArgs", []);
+    const args = [...extraArgs, "-jar", serverJar];
 
-    out.appendLine(`[launch] ${javaExe} ${args.join(' ')}`);
+    out.appendLine(`[launch] ${javaExe} ${args.join(" ")}`);
 
     const serverOptions: ServerOptions = {
         run: {
@@ -217,7 +222,10 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         debug: {
             command: javaExe,
             // Attach a Java debugger on localhost:5005 when running under F5.
-            args: ['-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005', ...args],
+            args: [
+                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:5005",
+                ...args,
+            ],
             transport: TransportKind.stdio,
         },
     };
@@ -227,23 +235,23 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
 
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
-            { scheme: 'file', language: 'sparql' },
-            { scheme: 'file', language: 'shacl' },
-            { scheme: 'file', language: 'turtle' },
-            { scheme: 'file', pattern: '**/*.ttl' },
-            { scheme: 'file', pattern: '**/*.shacl' },
+            { scheme: "file", language: "sparql" },
+            { scheme: "file", language: "shacl" },
+            { scheme: "file", language: "turtle" },
+            { scheme: "file", pattern: "**/*.ttl" },
+            { scheme: "file", pattern: "**/*.shacl" },
             // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
             // under the vscode-notebook-cell scheme, validated per-cell by the server.
-            { scheme: 'vscode-notebook-cell', language: 'sparql' },
-            { scheme: 'vscode-notebook-cell', language: 'shacl' },
+            { scheme: "vscode-notebook-cell", language: "sparql" },
+            { scheme: "vscode-notebook-cell", language: "shacl" },
         ],
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher('**/opencgmes.json'),
+            fileEvents: vscode.workspace.createFileSystemWatcher("**/opencgmes.json"),
         },
         traceOutputChannel: traceChannel,
     };
 
-    return new LanguageClient('cimcheck', CHANNEL, serverOptions, clientOptions);
+    return new LanguageClient("cimcheck", CHANNEL, serverOptions, clientOptions);
 }

@@ -18,29 +18,29 @@
 
 package de.soptim.opencgmes.cimcheck.core.analysis;
 
-import org.apache.jena.graph.Node;
-
 import java.util.List;
 import java.util.Objects;
+import org.apache.jena.graph.Node;
 
 /**
- * A sequence of <em>concrete forward property IRIs</em> extracted from a SPARQL property path
- * of the form {@code p1/p2/p3}.
+ * A sequence of <em>concrete forward property IRIs</em> extracted from a SPARQL property path of
+ * the form {@code p1/p2/p3}.
  *
  * <p>Only "simple" sequence paths are surfaced here — any non-{@code P_Link} component (inverse,
- * alt, mod, neg) inside the path causes the chain to be dropped, because chain compatibility
- * across those operators is more nuanced than the current chain check commits to.</p>
+ * alt, mod, neg) inside the path causes the chain to be dropped, because chain compatibility across
+ * those operators is more nuanced than the current chain check commits to.
  *
- * @param segments  property IRIs in path order; always at least 2 elements
- * @param graph     enclosing {@code GRAPH <g>} node, or {@code null} for default-graph
+ * @param segments property IRIs in path order; always at least 2 elements
+ * @param graph enclosing {@code GRAPH <g>} node, or {@code null} for default-graph
  */
 public record PathChainReference(List<Node> segments, Node graph) {
 
-    public PathChainReference {
-        Objects.requireNonNull(segments, "segments");
-        if (segments.size() < 2) {
-            throw new IllegalArgumentException("chain must have at least 2 segments");
-        }
-        segments = List.copyOf(segments);
+  /** Canonical constructor; requires at least two path segments. */
+  public PathChainReference {
+    Objects.requireNonNull(segments, "segments");
+    if (segments.size() < 2) {
+      throw new IllegalArgumentException("chain must have at least 2 segments");
     }
+    segments = List.copyOf(segments);
+  }
 }

@@ -23,23 +23,22 @@ import com.intellij.openapi.fileTypes.SyntaxHighlighterBase
 import com.intellij.psi.tree.IElementType
 
 class CimcheckSyntaxHighlighter : SyntaxHighlighterBase() {
-
     override fun getHighlightingLexer(): Lexer = CimcheckLexer()
 
-    override fun getTokenHighlights(tokenType: IElementType): Array<TextAttributesKey> =
-        pack(TOKEN_COLORS[tokenType])
+    override fun getTokenHighlights(tokenType: IElementType): Array<TextAttributesKey> = pack(TOKEN_COLORS[tokenType])
 
     companion object {
-        private val TOKEN_COLORS: Map<IElementType, TextAttributesKey> = mapOf(
-            SparqlTokenTypes.KEYWORD     to DefaultLanguageHighlighterColors.KEYWORD,
-            SparqlTokenTypes.COMMENT     to DefaultLanguageHighlighterColors.LINE_COMMENT,
-            SparqlTokenTypes.STRING      to DefaultLanguageHighlighterColors.STRING,
-            SparqlTokenTypes.IRI         to DefaultLanguageHighlighterColors.STRING,
-            SparqlTokenTypes.VARIABLE    to DefaultLanguageHighlighterColors.LOCAL_VARIABLE,
-            SparqlTokenTypes.NUMBER      to DefaultLanguageHighlighterColors.NUMBER,
-            SparqlTokenTypes.PREFIXED    to DefaultLanguageHighlighterColors.IDENTIFIER,
-            SparqlTokenTypes.OPERATOR    to DefaultLanguageHighlighterColors.OPERATION_SIGN,
-            SparqlTokenTypes.PUNCTUATION to DefaultLanguageHighlighterColors.BRACES,
-        )
+        private val TOKEN_COLORS: Map<IElementType, TextAttributesKey> =
+            mapOf(
+                SparqlTokenTypes.KEYWORD to DefaultLanguageHighlighterColors.KEYWORD,
+                SparqlTokenTypes.COMMENT to DefaultLanguageHighlighterColors.LINE_COMMENT,
+                SparqlTokenTypes.STRING to DefaultLanguageHighlighterColors.STRING,
+                SparqlTokenTypes.IRI to DefaultLanguageHighlighterColors.STRING,
+                SparqlTokenTypes.VARIABLE to DefaultLanguageHighlighterColors.LOCAL_VARIABLE,
+                SparqlTokenTypes.NUMBER to DefaultLanguageHighlighterColors.NUMBER,
+                SparqlTokenTypes.PREFIXED to DefaultLanguageHighlighterColors.IDENTIFIER,
+                SparqlTokenTypes.OPERATOR to DefaultLanguageHighlighterColors.OPERATION_SIGN,
+                SparqlTokenTypes.PUNCTUATION to DefaultLanguageHighlighterColors.BRACES,
+            )
     }
 }

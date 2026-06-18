@@ -17,19 +17,19 @@ Provides grammar-based syntax highlighting for:
 
 The language server validates every open document against the loaded CIM schema and reports findings as squiggly underlines:
 
-| Code | Severity | Description |
-|------|----------|-------------|
-| `SYNTAX_ERROR` | Error | The document is not syntactically valid SPARQL or Turtle |
-| `UNKNOWN_CLASS` | Error | Class IRI not found in the configured schema profiles |
-| `UNKNOWN_PROPERTY` | Error | Property IRI not found in the configured schema profiles |
-| `TERM_EXISTS_IN_OTHER_PROFILE` | Hint | Term exists, but in a profile not selected for this graph |
-| `GRAPH_NOT_CONFIGURED` | Info | A named graph is used but has no profile mapping configured |
-| `UNSUPPORTED_DYNAMIC_PROPERTY` | Warning | Variable predicate — cannot be validated statically |
-| `QUERY_IMPLIED_TYPE` | Hint | Subject type is implied by property domain, not stated explicitly |
-| `DATATYPE_MISMATCH` | Warning | Literal datatype conflicts with the property's `rdfs:range` |
-| `PROPERTY_NOT_ALLOWED_FOR_CLASS` | Warning | Property used on a class that is not in its `rdfs:domain` |
-| `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | Warning | SHACL `sh:nodeKind` conflicts with the property's `rdfs:range` |
-| `INVALID_CARDINALITY` | Warning | SHACL `sh:minCount` exceeds `sh:maxCount` |
+| Code                                | Severity | Description                                                       |
+| ----------------------------------- | -------- | ----------------------------------------------------------------- |
+| `SYNTAX_ERROR`                      | Error    | The document is not syntactically valid SPARQL or Turtle          |
+| `UNKNOWN_CLASS`                     | Error    | Class IRI not found in the configured schema profiles             |
+| `UNKNOWN_PROPERTY`                  | Error    | Property IRI not found in the configured schema profiles          |
+| `TERM_EXISTS_IN_OTHER_PROFILE`      | Hint     | Term exists, but in a profile not selected for this graph         |
+| `GRAPH_NOT_CONFIGURED`              | Info     | A named graph is used but has no profile mapping configured       |
+| `UNSUPPORTED_DYNAMIC_PROPERTY`      | Warning  | Variable predicate — cannot be validated statically               |
+| `QUERY_IMPLIED_TYPE`                | Hint     | Subject type is implied by property domain, not stated explicitly |
+| `DATATYPE_MISMATCH`                 | Warning  | Literal datatype conflicts with the property's `rdfs:range`       |
+| `PROPERTY_NOT_ALLOWED_FOR_CLASS`    | Warning  | Property used on a class that is not in its `rdfs:domain`         |
+| `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | Warning  | SHACL `sh:nodeKind` conflicts with the property's `rdfs:range`    |
+| `INVALID_CARDINALITY`               | Warning  | SHACL `sh:minCount` exceeds `sh:maxCount`                         |
 
 ### Hover documentation
 
@@ -62,7 +62,7 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 - **Remote SPARQL endpoint** (`https://…`) — CIMcheck loads the schema from the endpoint itself. It enumerates the named graphs that hold the CGMES profiles and reads them into the schema index. The schema is fetched in the background; diagnostics appear once it has loaded.
 - **No directive** — the cell falls back to the workspace schema (the nearest `opencgmes.json`), exactly like a `.rq` file; with no schema configured, it is checked syntax-only.
 
-The endpoint names *where the CGMES schema lives* (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded **in per-profile named graphs**); CIMcheck validates against that schema and never queries live instance data.
+The endpoint names _where the CGMES schema lives_ (e.g. an Apache Jena Fuseki server with the RDFS profiles loaded **in per-profile named graphs**); CIMcheck validates against that schema and never queries live instance data.
 
 ## Requirements
 
@@ -86,9 +86,9 @@ file (nearest one wins), and comments are allowed. Point it at your RDFS profile
 
 ```json
 {
-  "cimcheck": {
-    "schemasDirectory": "schemas/cgmes-3.0"
-  }
+    "cimcheck": {
+        "schemasDirectory": "schemas/cgmes-3.0"
+    }
 }
 ```
 
@@ -100,12 +100,12 @@ Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file. The extension activates, lo
 
 ## Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `cimcheck.serverJar` | _(bundled)_ | Absolute path to `cimcheck-lsp.jar`. Leave empty to use the JAR bundled with the extension. |
-| `cimcheck.javaExecutable` | `java` | Java executable used to launch the language server. Must be Java 21 or later. |
-| `cimcheck.javaArgs` | `[]` | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`. |
-| `cimcheck.trace.server` | `off` | LSP message tracing. Set to `messages` or `verbose` to debug communication with the server. |
+| Setting                   | Default     | Description                                                                                 |
+| ------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `cimcheck.serverJar`      | _(bundled)_ | Absolute path to `cimcheck-lsp.jar`. Leave empty to use the JAR bundled with the extension. |
+| `cimcheck.javaExecutable` | `java`      | Java executable used to launch the language server. Must be Java 21 or later.               |
+| `cimcheck.javaArgs`       | `[]`        | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`.                              |
+| `cimcheck.trace.server`   | `off`       | LSP message tracing. Set to `messages` or `verbose` to debug communication with the server. |
 
 ## Validation configuration reference
 
@@ -113,19 +113,19 @@ The `opencgmes.json` file nests all CIMcheck settings under a `"cimcheck"` secti
 
 ```json
 {
-  "cimcheck": {
-    "schemasDirectory": "path/to/profiles",
-    "schemas": ["path/to/Profile.rdf"],
-    "strictness": "default",
-    "namedGraphs": {
-      "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-      "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
-    },
-    "prefixes": {
-      "rdf":  "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-      "cim":  "http://iec.ch/TC57/CIM100#"
+    "cimcheck": {
+        "schemasDirectory": "path/to/profiles",
+        "schemas": ["path/to/Profile.rdf"],
+        "strictness": "default",
+        "namedGraphs": {
+            "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
+            "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
+        },
+        "prefixes": {
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "cim": "http://iec.ch/TC57/CIM100#"
+        }
     }
-  }
 }
 ```
 
@@ -136,12 +136,12 @@ loaded and files are checked syntax-only (unless they declare a `# [endpoint=...
 
 Controls which findings are reported and how severities are mapped:
 
-| Level | Behaviour |
-|-------|-----------|
+| Level        | Behaviour                                                                                                                                            |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `permissive` | Only syntax errors and unknown-term findings. Semantic checks and hints are suppressed. Useful for exploratory queries against an incomplete schema. |
-| `default` | All checks, original severities. |
-| `strict` | All checks; warnings are promoted to errors. Recommended for CI. |
-| `pedantic` | All checks; warnings and hints are promoted to errors. |
+| `default`    | All checks, original severities.                                                                                                                     |
+| `strict`     | All checks; warnings are promoted to errors. Recommended for CI.                                                                                     |
+| `pedantic`   | All checks; warnings and hints are promoted to errors.                                                                                               |
 
 ### `namedGraphs`
 
@@ -173,14 +173,14 @@ in the query: if your query says `FROM NAMED <EQ>` or `GRAPH <EQ> {}`, the confi
 Default PREFIX declarations automatically injected into every SPARQL query or update that
 does not already declare them. When this field is **absent**, the built-in set is used:
 
-| Prefix | Namespace |
-|--------|-----------|
-| `rdf`  | `http://www.w3.org/1999/02/22-rdf-syntax-ns#` |
-| `rdfs` | `http://www.w3.org/2000/01/rdf-schema#` |
-| `owl`  | `http://www.w3.org/2002/07/owl#` |
-| `xsd`  | `http://www.w3.org/2001/XMLSchema#` |
-| `sh`   | `http://www.w3.org/ns/shacl#` |
-| `cim`  | `http://iec.ch/TC57/CIM100#` |
+| Prefix | Namespace                                          |
+| ------ | -------------------------------------------------- |
+| `rdf`  | `http://www.w3.org/1999/02/22-rdf-syntax-ns#`      |
+| `rdfs` | `http://www.w3.org/2000/01/rdf-schema#`            |
+| `owl`  | `http://www.w3.org/2002/07/owl#`                   |
+| `xsd`  | `http://www.w3.org/2001/XMLSchema#`                |
+| `sh`   | `http://www.w3.org/ns/shacl#`                      |
+| `cim`  | `http://iec.ch/TC57/CIM100#`                       |
 | `md`   | `http://iec.ch/TC57/61970-552/ModelDescription/1#` |
 
 Setting `"prefixes"` to an explicit object **replaces** the built-in set entirely. Use an
@@ -192,18 +192,18 @@ Prefixes already declared inside the query file are never overwritten.
 
 Controls checking of terms in the closed standard vocabularies (`rdf`, `rdfs`, `owl`, `sh`):
 
-| Value | Behaviour |
-|-------|-----------|
+| Value             | Behaviour                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `check` (default) | Terms are validated against the official W3C vocabularies. Typos such as `rdf:typ` or `sh:minCountt` are reported as `UNKNOWN_VOCABULARY_TERM` errors. |
-| `ignore` | Terms in these namespaces are accepted without inspection (legacy behaviour). |
+| `ignore`          | Terms in these namespaces are accepted without inspection (legacy behaviour).                                                                          |
 
 Open annotation/datatype namespaces (`xsd`, `dcterms`, `dc`, `skos`, `dcat`, and the IEC
 extension namespaces) are always accepted regardless of this setting.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
+| Command                   | Description                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
 | **CIMcheck: Show Output** | Opens the CIMcheck output channel, useful for diagnosing startup and schema loading issues. |
 
 ## Troubleshooting

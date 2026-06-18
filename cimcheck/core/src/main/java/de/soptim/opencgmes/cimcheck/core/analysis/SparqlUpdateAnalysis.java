@@ -18,38 +18,37 @@
 
 package de.soptim.opencgmes.cimcheck.core.analysis;
 
-import org.apache.jena.update.UpdateRequest;
-
 import java.util.List;
 import java.util.Objects;
+import org.apache.jena.update.UpdateRequest;
 
 /**
  * Result of a static {@link SparqlQueryAnalyzer} pass over a SPARQL Update request.
  *
  * <p>A single {@code UpdateRequest} may contain multiple update operations separated by {@code ;}.
  * All references (classes, properties, graphs) from every operation are aggregated into the
- * collections of this record.</p>
+ * collections of this record.
  *
- * <p>The collections are de-duplicated, in source order. A {@code dynamicPredicate} flag of
- * {@code true} means at least one template or WHERE-clause triple used a variable predicate.</p>
+ * <p>The collections are de-duplicated, in source order. A {@code dynamicPredicate} flag of {@code
+ * true} means at least one template or WHERE-clause triple used a variable predicate.
  */
 public record SparqlUpdateAnalysis(
-        UpdateRequest updateRequest,
-        List<TriplePatternReference> triples,
-        List<ClassReference> classes,
-        List<PropertyReference> properties,
-        List<GraphReference> graphs,
-        List<PathChainReference> pathChains,
-        boolean dynamicPredicate,
-        boolean dynamicClass
-) {
+    UpdateRequest updateRequest,
+    List<TriplePatternReference> triples,
+    List<ClassReference> classes,
+    List<PropertyReference> properties,
+    List<GraphReference> graphs,
+    List<PathChainReference> pathChains,
+    boolean dynamicPredicate,
+    boolean dynamicClass) {
 
-    public SparqlUpdateAnalysis {
-        Objects.requireNonNull(updateRequest, "updateRequest");
-        triples    = List.copyOf(triples);
-        classes    = List.copyOf(classes);
-        properties = List.copyOf(properties);
-        graphs     = List.copyOf(graphs);
-        pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
-    }
+  /** Canonical constructor; validates required fields and defensively copies the lists. */
+  public SparqlUpdateAnalysis {
+    Objects.requireNonNull(updateRequest, "updateRequest");
+    triples = List.copyOf(triples);
+    classes = List.copyOf(classes);
+    properties = List.copyOf(properties);
+    graphs = List.copyOf(graphs);
+    pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
+  }
 }

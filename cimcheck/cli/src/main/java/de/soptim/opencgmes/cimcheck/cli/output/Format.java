@@ -18,19 +18,23 @@
 
 package de.soptim.opencgmes.cimcheck.cli.output;
 
+import java.util.Locale;
+
 /** Output format for the {@code cimcheck} command. */
 public enum Format {
-    /** Human-readable, compiler-style diagnostics (default). */
-    TEXT,
-    /** Machine-readable JSON — one object per file, wrapped in a top-level array. */
-    JSON;
+  /** Human-readable, compiler-style diagnostics (default). */
+  TEXT,
+  /** Machine-readable JSON — one object per file, wrapped in a top-level array. */
+  JSON;
 
-    public static Format parse(String value) {
-        return switch (value.toLowerCase()) {
-            case "text"  -> TEXT;
-            case "json"  -> JSON;
-            default -> throw new IllegalArgumentException(
-                    "Unknown format '" + value + "'. Use 'text' or 'json'.");
-        };
-    }
+  /** Parses {@code value} ("text" or "json", case-insensitive) into a {@link Format}. */
+  public static Format parse(String value) {
+    return switch (value.toLowerCase(Locale.ROOT)) {
+      case "text" -> TEXT;
+      case "json" -> JSON;
+      default ->
+          throw new IllegalArgumentException(
+              "Unknown format '" + value + "'. Use 'text' or 'json'.");
+    };
+  }
 }

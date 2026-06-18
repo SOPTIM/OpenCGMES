@@ -37,7 +37,6 @@ import org.eclipse.lsp4j.ExecuteCommandParams
  * rather than any internal API, so it survives platform/LSP4IJ changes across supported IDE builds.
  */
 class ExplainQueryAction : AnAction() {
-
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
@@ -50,28 +49,29 @@ class ExplainQueryAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val editor = e.getData(CommonDataKeys.EDITOR) ?: return
-        val text = editor.selectionModel.selectedText?.takeIf { it.isNotBlank() }
-            ?: editor.document.text
+        val text =
+            editor.selectionModel.selectedText?.takeIf { it.isNotBlank() }
+                ?: editor.document.text
 
-        LanguageServerManager.getInstance(project)
+        LanguageServerManager
+            .getInstance(project)
             .getLanguageServer(SERVER_ID)
             .thenCompose { item ->
                 if (item == null) {
                     throw IllegalStateException(
-                        "CIMcheck language server is not running. Open a SPARQL file first."
+                        "CIMcheck language server is not running. Open a SPARQL file first.",
                     )
                 }
                 item.workspaceService.executeCommand(
-                    ExecuteCommandParams(CMD_EXPLAIN_QUERY, listOf<Any>(text))
+                    ExecuteCommandParams(CMD_EXPLAIN_QUERY, listOf<Any>(text)),
                 )
-            }
-            .whenComplete { result, error ->
+            }.whenComplete { result, error ->
                 ApplicationManager.getApplication().invokeLater {
                     if (error != null) {
                         Messages.showErrorDialog(
                             project,
                             "Explain Query failed: ${error.message}",
-                            "CIMcheck"
+                            "CIMcheck",
                         )
                     } else {
                         openPlan(project, result?.toString() ?: "(no plan returned)")
@@ -80,7 +80,10 @@ class ExplainQueryAction : AnAction() {
             }
     }
 
-    private fun openPlan(project: Project, plan: String) {
+    private fun openPlan(
+        project: Project,
+        plan: String,
+    ) {
         val vf = LightVirtualFile("CIMcheck Query Plan.rq", SparqlFileType.INSTANCE, plan)
         vf.isWritable = false
         FileEditorManager.getInstance(project).openFile(vf, true)

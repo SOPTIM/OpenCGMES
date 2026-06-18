@@ -21,15 +21,25 @@ import com.intellij.psi.tree.IElementType
 
 /** Shared token types for the SPARQL / Turtle (SHACL) syntax highlighter. */
 object SparqlTokenTypes {
-    @JvmField val KEYWORD     = IElementType("CIM_KEYWORD",      Language.ANY)
-    @JvmField val COMMENT     = IElementType("CIM_COMMENT",      Language.ANY)
-    @JvmField val STRING      = IElementType("CIM_STRING",       Language.ANY)
-    @JvmField val IRI         = IElementType("CIM_IRI",          Language.ANY)
-    @JvmField val VARIABLE    = IElementType("CIM_VARIABLE",     Language.ANY)
-    @JvmField val NUMBER      = IElementType("CIM_NUMBER",       Language.ANY)
-    @JvmField val PREFIXED    = IElementType("CIM_PREFIXED",     Language.ANY)
-    @JvmField val OPERATOR    = IElementType("CIM_OPERATOR",     Language.ANY)
-    @JvmField val PUNCTUATION = IElementType("CIM_PUNCTUATION",  Language.ANY)
-    @JvmField val WHITESPACE  = IElementType("CIM_WHITESPACE",   Language.ANY)
-    @JvmField val OTHER       = IElementType("CIM_OTHER",        Language.ANY)
+    @JvmField val KEYWORD = IElementType("CIM_KEYWORD", Language.ANY)
+
+    @JvmField val COMMENT = IElementType("CIM_COMMENT", Language.ANY)
+
+    @JvmField val STRING = IElementType("CIM_STRING", Language.ANY)
+
+    @JvmField val IRI = IElementType("CIM_IRI", Language.ANY)
+
+    @JvmField val VARIABLE = IElementType("CIM_VARIABLE", Language.ANY)
+
+    @JvmField val NUMBER = IElementType("CIM_NUMBER", Language.ANY)
+
+    @JvmField val PREFIXED = IElementType("CIM_PREFIXED", Language.ANY)
+
+    @JvmField val OPERATOR = IElementType("CIM_OPERATOR", Language.ANY)
+
+    @JvmField val PUNCTUATION = IElementType("CIM_PUNCTUATION", Language.ANY)
+
+    @JvmField val WHITESPACE = IElementType("CIM_WHITESPACE", Language.ANY)
+
+    @JvmField val OTHER = IElementType("CIM_OTHER", Language.ANY)
 }

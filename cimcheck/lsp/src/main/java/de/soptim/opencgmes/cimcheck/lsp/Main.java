@@ -18,33 +18,33 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
+import java.util.concurrent.Future;
 import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.eclipse.lsp4j.services.LanguageClient;
-
-import java.util.concurrent.Future;
 
 /**
  * Entry point for the CIMcheck Language Server.
  *
- * <p>The server communicates over stdin/stdout using the LSP JSON-RPC protocol.
- * All logging goes to stderr so it never interferes with the protocol stream.</p>
+ * <p>The server communicates over stdin/stdout using the LSP JSON-RPC protocol. All logging goes to
+ * stderr so it never interferes with the protocol stream.
  *
- * <p>Launch from the VS Code extension with:</p>
+ * <p>Launch from the VS Code extension with:
+ *
  * <pre>
  *   java -jar cimcheck-lsp.jar
  * </pre>
  */
 public final class Main {
 
-    private Main() {}
+  private Main() {}
 
-    public static void main(String[] args) throws Exception {
-        SparqlLanguageServer server = new SparqlLanguageServer();
-        var launcher = LSPLauncher.createServerLauncher(
-                server, System.in, System.out);
-        LanguageClient client = launcher.getRemoteProxy();
-        server.connect(client);
-        Future<?> listening = launcher.startListening();
-        listening.get(); // blocks until the client disconnects
-    }
+  /** Launches the language server over stdio and blocks until the client disconnects. */
+  public static void main(String[] args) throws Exception {
+    SparqlLanguageServer server = new SparqlLanguageServer();
+    var launcher = LSPLauncher.createServerLauncher(server, System.in, System.out);
+    LanguageClient client = launcher.getRemoteProxy();
+    server.connect(client);
+    Future<?> listening = launcher.startListening();
+    listening.get(); // blocks until the client disconnects
+  }
 }

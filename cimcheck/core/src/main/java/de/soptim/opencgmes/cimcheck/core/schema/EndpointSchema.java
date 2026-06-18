@@ -19,11 +19,10 @@
 package de.soptim.opencgmes.cimcheck.core.schema;
 
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import org.apache.jena.graph.Node;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import org.apache.jena.graph.Node;
 
 /**
  * The schema and named-graph mapping auto-detected from a SPARQL endpoint hosting a CGMES dataset.
@@ -31,47 +30,47 @@ import java.util.Map;
  * <p>When the endpoint exposes no CIM schema graphs (or none of them is a recognisable CIM
  * profile), {@link #hasSchema()} is {@code false} and {@link #index()} is {@code null} — callers
  * should warn the user and fall back to schema-independent syntax checking rather than silently
- * validating against nothing.</p>
+ * validating against nothing.
  *
- * @param index            the schema index built from the endpoint's schema graphs, or {@code null}
- *                         when no schema could be resolved
- * @param namedGraphScope  graph → profile(s), ready for
- *                         {@code SparqlValidationApi.validateSparql(query, scope)}. Holds each
- *                         classified instance graph mapped to its detected profile(s), plus each
- *                         schema graph mapped to all profiles (so queries that navigate the RDFS
- *                         schema directly validate permissively instead of being reported as
- *                         {@code GRAPH_NOT_CONFIGURED})
+ * @param index the schema index built from the endpoint's schema graphs, or {@code null} when no
+ *     schema could be resolved
+ * @param namedGraphScope graph → profile(s), ready for {@code
+ *     SparqlValidationApi.validateSparql(query, scope)}. Holds each classified instance graph
+ *     mapped to its detected profile(s), plus each schema graph mapped to all profiles (so queries
+ *     that navigate the RDFS schema directly validate permissively instead of being reported as
+ *     {@code GRAPH_NOT_CONFIGURED})
  * @param schemaGraphNames the named graphs identified as holding the schema
- * @param unmatchedGraphs  instance graphs whose terms matched no known profile
+ * @param unmatchedGraphs instance graphs whose terms matched no known profile
  */
 public record EndpointSchema(
-        RdfsSchemaIndex index,
-        Map<Node, Collection<VersionIri>> namedGraphScope,
-        List<String> schemaGraphNames,
-        List<Node> unmatchedGraphs) {
+    RdfsSchemaIndex index,
+    Map<Node, Collection<VersionIri>> namedGraphScope,
+    List<String> schemaGraphNames,
+    List<Node> unmatchedGraphs) {
 
-    public EndpointSchema {
-        namedGraphScope = Map.copyOf(namedGraphScope);
-        schemaGraphNames = List.copyOf(schemaGraphNames);
-        unmatchedGraphs = List.copyOf(unmatchedGraphs);
-    }
+  /** Canonical constructor; defensively copies the scope map and graph lists. */
+  public EndpointSchema {
+    namedGraphScope = Map.copyOf(namedGraphScope);
+    schemaGraphNames = List.copyOf(schemaGraphNames);
+    unmatchedGraphs = List.copyOf(unmatchedGraphs);
+  }
 
-    /** Whether a usable schema was resolved from the endpoint. */
-    public boolean hasSchema() {
-        return index != null;
-    }
+  /** Whether a usable schema was resolved from the endpoint. */
+  public boolean hasSchema() {
+    return index != null;
+  }
 
-    /**
-     * Number of instance graphs auto-mapped to a profile, i.e. the scope entries that are not
-     * schema graphs. (Schema graphs are also present in {@link #namedGraphScope()} but mapped to
-     * all profiles.)
-     */
-    public int instanceGraphsMapped() {
-        return namedGraphScope.size() - schemaGraphNames.size();
-    }
+  /**
+   * Number of instance graphs auto-mapped to a profile, i.e. the scope entries that are not schema
+   * graphs. (Schema graphs are also present in {@link #namedGraphScope()} but mapped to all
+   * profiles.)
+   */
+  public int instanceGraphsMapped() {
+    return namedGraphScope.size() - schemaGraphNames.size();
+  }
 
-    /** An {@link EndpointSchema} carrying no schema (endpoint exposed no CIM profiles). */
-    public static EndpointSchema noSchema(List<String> schemaGraphNames) {
-        return new EndpointSchema(null, Map.of(), schemaGraphNames, List.of());
-    }
+  /** An {@link EndpointSchema} carrying no schema (endpoint exposed no CIM profiles). */
+  public static EndpointSchema noSchema(List<String> schemaGraphNames) {
+    return new EndpointSchema(null, Map.of(), schemaGraphNames, List.of());
+  }
 }

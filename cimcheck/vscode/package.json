@@ -38,14 +38,26 @@
         "languages": [
             {
                 "id": "sparql",
-                "aliases": ["SPARQL", "sparql"],
-                "extensions": [".rq", ".sparql"],
+                "aliases": [
+                    "SPARQL",
+                    "sparql"
+                ],
+                "extensions": [
+                    ".rq",
+                    ".sparql"
+                ],
                 "configuration": "./language-configuration.json"
             },
             {
                 "id": "shacl",
-                "aliases": ["SHACL", "Turtle"],
-                "extensions": [".ttl", ".shacl"],
+                "aliases": [
+                    "SHACL",
+                    "Turtle"
+                ],
+                "extensions": [
+                    ".ttl",
+                    ".shacl"
+                ],
                 "configuration": "./language-configuration.json"
             }
         ],
@@ -139,13 +151,19 @@
                 },
                 "cimcheck.javaArgs": {
                     "type": "array",
-                    "items": { "type": "string" },
+                    "items": {
+                        "type": "string"
+                    },
                     "default": [],
                     "markdownDescription": "Additional JVM arguments passed before `-jar`, e.g. `[\"-Xmx512m\"]`."
                 },
                 "cimcheck.trace.server": {
                     "type": "string",
-                    "enum": ["off", "messages", "verbose"],
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
                     "default": "off",
                     "description": "Traces the communication between VS Code and the language server. Useful for debugging."
                 }
@@ -157,15 +175,24 @@
         "bundle": "node esbuild.js",
         "compile": "tsc --noEmit",
         "watch": "node esbuild.js --watch",
+        "lint": "eslint src",
+        "lint:fix": "eslint src --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
         "copy-jar": "cp ../lsp/target/cimcheck-lsp-*.jar server/cimcheck-lsp.jar"
     },
     "dependencies": {
         "vscode-languageclient": "^9.0.1"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
         "@types/node": "^20.0.0",
         "@types/vscode": "^1.75.0",
+        "eslint": "^10.5.0",
+        "eslint-config-prettier": "^10.1.8",
+        "esbuild": "^0.24.0",
+        "prettier": "^3.8.4",
         "typescript": "^5.4.0",
-        "esbuild": "^0.24.0"
+        "typescript-eslint": "^8.61.1"
     }
 }

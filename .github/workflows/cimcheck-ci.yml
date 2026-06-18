@@ -60,6 +60,14 @@ jobs:
             -Dmaven.compiler.showWarnings=true \
             -Dmaven.compiler.showDeprecation=true
 
+      # Static analysis + formatting gates (Spotless/google-java-format, Checkstyle,
+      # SpotBugs, PMD/CPD). Tests and JaCoCo are skipped here for fast feedback — the
+      # build-test job runs the full `verify` (including coverage gates) authoritatively.
+      - name: Lint — static analysis (Spotless, Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -B -ntp -pl cimcheck/core,cimcheck/cli,cimcheck/lsp -am \
+            verify -DskipTests -Djacoco.skip=true
+
   # ---- Java build + tests --------------------------------------------------
   build-test:
     runs-on: ubuntu-latest
@@ -103,6 +111,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        working-directory: cimcheck/vscode
+
+      - name: ESLint
+        run: npm run lint
+        working-directory: cimcheck/vscode
+
+      - name: Prettier format check
+        run: npm run format:check
         working-directory: cimcheck/vscode
 
       - name: TypeScript type-check
@@ -210,6 +226,12 @@ jobs:
       - name: Build LSP fat JAR
         run: |
           mvn -B -ntp -pl cimcheck/lsp -am -DskipTests clean package
+
+      # Kotlin formatting + lint gate (Spotless + ktlint). Fails the build on any
+      # unformatted/lint-violating Kotlin, mirroring the Maven Spotless gate.
+      - name: Lint — Kotlin (Spotless + ktlint)
+        run: gradle spotlessCheck
+        working-directory: cimcheck/intellij
 
       - name: Build IntelliJ plugin
         run: gradle buildPlugin

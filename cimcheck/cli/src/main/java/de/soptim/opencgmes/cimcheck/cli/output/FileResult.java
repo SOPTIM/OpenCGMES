@@ -20,26 +20,18 @@ package de.soptim.opencgmes.cimcheck.cli.output;
 
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
-
 import java.util.List;
 
-/**
- * Per-file validation result ready for formatting — no Jena Node types, pure data.
- */
+/** Per-file validation result ready for formatting — no Jena Node types, pure data. */
 public record FileResult(
-        String source,
-        boolean valid,
-        List<SparqlValidationAnnotation> annotations
-) {
-    public long errorCount() {
-        return annotations.stream()
-                .filter(a -> a.severity() == SparqlValidationSeverity.ERROR)
-                .count();
-    }
+    String source, boolean valid, List<SparqlValidationAnnotation> annotations) {
+  /** Returns the number of ERROR-severity annotations. */
+  public long errorCount() {
+    return annotations.stream().filter(a -> a.severity() == SparqlValidationSeverity.ERROR).count();
+  }
 
-    public long warnCount() {
-        return annotations.stream()
-                .filter(a -> a.severity() == SparqlValidationSeverity.WARN)
-                .count();
-    }
+  /** Returns the number of WARN-severity annotations. */
+  public long warnCount() {
+    return annotations.stream().filter(a -> a.severity() == SparqlValidationSeverity.WARN).count();
+  }
 }

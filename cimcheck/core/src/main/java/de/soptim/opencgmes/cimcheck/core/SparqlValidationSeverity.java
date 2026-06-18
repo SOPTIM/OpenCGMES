@@ -20,7 +20,7 @@ package de.soptim.opencgmes.cimcheck.core;
 
 /** Severity of a single {@link SparqlValidationAnnotation}. */
 public enum SparqlValidationSeverity {
-    INFO,
-    WARN,
-    ERROR
+  INFO,
+  WARN,
+  ERROR
 }

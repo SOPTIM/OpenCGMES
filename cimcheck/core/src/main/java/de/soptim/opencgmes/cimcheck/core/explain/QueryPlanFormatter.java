@@ -26,44 +26,45 @@ import org.apache.jena.sparql.algebra.OpAsQuery;
 import org.apache.jena.sparql.serializer.SerializationContext;
 
 /**
- * Formats a Jena {@link Op} algebra tree as an SSE-style plan string, similar in spirit to
- * {@code arq.query --explain}.
+ * Formats a Jena {@link Op} algebra tree as an SSE-style plan string, similar in spirit to {@code
+ * arq.query --explain}.
  *
- * <p>Implementation note: we use Jena's built-in SSE serialization
- * ({@link Op#output(org.apache.jena.atlas.io.IndentedWriter, SerializationContext)}) so the
- * output is deterministic across runs and stable across Jena minor versions.</p>
+ * <p>Implementation note: we use Jena's built-in SSE serialization ({@link
+ * Op#output(org.apache.jena.atlas.io.IndentedWriter, SerializationContext)}) so the output is
+ * deterministic across runs and stable across Jena minor versions.
  */
 public final class QueryPlanFormatter {
 
-    private QueryPlanFormatter() {}
+  private QueryPlanFormatter() {}
 
-    /** Format the algebra for an already-compiled query. */
-    public static String format(Query query, Op op) {
-        var buf = new IndentedLineBuffer();
-        SerializationContext sc = new SerializationContext(query == null ? null : query.getPrefixMapping());
-        op.output(buf, sc);
-        return buf.asString().stripTrailing();
-    }
+  /** Format the algebra for an already-compiled query. */
+  public static String format(Query query, Op op) {
+    var buf = new IndentedLineBuffer();
+    SerializationContext sc =
+        new SerializationContext(query == null ? null : query.getPrefixMapping());
+    op.output(buf, sc);
+    return buf.asString().stripTrailing();
+  }
 
-    /** Convenience: compile and format in one go. */
-    public static String format(Query query) {
-        return format(query, Algebra.compile(query));
-    }
+  /** Convenience: compile and format in one go. */
+  public static String format(Query query) {
+    return format(query, Algebra.compile(query));
+  }
 
-    /**
-     * Compile the query, run Jena's static optimizer over the algebra and format the result.
-     *
-     * <p>The optimized form is what makes a plan instructive: it shows filter placement
-     * ({@code (filter ...)} pushed down into the relevant sub-op) and BGP/join reordering, mirroring
-     * what {@code arq.qparse --print=opt} prints.</p>
-     */
-    public static String formatOptimized(Query query) {
-        return format(query, Algebra.optimize(Algebra.compile(query)));
-    }
+  /**
+   * Compile the query, run Jena's static optimizer over the algebra and format the result.
+   *
+   * <p>The optimized form is what makes a plan instructive: it shows filter placement ({@code
+   * (filter ...)} pushed down into the relevant sub-op) and BGP/join reordering, mirroring what
+   * {@code arq.qparse --print=opt} prints.
+   */
+  public static String formatOptimized(Query query) {
+    return format(query, Algebra.optimize(Algebra.compile(query)));
+  }
 
-    /** Round-trip an Op back to a SPARQL string — handy for debugging. */
-    public static String toSparql(Op op) {
-        Query q = OpAsQuery.asQuery(op);
-        return q.serialize();
-    }
+  /** Round-trip an Op back to a SPARQL string — handy for debugging. */
+  public static String toSparql(Op op) {
+    Query q = OpAsQuery.asQuery(op);
+    return q.serialize();
+  }
 }

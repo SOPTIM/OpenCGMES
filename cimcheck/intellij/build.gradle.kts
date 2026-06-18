@@ -20,27 +20,36 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.2.0"
     id("org.jetbrains.intellij.platform") version "2.16.0"
     id("org.cyclonedx.bom") version "2.3.1"
+    id("com.diffplug.spotless") version "8.7.0"
 }
 
-group   = providers.gradleProperty("pluginGroup").get()
+group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
 // IntelliJ Platform 2024.2 (build 242) requires bytecode target 17.
 // The platform plugin internally sets jvmToolchain(17); we override it in afterEvaluate
 // so the build compiles with whatever JDK is installed (≥17), targeting Java 17 bytecode.
 afterEvaluate {
-    val localJdk = listOf(17, 21, 25, 26)
-        .firstOrNull { v ->
-            org.gradle.jvm.toolchain.JavaLanguageVersion.of(v).let { lv ->
-                try {
-                    javaToolchains.launcherFor { languageVersion.set(lv) }.get()
-                    true
-                } catch (_: Exception) { false }
-            }
-        } ?: 17
+    val localJdk =
+        listOf(17, 21, 25, 26)
+            .firstOrNull { v ->
+                org.gradle.jvm.toolchain.JavaLanguageVersion.of(v).let { lv ->
+                    try {
+                        javaToolchains.launcherFor { languageVersion.set(lv) }.get()
+                        true
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+            } ?: 17
 
     extensions.configure<JavaPluginExtension> {
-        toolchain { languageVersion.set(org.gradle.jvm.toolchain.JavaLanguageVersion.of(localJdk)) }
+        toolchain {
+            languageVersion.set(
+                org.gradle.jvm.toolchain.JavaLanguageVersion
+                    .of(localJdk),
+            )
+        }
         // Compile to Java 17 bytecode regardless of the JDK that runs javac, so the
         // output runs on every supported IDE. Set at the extension level (not just on
         // the JavaCompile tasks) so it isn't overridden by the toolchain default.
@@ -53,6 +62,28 @@ afterEvaluate {
     }
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Spotless: Kotlin formatting + linting via ktlint.
+//
+//   ./gradlew spotlessCheck   # verify (wired into `check`)
+//   ./gradlew spotlessApply   # auto-format
+//
+// ktlint enforces the official Kotlin style. The build/ and generated server
+// resources are excluded. Matches the static-analysis policy of the Maven modules.
+// ---------------------------------------------------------------------------
+spotless {
+    kotlin {
+        target("src/**/*.kt")
+        ktlint("1.8.0")
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktlint("1.8.0")
     }
 }
 
@@ -101,7 +132,7 @@ tasks.cyclonedxBom {
 
 intellijPlatform {
     pluginConfiguration {
-        name    = providers.gradleProperty("pluginName")
+        name = providers.gradleProperty("pluginName")
         version = providers.gradleProperty("pluginVersion")
 
         ideaVersion {
@@ -133,16 +164,17 @@ intellijPlatform {
         // DEPRECATED_API_USAGES is intentionally omitted: the only non-removal
         // 2024.2 API for the file-chooser browse button is plain-deprecated, and
         // failing on it would force a premature Kotlin-UI-DSL rewrite.
-        failureLevel = listOf(
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.NON_EXTENDABLE_API_USAGES,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.PLUGIN_STRUCTURE_WARNINGS,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.MISSING_DEPENDENCIES,
-            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
-        )
+        failureLevel =
+            listOf(
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.NON_EXTENDABLE_API_USAGES,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.PLUGIN_STRUCTURE_WARNINGS,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.MISSING_DEPENDENCIES,
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
+            )
     }
 }
 
@@ -165,30 +197,34 @@ intellijPlatform {
 tasks {
     val copyServerJar by registering(Copy::class) {
         description = "Copies cimcheck-lsp.jar from the Maven build output into resources."
-        from(fileTree("../lsp/target") {
-            include("cimcheck-lsp-*.jar")
-            exclude("*original*", "*sources*", "*javadoc*")
-        })
+        from(
+            fileTree("../lsp/target") {
+                include("cimcheck-lsp-*.jar")
+                exclude("*original*", "*sources*", "*javadoc*")
+            },
+        )
         into("src/main/resources/server")
         rename { "cimcheck-lsp.jar" }
         onlyIf {
-            val jars = fileTree("../lsp/target") {
-                include("cimcheck-lsp-*.jar")
-                exclude("*original*", "*sources*", "*javadoc*")
-            }.files
+            val jars =
+                fileTree("../lsp/target") {
+                    include("cimcheck-lsp-*.jar")
+                    exclude("*original*", "*sources*", "*javadoc*")
+                }.files
             if (jars.isEmpty()) {
                 val hint =
                     "[CIMcheck] No cimcheck-lsp-*.jar found in ../lsp/target — " +
-                    "run 'mvn -f ../lsp/pom.xml package -DskipTests' first."
-                val packaging = gradle.taskGraph.allTasks.any {
-                    it.name == "buildPlugin" || it.name == "publishPlugin"
-                }
+                        "run 'mvn -f ../lsp/pom.xml package -DskipTests' first."
+                val packaging =
+                    gradle.taskGraph.allTasks.any {
+                        it.name == "buildPlugin" || it.name == "publishPlugin"
+                    }
                 val ci = providers.gradleProperty("ci").isPresent
                 if (ci || packaging) {
                     throw GradleException(
                         "$hint The bundled language server is mandatory for a packaged or " +
-                        "published plugin; failing the build instead of producing a broken " +
-                        "plugin zip."
+                            "published plugin; failing the build instead of producing a broken " +
+                            "plugin zip.",
                     )
                 }
                 logger.warn(hint)

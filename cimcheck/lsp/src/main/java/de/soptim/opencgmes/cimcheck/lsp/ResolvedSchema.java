@@ -21,21 +21,19 @@ package de.soptim.opencgmes.cimcheck.lsp;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import org.apache.jena.graph.Node;
-
 import java.util.Collection;
 import java.util.Map;
+import org.apache.jena.graph.Node;
 
 /**
- * The schema a single document is validated against, bundled with the strictness and
- * named-graph scope that should be applied to its annotations.
+ * The schema a single document is validated against, bundled with the strictness and named-graph
+ * scope that should be applied to its annotations.
  *
  * <p>The workspace schema (from {@code opencgmes.json}) and schemas loaded from a SPARQL Notebook
  * {@code # [endpoint=...]} directive are both represented uniformly here so the validation path
- * does not care where the schema came from.</p>
+ * does not care where the schema came from.
  */
 record ResolvedSchema(
-        SparqlValidationApi api,
-        StrictnessLevel strictness,
-        Map<Node, Collection<VersionIri>> namedGraphScope) {
-}
+    SparqlValidationApi api,
+    StrictnessLevel strictness,
+    Map<Node, Collection<VersionIri>> namedGraphScope) {}

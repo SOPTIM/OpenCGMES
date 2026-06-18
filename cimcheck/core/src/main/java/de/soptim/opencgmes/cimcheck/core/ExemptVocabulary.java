@@ -18,56 +18,62 @@
 
 package de.soptim.opencgmes.cimcheck.core;
 
-import org.apache.jena.graph.Node;
-
 import java.util.List;
+import org.apache.jena.graph.Node;
 
 /**
  * Vocabulary namespaces whose terms are not validated against the CIM schema index.
  *
- * <p>Two kinds of namespace are handled here:</p>
+ * <p>Two kinds of namespace are handled here:
+ *
  * <ul>
- *   <li><b>Open namespaces</b> ({@code xsd}, {@code dcterms}, {@code dc}, {@code skos},
- *       {@code dcat}, and the IEC extension namespaces) are accepted wholesale: any term in
- *       them is silently allowed. These are open-ended annotation / datatype vocabularies where
- *       enforcing a closed term list would produce false positives.</li>
- *   <li><b>Closed namespaces</b> ({@code rdf}, {@code rdfs}, {@code owl}, {@code sh}) are
- *       delegated to {@link StandardVocabulary}: a term is exempt only if it is a genuine,
- *       known term of that vocabulary. An <em>unknown</em> term in a closed namespace
- *       (e.g. {@code rdf:typ}) is <b>not</b> exempt — it flows through to the validator, which
- *       reports it as an unknown vocabulary term.</li>
+ *   <li><b>Open namespaces</b> ({@code xsd}, {@code dcterms}, {@code dc}, {@code skos}, {@code
+ *       dcat}, and the IEC extension namespaces) are accepted wholesale: any term in them is
+ *       silently allowed. These are open-ended annotation / datatype vocabularies where enforcing a
+ *       closed term list would produce false positives.
+ *   <li><b>Closed namespaces</b> ({@code rdf}, {@code rdfs}, {@code owl}, {@code sh}) are delegated
+ *       to {@link StandardVocabulary}: a term is exempt only if it is a genuine, known term of that
+ *       vocabulary. An <em>unknown</em> term in a closed namespace (e.g. {@code rdf:typ}) is
+ *       <b>not</b> exempt — it flows through to the validator, which reports it as an unknown
+ *       vocabulary term.
  * </ul>
  *
- * <p>Used by both the SPARQL algebra visitor and the SHACL shape analyzer to identify terms
- * that should be accepted without a CIM existence check.</p>
+ * <p>Used by both the SPARQL algebra visitor and the SHACL shape analyzer to identify terms that
+ * should be accepted without a CIM existence check.
  */
 public final class ExemptVocabulary {
 
-    /** Open annotation/datatype namespaces accepted wholesale, without a term-level check. */
-    public static final List<String> NAMESPACES = List.of(
-            "http://www.w3.org/2001/XMLSchema#",
-            "http://www.w3.org/ns/dcat#",
-            "http://purl.org/dc/terms/",
-            "http://purl.org/dc/elements/1.1/",
-            "http://www.w3.org/2004/02/skos/core#",
-            "http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#",
-            "http://iec.ch/TC57/NonStandard/UML#"
-    );
+  /** Open annotation/datatype namespaces accepted wholesale, without a term-level check. */
+  public static final List<String> NAMESPACES =
+      List.of(
+          "http://www.w3.org/2001/XMLSchema#",
+          "http://www.w3.org/ns/dcat#",
+          "http://purl.org/dc/terms/",
+          "http://purl.org/dc/elements/1.1/",
+          "http://www.w3.org/2004/02/skos/core#",
+          "http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#",
+          "http://iec.ch/TC57/NonStandard/UML#");
 
-    private ExemptVocabulary() {}
+  private ExemptVocabulary() {}
 
-    /**
-     * Returns {@code true} when {@code node} should be accepted without a CIM existence check:
-     * either it is in an open namespace, or it is a known term of a closed standard vocabulary.
-     * An unknown term in a closed standard namespace returns {@code false} so it can be reported.
-     */
-    public static boolean isExempt(Node node) {
-        if (!node.isURI()) return false;
-        if (StandardVocabulary.isKnownTerm(node)) return true;
-        String uri = node.getURI();
-        for (String ns : NAMESPACES) {
-            if (uri.startsWith(ns)) return true;
-        }
-        return false;
+  /**
+   * Returns {@code true} when {@code node} should be accepted without a CIM existence check: either
+   * it is in an open namespace, or it is a known term of a closed standard vocabulary. An unknown
+   * term in a closed standard namespace returns {@code false} so it can be reported.
+   */
+  public static boolean isExempt(Node node) {
+    if (!node.isURI()) {
+      return false;
     }
+    if (StandardVocabulary.isKnownTerm(node)) {
+      return true;
+    }
+    String uri = node.getURI();
+    for (String ns : NAMESPACES) {
+      if (uri.startsWith(ns)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

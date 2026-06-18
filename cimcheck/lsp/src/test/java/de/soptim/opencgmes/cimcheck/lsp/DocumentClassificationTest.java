@@ -18,82 +18,81 @@
 
 package de.soptim.opencgmes.cimcheck.lsp;
 
-import de.soptim.opencgmes.cimcheck.lsp.SparqlTextDocumentService.Kind;
-import org.junit.Test;
-
-import java.nio.file.Path;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
+import de.soptim.opencgmes.cimcheck.lsp.SparqlTextDocumentService.Kind;
+import java.nio.file.Path;
+import org.junit.Test;
+
 /**
- * Covers the document classification and URI-directory logic that lets SPARQL Notebook cells
- * — which arrive under the {@code vscode-notebook-cell} scheme with no file extension — flow
- * through the same validation path as {@code .rq}/{@code .ttl} files.
+ * Covers the document classification and URI-directory logic that lets SPARQL Notebook cells —
+ * which arrive under the {@code vscode-notebook-cell} scheme with no file extension — flow through
+ * the same validation path as {@code .rq}/{@code .ttl} files.
  */
 public class DocumentClassificationTest {
 
-    // ---- File extensions (unchanged file/IntelliJ path) ------------------------------------
+  // ---- File extensions (unchanged file/IntelliJ path) ------------------------------------
 
-    @Test
-    public void sparqlFileByExtension() {
-        assertEquals(Kind.SPARQL, SparqlTextDocumentService.classify("file:///q/query.rq", null));
-        assertEquals(Kind.SPARQL, SparqlTextDocumentService.classify("file:///q/query.sparql", null));
-    }
+  @Test
+  public void sparqlFileByExtension() {
+    assertEquals(Kind.SPARQL, SparqlTextDocumentService.classify("file:///q/query.rq", null));
+    assertEquals(Kind.SPARQL, SparqlTextDocumentService.classify("file:///q/query.sparql", null));
+  }
 
-    @Test
-    public void shaclFileByExtension() {
-        assertEquals(Kind.SHACL, SparqlTextDocumentService.classify("file:///s/shapes.ttl", null));
-        assertEquals(Kind.SHACL, SparqlTextDocumentService.classify("file:///s/shapes.shacl", null));
-    }
+  @Test
+  public void shaclFileByExtension() {
+    assertEquals(Kind.SHACL, SparqlTextDocumentService.classify("file:///s/shapes.ttl", null));
+    assertEquals(Kind.SHACL, SparqlTextDocumentService.classify("file:///s/shapes.shacl", null));
+  }
 
-    @Test
-    public void extensionWinsOverLanguageId() {
-        assertEquals(Kind.SHACL,
-                SparqlTextDocumentService.classify("file:///s/shapes.ttl", "sparql"));
-    }
+  @Test
+  public void extensionWinsOverLanguageId() {
+    assertEquals(Kind.SHACL, SparqlTextDocumentService.classify("file:///s/shapes.ttl", "sparql"));
+  }
 
-    // ---- Notebook cells (no extension → languageId decides) --------------------------------
+  // ---- Notebook cells (no extension → languageId decides) --------------------------------
 
-    @Test
-    public void sparqlNotebookCellByLanguageId() {
-        // SPARQL Notebook assigns code cells the languageId "sparql".
-        String cellUri = "vscode-notebook-cell:/home/u/analysis.sparqlbook#W0sZmlsZQ";
-        assertEquals(Kind.SPARQL, SparqlTextDocumentService.classify(cellUri, "sparql"));
-    }
+  @Test
+  public void sparqlNotebookCellByLanguageId() {
+    // SPARQL Notebook assigns code cells the languageId "sparql".
+    String cellUri = "vscode-notebook-cell:/home/u/analysis.sparqlbook#W0sZmlsZQ";
+    assertEquals(Kind.SPARQL, SparqlTextDocumentService.classify(cellUri, "sparql"));
+  }
 
-    @Test
-    public void turtleCellByLanguageId() {
-        String cellUri = "vscode-notebook-cell:/home/u/analysis.sparqlbook#X1sabc";
-        assertEquals(Kind.SHACL, SparqlTextDocumentService.classify(cellUri, "turtle"));
-    }
+  @Test
+  public void turtleCellByLanguageId() {
+    String cellUri = "vscode-notebook-cell:/home/u/analysis.sparqlbook#X1sabc";
+    assertEquals(Kind.SHACL, SparqlTextDocumentService.classify(cellUri, "turtle"));
+  }
 
-    @Test
-    public void unsupportedWhenNoExtensionAndUnknownLanguage() {
-        assertNull(SparqlTextDocumentService.classify("untitled:Untitled-1", "plaintext"));
-        assertNull(SparqlTextDocumentService.classify("untitled:Untitled-1", null));
-    }
+  @Test
+  public void unsupportedWhenNoExtensionAndUnknownLanguage() {
+    assertNull(SparqlTextDocumentService.classify("untitled:Untitled-1", "plaintext"));
+    assertNull(SparqlTextDocumentService.classify("untitled:Untitled-1", null));
+  }
 
-    // ---- Directory resolution for relative endpoint paths ----------------------------------
+  // ---- Directory resolution for relative endpoint paths ----------------------------------
 
-    @Test
-    public void documentDirOfNotebookCellStripsFragment() {
-        // Relative "# [endpoint=...]" paths resolve against the notebook's own directory.
-        String cellUri = "vscode-notebook-cell:/home/u/proj/analysis.sparqlbook#W0sZmlsZQ";
-        assertEquals(Path.of("/home/u/proj"), SparqlTextDocumentService.documentDir(cellUri));
-    }
+  @Test
+  public void documentDirOfNotebookCellStripsFragment() {
+    // Relative "# [endpoint=...]" paths resolve against the notebook's own directory.
+    String cellUri = "vscode-notebook-cell:/home/u/proj/analysis.sparqlbook#W0sZmlsZQ";
+    assertEquals(Path.of("/home/u/proj"), SparqlTextDocumentService.documentDir(cellUri));
+  }
 
-    @Test
-    public void documentDirOfFileUri() {
-        assertEquals(Path.of("/home/u/proj"),
-                SparqlTextDocumentService.documentDir("file:///home/u/proj/query.rq"));
-    }
+  @Test
+  public void documentDirOfFileUri() {
+    assertEquals(
+        Path.of("/home/u/proj"),
+        SparqlTextDocumentService.documentDir("file:///home/u/proj/query.rq"));
+  }
 
-    @Test
-    public void documentDirOfWindowsNotebookCellStripsDriveSlash() {
-        // On Windows the cell URI path is "/C:/Users/u/proj/analysis.sparqlbook"; the leading
-        // slash before the drive letter must be stripped or Path.of would reject it.
-        String cellUri = "vscode-notebook-cell:/C:/Users/u/proj/analysis.sparqlbook#W0sZmlsZQ";
-        assertEquals(Path.of("C:/Users/u/proj"), SparqlTextDocumentService.documentDir(cellUri));
-    }
+  @Test
+  public void documentDirOfWindowsNotebookCellStripsDriveSlash() {
+    // On Windows the cell URI path is "/C:/Users/u/proj/analysis.sparqlbook"; the leading
+    // slash before the drive letter must be stripped or Path.of would reject it.
+    String cellUri = "vscode-notebook-cell:/C:/Users/u/proj/analysis.sparqlbook#W0sZmlsZQ";
+    assertEquals(Path.of("C:/Users/u/proj"), SparqlTextDocumentService.documentDir(cellUri));
+  }
 }

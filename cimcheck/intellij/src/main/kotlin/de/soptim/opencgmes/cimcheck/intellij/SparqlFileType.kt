@@ -28,11 +28,13 @@ import javax.swing.Icon
  * previously shared PlainTextLanguage with the built-in PLAIN_TEXT file type.
  */
 class SparqlFileType private constructor() : LanguageFileType(SparqlLanguage) {
+    override fun getName() = "SPARQL"
 
-    override fun getName()             = "SPARQL"
-    override fun getDescription()      = "SPARQL query language"
+    override fun getDescription() = "SPARQL query language"
+
     override fun getDefaultExtension() = "rq"
-    override fun getIcon(): Icon?      = null
+
+    override fun getIcon(): Icon? = null
 
     companion object {
         @JvmField

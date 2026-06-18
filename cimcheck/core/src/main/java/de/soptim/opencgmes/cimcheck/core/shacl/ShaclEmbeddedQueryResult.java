@@ -19,20 +19,20 @@
 package de.soptim.opencgmes.cimcheck.core.shacl;
 
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
-
 import java.util.Objects;
 
 /**
  * Result for a single SPARQL fragment extracted from a SHACL shapes graph.
  *
- * @param embedded  the fragment as it was discovered (container, kind, prefixes, raw text)
- * @param result    the {@link SparqlValidationResult} produced by running the query through
- *                  the normal SPARQL validator after SHACL prefixes were prepended
+ * @param embedded the fragment as it was discovered (container, kind, prefixes, raw text)
+ * @param result the {@link SparqlValidationResult} produced by running the query through the normal
+ *     SPARQL validator after SHACL prefixes were prepended
  */
 public record ShaclEmbeddedQueryResult(EmbeddedSparql embedded, SparqlValidationResult result) {
 
-    public ShaclEmbeddedQueryResult {
-        Objects.requireNonNull(embedded, "embedded");
-        Objects.requireNonNull(result, "result");
-    }
+  /** Canonical constructor; validates the required fields. */
+  public ShaclEmbeddedQueryResult {
+    Objects.requireNonNull(embedded, "embedded");
+    Objects.requireNonNull(result, "result");
+  }
 }

@@ -19,35 +19,37 @@
 package de.soptim.opencgmes.cimcheck.core;
 
 /**
- * Thrown by the dependency-analysis methods of {@link SparqlValidationApi} when the query cannot
- * be parsed at all.
+ * Thrown by the dependency-analysis methods of {@link SparqlValidationApi} when the query cannot be
+ * parsed at all.
  *
  * <p>{@link SparqlValidationApi#validateSparql(String)} and its overloads prefer to return the
- * syntax error as a {@code SYNTAX_ERROR} annotation inside a {@link SparqlValidationResult} and
- * do <em>not</em> throw this exception.</p>
+ * syntax error as a {@code SYNTAX_ERROR} annotation inside a {@link SparqlValidationResult} and do
+ * <em>not</em> throw this exception.
  */
 public class InvalidQueryException extends Exception {
 
-    private final Integer line;
-    private final Integer column;
+  private final Integer line;
+  private final Integer column;
 
-    public InvalidQueryException(String message, Throwable cause, Integer line, Integer column) {
-        super(message, cause);
-        this.line = line;
-        this.column = column;
-    }
+  /** Creates an exception with a message, cause, and 1-based parser line/column (nullable). */
+  public InvalidQueryException(String message, Throwable cause, Integer line, Integer column) {
+    super(message, cause);
+    this.line = line;
+    this.column = column;
+  }
 
-    public InvalidQueryException(String message, Throwable cause) {
-        this(message, cause, null, null);
-    }
+  /** Creates an exception with a message and cause but no source position. */
+  public InvalidQueryException(String message, Throwable cause) {
+    this(message, cause, null, null);
+  }
 
-    /** @return 1-based parser line, or {@code null} if unavailable. */
-    public Integer line() {
-        return line;
-    }
+  /** Returns the 1-based parser line, or {@code null} if unavailable. */
+  public Integer line() {
+    return line;
+  }
 
-    /** @return 1-based parser column, or {@code null} if unavailable. */
-    public Integer column() {
-        return column;
-    }
+  /** Returns the 1-based parser column, or {@code null} if unavailable. */
+  public Integer column() {
+    return column;
+  }
 }

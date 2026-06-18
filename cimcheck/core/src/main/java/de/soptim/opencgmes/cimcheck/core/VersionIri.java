@@ -18,43 +18,43 @@
 
 package de.soptim.opencgmes.cimcheck.core;
 
+import java.util.Objects;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
-
-import java.util.Objects;
 
 /**
  * Identifier of an RDFS/CIM profile by its {@code owl:versionIRI}.
  *
  * <p>{@link de.soptim.opencgmes.cimxml.graph.CimProfile} natively exposes version IRIs as Jena
- * {@link Node} sets. This record wraps a single URI {@link Node} so the validation API can
- * publish profile identifiers without leaking the {@code Set<Node>} representation used by the
- * existing CIM profile registry.</p>
+ * {@link Node} sets. This record wraps a single URI {@link Node} so the validation API can publish
+ * profile identifiers without leaking the {@code Set<Node>} representation used by the existing CIM
+ * profile registry.
  *
  * @param node the URI node for the profile, never {@code null}
  */
 public record VersionIri(Node node) {
 
-    public VersionIri {
-        Objects.requireNonNull(node, "node");
-        if (!node.isURI()) {
-            throw new IllegalArgumentException("VersionIri must be a URI node, got: " + node);
-        }
+  /** Canonical constructor; requires a non-null URI node. */
+  public VersionIri {
+    Objects.requireNonNull(node, "node");
+    if (!node.isURI()) {
+      throw new IllegalArgumentException("VersionIri must be a URI node, got: " + node);
     }
+  }
 
-    /** Convenience constructor from a raw IRI string. */
-    public static VersionIri of(String iri) {
-        Objects.requireNonNull(iri, "iri");
-        return new VersionIri(NodeFactory.createURI(iri));
-    }
+  /** Convenience constructor from a raw IRI string. */
+  public static VersionIri of(String iri) {
+    Objects.requireNonNull(iri, "iri");
+    return new VersionIri(NodeFactory.createURI(iri));
+  }
 
-    /** @return the IRI string of the wrapped node. */
-    public String iri() {
-        return node.getURI();
-    }
+  /** Returns the IRI string of the wrapped node. */
+  public String iri() {
+    return node.getURI();
+  }
 
-    @Override
-    public String toString() {
-        return iri();
-    }
+  @Override
+  public String toString() {
+    return iri();
+  }
 }

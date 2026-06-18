@@ -19,57 +19,56 @@
 package de.soptim.opencgmes.cimcheck.core.schema;
 
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import org.apache.jena.graph.Node;
-
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.jena.graph.Node;
 
 /**
  * Schema-resolution policy for a single validation call.
  *
- * <p>The three subtypes mirror the three {@code validateSparql(...)} overloads. They are
- * exposed so the analyzer/validator implementation, the dependency methods and unit tests can
- * share a single shape; callers normally don't construct them directly.</p>
+ * <p>The three subtypes mirror the three {@code validateSparql(...)} overloads. They are exposed so
+ * the analyzer/validator implementation, the dependency methods and unit tests can share a single
+ * shape; callers normally don't construct them directly.
  */
 public sealed interface ValidationScope
-        permits ValidationScope.AllProfilesScope,
-                ValidationScope.ProfileListScope,
-                ValidationScope.NamedGraphProfileScope {
+    permits ValidationScope.AllProfilesScope,
+        ValidationScope.ProfileListScope,
+        ValidationScope.NamedGraphProfileScope {
 
-    /** Validate against every profile known to the {@link SchemaIndex}. */
-    record AllProfilesScope() implements ValidationScope {}
+  /** Validate against every profile known to the {@link SchemaIndex}. */
+  record AllProfilesScope() implements ValidationScope {}
 
-    /** Validate against an explicit list of profiles; FROM/FROM NAMED in the query is ignored. */
-    record ProfileListScope(Collection<VersionIri> profiles) implements ValidationScope {
-        public ProfileListScope {
-            Objects.requireNonNull(profiles, "profiles");
-            profiles = List.copyOf(profiles);
-        }
+  /** Validate against an explicit list of profiles; FROM/FROM NAMED in the query is ignored. */
+  record ProfileListScope(Collection<VersionIri> profiles) implements ValidationScope {
+    public ProfileListScope {
+      Objects.requireNonNull(profiles, "profiles");
+      profiles = List.copyOf(profiles);
     }
+  }
 
-    /**
-     * Validate terms inside {@code GRAPH <g> { ... }} blocks against the profiles mapped to
-     * {@code <g>}. Terms outside named-graph blocks are validated against the union of all
-     * profiles in the map. Graphs referenced by the query but absent from the map produce a
-     * {@code GRAPH_NOT_CONFIGURED} warning.
-     */
-    record NamedGraphProfileScope(Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
-            implements ValidationScope {
+  /**
+   * Validate terms inside {@code GRAPH <g> { ... }} blocks against the profiles mapped to {@code
+   * <g>}. Terms outside named-graph blocks are validated against the union of all profiles in the
+   * map. Graphs referenced by the query but absent from the map produce a {@code
+   * GRAPH_NOT_CONFIGURED} warning.
+   */
+  record NamedGraphProfileScope(Map<Node, Collection<VersionIri>> namedGraphsToProfiles)
+      implements ValidationScope {
 
-        public NamedGraphProfileScope {
-            Objects.requireNonNull(namedGraphsToProfiles, "namedGraphsToProfiles");
-            // Defensive copy with deep-immutable values; validate every entry explicitly so
-            // callers get a named-parameter message rather than an opaque Map.copyOf NPE.
-            var copy = new LinkedHashMap<Node, Collection<VersionIri>>();
-            for (var e : namedGraphsToProfiles.entrySet()) {
-                Objects.requireNonNull(e.getKey(), "namedGraphsToProfiles key");
-                Objects.requireNonNull(e.getValue(), "namedGraphsToProfiles value for key " + e.getKey());
-                copy.put(e.getKey(), List.copyOf(e.getValue()));
-            }
-            namedGraphsToProfiles = Map.copyOf(copy);
-        }
+    public NamedGraphProfileScope {
+      Objects.requireNonNull(namedGraphsToProfiles, "namedGraphsToProfiles");
+      // Defensive copy with deep-immutable values; validate every entry explicitly so
+      // callers get a named-parameter message rather than an opaque Map.copyOf NPE.
+      var copy = new LinkedHashMap<Node, Collection<VersionIri>>();
+      for (var e : namedGraphsToProfiles.entrySet()) {
+        Objects.requireNonNull(e.getKey(), "namedGraphsToProfiles key");
+        Objects.requireNonNull(e.getValue(), "namedGraphsToProfiles value for key " + e.getKey());
+        copy.put(e.getKey(), List.copyOf(e.getValue()));
+      }
+      namedGraphsToProfiles = Map.copyOf(copy);
     }
+  }
 }

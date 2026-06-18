@@ -23,21 +23,22 @@ import org.apache.jena.graph.Node;
 /**
  * Reference to a named graph used by the query.
  *
- * @param graph   the graph URI node
- * @param source  where in the query the graph was found
+ * @param graph the graph URI node
+ * @param source where in the query the graph was found
  */
 public record GraphReference(Node graph, Source source) {
 
-    public enum Source {
-        /** Explicit {@code GRAPH <g> { ... }} block. */
-        GRAPH_BLOCK,
-        /** {@code FROM NAMED <g>} clause. */
-        FROM_NAMED,
-        /** {@code FROM <g>} clause (default-graph composition). */
-        FROM,
-        /** {@code WITH <g>} clause in an INSERT/DELETE update operation. */
-        UPDATE_WITH,
-        /** Graph named in a {@code CREATE}, {@code DROP}, or {@code CLEAR} operation. */
-        UPDATE_MANAGEMENT
-    }
+  /** Identifies where in the query a graph reference originated. */
+  public enum Source {
+    /** Explicit {@code GRAPH <g> { ... }} block. */
+    GRAPH_BLOCK,
+    /** {@code FROM NAMED <g>} clause. */
+    FROM_NAMED,
+    /** {@code FROM <g>} clause (default-graph composition). */
+    FROM,
+    /** {@code WITH <g>} clause in an INSERT/DELETE update operation. */
+    UPDATE_WITH,
+    /** Graph named in a {@code CREATE}, {@code DROP}, or {@code CLEAR} operation. */
+    UPDATE_MANAGEMENT
+  }
 }

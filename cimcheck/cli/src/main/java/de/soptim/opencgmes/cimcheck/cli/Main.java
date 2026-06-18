@@ -20,12 +20,14 @@ package de.soptim.opencgmes.cimcheck.cli;
 
 import picocli.CommandLine;
 
+/** Entry point for the {@code cimcheck} command-line tool. */
 public final class Main {
 
-    private Main() {}
+  private Main() {}
 
-    public static void main(String[] args) {
-        int exitCode = new CommandLine(new ValidateCommand()).execute(args);
-        System.exit(exitCode);
-    }
+  /** Runs the CLI with {@code args} and exits with the resulting status code. */
+  public static void main(String[] args) {
+    int exitCode = new CommandLine(new ValidateCommand()).execute(args);
+    System.exit(exitCode);
+  }
 }

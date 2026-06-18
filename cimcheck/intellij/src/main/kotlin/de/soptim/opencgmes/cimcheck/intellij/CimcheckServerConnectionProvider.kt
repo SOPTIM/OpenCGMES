@@ -34,17 +34,18 @@ import java.util.Properties
  *     system cache directory on first use, keyed by plugin version).
  */
 class CimcheckServerConnectionProvider : LanguageServerFactory {
-
     override fun createConnectionProvider(project: Project): ProcessStreamConnectionProvider {
         val settings = CimcheckSettings.getInstance()
-        val javaExe  = resolveJavaExecutable(settings.javaExecutable)
-        val jarPath  = resolveServerJar(settings.serverJar)
-        val extra    = settings.javaArgs.trim()
-            .splitToSequence("\\s+".toRegex())
-            .filter(String::isNotBlank)
-            .toList()
-        val cmd      = listOf(javaExe) + extra + listOf("-jar", jarPath)
-        val workDir  = project.basePath
+        val javaExe = resolveJavaExecutable(settings.javaExecutable)
+        val jarPath = resolveServerJar(settings.serverJar)
+        val extra =
+            settings.javaArgs
+                .trim()
+                .splitToSequence("\\s+".toRegex())
+                .filter(String::isNotBlank)
+                .toList()
+        val cmd = listOf(javaExe) + extra + listOf("-jar", jarPath)
+        val workDir = project.basePath
 
         // ProcessStreamConnectionProvider is abstract in LSP4IJ 0.7+; subclass it inline.
         // IMPORTANT: populate the command list with setCommands(...), NOT by overriding
@@ -91,8 +92,9 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
     /** Major version of the JVM running the current IDE (e.g. 21), or 0 if unknown. */
     private fun runtimeJavaMajor(): Int {
         // "21"/"17" on modern JDKs; "1.8" style on legacy JDKs (treated as < 21).
-        val version = (System.getProperty("java.specification.version") ?: return 0)
-            .removePrefix("1.")
+        val version =
+            (System.getProperty("java.specification.version") ?: return 0)
+                .removePrefix("1.")
         return version.substringBefore('.').toIntOrNull() ?: 0
     }
 
@@ -103,21 +105,22 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
             if (f.exists()) return f.absolutePath
             throw IllegalStateException(
                 "CIMcheck: configured server JAR not found: $configured\n" +
-                "Check Settings > Tools > CIMcheck > Server JAR."
+                    "Check Settings > Tools > CIMcheck > Server JAR.",
             )
         }
 
         // 2. Extract the bundled resource to IntelliJ's system cache.
-        val version  = pluginVersion()
+        val version = pluginVersion()
         val cacheDir = File(PathManager.getSystemPath(), "cimcheck")
-        val cached   = File(cacheDir, "cimcheck-lsp-$version.jar")
+        val cached = File(cacheDir, "cimcheck-lsp-$version.jar")
         if (!cached.exists()) {
-            val stream = javaClass.classLoader.getResourceAsStream("server/cimcheck-lsp.jar")
-                ?: throw IllegalStateException(
-                    "CIMcheck: cimcheck-lsp.jar not found in plugin resources.\n" +
-                    "Either set a path in Settings > Tools > CIMcheck > Server JAR, " +
-                    "or reinstall the plugin."
-                )
+            val stream =
+                javaClass.classLoader.getResourceAsStream("server/cimcheck-lsp.jar")
+                    ?: throw IllegalStateException(
+                        "CIMcheck: cimcheck-lsp.jar not found in plugin resources.\n" +
+                            "Either set a path in Settings > Tools > CIMcheck > Server JAR, " +
+                            "or reinstall the plugin.",
+                    )
             Files.createDirectories(cacheDir.toPath())
             stream.use { input -> cached.outputStream().use { input.copyTo(it) } }
         }
@@ -131,9 +134,11 @@ class CimcheckServerConnectionProvider : LanguageServerFactory {
      * supported IDE versions. Used only to key the extracted server-JAR cache.
      */
     private fun pluginVersion(): String =
-        javaClass.classLoader.getResourceAsStream("cimcheck-plugin.properties")?.use { stream ->
-            Properties().apply { load(stream) }.getProperty("version")
-        }?.takeIf { it.isNotBlank() } ?: "unknown"
+        javaClass.classLoader
+            .getResourceAsStream("cimcheck-plugin.properties")
+            ?.use { stream ->
+                Properties().apply { load(stream) }.getProperty("version")
+            }?.takeIf { it.isNotBlank() } ?: "unknown"
 
     companion object {
         /** The bundled language server is compiled for Java 21. */

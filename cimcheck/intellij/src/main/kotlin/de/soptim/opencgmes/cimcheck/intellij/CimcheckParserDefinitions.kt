@@ -33,29 +33,39 @@ import com.intellij.psi.tree.TokenSet
 // that Ctrl+hover underlines the single token under the cursor instead of the whole file.
 
 private val WHITESPACE_TOKENS = TokenSet.create(SparqlTokenTypes.WHITESPACE)
-private val COMMENT_TOKENS    = TokenSet.create(SparqlTokenTypes.COMMENT)
-private val STRING_TOKENS     = TokenSet.create(SparqlTokenTypes.STRING, SparqlTokenTypes.IRI)
+private val COMMENT_TOKENS = TokenSet.create(SparqlTokenTypes.COMMENT)
+private val STRING_TOKENS = TokenSet.create(SparqlTokenTypes.STRING, SparqlTokenTypes.IRI)
 
-private fun flatParser() = PsiParser { root, builder ->
-    val m = builder.mark()
-    while (!builder.eof()) builder.advanceLexer()
-    m.done(root)
-    builder.treeBuilt
-}
+private fun flatParser() =
+    PsiParser { root, builder ->
+        val m = builder.mark()
+        while (!builder.eof()) builder.advanceLexer()
+        m.done(root)
+        builder.treeBuilt
+    }
 
 // ── SPARQL ────────────────────────────────────────────────────────────────────
 
 class SparqlParserDefinition : ParserDefinition {
-    companion object { @JvmField val FILE = IFileElementType(SparqlLanguage) }
+    companion object {
+        @JvmField val FILE = IFileElementType(SparqlLanguage)
+    }
 
-    override fun createLexer(project: Project)               = CimcheckLexer()
-    override fun createParser(project: Project)              = flatParser()
-    override fun getFileNodeType()                           = FILE
-    override fun getWhitespaceTokens()                       = WHITESPACE_TOKENS
-    override fun getCommentTokens()                          = COMMENT_TOKENS
-    override fun getStringLiteralElements()                  = STRING_TOKENS
-    override fun createElement(node: ASTNode): PsiElement    = ASTWrapperPsiElement(node)
-    override fun createFile(viewProvider: FileViewProvider)  =
+    override fun createLexer(project: Project) = CimcheckLexer()
+
+    override fun createParser(project: Project) = flatParser()
+
+    override fun getFileNodeType() = FILE
+
+    override fun getWhitespaceTokens() = WHITESPACE_TOKENS
+
+    override fun getCommentTokens() = COMMENT_TOKENS
+
+    override fun getStringLiteralElements() = STRING_TOKENS
+
+    override fun createElement(node: ASTNode): PsiElement = ASTWrapperPsiElement(node)
+
+    override fun createFile(viewProvider: FileViewProvider) =
         object : PsiFileBase(viewProvider, SparqlLanguage) {
             override fun getFileType() = SparqlFileType.INSTANCE
         }
@@ -64,16 +74,25 @@ class SparqlParserDefinition : ParserDefinition {
 // ── SHACL / Turtle ────────────────────────────────────────────────────────────
 
 class ShaclParserDefinition : ParserDefinition {
-    companion object { @JvmField val FILE = IFileElementType(ShaclLanguage) }
+    companion object {
+        @JvmField val FILE = IFileElementType(ShaclLanguage)
+    }
 
-    override fun createLexer(project: Project)               = CimcheckLexer()
-    override fun createParser(project: Project)              = flatParser()
-    override fun getFileNodeType()                           = FILE
-    override fun getWhitespaceTokens()                       = WHITESPACE_TOKENS
-    override fun getCommentTokens()                          = COMMENT_TOKENS
-    override fun getStringLiteralElements()                  = STRING_TOKENS
-    override fun createElement(node: ASTNode): PsiElement    = ASTWrapperPsiElement(node)
-    override fun createFile(viewProvider: FileViewProvider)  =
+    override fun createLexer(project: Project) = CimcheckLexer()
+
+    override fun createParser(project: Project) = flatParser()
+
+    override fun getFileNodeType() = FILE
+
+    override fun getWhitespaceTokens() = WHITESPACE_TOKENS
+
+    override fun getCommentTokens() = COMMENT_TOKENS
+
+    override fun getStringLiteralElements() = STRING_TOKENS
+
+    override fun createElement(node: ASTNode): PsiElement = ASTWrapperPsiElement(node)
+
+    override fun createFile(viewProvider: FileViewProvider) =
         object : PsiFileBase(viewProvider, ShaclLanguage) {
             override fun getFileType() = ShaclFileType.INSTANCE
         }

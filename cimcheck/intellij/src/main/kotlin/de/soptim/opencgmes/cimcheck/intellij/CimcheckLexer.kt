@@ -27,31 +27,40 @@ import com.intellij.psi.tree.IElementType
  * Unknown characters are emitted as OTHER (no colouring).
  */
 class CimcheckLexer : LexerBase() {
-
     private var myBuffer: CharSequence = ""
     private var myTokenStart = 0
-    private var myTokenEnd   = 0
-    private var myBufferEnd  = 0
+    private var myTokenEnd = 0
+    private var myBufferEnd = 0
     private var myTokenType: IElementType? = null
 
-    override fun start(buffer: CharSequence, startOffset: Int, endOffset: Int, initialState: Int) {
-        myBuffer     = buffer
+    override fun start(
+        buffer: CharSequence,
+        startOffset: Int,
+        endOffset: Int,
+        initialState: Int,
+    ) {
+        myBuffer = buffer
         myTokenStart = startOffset
-        myTokenEnd   = startOffset
-        myBufferEnd  = endOffset
+        myTokenEnd = startOffset
+        myBufferEnd = endOffset
         advance()
     }
 
-    override fun getState(): Int                   = 0
-    override fun getTokenType(): IElementType?     = myTokenType
-    override fun getTokenStart(): Int              = myTokenStart
-    override fun getTokenEnd(): Int                = myTokenEnd
+    override fun getState(): Int = 0
+
+    override fun getTokenType(): IElementType? = myTokenType
+
+    override fun getTokenStart(): Int = myTokenStart
+
+    override fun getTokenEnd(): Int = myTokenEnd
+
     override fun getBufferSequence(): CharSequence = myBuffer
-    override fun getBufferEnd(): Int               = myBufferEnd
+
+    override fun getBufferEnd(): Int = myBufferEnd
 
     override fun advance() {
         myTokenStart = myTokenEnd
-        myTokenType  = if (myTokenStart >= myBufferEnd) null else nextToken()
+        myTokenType = if (myTokenStart >= myBufferEnd) null else nextToken()
     }
 
     // Returns the char at position i, or NUL if out of bounds.
@@ -79,7 +88,8 @@ class CimcheckLexer : LexerBase() {
             myTokenEnd += 3
             while (myTokenEnd < myBufferEnd) {
                 if (at(myTokenEnd) == c && at(myTokenEnd + 1) == c && at(myTokenEnd + 2) == c) {
-                    myTokenEnd += 3; break
+                    myTokenEnd += 3
+                    break
                 }
                 if (myBuffer[myTokenEnd] == '\\') myTokenEnd++ // skip escape
                 myTokenEnd++
@@ -90,9 +100,10 @@ class CimcheckLexer : LexerBase() {
         // Single-quoted strings  "…"  or  '…'
         if (c == '"' || c == '\'') {
             myTokenEnd++
-            while (myTokenEnd < myBufferEnd
-                && myBuffer[myTokenEnd] != c
-                && myBuffer[myTokenEnd] != '\n') {
+            while (myTokenEnd < myBufferEnd &&
+                myBuffer[myTokenEnd] != c &&
+                myBuffer[myTokenEnd] != '\n'
+            ) {
                 if (myBuffer[myTokenEnd] == '\\') myTokenEnd++
                 myTokenEnd++
             }
@@ -103,9 +114,12 @@ class CimcheckLexer : LexerBase() {
         // IRI reference  <…>
         if (c == '<') {
             myTokenEnd++
-            while (myTokenEnd < myBufferEnd
-                && myBuffer[myTokenEnd] != '>'
-                && myBuffer[myTokenEnd] != '\n') myTokenEnd++
+            while (myTokenEnd < myBufferEnd &&
+                myBuffer[myTokenEnd] != '>' &&
+                myBuffer[myTokenEnd] != '\n'
+            ) {
+                myTokenEnd++
+            }
             if (myTokenEnd < myBufferEnd) myTokenEnd++
             return SparqlTokenTypes.IRI
         }
@@ -113,8 +127,11 @@ class CimcheckLexer : LexerBase() {
         // Variables  ?name  $name
         if ((c == '?' || c == '$') && (at(myTokenEnd + 1).isLetterOrDigit() || at(myTokenEnd + 1) == '_')) {
             myTokenEnd++
-            while (myTokenEnd < myBufferEnd
-                && (myBuffer[myTokenEnd].isLetterOrDigit() || myBuffer[myTokenEnd] == '_')) myTokenEnd++
+            while (myTokenEnd < myBufferEnd &&
+                (myBuffer[myTokenEnd].isLetterOrDigit() || myBuffer[myTokenEnd] == '_')
+            ) {
+                myTokenEnd++
+            }
             return SparqlTokenTypes.VARIABLE
         }
 
@@ -133,7 +150,7 @@ class CimcheckLexer : LexerBase() {
 
         // Numbers — integer / decimal / double, optional leading sign
         val isSignedNumber = (c == '+' || c == '-') && at(myTokenEnd + 1).isDigit()
-        val isDotNumber    = c == '.' && at(myTokenEnd + 1).isDigit()
+        val isDotNumber = c == '.' && at(myTokenEnd + 1).isDigit()
         if (c.isDigit() || isSignedNumber || isDotNumber) {
             if (c == '+' || c == '-') myTokenEnd++
             while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd].isDigit()) myTokenEnd++
@@ -152,25 +169,41 @@ class CimcheckLexer : LexerBase() {
         // Identifiers, keywords, and prefix:local names
         if (c.isLetter() || c == '_') {
             val wordStart = myTokenEnd
-            while (myTokenEnd < myBufferEnd
-                && (myBuffer[myTokenEnd].isLetterOrDigit()
-                    || myBuffer[myTokenEnd] == '_'
-                    || myBuffer[myTokenEnd] == '-')) myTokenEnd++
+            while (myTokenEnd < myBufferEnd &&
+                (
+                    myBuffer[myTokenEnd].isLetterOrDigit() ||
+                        myBuffer[myTokenEnd] == '_' ||
+                        myBuffer[myTokenEnd] == '-'
+                )
+            ) {
+                myTokenEnd++
+            }
             val word = myBuffer.subSequence(wordStart, myTokenEnd).toString()
 
             // prefix:localPart  (or KEYWORD: treated below)
             if (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] == ':') {
                 myTokenEnd++ // consume ':'
-                while (myTokenEnd < myBufferEnd
-                    && (myBuffer[myTokenEnd].isLetterOrDigit()
-                        || myBuffer[myTokenEnd] in "_-.")) myTokenEnd++
+                while (myTokenEnd < myBufferEnd &&
+                    (
+                        myBuffer[myTokenEnd].isLetterOrDigit() ||
+                            myBuffer[myTokenEnd] in "_-."
+                    )
+                ) {
+                    myTokenEnd++
+                }
                 // e.g. PREFIX: in Turtle is a keyword, cim:ACLineSegment is a prefixed name
-                return if (KEYWORDS.contains(word.uppercase())) SparqlTokenTypes.KEYWORD
-                       else SparqlTokenTypes.PREFIXED
+                return if (KEYWORDS.contains(word.uppercase())) {
+                    SparqlTokenTypes.KEYWORD
+                } else {
+                    SparqlTokenTypes.PREFIXED
+                }
             }
 
-            return if (KEYWORDS.contains(word.uppercase())) SparqlTokenTypes.KEYWORD
-                   else SparqlTokenTypes.OTHER
+            return if (KEYWORDS.contains(word.uppercase())) {
+                SparqlTokenTypes.KEYWORD
+            } else {
+                SparqlTokenTypes.OTHER
+            }
         }
 
         // Punctuation  { } ( ) [ ] . ; ,
@@ -190,36 +223,122 @@ class CimcheckLexer : LexerBase() {
     }
 
     companion object {
-        private val KEYWORDS: Set<String> = setOf(
-            // SPARQL query
-            "SELECT", "CONSTRUCT", "DESCRIBE", "ASK",
-            "WHERE", "FROM", "NAMED", "OPTIONAL", "UNION", "MINUS",
-            "GRAPH", "SERVICE", "SILENT", "BIND", "AS", "VALUES",
-            "FILTER", "NOT", "EXISTS", "IN",
-            "DISTINCT", "REDUCED",
-            "ORDER", "BY", "ASC", "DESC", "LIMIT", "OFFSET", "HAVING", "GROUP",
-            // SPARQL update
-            "INSERT", "DELETE", "LOAD", "CLEAR", "DROP", "CREATE",
-            "ADD", "MOVE", "COPY", "WITH", "USING", "DATA", "INTO",
-            // Common
-            "BASE", "PREFIX",
-            // Turtle / SHACL
-            "A",
-            // Literals
-            "TRUE", "FALSE",
-            // SPARQL built-in functions
-            "STR", "LANG", "DATATYPE", "IRI", "URI", "BNODE",
-            "ISIRI", "ISURI", "ISBLANK", "ISLITERAL", "ISNUMERIC",
-            "BOUND", "COALESCE", "IF", "SAMEAS",
-            "REGEX", "SUBSTR", "STRLEN", "REPLACE", "UCASE", "LCASE",
-            "STRSTARTS", "STRENDS", "CONTAINS", "STRBEFORE", "STRAFTER",
-            "CONCAT", "LANGMATCHES", "ENCODE_FOR_URI",
-            "ABS", "ROUND", "CEIL", "FLOOR", "RAND",
-            "NOW", "YEAR", "MONTH", "DAY", "HOURS", "MINUTES", "SECONDS",
-            "TIMEZONE", "TZ", "MD5", "SHA1", "SHA256", "SHA384", "SHA512",
-            "UUID", "STRUUID", "STRLANG", "STRDT",
-            // Aggregates
-            "COUNT", "SUM", "MIN", "MAX", "AVG", "SAMPLE", "GROUP_CONCAT"
-        )
+        private val KEYWORDS: Set<String> =
+            setOf(
+                // SPARQL query
+                "SELECT",
+                "CONSTRUCT",
+                "DESCRIBE",
+                "ASK",
+                "WHERE",
+                "FROM",
+                "NAMED",
+                "OPTIONAL",
+                "UNION",
+                "MINUS",
+                "GRAPH",
+                "SERVICE",
+                "SILENT",
+                "BIND",
+                "AS",
+                "VALUES",
+                "FILTER",
+                "NOT",
+                "EXISTS",
+                "IN",
+                "DISTINCT",
+                "REDUCED",
+                "ORDER",
+                "BY",
+                "ASC",
+                "DESC",
+                "LIMIT",
+                "OFFSET",
+                "HAVING",
+                "GROUP",
+                // SPARQL update
+                "INSERT",
+                "DELETE",
+                "LOAD",
+                "CLEAR",
+                "DROP",
+                "CREATE",
+                "ADD",
+                "MOVE",
+                "COPY",
+                "WITH",
+                "USING",
+                "DATA",
+                "INTO",
+                // Common
+                "BASE",
+                "PREFIX",
+                // Turtle / SHACL
+                "A",
+                // Literals
+                "TRUE",
+                "FALSE",
+                // SPARQL built-in functions
+                "STR",
+                "LANG",
+                "DATATYPE",
+                "IRI",
+                "URI",
+                "BNODE",
+                "ISIRI",
+                "ISURI",
+                "ISBLANK",
+                "ISLITERAL",
+                "ISNUMERIC",
+                "BOUND",
+                "COALESCE",
+                "IF",
+                "SAMEAS",
+                "REGEX",
+                "SUBSTR",
+                "STRLEN",
+                "REPLACE",
+                "UCASE",
+                "LCASE",
+                "STRSTARTS",
+                "STRENDS",
+                "CONTAINS",
+                "STRBEFORE",
+                "STRAFTER",
+                "CONCAT",
+                "LANGMATCHES",
+                "ENCODE_FOR_URI",
+                "ABS",
+                "ROUND",
+                "CEIL",
+                "FLOOR",
+                "RAND",
+                "NOW",
+                "YEAR",
+                "MONTH",
+                "DAY",
+                "HOURS",
+                "MINUTES",
+                "SECONDS",
+                "TIMEZONE",
+                "TZ",
+                "MD5",
+                "SHA1",
+                "SHA256",
+                "SHA384",
+                "SHA512",
+                "UUID",
+                "STRUUID",
+                "STRLANG",
+                "STRDT",
+                // Aggregates
+                "COUNT",
+                "SUM",
+                "MIN",
+                "MAX",
+                "AVG",
+                "SAMPLE",
+                "GROUP_CONCAT",
+            )
     }
 }
