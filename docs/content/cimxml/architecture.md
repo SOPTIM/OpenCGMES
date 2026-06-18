@@ -98,9 +98,7 @@ two into a single `DisjointMultiUnion` graph when you need a flat view.
 preconditions containers each become their own graph. Applying the model with
 `differenceModelToFullModel(...)` yields a body graph (see [Difference models](/cimxml/difference-models)).
 
-:::note Header graph naming
-The header graphs are shown here as `urn:FullModel` / `urn:DifferenceModel` for readability; in the
-parsed dataset they are keyed by the IEC 61970-552 model-description type IRIs that
-`CimDatasetGraph` resolves for you, so you normally reach the header via `getModelHeader()` rather
-than by graph name.
+:::note Reaching the header
+The header lives in its own named graph (`urn:FullModel` / `urn:DifferenceModel`), but you normally
+reach it through `getModelHeader()` rather than by graph name.
 :::

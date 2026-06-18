@@ -57,3 +57,21 @@
   justify-content: center;
   margin: 1.25rem 0 1.75rem;
 }
+
+/* Navbar build badge: the short commit the docs were built from. */
+.ocg-build-badge {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+.ocg-build-badge:hover {
+  opacity: 1;
+  text-decoration: none;
+}
+
+/* Footer "Docs built from <sha>" line. */
+.footer__build-link {
+  font-family: var(--ifm-font-family-monospace);
+  color: var(--ifm-footer-link-color);
+}
+

@@ -15,22 +15,22 @@ library pulls in **Apache Jena 5.5.0** (the `jena-arq` module) transitively.
 <dependency>
     <groupId>de.soptim.opencgmes</groupId>
     <artifactId>cimxml</artifactId>
-    <version>1.0.0</version>
+    <version>@cimxmlVersion@</version>
 </dependency>
 ```
 
 ## Gradle
 
 ```kotlin
-implementation("de.soptim.opencgmes:cimxml:1.0.0")
+implementation("de.soptim.opencgmes:cimxml:@cimxmlVersion@")
 ```
 
 ## Requirements
 
-| Requirement      | Version            |
-| ---------------- | ------------------ |
-| Java             | 21 or newer        |
-| Apache Jena      | 5.5.0 (`jena-arq`) |
+| Requirement      | Version             |
+| ---------------- |---------------------|
+| Java             | 21 or newer         |
+| Apache Jena      | 6.0.0               |
 | Build tool       | Maven 3.9+ / Gradle |
 
 Beyond Jena, the library depends on the Woodstox and Aalto StAX processors, Apache Commons IO, and
@@ -50,8 +50,7 @@ release tag and applied by CI for deployment only.
 
 :::note Consuming snapshots
 To pull a `-SNAPSHOT` build, add the GitHub Packages repository for the OpenCGMES project to your
-build's repository list and authenticate with a GitHub token. Stick to Maven Central release
-versions for reproducible builds.
+build's repository list. Stick to Maven Central release versions for reproducible builds.
 :::
 
 Once the dependency resolves, head to the [Quick start](/cimxml/quick-start) to parse your first

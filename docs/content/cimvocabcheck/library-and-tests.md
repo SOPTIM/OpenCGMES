@@ -19,12 +19,12 @@ This page is a practical cookbook. For the full type-by-type reference see the
 <dependency>
     <groupId>de.soptim.opencgmes</groupId>
     <artifactId>cimvocabcheck-core</artifactId>
-    <version>0.0.0-SNAPSHOT</version>
+    <version>@cimvocabcheckVersion@</version>
 </dependency>
 ```
 
 ```gradle
-testImplementation 'de.soptim.opencgmes:cimvocabcheck-core:0.0.0-SNAPSHOT'
+testImplementation 'de.soptim.opencgmes:cimvocabcheck-core:@cimvocabcheckVersion@'
 ```
 
 The library pulls in [`cimxml`](/cimxml/overview) (for parsing CIM profiles) and Apache Jena.

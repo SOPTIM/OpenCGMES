@@ -61,7 +61,8 @@ Both editors share this feature set:
 - **Real-time diagnostics** — unknown classes and properties, syntax errors, and semantic findings
   such as domain/range mismatches and invalid SHACL cardinalities. See the full
   [diagnostic-code table](/cimvocabcheck/validation-checks).
-- **Hover documentation** — the full IRI and source profile for any CIM term.
+- **Hover documentation** — the IRI, `rdfs:label`, `rdfs:comment`, domain/range, and source
+  profile for any CIM term.
 - **Auto-completion** — class and property suggestions after a prefix such as `cim:`.
 - **Go-to-definition** — jump to a term's declaration line in the source profile file.
 - **Workspace symbol search** — find any schema term by partial, case-insensitive name.

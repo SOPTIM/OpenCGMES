@@ -92,7 +92,7 @@ From `cimnotebook/intellij`, using the Gradle wrapper, again after the LSP JAR i
 
 ```bash
 # 1. Build the language server fat JAR (from cimnotebook/intellij)
-mvn -f ../lsp/pom.xml package -DskipTests
+mvn -f ../../cimvocabcheck/lsp/pom.xml package -DskipTests
 
 # 2. Build the plugin (copies the JAR in and zips it)
 ./gradlew buildPlugin

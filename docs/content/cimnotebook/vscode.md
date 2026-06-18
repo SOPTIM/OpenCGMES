@@ -53,8 +53,9 @@ conflicts, and invalid SHACL cardinalities. The complete list of codes and sever
 
 ### Hover documentation
 
-Hover over any CIM term (e.g. `cim:ACLineSegment`) to see its full IRI and the schema profile it
-belongs to.
+Hover over any CIM term (e.g. `cim:ACLineSegment`) to see its full IRI, its `rdfs:label` and
+`rdfs:comment`, and its `rdfs:domain` / `rdfs:range` and declaring profile(s) — read straight from
+the loaded schema.
 
 ![CIMNotebook hover tooltip showing a CIM term's IRI and profile in VS Code](/img/cimnotebook/vscode-hover.png)
 {/* TODO image: hover card over cim:ACLineSegment with full IRI + source profile name */}
@@ -120,7 +121,8 @@ mvn -f cimvocabcheck/lsp/pom.xml package -DskipTests
 # 2. Build and package the extension into a .vsix
 cd cimnotebook/vscode
 npm install
-npm run package
+npm run copy-jar    # copies the built cimvocabcheck-lsp jar into server/
+npx vsce package    # bundles (via the prepublish step) and produces the .vsix
 ```
 
 The resulting `cimnotebook-<version>.vsix` can be installed with

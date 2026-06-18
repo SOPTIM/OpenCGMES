@@ -165,7 +165,7 @@ The plugin bundles the language server JAR, which is built by the `cimvocabcheck
 
 ```bash
 # 1. Build the language server fat JAR
-mvn -f ../lsp/pom.xml package -DskipTests
+mvn -f ../../cimvocabcheck/lsp/pom.xml package -DskipTests
 
 # 2. Build the plugin (copies the JAR into the plugin and zips it)
 ./gradlew buildPlugin

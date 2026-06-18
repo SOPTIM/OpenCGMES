@@ -1,5 +1,21 @@
 // @ts-check
 import { themes as prismThemes } from 'prism-react-renderer';
+import versionInfo from './src/versionInfo.mjs';
+import remarkVersions from './src/remark/versions.mjs';
+
+const { versions, build } = versionInfo();
+
+// Token → live value, replaced in markdown/code at build time (see src/remark/versions.mjs).
+const versionReplacements = {
+  '@cimxmlVersion@': versions.cimxml,
+  '@cimvocabcheckVersion@': versions.cimvocabcheck,
+  '@cimnotebookVersion@': versions.cimnotebook,
+};
+
+// "Docs built from <sha> on <date>" — the commit these docs were generated from (docs track main).
+const buildLine = build.shortSha
+  ? `Docs built from <a class="footer__build-link" href="https://github.com/SOPTIM/OpenCGMES/commit/${build.fullSha}" target="_blank" rel="noopener noreferrer">${build.shortSha}</a> on ${build.date}.`
+  : `Docs built on ${build.date}.`;
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -14,6 +30,12 @@ const config = {
   organizationName: 'SOPTIM',
   projectName: 'OpenCGMES',
   trailingSlash: false,
+
+  // Resolved per build from git tags; available to MDX/React via useDocusaurusContext().siteConfig.
+  customFields: {
+    versions,
+    build,
+  },
 
   onBrokenLinks: 'warn',
 
@@ -44,6 +66,7 @@ const config = {
           routeBasePath: '/',
           sidebarPath: './sidebars.js',
           editUrl: 'https://github.com/SOPTIM/OpenCGMES/edit/main/docs/',
+          remarkPlugins: [[remarkVersions, { replacements: versionReplacements }]],
         },
         blog: false,
         theme: {
@@ -113,6 +136,15 @@ const config = {
             label: 'GitHub',
             position: 'right',
           },
+          ...(build.shortSha
+            ? [
+                {
+                  type: 'html',
+                  position: 'right',
+                  value: `<a class="navbar__item navbar__link ocg-build-badge" href="https://github.com/SOPTIM/OpenCGMES/commit/${build.fullSha}" target="_blank" rel="noopener noreferrer" title="Documentation built from ${build.branch || 'main'} @ ${build.shortSha} on ${build.date}">${build.shortSha}</a>`,
+                },
+              ]
+            : []),
         ],
       },
       footer: {
@@ -147,7 +179,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © 2024-${new Date().getFullYear()} SOPTIM AG. Licensed under Apache 2.0.`,
+        copyright: `Copyright © 2024-${new Date().getFullYear()} SOPTIM AG. Licensed under Apache 2.0.<br/>${buildLine}`,
       },
       prism: {
         theme: prismThemes.github,
