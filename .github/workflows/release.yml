@@ -1,0 +1,287 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "cimvocabcheck-v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---- Validate tag and compute dependency versions ------------------------
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.validate.outputs.release_version }}
+      cimxml_version: ${{ steps.validate.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag and resolve cimxml dependency version
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "${TAG}" =~ ^cimvocabcheck-v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Invalid tag format '${TAG}'. Expected cimvocabcheck-vX.Y.Z" >&2
+            exit 1
+          fi
+
+          RELEASE_VERSION="${TAG#cimvocabcheck-v}"
+
+          # Find the last cimxml release tag to use as the dependency version.
+          # Maven Central rejects SNAPSHOT references, so we always pin to a release.
+          CIMXML_TAG="$(git tag --sort=-version:refname --list 'cimxml-v*' | head -1)"
+          if [[ -z "${CIMXML_TAG}" ]]; then
+            echo "No cimxml release tag found. At least one cimxml-vX.Y.Z tag is required." >&2
+            # exit 1 # TODO: Remove version bypass
+          fi
+          # CIMXML_VERSION="${CIMXML_TAG#cimxml-v}"
+          CIMXML_VERSION="0.0.0-SNAPSHOT" # TODO: Remove version bypass
+
+          echo "release_version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "cimxml_version=${CIMXML_VERSION}" >> "${GITHUB_OUTPUT}"
+
+  # ---- Maven Central (cimvocabcheck-core only) ----------------------------------
+  publish-maven-central:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    environment: Maven Central Deployment
+    env:
+      CENTRAL_PORTAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
+      CENTRAL_PORTAL_PASSWORD: ${{ secrets.CENTRAL_PORTAL_PASSWORD }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${CENTRAL_PORTAL_USERNAME}" ]] || (echo "CENTRAL_PORTAL_USERNAME is missing" >&2; exit 1)
+          [[ -n "${CENTRAL_PORTAL_PASSWORD}" ]] || (echo "CENTRAL_PORTAL_PASSWORD is missing" >&2; exit 1)
+          [[ -n "${MAVEN_GPG_PASSPHRASE}"    ]] || (echo "MAVEN_GPG_PASSPHRASE is missing"    >&2; exit 1)
+
+      - name: Setup Java 21 + Maven Central auth + GPG
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+          server-id: central
+          server-username: CENTRAL_PORTAL_USERNAME
+          server-password: CENTRAL_PORTAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml release into local repo
+        run: mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+
+      - name: Publish cimvocabcheck-core to Maven Central
+        run: mvn -B -ntp -f cimvocabcheck/core/pom.xml -Pcentral-release clean deploy
+
+  # ---- GitHub Packages (cimvocabcheck-core release) -----------------------------
+  publish-github-packages-release:
+    needs:
+      - validate-tag
+      - publish-maven-central
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Java 21 for GitHub Packages
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml release into local repo
+        run: mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+
+      - name: Publish cimvocabcheck-core release to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean deploy \
+            -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }}
+
+  # ---- GitHub Release with binary artifacts --------------------------------
+  publish-release-assets:
+    needs:
+      - validate-tag
+      - publish-maven-central
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Java 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: cimnotebook/vscode/package-lock.json
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml and cimvocabcheck-core into local repo
+        run: |
+          mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+          mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean install
+
+      - name: Build CLI fat JAR
+        run: mvn -B -ntp -f cimvocabcheck/cli/pom.xml -DskipTests clean package
+
+      - name: Build LSP fat JAR
+        run: mvn -B -ntp -f cimvocabcheck/lsp/pom.xml -DskipTests clean package
+
+      - name: Install VS Code extension dependencies
+        run: npm ci
+        working-directory: cimnotebook/vscode
+
+      - name: Copy LSP JAR into VS Code extension
+        run: |
+          mkdir -p cimnotebook/vscode/server
+          cp cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar cimnotebook/vscode/server/cimvocabcheck-lsp.jar
+
+      - name: Build and package VS Code extension
+        run: |
+          npm run bundle
+          npx @vscode/vsce package --out "cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix"
+        working-directory: cimnotebook/vscode
+
+      - name: Build IntelliJ plugin
+        run: gradle buildPlugin
+        working-directory: cimnotebook/intellij
+
+      - name: Create draft GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "CIMVocabCheck ${{ env.RELEASE_VERSION }}" \
+            --generate-notes \
+            --draft \
+            "cimvocabcheck/core/target/cimvocabcheck-core-${{ env.RELEASE_VERSION }}.jar" \
+            "cimvocabcheck/cli/target/cimvocabcheck-cli-${{ env.RELEASE_VERSION }}.jar" \
+            "cimvocabcheck/lsp/target/cimvocabcheck-lsp-${{ env.RELEASE_VERSION }}.jar" \
+            "cimnotebook/vscode/cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix" \
+            cimnotebook/intellij/build/distributions/cimnotebook-intellij-*.zip
+
+  # ---- JetBrains Marketplace -----------------------------------------------
+  publish-jetbrains-marketplace:
+    needs:
+      - validate-tag
+      - publish-maven-central
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    runs-on: ubuntu-latest
+    environment: JetBrains Marketplace Deployment
+    env:
+      PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Java 21
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6.1.0
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Validate required secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${PUBLISH_TOKEN}" ]] || (echo "JETBRAINS_MARKETPLACE_TOKEN secret is missing" >&2; exit 1)
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml and cimvocabcheck-core into local repo
+        run: |
+          mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+          mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean install
+
+      - name: Build LSP fat JAR
+        run: mvn -B -ntp -f cimvocabcheck/lsp/pom.xml -DskipTests clean package
+
+      - name: Publish plugin to JetBrains Marketplace
+        run: gradle publishPlugin
+        working-directory: cimnotebook/intellij

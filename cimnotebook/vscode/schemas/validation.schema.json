@@ -1,0 +1,62 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "OpenCGMES Configuration (opencgmes.json)",
+    "description": "Configuration for OpenCGMES tools. CIMVocabCheck reads the \"cimvocabcheck\" section. Place this file at the root of your project (or any parent directory of your queries); CIMVocabCheck discovers the nearest one walking up the tree. The file is optional — without it, validation uses the bundled CGMES 3.0 schemas.",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "cimvocabcheck": {
+            "type": "object",
+            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when neither \"schemas\" nor \"schemasDirectory\" is set, the bundled CGMES 3.0 profiles are used.",
+            "additionalProperties": false,
+            "properties": {
+                "schemasDirectory": {
+                    "type": "string",
+                    "description": "Path to a directory containing RDFS profile files (.rdf, .ttl, .owl). All files in the directory are loaded as schema profiles. Path is resolved relative to this config file. Omit to use the bundled CGMES 3.0 schemas."
+                },
+                "schemas": {
+                    "type": "array",
+                    "description": "List of individual RDFS profile files to load. Each entry is a path relative to this config file. Omit to use the bundled CGMES 3.0 schemas.",
+                    "items": {
+                        "type": "string",
+                        "description": "Path to an RDFS profile file (.rdf, .ttl, or .owl), relative to this config file."
+                    },
+                    "minItems": 1
+                },
+                "namedGraphs": {
+                    "type": "object",
+                    "description": "Maps named graph IRIs (or short relative names like \"EQ\") to one or more profile version IRIs. When set, terms inside a GRAPH <iri> {} block are validated against the mapped profiles only instead of all profiles. Graphs referenced in the query but absent from the map produce a GRAPH_NOT_CONFIGURED warning.",
+                    "additionalProperties": {
+                        "type": "array",
+                        "description": "One or more profile version IRIs for this graph.",
+                        "items": {
+                            "type": "string",
+                            "description": "Profile version IRI, e.g. http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"
+                        },
+                        "minItems": 1
+                    }
+                },
+                "strictness": {
+                    "type": "string",
+                    "description": "Controls which findings are reported and how their severities are mapped.\n\n• permissive — only unknown-term and syntax errors; semantic checks and hints are suppressed. Good for exploratory queries against an incomplete schema.\n• default — all checks, original severities. Only errors fail validation.\n• strict — all checks; warnings are promoted to errors. Recommended for CI.\n• pedantic — all checks; warnings and hints are promoted to errors.",
+                    "enum": ["permissive", "default", "strict", "pedantic"],
+                    "default": "default"
+                },
+                "prefixes": {
+                    "type": "object",
+                    "description": "Custom default PREFIX declarations injected into every SPARQL query that does not already declare them. Omit this field to use the built-in defaults (rdf, rdfs, owl, xsd, sh, cim, md). Set to {} to disable all default prefixes. Provide an explicit map to replace the built-in defaults entirely.",
+                    "additionalProperties": {
+                        "type": "string",
+                        "description": "Namespace IRI for this prefix, e.g. \"http://iec.ch/TC57/CIM100#\""
+                    }
+                },
+                "standardVocabulary": {
+                    "type": "string",
+                    "description": "Controls checking of terms in the closed standard vocabularies (rdf, rdfs, owl, sh).\n\n• check — terms are validated against the official vocabularies, so typos like rdf:typ or sh:minCountt are reported as UNKNOWN_VOCABULARY_TERM errors (default).\n• ignore — terms in these namespaces are accepted without inspection (legacy behaviour).\n\nOpen annotation/datatype namespaces (xsd, dcterms, skos, …) are always accepted regardless of this setting.",
+                    "enum": ["check", "ignore"],
+                    "default": "check"
+                }
+            }
+        }
+    }
+}

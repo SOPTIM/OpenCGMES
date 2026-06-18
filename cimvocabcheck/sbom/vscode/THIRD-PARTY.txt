@@ -1,0 +1,11 @@
+Third-party dependencies for CIMNotebook VS Code extension (8 component(s)).
+Generated from the committed CycloneDX SBOM by scripts/check-sbom-licenses.py — do not edit by hand.
+
+     (MIT) balanced-match:1.0.2 (pkg:npm/balanced-match@1.0.2)
+     (MIT) brace-expansion:2.1.0 (pkg:npm/brace-expansion@2.1.0)
+     (ISC) minimatch:5.1.9 (pkg:npm/minimatch@5.1.9)
+     (ISC) semver:7.8.1 (pkg:npm/semver@7.8.1)
+     (MIT) vscode-jsonrpc:8.2.0 (pkg:npm/vscode-jsonrpc@8.2.0)
+     (MIT) vscode-languageclient:9.0.1 (pkg:npm/vscode-languageclient@9.0.1)
+     (MIT) vscode-languageserver-protocol:3.17.5 (pkg:npm/vscode-languageserver-protocol@3.17.5)
+     (MIT) vscode-languageserver-types:3.17.5 (pkg:npm/vscode-languageserver-types@3.17.5)

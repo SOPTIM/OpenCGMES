@@ -8,7 +8,7 @@ The repository ships an aggregator pom at the root. From a fresh checkout:
 ```bash
 mvn test                                # build & test every module
 mvn install                             # install every module into ~/.m2
-mvn -pl cimcheck/core -am verify        # build cimcheck-core + its dependencies only
+mvn -pl cimvocabcheck/core -am verify   # build cimvocabcheck-core + its dependencies only
 ```
 
 Each module also still builds standalone (`mvn -f cimxml/pom.xml verify` etc.); the
@@ -20,13 +20,20 @@ A Java library for parsing CIMXML files into RDF graphs using Apache Jena.
 It supports both full models and difference models as defined in IEC 61970-552.
 see [CimXmlParser](cimxml/README.md)
 
-## CIMcheck
+## CIMVocabCheck
 
 Static SPARQL and SHACL validation against RDFS / CIM profile schemas — answers
 *"does this query (or shapes graph) make sense for the schema I'm working with?"* without
-executing the query and without requiring any RDF data. Ships as a library, a CLI tool,
-an LSP language server, and a VS Code extension.
-see [CIMcheck](cimcheck/core/README.md)
+executing the query and without requiring any RDF data. Ships as a library
+(**CIMVocabCheck**), a CLI tool, and an LSP language server (**CIMLangServer**).
+see [CIMVocabCheck](cimvocabcheck/core/README.md)
+
+## CIMNotebook
+
+Editor integrations — a VS Code extension and an IntelliJ plugin — that bring the
+CIMVocabCheck / CIMLangServer validation to SPARQL and SHACL files (and SPARQL Notebook
+cells) as you type.
+see [CIMNotebook — VS Code](cimnotebook/vscode/README.md) · [CIMNotebook — IntelliJ](cimnotebook/intellij/README.md)
 
 ## Coming soon: QueryAndValidationUI
 

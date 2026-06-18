@@ -22,7 +22,7 @@
 
         mvn install            # builds every module in dependency order
         mvn test               # tests every module
-        mvn -pl cimcheck/core -am clean verify
+        mvn -pl cimvocabcheck/core -am clean verify
 
     from the repository root without having to cd into each module.
 
@@ -54,7 +54,7 @@
 
     <modules>
         <module>cimxml</module>
-        <module>cimcheck</module>
+        <module>cimvocabcheck</module>
     </modules>
 
     <properties>
@@ -65,23 +65,23 @@
         <ver.plugin.license>2.5.0</ver.plugin.license>
 
         <!-- Directory holding the committed, drift-checked supply-chain artifacts.
-             The editor integrations get sibling cimcheck/sbom/{vscode,intellij}/ dirs. -->
-        <sbom.outputDirectory>${project.basedir}/cimcheck/sbom/maven</sbom.outputDirectory>
+             The editor integrations get sibling cimvocabcheck/sbom/{vscode,intellij}/ dirs. -->
+        <sbom.outputDirectory>${project.basedir}/cimvocabcheck/sbom/maven</sbom.outputDirectory>
     </properties>
 
     <!--
         Supply-chain plugins are configured here on the aggregator pom but are NOT
         bound to any lifecycle phase, so a normal `mvn install` / CI build never runs
         them. They are invoked explicitly by scripts/generate-sbom.sh (and the
-        cimcheck-ci `sbom` job) via their goals:
+        CI `sbom` job) via their goals:
 
             mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom
             mvn license:aggregate-add-third-party
 
         Running them from the root reactor lets the inter-module SNAPSHOT deps
-        (cimcheck-core -> cimxml) resolve from the reactor without a prior install,
-        and produces a single aggregate view of everything the CIMcheck toolchain
-        ships (cimxml + cimcheck-core/cli/lsp and all of their transitive deps).
+        (cimvocabcheck-core -> cimxml) resolve from the reactor without a prior install,
+        and produces a single aggregate view of everything the CIMVocabCheck toolchain
+        ships (cimxml + cimvocabcheck-core/cli/lsp and all of their transitive deps).
     -->
     <build>
         <plugins>

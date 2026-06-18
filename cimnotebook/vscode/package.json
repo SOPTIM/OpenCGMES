@@ -1,0 +1,198 @@
+{
+    "name": "cimnotebook",
+    "displayName": "CIMNotebook",
+    "description": "Validates SPARQL queries and SHACL shapes against CIM/CGMES schema profiles using the CIMLangServer language server.",
+    "version": "0.0.0",
+    "publisher": "soptim-ag",
+    "license": "Apache-2.0",
+    "icon": "icon.png",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/SOPTIM/OpenCGMES"
+    },
+    "engines": {
+        "vscode": "^1.75.0",
+        "node": ">=20.18.1"
+    },
+    "categories": [
+        "Linters",
+        "Programming Languages"
+    ],
+    "keywords": [
+        "SPARQL",
+        "CIM",
+        "CGMES",
+        "validation",
+        "energy"
+    ],
+    "activationEvents": [
+        "onLanguage:sparql",
+        "onLanguage:shacl",
+        "onLanguage:turtle",
+        "workspaceContains:**/*.ttl",
+        "workspaceContains:**/*.shacl",
+        "onNotebook:sparql-notebook"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "sparql",
+                "aliases": [
+                    "SPARQL",
+                    "sparql"
+                ],
+                "extensions": [
+                    ".rq",
+                    ".sparql"
+                ],
+                "configuration": "./language-configuration.json"
+            },
+            {
+                "id": "shacl",
+                "aliases": [
+                    "SHACL",
+                    "Turtle"
+                ],
+                "extensions": [
+                    ".ttl",
+                    ".shacl"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "sparql",
+                "scopeName": "source.sparql",
+                "path": "./syntaxes/sparql.tmLanguage.json"
+            },
+            {
+                "language": "shacl",
+                "scopeName": "source.turtle",
+                "path": "./syntaxes/turtle.tmLanguage.json"
+            }
+        ],
+        "jsonValidation": [
+            {
+                "fileMatch": "**/opencgmes.json",
+                "url": "./schemas/validation.schema.json"
+            }
+        ],
+        "commands": [
+            {
+                "command": "cimnotebook.showOutput",
+                "title": "Show Output",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.explainQuery",
+                "title": "Explain Query (Algebra Plan)",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.createConfig",
+                "title": "Create Config File (opencgmes.json)",
+                "category": "CIMNotebook"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "cimnotebook.explainQuery",
+                    "when": "editorLangId == sparql",
+                    "group": "cimnotebook@1"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "cimnotebook.explainQuery",
+                    "when": "editorLangId == sparql"
+                },
+                {
+                    "command": "cimnotebook.createConfig"
+                }
+            ]
+        },
+        "configurationDefaults": {
+            "[sparql]": {
+                "editor.quickSuggestions": {
+                    "other": "on",
+                    "comments": "off",
+                    "strings": "off"
+                },
+                "editor.suggestOnTriggerCharacters": true,
+                "editor.wordBasedSuggestions": "off",
+                "editor.links": false
+            },
+            "[shacl]": {
+                "editor.quickSuggestions": {
+                    "other": "on",
+                    "comments": "off",
+                    "strings": "off"
+                },
+                "editor.suggestOnTriggerCharacters": true,
+                "editor.wordBasedSuggestions": "off",
+                "editor.links": false
+            }
+        },
+        "configuration": {
+            "title": "CIMNotebook",
+            "properties": {
+                "cimnotebook.serverJar": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "Absolute path to `cimvocabcheck-lsp.jar`. Leave empty to use the bundled JAR in the extension's `server/` directory."
+                },
+                "cimnotebook.javaExecutable": {
+                    "type": "string",
+                    "default": "java",
+                    "description": "Java executable used to launch the language server. Must be Java 21 or later."
+                },
+                "cimnotebook.javaArgs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [],
+                    "markdownDescription": "Additional JVM arguments passed before `-jar`, e.g. `[\"-Xmx512m\"]`."
+                },
+                "cimnotebook.trace.server": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "Traces the communication between VS Code and the language server. Useful for debugging."
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "node esbuild.js --production",
+        "bundle": "node esbuild.js",
+        "compile": "tsc --noEmit",
+        "watch": "node esbuild.js --watch",
+        "lint": "eslint src",
+        "lint:fix": "eslint src --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "copy-jar": "cp ../../cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar server/cimvocabcheck-lsp.jar"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^20.0.0",
+        "@types/vscode": "^1.75.0",
+        "eslint": "^10.5.0",
+        "eslint-config-prettier": "^10.1.8",
+        "esbuild": "^0.24.0",
+        "prettier": "^3.8.4",
+        "typescript": "^5.4.0",
+        "typescript-eslint": "^8.61.1"
+    }
+}
