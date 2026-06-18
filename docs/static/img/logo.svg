@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 64" role="img" aria-label="OpenCGMES">
+  <defs>
+    <linearGradient id="ocgLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#009EE0"/>
+      <stop offset="1" stop-color="#14162B"/>
+    </linearGradient>
+  </defs>
+  <!-- Badge -->
+  <rect x="4" y="8" width="48" height="48" rx="12" fill="url(#ocgLight)"/>
+  <!-- Graph edges -->
+  <g stroke="#FFFFFF" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17 42 L28 20 L40 33"/>
+    <path d="M28 20 L28 42"/>
+  </g>
+  <!-- Graph nodes -->
+  <g fill="#E74890" stroke="#14162B" stroke-width="1.4">
+    <circle cx="17" cy="42" r="4.4"/>
+    <circle cx="28" cy="20" r="4.4"/>
+    <circle cx="40" cy="33" r="4.4"/>
+    <circle cx="28" cy="42" r="4.4"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="66" y="42" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="30" letter-spacing="-0.5">
+    <tspan fill="#14162B">Open</tspan><tspan fill="#009EE0">CGMES</tspan>
+  </text>
+</svg>

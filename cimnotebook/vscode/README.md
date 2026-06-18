@@ -4,6 +4,11 @@ Real-time SPARQL and SHACL validation against CIM/CGMES schema profiles, directl
 
 Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes and properties are underlined, syntax errors are highlighted, and semantic issues like domain/range mismatches are flagged as you type — all resolved against your actual RDFS profile files.
 
+> 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/vscode> — features, the
+> [`opencgmes.json` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
+> the [validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks), and
+> [SPARQL Notebook support](https://opencgmes.soptim.de/cimnotebook/sparql-notebooks).
+
 ## Features
 
 ### Syntax highlighting
@@ -109,96 +114,22 @@ Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file. The extension activates, lo
 
 ## Validation configuration reference
 
-The `opencgmes.json` file nests all CIMNotebook settings under a `"cimvocabcheck"` section:
+All validation settings live in an `opencgmes.json` file under a `"cimvocabcheck"` section
+(`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`). The
+file is discovered by walking up from each open file; with no schema configured, validation is
+syntax-only.
 
 ```json
 {
     "cimvocabcheck": {
-        "schemasDirectory": "path/to/profiles",
-        "schemas": ["path/to/Profile.rdf"],
-        "strictness": "default",
-        "namedGraphs": {
-            "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-            "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
-        },
-        "prefixes": {
-            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-            "cim": "http://iec.ch/TC57/CIM100#"
-        }
+        "schemasDirectory": "schemas/cgmes-3.0",
+        "strictness": "default"
     }
 }
 ```
 
-All fields are optional. When neither `schemasDirectory` nor `schemas` is set, no schema is
-loaded and files are checked syntax-only (unless they declare a `# [endpoint=...]`).
-
-### `strictness`
-
-Controls which findings are reported and how severities are mapped:
-
-| Level        | Behaviour                                                                                                                                            |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `permissive` | Only syntax errors and unknown-term findings. Semantic checks and hints are suppressed. Useful for exploratory queries against an incomplete schema. |
-| `default`    | All checks, original severities.                                                                                                                     |
-| `strict`     | All checks; warnings are promoted to errors. Recommended for CI.                                                                                     |
-| `pedantic`   | All checks; warnings and hints are promoted to errors.                                                                                               |
-
-### `namedGraphs`
-
-Maps named graph IRIs to one or more profile version IRIs. When set, terms inside a
-`GRAPH <iri> {}` block are validated against the mapped profiles only, rather than all
-loaded profiles. Graphs not listed here produce a `GRAPH_NOT_CONFIGURED` warning diagnostic.
-
-When `namedGraphs` is **not** configured (the default), validation runs against all profiles
-and no `GRAPH_NOT_CONFIGURED` diagnostics are emitted — useful when your queries use
-`GRAPH` blocks without a fixed graph-to-profile mapping.
-
-Each value is an **array** of profile IRIs, so a graph can span multiple profiles. The key
-can be a full absolute IRI or a **short relative name** that matches how you write the graph
-in the query: if your query says `FROM NAMED <EQ>` or `GRAPH <EQ> {}`, the config key
-`"EQ"` will match it.
-
-```json
-"namedGraphs": {
-  "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-  "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"],
-  "urn:uuid:my-ssh-graph": [
-    "http://iec.ch/TC57/ns/CIM/SteadyStateHypothesis-EU/3.0"
-  ]
-}
-```
-
-### `prefixes`
-
-Default PREFIX declarations automatically injected into every SPARQL query or update that
-does not already declare them. When this field is **absent**, the built-in set is used:
-
-| Prefix | Namespace                                          |
-| ------ | -------------------------------------------------- |
-| `rdf`  | `http://www.w3.org/1999/02/22-rdf-syntax-ns#`      |
-| `rdfs` | `http://www.w3.org/2000/01/rdf-schema#`            |
-| `owl`  | `http://www.w3.org/2002/07/owl#`                   |
-| `xsd`  | `http://www.w3.org/2001/XMLSchema#`                |
-| `sh`   | `http://www.w3.org/ns/shacl#`                      |
-| `cim`  | `http://iec.ch/TC57/CIM100#`                       |
-| `md`   | `http://iec.ch/TC57/61970-552/ModelDescription/1#` |
-
-Setting `"prefixes"` to an explicit object **replaces** the built-in set entirely. Use an
-empty object `{}` to disable all automatic prefix injection.
-
-Prefixes already declared inside the query file are never overwritten.
-
-### `standardVocabulary`
-
-Controls checking of terms in the closed standard vocabularies (`rdf`, `rdfs`, `owl`, `sh`):
-
-| Value             | Behaviour                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `check` (default) | Terms are validated against the official W3C vocabularies. Typos such as `rdf:typ` or `sh:minCountt` are reported as `UNKNOWN_VOCABULARY_TERM` errors. |
-| `ignore`          | Terms in these namespaces are accepted without inspection (legacy behaviour).                                                                          |
-
-Open annotation/datatype namespaces (`xsd`, `dcterms`, `dc`, `skos`, `dcat`, and the IEC
-extension namespaces) are always accepted regardless of this setting.
+See the full, canonical reference at
+**<https://opencgmes.soptim.de/cimvocabcheck/configuration>**.
 
 ## Commands
 

@@ -1,6 +1,11 @@
 # OpenCGMES
 Suite of tools for CGMES / CIM (IEC 61970) RDF - RDFS, SHACL and CIMXML
 
+📖 **Full documentation: <https://opencgmes.soptim.de>** — guides, API reference, and examples for
+[CIMXML](https://opencgmes.soptim.de/cimxml/overview),
+[CIMVocabCheck](https://opencgmes.soptim.de/cimvocabcheck/overview), and
+[CIMNotebook](https://opencgmes.soptim.de/cimnotebook/overview).
+
 ## Build
 
 The repository ships an aggregator pom at the root. From a fresh checkout:

@@ -22,6 +22,10 @@ Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes 
 
 The plugin is a thin client around the CIMLangServer (`cimvocabcheck-lsp`), wired into the IDE through the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) LSP client.
 
+> 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/intellij> — features, the
+> [`opencgmes.json` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
+> and the [validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks).
+
 ## Requirements
 
 - **IntelliJ IDEA (or any IntelliJ-platform IDE) 2024.2 or later.** The plugin launches the language server on the IDE's bundled Java runtime, which is Java 21+ from 2024.2 onward.
@@ -117,47 +121,22 @@ Under **Settings / Preferences → Tools → CIMNotebook**:
 
 ## Validation configuration reference
 
-The `opencgmes.json` file nests all CIMNotebook settings under a `"cimvocabcheck"` section. All fields
-are optional; when neither `schemasDirectory` nor `schemas` is set, no schema is loaded and
-files are checked syntax-only (there is no bundled default schema).
+All validation settings live in an `opencgmes.json` file under a `"cimvocabcheck"` section
+(`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`). The
+file is discovered by walking up from each open file; with no schema configured, validation is
+syntax-only.
 
 ```json
 {
   "cimvocabcheck": {
-    "schemasDirectory": "path/to/profiles",
-    "schemas": ["path/to/Profile.rdf"],
-    "strictness": "default",
-    "namedGraphs": {
-      "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-      "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]
-    },
-    "prefixes": {
-      "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
-      "cim": "http://iec.ch/TC57/CIM100#"
-    }
+    "schemasDirectory": "schemas/cgmes-3.0",
+    "strictness": "default"
   }
 }
 ```
 
-Both `schemasDirectory` and `schemas` are optional — omit them and validation is syntax-only
-(unless a query declares a `# [endpoint=...]` that supplies the schema).
-
-### `strictness`
-
-| Level | Behaviour |
-|-------|-----------|
-| `permissive` | Only syntax errors and unknown-term findings; semantic checks and hints suppressed. |
-| `default` | All checks, original severities. |
-| `strict` | All checks; warnings promoted to errors. Recommended for CI. |
-| `pedantic` | All checks; warnings and hints promoted to errors. |
-
-### `namedGraphs`
-
-Maps named graph IRIs to one or more profile version IRIs. When set, terms inside a `GRAPH <iri> {}` block are validated against the mapped profiles only. The key can be a full absolute IRI or a short relative name matching how you write the graph (e.g. `FROM NAMED <EQ>` matches the key `"EQ"`). Each value is an **array**, so a graph can span multiple profiles. When `namedGraphs` is omitted, validation runs against all loaded profiles and no `GRAPH_NOT_CONFIGURED` diagnostics are emitted.
-
-### `prefixes`
-
-Default PREFIX declarations automatically injected into every SPARQL query that does not already declare them. When absent, a built-in set (`rdf`, `rdfs`, `owl`, `xsd`, `sh`, `cim`, `md`) is used. Setting `prefixes` to an explicit object **replaces** the built-in set; use `{}` to disable injection entirely. Prefixes already declared inside the file are never overwritten.
+See the full, canonical reference at
+**<https://opencgmes.soptim.de/cimvocabcheck/configuration>**.
 
 ## Troubleshooting
 
@@ -172,7 +151,13 @@ Usually a Java problem. Set **Settings → Tools → CIMNotebook → Java execut
 
 ## Known limitations
 
-**Standard vocabulary terms are not validated.** Terms from well-known namespaces (`rdf:`, `rdfs:`, `owl:`, `xsd:`, `sh:`, `dcat:`, `dcterms:`, `skos:`, `cims:`, `cimuml:`) are accepted regardless of whether the exact term is defined. A typo like `rdfs:Classs` is not flagged — these vocabularies are not part of CIM profile files, so the schema index has no information about them.
+**Open vocabularies are not term-checked.** Terms in the *closed* standard vocabularies (`rdf`,
+`rdfs`, `owl`, `sh`) **are** validated against the official W3C vocabularies — a typo like
+`rdfs:Classs` or `sh:minCountt` is flagged as `UNKNOWN_VOCABULARY_TERM` (set
+`"standardVocabulary": "ignore"` in `opencgmes.json` to turn this off). Terms in *open*
+annotation/datatype namespaces (`xsd`, `dcterms`, `dc`, `skos`, `dcat`, and the IEC extension
+namespaces) are always accepted without inspection, since these are open vocabularies the schema
+index has no closed list for.
 
 ## Building from source
 

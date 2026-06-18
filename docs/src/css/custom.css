@@ -1,0 +1,59 @@
+/**
+ * OpenCGMES documentation theme.
+ * Primary colour is the OpenCGMES teal (#009EE0), matching the CIMNotebook icon.
+ */
+
+:root {
+  --ifm-color-primary: #0086c0;
+  --ifm-color-primary-dark: #0079ad;
+  --ifm-color-primary-darker: #0072a3;
+  --ifm-color-primary-darkest: #005e86;
+  --ifm-color-primary-light: #0093d3;
+  --ifm-color-primary-lighter: #009ae0;
+  --ifm-color-primary-lightest: #19abef;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #36b4ec;
+  --ifm-color-primary-dark: #1ba8e9;
+  --ifm-color-primary-darker: #129fe0;
+  --ifm-color-primary-darkest: #0f83b8;
+  --ifm-color-primary-light: #54c0ef;
+  --ifm-color-primary-lighter: #63c6f0;
+  --ifm-color-primary-lightest: #8ed5f4;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+.markdown img {
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  max-width: 100%;
+}
+
+.markdown img.screenshot--medium,
+.markdown img.screenshot--narrow {
+  display: block;
+  margin: 1rem 0 1.5rem;
+}
+
+.markdown img.screenshot--medium {
+  width: min(100%, 620px);
+}
+
+.markdown img.screenshot--narrow {
+  width: min(100%, 460px);
+}
+
+.markdown h1 + p,
+.markdown h2 + p {
+  color: var(--ifm-color-emphasis-700);
+}
+
+/* Centre Mermaid diagrams and give them breathing room. */
+.docusaurus-mermaid-container {
+  display: flex;
+  justify-content: center;
+  margin: 1.25rem 0 1.75rem;
+}
