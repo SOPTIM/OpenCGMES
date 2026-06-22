@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - cimvocabcheck # Temporary deployment for testing
     paths:
       - 'docs/**'
       - '.github/workflows/deploy-docs.yml'
