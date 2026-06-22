@@ -56,5 +56,10 @@ public enum SparqlValidationCode {
    */
   CLASS_INCOMPATIBLE_WITH_RANGE,
   /** {@code sh:minCount} exceeds {@code sh:maxCount} on a property shape. */
-  INVALID_CARDINALITY
+  INVALID_CARDINALITY,
+  /**
+   * Object IRI of a property whose {@code rdfs:range} is an enumeration is not one of that
+   * enumeration's members — almost always a typo (e.g. {@code cim:WindGenUnitKind.offshroe}).
+   */
+  INVALID_ENUM_VALUE
 }

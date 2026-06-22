@@ -27,6 +27,7 @@ map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#st
 | `PROPERTY_NOT_ALLOWED_FOR_CLASS` | ERROR | Semantic | Subject's type is not a subclass of any `rdfs:domain` of the property |
 | `QUERY_IMPLIED_TYPE` | INFO | Semantic | Subject has no `rdf:type` but the property implies exactly one domain |
 | `DATATYPE_MISMATCH` | WARN | Semantic | Literal object's datatype is incompatible with `rdfs:range` |
+| `INVALID_ENUM_VALUE` | ERROR | Semantic | Object IRI is not a member of the property's enumeration `rdfs:range` |
 | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:nodeKind` conflicts with the property's `rdfs:range` |
 | `DATATYPE_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:datatype` used on an object property (range is a class) |
 | `CLASS_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:class` used on a datatype property (range is a literal type) |
@@ -57,6 +58,8 @@ fire regardless of how completely the schema annotates semantics:
 position (`?u cim:WindGeneratingUnit.windGenUnitType cim:WindGenUnitKind.offshore`) they are
 recognised, not flagged. Using one where a class is expected (after `rdf:type`) or as a predicate is
 reported with a message that names it as an enumeration value rather than a missing class/property.
+A wrong value in object position — a typo, or a member of a different enumeration — is reported as
+`INVALID_ENUM_VALUE` (see [Semantic checks](#semantic-checks)).
 
 ## Semantic checks
 
@@ -70,6 +73,10 @@ real CGMES RDFS files), these additional checks run:
   exactly one domain, so the type is implied.
 - `DATATYPE_MISMATCH` — a literal object's datatype is incompatible with the property's
   `rdfs:range`.
+- `INVALID_ENUM_VALUE` — a URI object used for a property whose `rdfs:range` is an enumeration is
+  not one of that enumeration's members (e.g. a misspelt `cim:WindGenUnitKind.offshroe`). Fires only
+  when *every* declared range is an enumeration with members in scope, so instance IRIs of ordinary
+  object properties are never flagged.
 
 `rdfs:subClassOf` traversal is transitive and cycle-safe across the union of all profiles in scope.
 

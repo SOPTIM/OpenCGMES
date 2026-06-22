@@ -142,6 +142,7 @@ public final class SemanticChecks {
           domains,
           dynamicallyTyped.contains(s));
       checkLiteralRange(annotations, ctx, scope, p, o, s, t.graph(), ranges);
+      checkEnumValue(annotations, ctx, scope, p, o, t.graph(), ranges);
     }
 
     // Property path chain checks: for each adjacent (p1, p2) pair, verify
@@ -350,6 +351,59 @@ public final class SemanticChecks {
                 + ".",
             SparqlValidationCode.DATATYPE_MISMATCH,
             property,
+            List.copyOf(scope),
+            List.of(),
+            graph));
+  }
+
+  // ---- Enumeration-value check -----------------------------------------------------------
+
+  /**
+   * Flags a URI object used for a property whose {@code rdfs:range} is an enumeration but that is
+   * not one of that enumeration's members — e.g. {@code cim:WindGenUnitKind.offshroe}.
+   *
+   * <p>Stays silent unless <em>every</em> declared range is an enumeration class with known members
+   * in scope. If any range is a non-enumeration class, the object may be a legitimate instance IRI
+   * the index does not track, so no annotation is emitted.
+   */
+  private static void checkEnumValue(
+      List<SparqlValidationAnnotation> out,
+      Ctx ctx,
+      Collection<VersionIri> scope,
+      Node property,
+      Node object,
+      Node graph,
+      Set<Node> ranges) {
+
+    if (!object.isURI() || ranges.isEmpty()) {
+      return;
+    }
+    var validMembers = new LinkedHashSet<Node>();
+    for (Node r : ranges) {
+      Set<Node> members = ctx.schemaIndex().enumMembersOf(r, scope);
+      if (members.isEmpty()) {
+        return; // non-enumeration (or out-of-scope) range — be permissive
+      }
+      validMembers.addAll(members);
+    }
+    if (validMembers.contains(object)) {
+      return; // a valid member of one of the expected enumerations
+    }
+    var loc = ctx.locateNear(object, property);
+    out.add(
+        new SparqlValidationAnnotation(
+            SparqlValidationSeverity.ERROR,
+            loc.line(),
+            loc.column(),
+            "<"
+                + object.getURI()
+                + "> is not a value of enumeration "
+                + setOfUris(ranges)
+                + "; expected one of "
+                + setOfUris(validMembers)
+                + ".",
+            SparqlValidationCode.INVALID_ENUM_VALUE,
+            object,
             List.copyOf(scope),
             List.of(),
             graph));

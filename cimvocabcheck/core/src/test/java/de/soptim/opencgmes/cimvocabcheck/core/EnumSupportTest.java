@@ -54,9 +54,14 @@ public class EnumSupportTest {
           + "cim:WindGenUnitKind a rdfs:Class .\n"
           + "cim:WindGenUnitKind.offshore a cim:WindGenUnitKind ; rdfs:label \"offshore\" .\n"
           + "cim:WindGenUnitKind.onshore  a cim:WindGenUnitKind ; rdfs:label \"onshore\" .\n"
+          + "cim:UnitSymbol a rdfs:Class .\n"
+          + "cim:UnitSymbol.W a cim:UnitSymbol .\n"
           + "cim:WindGeneratingUnit a rdfs:Class .\n"
           + "cim:WindGeneratingUnit.windGenUnitType a rdf:Property ;\n"
-          + "    rdfs:domain cim:WindGeneratingUnit ; rdfs:range cim:WindGenUnitKind .\n";
+          + "    rdfs:domain cim:WindGeneratingUnit ; rdfs:range cim:WindGenUnitKind .\n"
+          + "cim:Substation a rdfs:Class .\n"
+          + "cim:WindGeneratingUnit.Substation a rdf:Property ;\n"
+          + "    rdfs:domain cim:WindGeneratingUnit ; rdfs:range cim:Substation .\n";
 
   private static final String PREFIXES =
       "PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n" + "PREFIX cim: <" + CIM + ">\n";
@@ -133,5 +138,63 @@ public class EnumSupportTest {
 
   private static boolean hasCode(SparqlValidationResult r, SparqlValidationCode code) {
     return r.annotations().stream().anyMatch(a -> a.code() == code);
+  }
+
+  // ---- enum-value range check (Phase 2) --------------------------------------------------
+
+  @Test
+  public void validEnumValue_producesNoEnumValueError() {
+    var r =
+        api.validateSparql(
+            PREFIXES
+                + "SELECT * WHERE { ?u"
+                + " cim:WindGeneratingUnit.windGenUnitType cim:WindGenUnitKind.offshore }");
+    assertFalse(hasCode(r, SparqlValidationCode.INVALID_ENUM_VALUE));
+  }
+
+  @Test
+  public void enumTypoInObjectPosition_isFlagged() {
+    var r =
+        api.validateSparql(
+            PREFIXES
+                + "SELECT * WHERE { ?u"
+                + " cim:WindGeneratingUnit.windGenUnitType cim:WindGenUnitKind.offshroe }");
+    var ann =
+        r.annotations().stream()
+            .filter(a -> a.code() == SparqlValidationCode.INVALID_ENUM_VALUE)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("expected INVALID_ENUM_VALUE for the enum typo"));
+    assertEquals(CIM + "WindGenUnitKind.offshroe", ann.term().getURI());
+    assertTrue(ann.message().contains("not a value of enumeration"));
+  }
+
+  @Test
+  public void wrongEnumValue_fromAnotherEnum_isFlagged() {
+    // cim:UnitSymbol.W is a real enum member, but of the wrong enumeration for this property.
+    var r =
+        api.validateSparql(
+            PREFIXES
+                + "SELECT * WHERE { ?u cim:WindGeneratingUnit.windGenUnitType cim:UnitSymbol.W }");
+    assertTrue(hasCode(r, SparqlValidationCode.INVALID_ENUM_VALUE));
+  }
+
+  @Test
+  public void instanceForNonEnumObjectProperty_isNotFlagged() {
+    // The property's range is a regular class (cim:Substation), so any instance IRI is allowed —
+    // the index does not track instances, and we must not treat them as bad enum values.
+    var r =
+        api.validateSparql(
+            PREFIXES
+                + "PREFIX ex: <http://example.org/>\n"
+                + "SELECT * WHERE { ?u cim:WindGeneratingUnit.Substation ex:SomeSubstation }");
+    assertFalse(hasCode(r, SparqlValidationCode.INVALID_ENUM_VALUE));
+  }
+
+  @Test
+  public void variableObjectForEnumProperty_isNotFlagged() {
+    var r =
+        api.validateSparql(
+            PREFIXES + "SELECT * WHERE { ?u cim:WindGeneratingUnit.windGenUnitType ?type }");
+    assertFalse(hasCode(r, SparqlValidationCode.INVALID_ENUM_VALUE));
   }
 }
