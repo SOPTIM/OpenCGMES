@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -59,18 +60,48 @@ public final class SchemaLoader {
     }
 
     /**
-     * Loads an index from an explicit list of schema file paths.
+     * Loads an index from an explicit list of schema file paths. Any path that is a directory is
+     * expanded to the {@code .rdf}/{@code .ttl}/{@code .owl} files it directly contains, so
+     * {@code --schema <dir>} works for a mounted schema folder.
      *
-     * @throws SchemaLoadException if the list is empty or any file fails to parse
+     * @throws SchemaLoadException if the list is empty, resolves to no schema files, or a file
+     *     fails to parse
      */
     public static RdfsSchemaIndex load(List<Path> schemaFiles) throws SchemaLoadException {
         if (schemaFiles.isEmpty()) {
             throw new SchemaLoadException("No schema files provided.");
         }
-        return buildIndex(schemaFiles);
+        List<Path> files = expandDirectories(schemaFiles);
+        if (files.isEmpty()) {
+            throw new SchemaLoadException(
+                    "No .rdf / .ttl / .owl files found in the given schema path(s): " + schemaFiles);
+        }
+        return buildIndex(files);
     }
 
     // ---- private helpers -------------------------------------------------------------------
+
+    /**
+     * Expands any directory in {@code paths} into the schema files it directly contains (depth 1),
+     * keeping plain file paths as-is. This lets {@code --schema <dir>} point at a mounted schema
+     * folder, mirroring how the config's {@code schemasDirectory} is resolved.
+     */
+    private static List<Path> expandDirectories(List<Path> paths) throws SchemaLoadException {
+        var files = new ArrayList<Path>();
+        for (Path p : paths) {
+            if (Files.isDirectory(p)) {
+                try (Stream<Path> walk = Files.walk(p, 1, FileVisitOption.FOLLOW_LINKS)) {
+                    walk.filter(q -> isSchemaFile(q.getFileName().toString())).sorted().forEach(files::add);
+                } catch (IOException e) {
+                    throw new SchemaLoadException(
+                            "Cannot list schema directory " + p + ": " + e.getMessage(), e);
+                }
+            } else {
+                files.add(p);
+            }
+        }
+        return files;
+    }
 
     private static List<Path> resolveFiles(CimvocabcheckConfig config, Path base) throws SchemaLoadException {
         if (!config.schemas().isEmpty()) {

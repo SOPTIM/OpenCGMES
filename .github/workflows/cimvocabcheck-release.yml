@@ -198,3 +198,54 @@ jobs:
             "cimvocabcheck/core/target/cimvocabcheck-core-${{ env.RELEASE_VERSION }}.jar" \
             "cimvocabcheck/cli/target/cimvocabcheck-cli-${{ env.RELEASE_VERSION }}.jar" \
             "cimvocabcheck/lsp/target/cimvocabcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
+
+  # ---- Public Docker image (GitHub Container Registry) ---------------------
+  # Schema-less CLI image: users mount their own schema + inputs. Built from source so it does not
+  # depend on the release-asset job; only needs the resolved versions from validate-tag.
+  publish-docker-image:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Lowercase image owner
+        id: img
+        shell: bash
+        run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: cimvocabcheck/Dockerfile
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          tags: |
+            ghcr.io/${{ steps.img.outputs.owner }}/cimvocabcheck-cli:${{ env.RELEASE_VERSION }}
+            ghcr.io/${{ steps.img.outputs.owner }}/cimvocabcheck-cli:latest
+          labels: |
+            org.opencontainers.image.version=${{ env.RELEASE_VERSION }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

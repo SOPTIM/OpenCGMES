@@ -28,6 +28,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.config.CimvocabcheckConfig;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
+import de.soptim.opencgmes.cimvocabcheck.cli.output.CodeQualityFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.FileResult;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.Format;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.JsonFormatter;
@@ -108,8 +109,9 @@ public class ValidateCommand implements Callable<Integer> {
 
     @Option(
             names       = {"-s", "--schema"},
-            paramLabel  = "<file>",
-            description = "Schema RDFS file(s). Repeatable. Alternative to --config."
+            paramLabel  = "<path>",
+            description = "Schema RDFS file(s), or a directory of them (.rdf/.ttl/.owl). " +
+                          "Repeatable. Alternative to --config."
     )
     private List<Path> schemaFiles = List.of();
 
@@ -144,7 +146,7 @@ public class ValidateCommand implements Callable<Integer> {
     @Option(
             names       = {"-f", "--format"},
             paramLabel  = "<format>",
-            description = "Output format: text (default) or json.",
+            description = "Output format: text (default), json, or codequality (GitLab Code Quality).",
             defaultValue = "text"
     )
     private String formatName;
@@ -382,8 +384,21 @@ public class ValidateCommand implements Callable<Integer> {
         switch (format) {
             case TEXT -> new TextFormatter(writer, verbose).write(results);
             case JSON -> new JsonFormatter(writer, verbose).write(results);
+            case CODEQUALITY -> new CodeQualityFormatter(writer, verbose).write(results);
         }
         writer.flush();
+
+        // Machine-readable reports (json/codequality) are usually redirected to a file, leaving the
+        // CI job log empty — print a one-line human summary to stderr so the log still shows the
+        // outcome.
+        if (format != Format.TEXT) {
+            long errors = results.stream().mapToLong(FileResult::errorCount).sum();
+            long warnings = results.stream().mapToLong(FileResult::warnCount).sum();
+            long invalid = results.stream().filter(r -> !r.valid()).count();
+            System.err.printf(
+                    "cimvocabcheck: %d file(s), %d invalid, %d error(s), %d warning(s)%n",
+                    results.size(), invalid, errors, warnings);
+        }
     }
 
     /** Prints {@code "Error: <message>"} and signals a usage-error early exit. */

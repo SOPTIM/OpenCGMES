@@ -25,16 +25,26 @@ public enum Format {
   /** Human-readable, compiler-style diagnostics (default). */
   TEXT,
   /** Machine-readable JSON — one object per file, wrapped in a top-level array. */
-  JSON;
+  JSON,
+  /**
+   * A <a href="https://docs.gitlab.com/ci/testing/code_quality/">GitLab / CodeClimate Code
+   * Quality</a> report — a bare JSON array of one issue per finding, suitable for an {@code
+   * artifacts:reports:codequality} CI artifact.
+   */
+  CODEQUALITY;
 
-  /** Parses {@code value} ("text" or "json", case-insensitive) into a {@link Format}. */
+  /**
+   * Parses {@code value} ("text", "json" or "codequality"/"gitlab", case-insensitive) into a {@link
+   * Format}.
+   */
   public static Format parse(String value) {
     return switch (value.toLowerCase(Locale.ROOT)) {
       case "text" -> TEXT;
       case "json" -> JSON;
+      case "codequality", "gitlab" -> CODEQUALITY;
       default ->
           throw new IllegalArgumentException(
-              "Unknown format '" + value + "'. Use 'text' or 'json'.");
+              "Unknown format '" + value + "'. Use 'text', 'json' or 'codequality'.");
     };
   }
 }
