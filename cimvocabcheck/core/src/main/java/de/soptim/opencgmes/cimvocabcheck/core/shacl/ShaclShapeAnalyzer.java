@@ -59,6 +59,14 @@ import org.apache.jena.vocabulary.RDF;
  *       (object property).
  * </ul>
  *
+ * <p>Three kinds of term are deliberately <em>not</em> checked against the CIM schema, to avoid
+ * false positives: standard-vocabulary classes (e.g. {@code rdf:List}, {@code rdfs:Resource}) in
+ * {@code sh:class}/{@code sh:targetClass} position; {@code sh:path}/{@code sh:class} appearing
+ * inside a custom constraint component's {@code sh:parameter} or validator (these declare a
+ * parameter, not a CIM data property/class); and terms the shapes document declares itself (any URI
+ * subject of an {@code rdf:type} triple). An unknown term in a closed standard namespace is still
+ * reported — as a vocabulary typo ({@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM}).
+ *
  * <p>The analyzer is stateless and thread-safe.
  */
 public final class ShaclShapeAnalyzer {
@@ -69,6 +77,15 @@ public final class ShaclShapeAnalyzer {
 
   private static final List<Node> REPEAT_PATH_PREDICATES =
       List.of(Shacl.ZERO_OR_MORE_PATH, Shacl.ONE_OR_MORE_PATH, Shacl.ZERO_OR_ONE_PATH);
+
+  /**
+   * Predicates whose objects are <em>internals</em> of a custom constraint component — parameter
+   * declarations and validators. {@code sh:path}/{@code sh:class} appearing on such nodes name a
+   * parameter or a parameter's accepted value type, not a CIM data property/class, so they must not
+   * be checked against the CIM schema.
+   */
+  private static final List<Node> COMPONENT_INTERNAL_LINKS =
+      List.of(Shacl.PARAMETER, Shacl.VALIDATOR, Shacl.NODE_VALIDATOR, Shacl.PROPERTY_VALIDATOR);
 
   private final SchemaIndex schemaIndex;
   private final boolean checkStandardVocabulary;
@@ -97,12 +114,59 @@ public final class ShaclShapeAnalyzer {
   public List<SparqlValidationAnnotation> analyze(Graph shapesGraph, Collection<VersionIri> scope) {
     var out = new ArrayList<SparqlValidationAnnotation>();
 
-    checkClassReferences(shapesGraph, Shacl.TARGET_CLASS, "sh:targetClass", scope, out);
-    checkClassReferences(shapesGraph, Shacl.CLASS, "sh:class", scope, out);
-    checkPropertyShapes(shapesGraph, scope, out);
+    Set<Node> localDefs = collectLocalDefinitions(shapesGraph);
+    Set<Node> componentInternals = collectComponentInternalShapes(shapesGraph);
+
+    checkClassReferences(
+        shapesGraph,
+        Shacl.TARGET_CLASS,
+        "sh:targetClass",
+        scope,
+        localDefs,
+        componentInternals,
+        out);
+    checkClassReferences(
+        shapesGraph, Shacl.CLASS, "sh:class", scope, localDefs, componentInternals, out);
+    checkPropertyShapes(shapesGraph, scope, localDefs, componentInternals, out);
     checkVocabularyTerms(shapesGraph, checkStandardVocabulary, out);
 
     return List.copyOf(out);
+  }
+
+  /**
+   * Collects IRIs that the shapes document <em>defines itself</em> — every URI subject of an {@code
+   * rdf:type} triple. CIM terms referenced by shapes ({@code sh:targetClass}/{@code sh:path}
+   * values) appear in object position, not as typed subjects, so a genuine CIM typo is still
+   * reported; but a helper class or property declared in the same file (e.g. a custom {@code
+   * :myProperty a rdf:Property}) is treated as known rather than flagged as missing from CIM.
+   */
+  private static Set<Node> collectLocalDefinitions(Graph g) {
+    var defs = new HashSet<Node>();
+    var it = g.find(Node.ANY, RDF.type.asNode(), Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Node s = it.next().getSubject();
+        if (s.isURI()) {
+          defs.add(s);
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+    return defs;
+  }
+
+  /**
+   * Collects the nodes that are objects of {@link #COMPONENT_INTERNAL_LINKS} — the parameter and
+   * validator nodes of custom constraint components. {@code sh:path}/{@code sh:class} on these
+   * nodes are component internals, not CIM data-graph references, and are excluded from CIM checks.
+   */
+  private static Set<Node> collectComponentInternalShapes(Graph g) {
+    var out = new HashSet<Node>();
+    for (Node link : COMPONENT_INTERNAL_LINKS) {
+      forEachObject(g, link, out::add);
+    }
+    return out;
   }
 
   /**
@@ -143,13 +207,7 @@ public final class ShaclShapeAnalyzer {
         }
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      closeQuietly(it);
     }
   }
 
@@ -218,21 +276,46 @@ public final class ShaclShapeAnalyzer {
       Node predicate,
       String predicateLabel,
       Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      Set<Node> componentInternals,
       List<SparqlValidationAnnotation> out) {
 
-    forEachObject(
-        g,
-        predicate,
-        cls -> {
-          if (!cls.isURI()) {
-            return;
-          }
-          if (schemaIndex.classExists(cls, scope)) {
-            return;
-          }
-          List<VersionIri> elsewhere = schemaIndex.findClass(cls);
-          out.add(classAnnotation(cls, predicateLabel, scope, elsewhere));
-        });
+    var it = g.find(Node.ANY, predicate, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        Node cls = t.getObject();
+        if (!cls.isURI()) {
+          continue;
+        }
+        // Inside a constraint-component parameter/validator, sh:class names the accepted value
+        // type of a parameter, not a CIM focus/value class — don't check it against CIM.
+        if (componentInternals.contains(t.getSubject())) {
+          continue;
+        }
+        // Known standard-vocabulary class (rdf:List, rdfs:Resource, owl:Thing, …) or open
+        // annotation namespace: accept without a CIM existence check.
+        if (ExemptVocabulary.isExempt(cls)) {
+          continue;
+        }
+        // Unknown term in a closed standard namespace (e.g. sh:Fooo, rdf:Lst): a vocabulary typo,
+        // not a missing CIM class — report it as such rather than as UNKNOWN_CLASS.
+        if (StandardVocabulary.isClosedNamespace(cls)) {
+          addVocabularyAnnotation(cls, "Shape " + predicateLabel, out);
+          continue;
+        }
+        // Declared in this shapes document itself: not a CIM term, leave it alone.
+        if (localDefs.contains(cls)) {
+          continue;
+        }
+        if (schemaIndex.classExists(cls, scope)) {
+          continue;
+        }
+        out.add(classAnnotation(cls, predicateLabel, scope, schemaIndex.findClass(cls)));
+      }
+    } finally {
+      closeQuietly(it);
+    }
   }
 
   // ---- per-property-shape checks (sh:path, sh:nodeKind, sh:minCount/sh:maxCount) ----------
@@ -242,7 +325,11 @@ public final class ShaclShapeAnalyzer {
    * shape: property existence, nodeKind/range compatibility, cardinality.
    */
   private void checkPropertyShapes(
-      Graph g, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+      Graph g,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      Set<Node> componentInternals,
+      List<SparqlValidationAnnotation> out) {
 
     var it = g.find(Node.ANY, Shacl.PATH, Node.ANY);
     try {
@@ -251,27 +338,27 @@ public final class ShaclShapeAnalyzer {
         Node shape = t.getSubject();
         Node pathNode = t.getObject();
 
+        // On a constraint-component parameter/validator, sh:path declares a parameter name rather
+        // than a CIM data-property path: skip both the property-existence and the range checks.
+        boolean internal = componentInternals.contains(shape);
+
         // 1. Unknown property in path
-        checkPathPropertyExistence(g, pathNode, scope, out);
+        if (!internal) {
+          checkPathPropertyExistence(g, pathNode, scope, localDefs, out);
+        }
 
         // 2. Range-compatibility checks (only for simple single-URI paths)
-        if (pathNode.isURI()) {
+        if (!internal && pathNode.isURI()) {
           checkNodeKind(g, shape, pathNode, scope, out);
           checkDatatypeVsRange(g, shape, pathNode, scope, out);
           checkClassVsRange(g, shape, pathNode, scope, out);
         }
 
-        // 3. sh:minCount / sh:maxCount contradiction
+        // 3. sh:minCount / sh:maxCount contradiction (meaningful for parameters too)
         checkCardinality(g, shape, pathNode, out);
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      closeQuietly(it);
     }
   }
 
@@ -457,7 +544,11 @@ public final class ShaclShapeAnalyzer {
    * local names differ from every known alternative.
    */
   private void checkPathPropertyExistence(
-      Graph g, Node path, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+      Graph g,
+      Node path,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      List<SparqlValidationAnnotation> out) {
     walkPath(
         g,
         path,
@@ -469,11 +560,15 @@ public final class ShaclShapeAnalyzer {
           if (ExemptVocabulary.isExempt(uri) || StandardVocabulary.isClosedNamespace(uri)) {
             return;
           }
+          // Declared in this shapes document itself: not a CIM term, leave it alone.
+          if (localDefs.contains(uri)) {
+            return;
+          }
           if (!schemaIndex.propertyExists(uri, scope)) {
             out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
           }
         },
-        group -> checkAlternativeGroup(group, scope, out));
+        group -> checkAlternativeGroup(group, scope, localDefs, out));
   }
 
   /**
@@ -485,12 +580,19 @@ public final class ShaclShapeAnalyzer {
    * name does not match any known sibling is still flagged (it is most likely a typo).
    */
   private void checkAlternativeGroup(
-      List<Node> allProps, Collection<VersionIri> scope, List<SparqlValidationAnnotation> out) {
+      List<Node> allProps,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      List<SparqlValidationAnnotation> out) {
     var known = new ArrayList<Node>();
     var unknown = new ArrayList<Node>();
     for (Node prop : allProps) {
       // See checkPathPropertyExistence: sh:path values are data properties, not vocabulary.
       if (ExemptVocabulary.isExempt(prop) || StandardVocabulary.isClosedNamespace(prop)) {
+        continue;
+      }
+      // Declared in this shapes document itself: not a CIM term, leave it alone.
+      if (localDefs.contains(prop)) {
         continue;
       }
       if (schemaIndex.propertyExists(prop, scope)) {
@@ -731,13 +833,7 @@ public final class ShaclShapeAnalyzer {
         consumer.accept(it.next().getObject());
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      closeQuietly(it);
     }
   }
 
@@ -747,12 +843,17 @@ public final class ShaclShapeAnalyzer {
     try {
       return it.hasNext() ? it.next().getObject() : null;
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
+      closeQuietly(it);
+    }
+  }
+
+  /** Closes a Jena iterator if it is {@link AutoCloseable}, swallowing any close failure. */
+  private static void closeQuietly(Object it) {
+    if (it instanceof AutoCloseable c) {
+      try {
+        c.close();
+      } catch (Exception ignored) {
+        // Intentionally ignored.
       }
     }
   }

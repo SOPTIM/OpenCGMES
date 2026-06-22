@@ -65,6 +65,15 @@ public final class Shacl {
   /** {@code sh:validator} — links a constraint to a {@code sh:SPARQLAskValidator}. */
   public static final Node VALIDATOR = NodeFactory.createURI(NS + "validator");
 
+  /** {@code sh:parameter} — declares a parameter of a {@code sh:ConstraintComponent}. */
+  public static final Node PARAMETER = NodeFactory.createURI(NS + "parameter");
+
+  /** {@code sh:nodeValidator} — links a constraint component to a node-scope validator. */
+  public static final Node NODE_VALIDATOR = NodeFactory.createURI(NS + "nodeValidator");
+
+  /** {@code sh:propertyValidator} — links a constraint component to a property-scope validator. */
+  public static final Node PROPERTY_VALIDATOR = NodeFactory.createURI(NS + "propertyValidator");
+
   /** {@code sh:rule} — links a shape to a {@code sh:SPARQLRule} node. */
   public static final Node RULE = NodeFactory.createURI(NS + "rule");
 

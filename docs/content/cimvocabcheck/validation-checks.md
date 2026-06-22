@@ -86,8 +86,14 @@ for the full breakdown). On every property shape (any blank node with `sh:path`)
 - `INVALID_CARDINALITY` — `sh:minCount` exceeds `sh:maxCount`.
 
 Shape-structure findings (`sh:targetClass`, `sh:class`, `sh:path` against the schema) reuse the
-existence codes above. Embedded SPARQL (`sh:sparql`, `sh:target`, `sh:validator`, `sh:rule`) is
-extracted and validated with the full SPARQL check set.
+existence codes above. Three kinds of term are **not** checked against the CIM schema, so they are
+never falsely reported as unknown: standard-vocabulary classes (e.g. `rdf:List`, `rdfs:Resource`),
+terms the shapes file declares itself, and the `sh:path` / `sh:class` of a custom constraint
+component's parameters or validators (`sh:parameter`, `sh:nodeValidator`, `sh:propertyValidator`) —
+which declare a parameter rather than reference a CIM term. A closed-namespace *typo* in class
+position (e.g. `sh:Fooo`) is still reported, as `UNKNOWN_VOCABULARY_TERM`. Embedded SPARQL
+(`sh:sparql`, `sh:target`, `sh:validator`, `sh:rule`) is extracted and validated with the full
+SPARQL check set.
 
 ## See also
 
