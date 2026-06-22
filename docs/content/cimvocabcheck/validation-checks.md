@@ -52,6 +52,12 @@ fire regardless of how completely the schema annotates semantics:
   `sh`) that the official W3C vocabulary does not define, e.g. `rdf:typ`, `owl:Clas`,
   `sh:minCountt`. Controlled by [`standardVocabulary`](/cimvocabcheck/configuration#standardvocabulary).
 
+**Enumeration members.** CGMES enumeration values — individuals typed by an enumeration class, e.g.
+`cim:WindGenUnitKind.offshore` — are indexed as a distinct kind of term. Used correctly in object
+position (`?u cim:WindGeneratingUnit.windGenUnitType cim:WindGenUnitKind.offshore`) they are
+recognised, not flagged. Using one where a class is expected (after `rdf:type`) or as a predicate is
+reported with a message that names it as an enumeration value rather than a missing class/property.
+
 ## Semantic checks
 
 When the schema index carries `rdfs:domain`, `rdfs:range`, or `rdfs:subClassOf` (as loaded from

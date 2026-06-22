@@ -31,10 +31,15 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
 
 - **Diagnostics** — the full [validation check set](/cimvocabcheck/validation-checks), debounced and
   re-run on change.
-- **Hover** — IRI, label, comment, domain/range, and declaring profile for any CIM term.
-- **Completion** — CIM-aware suggestions after a declared prefix (`cim:`, `rdf:`, …).
-- **Go-to-definition** — jump to a term's declaration in the source RDFS file.
-- **Workspace symbols** — find any schema class/property by (partial, case-insensitive) name.
+- **Hover** — IRI, label, comment, domain/range, and declaring profile for any CIM term (including
+  enumeration members).
+- **Completion** — CIM-aware suggestions after a declared prefix (`cim:`, `rdf:`, …). In object
+  position after an enumeration-ranged property, the enumeration's members are offered (e.g.
+  `cim:WindGenUnitKind.offshore`).
+- **Go-to-definition** — jump to a term's declaration in the source RDFS file (classes, properties,
+  and enumeration members).
+- **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
+  case-insensitive) name.
 - **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)) and
   `cimvocabcheck.createConfig` (generate [`opencgmes.json`](/cimvocabcheck/configuration)).
 

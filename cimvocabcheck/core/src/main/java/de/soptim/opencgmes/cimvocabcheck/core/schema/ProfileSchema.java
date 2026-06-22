@@ -42,6 +42,9 @@ import org.apache.jena.graph.Node;
  *     transitive closure is computed on demand by {@link SchemaIndex}
  * @param termLabels term URI → {@code rdfs:label} literal (first found wins, may be empty)
  * @param termComments term URI → {@code rdfs:comment} literal (first found wins, may be empty)
+ * @param enumMembers enumeration class URI → set of its member (individual) URIs, e.g. {@code
+ *     cim:WindGenUnitKind} → its {@code .offshore} / {@code .onshore} values. Empty for profiles
+ *     with no enumerations or built without enum indexing.
  */
 public record ProfileSchema(
     VersionIri versionIri,
@@ -51,7 +54,8 @@ public record ProfileSchema(
     Map<Node, Set<Node>> propertyRange,
     Map<Node, Set<Node>> subClassOf,
     Map<Node, String> termLabels,
-    Map<Node, String> termComments) {
+    Map<Node, String> termComments,
+    Map<Node, Set<Node>> enumMembers) {
 
   /** Canonical constructor; validates the version IRI and defensively copies the collections. */
   public ProfileSchema {
@@ -63,13 +67,22 @@ public record ProfileSchema(
     subClassOf = deepCopy(subClassOf);
     termLabels = termLabels == null ? Map.of() : Map.copyOf(termLabels);
     termComments = termComments == null ? Map.of() : Map.copyOf(termComments);
+    enumMembers = deepCopy(enumMembers);
   }
 
   /** Convenience for callers that only know class+property sets and no relations. */
   public static ProfileSchema minimal(
       VersionIri versionIri, Set<Node> classes, Set<Node> properties) {
     return new ProfileSchema(
-        versionIri, classes, properties, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        versionIri,
+        classes,
+        properties,
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of());
   }
 
   private static Map<Node, Set<Node>> deepCopy(Map<Node, Set<Node>> in) {

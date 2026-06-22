@@ -51,6 +51,9 @@ import org.apache.jena.vocabulary.RDFS;
  *   <li><b>Properties:</b> subjects of {@code rdf:type rdf:Property} / {@code owl:ObjectProperty} /
  *       {@code owl:DatatypeProperty}, plus any subject with an {@code rdfs:domain} or {@code
  *       rdfs:range}.
+ *   <li><b>Enumeration members:</b> individuals typed by a declared class (e.g. {@code
+ *       cim:WindGenUnitKind.offshore a cim:WindGenUnitKind}), grouped under their enumeration
+ *       class. CGMES schema files carry no instance data, so a typed individual is an enum value.
  * </ul>
  *
  * <p>Use {@link #builder()} to add profiles. {@link #fromCimRegistry(CimProfileRegistry)} is a
@@ -74,11 +77,13 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   private final Map<VersionIri, ProfileSchema> profiles;
   private final Map<Node, List<VersionIri>> classToProfiles;
   private final Map<Node, List<VersionIri>> propertyToProfiles;
+  private final Map<Node, List<VersionIri>> enumMemberToProfiles;
 
   private RdfsSchemaIndex(Map<VersionIri, ProfileSchema> profiles) {
     this.profiles = Map.copyOf(profiles);
     var c = new LinkedHashMap<Node, List<VersionIri>>();
     var p = new LinkedHashMap<Node, List<VersionIri>>();
+    var m = new LinkedHashMap<Node, List<VersionIri>>();
     for (var e : this.profiles.entrySet()) {
       for (var cls : e.getValue().classes()) {
         c.computeIfAbsent(cls, k -> new ArrayList<>()).add(e.getKey());
@@ -86,9 +91,15 @@ public final class RdfsSchemaIndex implements SchemaIndex {
       for (var prop : e.getValue().properties()) {
         p.computeIfAbsent(prop, k -> new ArrayList<>()).add(e.getKey());
       }
+      for (var members : e.getValue().enumMembers().values()) {
+        for (var member : members) {
+          m.computeIfAbsent(member, k -> new ArrayList<>()).add(e.getKey());
+        }
+      }
     }
     this.classToProfiles = deepImmutable(c);
     this.propertyToProfiles = deepImmutable(p);
+    this.enumMemberToProfiles = deepImmutable(m);
   }
 
   private static <K, V> Map<K, List<V>> deepImmutable(Map<K, List<V>> in) {
@@ -168,6 +179,47 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   @Override
   public Set<Node> allProperties() {
     return propertyToProfiles.keySet();
+  }
+
+  @Override
+  public Set<Node> enumMembersOf(Node enumClassUri, Collection<VersionIri> scope) {
+    if (enumClassUri == null || !enumClassUri.isURI()) {
+      return Set.of();
+    }
+    return unionAcrossScope(scope, ps -> ps.enumMembers().get(enumClassUri));
+  }
+
+  @Override
+  public boolean enumMemberExists(Node term, Collection<VersionIri> scope) {
+    if (term == null || !term.isURI()) {
+      return false;
+    }
+    var found = enumMemberToProfiles.get(term);
+    if (found == null) {
+      return false;
+    }
+    if (scope == null) {
+      return true;
+    }
+    for (var v : found) {
+      if (scope.contains(v)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public Set<Node> allEnumMembers() {
+    return enumMemberToProfiles.keySet();
+  }
+
+  @Override
+  public List<VersionIri> findEnumMember(Node term) {
+    if (term == null || !term.isURI()) {
+      return List.of();
+    }
+    return enumMemberToProfiles.getOrDefault(term, List.of());
   }
 
   /** Returns the indexed profile schemas keyed by version IRI. */
@@ -289,6 +341,9 @@ public final class RdfsSchemaIndex implements SchemaIndex {
     var subClassOf = new LinkedHashMap<Node, Set<Node>>();
     var termLabels = new LinkedHashMap<Node, String>();
     var termComments = new LinkedHashMap<Node, String>();
+    // Candidate enum members: subject typed by some non-keyword URI (the presumed enum class).
+    // Promoted to real members after the pass, once we know which type URIs are declared classes.
+    var candidateMembers = new LinkedHashMap<Node, Set<Node>>();
     var it = graph.find(Node.ANY, Node.ANY, Node.ANY);
     try {
       while (it.hasNext()) {
@@ -307,6 +362,10 @@ public final class RdfsSchemaIndex implements SchemaIndex {
                   || OWL_DATATYPE_PROPERTY.equals(o))
               && s.isURI()) {
             properties.add(s);
+          } else if (s.isURI()) {
+            // An individual typed by a non-keyword class — e.g. cim:WindGenUnitKind.offshore
+            // a cim:WindGenUnitKind. Map enum-class (o) → member (s) pending class confirmation.
+            candidateMembers.computeIfAbsent(o, k -> new HashSet<>()).add(s);
           }
         } else if (RDFS_DOMAIN.equals(p)) {
           if (s.isURI()) {
@@ -347,6 +406,14 @@ public final class RdfsSchemaIndex implements SchemaIndex {
     } finally {
       it.close();
     }
+    // Keep only candidates whose type URI is a declared class in this graph — these are the
+    // enumeration members. Other individuals (owl:Ontology headers, cims:* metadata) drop out.
+    var enumMembers = new LinkedHashMap<Node, Set<Node>>();
+    for (var e : candidateMembers.entrySet()) {
+      if (classes.contains(e.getKey())) {
+        enumMembers.put(e.getKey(), e.getValue());
+      }
+    }
     return new ProfileSchema(
         versionIri,
         classes,
@@ -355,7 +422,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         propertyRange,
         subClassOf,
         termLabels,
-        termComments);
+        termComments,
+        enumMembers);
   }
 
   /** Returns a new {@link Builder} for assembling an index. */
@@ -441,7 +509,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         propertyRange,
         baseline.subClassOf(),
         baseline.termLabels(),
-        baseline.termComments());
+        baseline.termComments(),
+        baseline.enumMembers());
   }
 
   private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
@@ -526,6 +595,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
               toNodeMap(propertyDomain),
               toNodeMap(propertyRange),
               toNodeMap(subClassOf),
+              Map.of(),
               Map.of(),
               Map.of()));
       return this;

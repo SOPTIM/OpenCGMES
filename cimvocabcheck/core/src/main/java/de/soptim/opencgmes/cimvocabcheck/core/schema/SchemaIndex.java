@@ -119,4 +119,33 @@ public interface SchemaIndex {
   default Set<Node> allProperties() {
     return Set.of();
   }
+
+  // ---- Enumeration members (CIM enum individuals) ----------------------------------------
+
+  /**
+   * Returns the member (individual) URIs of the enumeration class {@code enumClassUri} across the
+   * given {@code profiles} — e.g. {@code cim:WindGenUnitKind} → its {@code .offshore} / {@code
+   * .onshore} values. Empty when the class is not an enumeration, has no members in scope, or the
+   * index was built without enum indexing.
+   */
+  default Set<Node> enumMembersOf(Node enumClassUri, Collection<VersionIri> profiles) {
+    return Set.of();
+  }
+
+  /**
+   * Returns whether {@code term} is a known enumeration member in at least one of {@code profiles}.
+   */
+  default boolean enumMemberExists(Node term, Collection<VersionIri> profiles) {
+    return false;
+  }
+
+  /** All enumeration-member nodes registered across every profile in this index. */
+  default Set<Node> allEnumMembers() {
+    return Set.of();
+  }
+
+  /** Returns all known profiles declaring enumeration member {@code term} (possibly empty). */
+  default List<VersionIri> findEnumMember(Node term) {
+    return List.of();
+  }
 }

@@ -1202,6 +1202,28 @@ final class SparqlTextDocumentService implements TextDocumentService {
       }
     }
 
+    // Object position after an enum-ranged property: offer that enumeration's members, e.g.
+    // after `cim:WindGeneratingUnit.windGenUnitType ` offer cim:WindGenUnitKind.offshore/.onshore.
+    if (!classCtx) {
+      Node predicate = precedingPredicate(src, tokenStart, prefixes);
+      if (predicate != null) {
+        for (Node range : index.rangesOf(predicate, allProfiles)) {
+          for (Node member : index.enumMembersOf(range, allProfiles)) {
+            addIfMatching(
+                member,
+                ns,
+                pfx,
+                localFilter,
+                replaceRange,
+                CompletionItemKind.EnumMember,
+                index,
+                allProfiles,
+                items);
+          }
+        }
+      }
+    }
+
     items.sort(Comparator.comparing(CompletionItem::getLabel));
     return items;
   }
@@ -1260,18 +1282,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * checks it against the known set of type predicates.
    */
   static boolean isClassContext(String src, int tokenStart, PrefixMapping prefixes) {
-    int i = tokenStart - 1;
-    while (i >= 0 && Character.isWhitespace(src.charAt(i))) {
-      i--;
-    }
-    if (i < 0) {
+    String prev = previousToken(src, tokenStart);
+    if (prev.isEmpty()) {
       return false;
     }
-    int end = i + 1;
-    while (i >= 0 && isNameChar(src.charAt(i))) {
-      i--;
-    }
-    String prev = src.substring(i + 1, end);
     if ("a".equals(prev)) {
       return true;
     }
@@ -1283,6 +1297,44 @@ final class SparqlTextDocumentService implements TextDocumentService {
       }
     }
     return false;
+  }
+
+  /**
+   * Returns the whitespace-delimited token immediately preceding {@code tokenStart} (skipping
+   * intervening whitespace), or {@code ""} when there is none. Token characters are {@link
+   * #isNameChar}, so {@code cim:WindGeneratingUnit.windGenUnitType} is returned whole.
+   */
+  private static String previousToken(String src, int tokenStart) {
+    int i = tokenStart - 1;
+    while (i >= 0 && Character.isWhitespace(src.charAt(i))) {
+      i--;
+    }
+    if (i < 0) {
+      return "";
+    }
+    int end = i + 1;
+    while (i >= 0 && isNameChar(src.charAt(i))) {
+      i--;
+    }
+    return src.substring(i + 1, end);
+  }
+
+  /**
+   * Resolves the {@code prefix:local} predicate token immediately preceding {@code tokenStart} to a
+   * URI node, or {@code null} when the preceding token is absent, not prefixed, or uses an
+   * undeclared prefix. Used to offer an enumeration's members in object position.
+   */
+  static Node precedingPredicate(String src, int tokenStart, PrefixMapping prefixes) {
+    String prev = previousToken(src, tokenStart);
+    int colon = prev.indexOf(':');
+    if (colon <= 0) {
+      return null;
+    }
+    String ns = prefixes.getNsPrefixURI(prev.substring(0, colon));
+    if (ns == null) {
+      return null;
+    }
+    return NodeFactory.createURI(ns + prev.substring(colon + 1));
   }
 
   // ---- Hover helpers ---------------------------------------------------------------------

@@ -67,7 +67,8 @@ the loaded schema.
 ### Auto-completion
 
 Typing `:` after a prefix (e.g. `cim:`) triggers completion suggestions for all classes and
-properties in the loaded schema.
+properties in the loaded schema. In object position after an enumeration-ranged property, the
+enumeration's members are suggested (e.g. `cim:WindGenUnitKind.offshore`).
 
 ![CIMNotebook completion list after typing cim: in IntelliJ](/img/cimnotebook/intellij-completion.png)
 {/* TODO image: IntelliJ completion popup listing CIM classes/properties after typing "cim:" */}

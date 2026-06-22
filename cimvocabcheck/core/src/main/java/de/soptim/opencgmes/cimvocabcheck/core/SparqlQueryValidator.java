@@ -304,6 +304,22 @@ public final class SparqlQueryValidator {
       if (schemaIndex.classExists(c.classNode(), selected)) {
         continue;
       }
+      if (schemaIndex.enumMemberExists(c.classNode(), null)) {
+        annotations.add(
+            buildAnnotation(
+                SparqlValidationSeverity.ERROR,
+                SparqlValidationCode.UNKNOWN_CLASS,
+                c.classNode(),
+                c.graph(),
+                selected,
+                List.of(),
+                original,
+                prefixes,
+                "<"
+                    + c.classNode().getURI()
+                    + "> is an enumeration value, not a class; it cannot be an rdf:type."));
+        continue;
+      }
       List<VersionIri> elsewhere = schemaIndex.findClass(c.classNode());
       var elsewhereOutOfScope = subtract(elsewhere, selected);
       annotations.add(
@@ -328,6 +344,22 @@ public final class SparqlQueryValidator {
       }
       Collection<VersionIri> selected = scopeProfiles(scope, p.graph());
       if (schemaIndex.propertyExists(p.propertyNode(), selected)) {
+        continue;
+      }
+      if (schemaIndex.enumMemberExists(p.propertyNode(), null)) {
+        annotations.add(
+            buildAnnotation(
+                SparqlValidationSeverity.ERROR,
+                SparqlValidationCode.UNKNOWN_PROPERTY,
+                p.propertyNode(),
+                p.graph(),
+                selected,
+                List.of(),
+                original,
+                prefixes,
+                "<"
+                    + p.propertyNode().getURI()
+                    + "> is an enumeration value, not a property; it cannot be a predicate."));
         continue;
       }
       List<VersionIri> elsewhere = schemaIndex.findProperty(p.propertyNode());

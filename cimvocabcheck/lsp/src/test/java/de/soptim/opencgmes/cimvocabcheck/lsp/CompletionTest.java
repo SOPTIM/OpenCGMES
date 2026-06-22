@@ -330,6 +330,52 @@ public class CompletionTest {
   }
 
   // ============================================================================================
+  // Enumeration members (offered in object position after an enum-ranged property)
+  // ============================================================================================
+
+  private static final String ENUM_TTL =
+      "@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .\n"
+          + "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+          + "@prefix cim:  <"
+          + CIM
+          + "> .\n"
+          + "cim:WindGenUnitKind a rdfs:Class .\n"
+          + "cim:WindGenUnitKind.offshore a cim:WindGenUnitKind .\n"
+          + "cim:WindGenUnitKind.onshore  a cim:WindGenUnitKind .\n"
+          + "cim:WindGeneratingUnit a rdfs:Class .\n"
+          + "cim:WindGeneratingUnit.windGenUnitType a rdf:Property ;\n"
+          + "    rdfs:domain cim:WindGeneratingUnit ; rdfs:range cim:WindGenUnitKind .\n";
+
+  @Test
+  public void enumMembers_offeredInObjectPositionAfterEnumRangedProperty() {
+    SchemaIndex rich = indexFromTurtle(ENUM_TTL);
+    String text =
+        "PREFIX cim: <"
+            + CIM
+            + ">\nSELECT * WHERE { ?u cim:WindGeneratingUnit.windGenUnitType cim:Wind }";
+    int col = text.split("\n")[1].lastIndexOf("cim:Wind") + "cim:Wind".length();
+    List<CompletionItem> items = SparqlTextDocumentService.buildCompletionItems(text, 1, col, rich);
+    assertTrue(
+        "should offer the enum member in object position",
+        items.stream()
+            .anyMatch(
+                i ->
+                    i.getLabel().equals("cim:WindGenUnitKind.offshore")
+                        && i.getKind() == CompletionItemKind.EnumMember));
+  }
+
+  @Test
+  public void enumMembers_notOfferedInClassContext() {
+    SchemaIndex rich = indexFromTurtle(ENUM_TTL);
+    String text = "PREFIX cim: <" + CIM + ">\nSELECT * WHERE { ?u a cim:Wind }";
+    int col = text.split("\n")[1].lastIndexOf("cim:Wind") + "cim:Wind".length();
+    List<CompletionItem> items = SparqlTextDocumentService.buildCompletionItems(text, 1, col, rich);
+    assertTrue(
+        "class context must not offer enum members",
+        items.stream().noneMatch(i -> i.getKind() == CompletionItemKind.EnumMember));
+  }
+
+  // ============================================================================================
   // Helper
   // ============================================================================================
 

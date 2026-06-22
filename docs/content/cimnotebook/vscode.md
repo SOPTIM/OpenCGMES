@@ -63,9 +63,10 @@ the loaded schema.
 ### Auto-completion
 
 Typing `:` after a prefix (e.g. `cim:`) suggests all classes and properties in the loaded schema.
-Typing after a standard-vocabulary prefix (`rdf:`, `rdfs:`, `owl:`, `sh:`) suggests that
-vocabulary's terms (e.g. `sh:minCount`, `sh:NodeShape`, `rdf:type`), so SHACL shapes and SPARQL
-queries complete the same way.
+In object position after an enumeration-ranged property, the enumeration's members are suggested
+(e.g. `cim:WindGenUnitKind.offshore`). Typing after a standard-vocabulary prefix (`rdf:`, `rdfs:`,
+`owl:`, `sh:`) suggests that vocabulary's terms (e.g. `sh:minCount`, `sh:NodeShape`, `rdf:type`), so
+SHACL shapes and SPARQL queries complete the same way.
 
 ![CIMNotebook completion list after typing cim: in VS Code](/img/cimnotebook/vscode-completion.png)
 {/* TODO image: completion popup listing CIM classes/properties after typing "cim:" */}

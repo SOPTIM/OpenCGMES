@@ -105,6 +105,9 @@ final class DefinitionIndex {
     for (Node prop : index.allProperties()) {
       addSymbol(prop, q, SymbolKind.Property, result);
     }
+    for (Node member : index.allEnumMembers()) {
+      addSymbol(member, q, SymbolKind.EnumMember, result);
+    }
 
     result.sort(Comparator.comparing(WorkspaceSymbol::getName));
     if (result.size() > MAX_SYMBOLS) {
@@ -162,6 +165,11 @@ final class DefinitionIndex {
     for (Node prop : index.allProperties()) {
       if (!locations.containsKey(prop)) {
         findLocation(prop, index.findProperty(prop), sourcePaths, fileFragments, locations);
+      }
+    }
+    for (Node member : index.allEnumMembers()) {
+      if (!locations.containsKey(member)) {
+        findLocation(member, index.findEnumMember(member), sourcePaths, fileFragments, locations);
       }
     }
 
