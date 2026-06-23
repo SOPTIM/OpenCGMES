@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.cli;
 
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
+import de.soptim.opencgmes.cimvocabcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationCode;
@@ -43,6 +44,7 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFParser;
+import org.apache.jena.shared.PrefixMapping;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ExitCode;
 import picocli.CommandLine.Option;
@@ -449,43 +451,21 @@ public class ValidateCommand implements Callable<Integer> {
         }
         Graph graph;
         try {
-            var model = ModelFactory.createDefaultModel();
-            RDFParser.fromString(text, Lang.TURTLE).parse(model);
-            graph = model.getGraph();
-        } catch (Exception e) {
-            var parseError = new SparqlValidationAnnotation(
-                    SparqlValidationSeverity.ERROR, null, null,
-                    "Turtle/SHACL parse error: " + e.getMessage(),
-                    SparqlValidationCode.SYNTAX_ERROR, null, List.of(), List.of(), null);
-            return new FileResult(source, false, List.of(parseError));
+            graph = parseTurtleGraph(text);
+        } catch (RuntimeException e) {
+            return new FileResult(source, false, List.of(turtleParseError(e)));
         }
         ShaclValidationResult r = SparqlValidationApi.checkShaclSyntaxOnly(graph);
-        var annotations = new ArrayList<SparqlValidationAnnotation>(r.shapeAnnotations());
-        for (var er : r.embeddedResults()) {
-            String kind = er.embedded().kind().toString();
-            for (var a : er.result().annotations()) {
-                annotations.add(new SparqlValidationAnnotation(
-                        a.severity(), null, null,
-                        "[embedded " + kind + "] " + a.message(),
-                        a.code(), a.term(), a.selectedProfiles(), a.foundInOtherProfiles(), a.graph()));
-            }
-        }
-        return new FileResult(source, r.isValid(), List.copyOf(annotations));
+        return new FileResult(
+                source, r.isValid(), flattenShaclAnnotations(r, text, graph.getPrefixMapping()));
     }
 
     private FileResult validateShaclInput(SparqlValidationApi api, String source, String text) {
         Graph graph;
         try {
-            var model = ModelFactory.createDefaultModel();
-            RDFParser.fromString(text, Lang.TURTLE).parse(model);
-            graph = model.getGraph();
-        } catch (Exception e) {
-            var parseError = new SparqlValidationAnnotation(
-                    SparqlValidationSeverity.ERROR, null, null,
-                    "Turtle/SHACL parse error: " + e.getMessage(),
-                    SparqlValidationCode.SYNTAX_ERROR,
-                    null, List.of(), List.of(), null);
-            return new FileResult(source, false, List.of(parseError));
+            graph = parseTurtleGraph(text);
+        } catch (RuntimeException e) {
+            return new FileResult(source, false, List.of(turtleParseError(e)));
         }
 
         ShaclValidationResult r;
@@ -496,20 +476,83 @@ public class ValidateCommand implements Callable<Integer> {
             r = api.validateShacl(graph);
         }
 
-        // Flatten shape-structure and embedded-SPARQL annotations into a single list.
-        // Embedded-SPARQL positions are relative to the query string, not the Turtle file —
-        // strip them and prefix the message so the output is unambiguous.
-        var annotations = new ArrayList<SparqlValidationAnnotation>(r.shapeAnnotations());
+        return new FileResult(
+                source, r.isValid(), flattenShaclAnnotations(r, text, graph.getPrefixMapping()));
+    }
+
+    private static Graph parseTurtleGraph(String text) {
+        var model = ModelFactory.createDefaultModel();
+        RDFParser.fromString(text, Lang.TURTLE).parse(model);
+        return model.getGraph();
+    }
+
+    private static SparqlValidationAnnotation turtleParseError(Exception e) {
+        return new SparqlValidationAnnotation(
+                SparqlValidationSeverity.ERROR,
+                null,
+                null,
+                "Turtle/SHACL parse error: " + e.getMessage(),
+                SparqlValidationCode.SYNTAX_ERROR,
+                null,
+                List.of(),
+                List.of(),
+                null);
+    }
+
+    /**
+     * Flattens shape-structure and embedded-SPARQL annotations into a single list.
+     *
+     * <p>Shape-structure annotations come out of {@link
+     * de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclShapeAnalyzer} with {@code null} line/column
+     * (the analyzer sees only a Graph, not the source text). This method fills them in via {@link
+     * SourceLocator} using the original Turtle source and its prefix mapping.
+     *
+     * <p>Embedded-SPARQL positions are relative to the embedded query string, not the Turtle file —
+     * they are stripped and the message prefixed so the output is unambiguous.
+     */
+    private static List<SparqlValidationAnnotation> flattenShaclAnnotations(
+            ShaclValidationResult r, String turtleSource, PrefixMapping prefixes) {
+        var annotations = new ArrayList<SparqlValidationAnnotation>();
+        for (var a : r.shapeAnnotations()) {
+            annotations.add(a.line() != null ? a : withLocation(a, turtleSource, prefixes));
+        }
         for (var er : r.embeddedResults()) {
             String kind = er.embedded().kind().toString();
             for (var a : er.result().annotations()) {
                 annotations.add(new SparqlValidationAnnotation(
-                        a.severity(), null, null,
+                        a.severity(),
+                        null,
+                        null,
                         "[embedded " + kind + "] " + a.message(),
-                        a.code(), a.term(), a.selectedProfiles(), a.foundInOtherProfiles(), a.graph()));
+                        a.code(),
+                        a.term(),
+                        a.selectedProfiles(),
+                        a.foundInOtherProfiles(),
+                        a.graph()));
             }
         }
-        return new FileResult(source, r.isValid(), List.copyOf(annotations));
+        return List.copyOf(annotations);
+    }
+
+    private static SparqlValidationAnnotation withLocation(
+            SparqlValidationAnnotation a, String source, PrefixMapping prefixes) {
+        if (a.term() == null) {
+            return a;
+        }
+        var loc = SourceLocator.locate(source, a.term(), prefixes);
+        if (loc.line() == null) {
+            return a;
+        }
+        return new SparqlValidationAnnotation(
+                a.severity(),
+                loc.line(),
+                loc.column(),
+                a.message(),
+                a.code(),
+                a.term(),
+                a.selectedProfiles(),
+                a.foundInOtherProfiles(),
+                a.graph());
     }
 
     private static boolean isTurtleFile(String input) {
