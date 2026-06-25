@@ -84,8 +84,10 @@ dependencies {
 // compile-time dependency, not shipped in the plugin zip.) compileClasspath
 // resolves deterministically from the pinned platformVersion / lsp4ijVersion.
 //
-// Output goes to the committed ../sbom/intellij/bom.json; the build timestamp is
-// normalised away by scripts/generate-sbom.sh so re-runs are byte-identical.
+// Output goes to the committed ../sbom/intellij/bom.json. scripts/generate-sbom.sh
+// then canonicalizes it (normalises the build timestamp, the git remote URL form,
+// and drops the per-file hashes of the bytecode-instrumented platform jars, which
+// are not reproducible across JDK/IDE builds) so re-runs are byte-identical anywhere.
 // License compliance + attribution is handled by scripts/check-sbom-licenses.py.
 // ---------------------------------------------------------------------------
 tasks.cyclonedxBom {
