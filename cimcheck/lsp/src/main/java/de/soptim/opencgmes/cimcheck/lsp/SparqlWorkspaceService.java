@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimcheck.lsp;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
+import de.soptim.opencgmes.cimcheck.core.ConfigTemplate;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.explain.QueryExplanation;
 import org.eclipse.lsp4j.*;
@@ -82,8 +83,7 @@ final class SparqlWorkspaceService implements WorkspaceService {
     @Override
     public CompletableFuture<Object> executeCommand(ExecuteCommandParams params) {
         if (CMD_CREATE_CONFIG.equals(params.getCommand())) {
-            return CompletableFuture.completedFuture(
-                    de.soptim.opencgmes.cimcheck.core.ConfigTemplate.defaultJson());
+            return CompletableFuture.completedFuture(ConfigTemplate.defaultJson());
         }
         if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
             LOG.warn("Unknown command: {}", params.getCommand());

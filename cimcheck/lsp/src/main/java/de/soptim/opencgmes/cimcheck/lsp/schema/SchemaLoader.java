@@ -21,8 +21,8 @@ package de.soptim.opencgmes.cimcheck.lsp.schema;
 import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader.LoadedIndex;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
+import de.soptim.opencgmes.cimcheck.core.config.CimcheckConfig;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
-import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Builds a {@link RdfsSchemaIndex} from an {@link LspConfig}, delegating to
+ * Builds a {@link RdfsSchemaIndex} from an {@link CimcheckConfig}, delegating to
  * {@link CgmesSchemaLoader} for file discovery and parsing.
  */
 public final class SchemaLoader {
@@ -59,7 +59,7 @@ public final class SchemaLoader {
      *
      * @throws SchemaLoadException if schema files are configured but none could be parsed/registered
      */
-    public static Optional<SchemaAndSources> loadWithSources(LspConfig config, Path configBase)
+    public static Optional<SchemaAndSources> loadWithSources(CimcheckConfig config, Path configBase)
             throws SchemaLoadException {
         Optional<CgmesSchemaLoader> loader = resolveLoader(config, configBase);
         if (loader.isEmpty()) return Optional.empty();
@@ -74,7 +74,7 @@ public final class SchemaLoader {
 
     // ---- Private ---------------------------------------------------------------------------
 
-    private static Optional<CgmesSchemaLoader> resolveLoader(LspConfig config, Path base) {
+    private static Optional<CgmesSchemaLoader> resolveLoader(CimcheckConfig config, Path base) {
         if (!config.schemas().isEmpty()) {
             List<Path> files = config.schemas().stream()
                     .map(s -> base.resolve(s).normalize())

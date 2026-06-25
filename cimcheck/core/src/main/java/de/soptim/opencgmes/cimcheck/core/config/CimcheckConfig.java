@@ -16,19 +16,20 @@
  * limitations under the License.
  */
 
-package de.soptim.opencgmes.cimcheck.cli.config;
+package de.soptim.opencgmes.cimcheck.core.config;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import de.soptim.opencgmes.cimcheck.core.ValidationConfig;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Deserialized form of the {@code "cimcheck"} section of {@code opencgmes.json}.
+ * Deserialized form of the {@code "cimcheck"} section of {@code opencgmes.json}, shared by the CLI,
+ * the LSP server and any other OpenCGMES tooling.
  *
  * <p>All fields are optional. When neither {@code schemas} nor {@code schemasDirectory} is given,
- * no schema is loaded and inputs are checked syntax-only (there is no bundled default schema).</p>
+ * no schema is loaded and inputs are checked syntax-only — there is no bundled default schema (the
+ * LSP additionally honours a {@code # [endpoint=...]} directive in a document).</p>
  *
  * <p>Example {@code opencgmes.json}:</p>
  * <pre>{@code
@@ -45,17 +46,38 @@ import java.util.Map;
  * <p>Use either {@code schemasDirectory} (auto-discovers all {@code .rdf}/{@code .ttl}/{@code .owl}
  * files) or an explicit {@code schemas} list, not both.</p>
  */
-public record CliConfig(
-        @JsonProperty("schemasDirectory") String schemasDirectory,
-        @JsonProperty("schemas")          List<String> schemas,
-        @JsonProperty("namedGraphs")      Map<String, List<String>> namedGraphs,
-        @JsonProperty("strictness")       String strictness,
-        @JsonProperty("prefixes")         Map<String, String> prefixes,
+public record CimcheckConfig(
+        @JsonProperty("schemasDirectory")   String schemasDirectory,
+        @JsonProperty("schemas")            List<String> schemas,
+        @JsonProperty("namedGraphs")        Map<String, List<String>> namedGraphs,
+        @JsonProperty("strictness")         String strictness,
+        @JsonProperty("prefixes")           Map<String, String> prefixes,
         @JsonProperty("standardVocabulary") String standardVocabulary
-) implements ValidationConfig {
-    public CliConfig {
+) {
+
+    public CimcheckConfig {
         if (schemas     == null) schemas     = List.of();
         if (namedGraphs == null) namedGraphs = Map.of();
         // prefixes: null means "use built-in defaults", empty map means "no defaults"
+    }
+
+    /** An empty config: no schemas, no overrides — i.e. syntax-only validation. */
+    public static CimcheckConfig empty() {
+        return new CimcheckConfig(null, null, null, null, null, null);
+    }
+
+    /** @return {@code true} iff {@link #namedGraphs()} is non-null and non-empty. */
+    public boolean hasNamedGraphs() {
+        return namedGraphs != null && !namedGraphs.isEmpty();
+    }
+
+    /**
+     * Resolves {@link #standardVocabulary()} to a boolean: whether terms in the closed standard
+     * vocabularies ({@code rdf}/{@code rdfs}/{@code owl}/{@code sh}) are checked for typos.
+     * Returns {@code true} (check) unless explicitly set to {@code "ignore"} (case-insensitive);
+     * unknown values fall back to checking enabled.
+     */
+    public boolean checkStandardVocabulary() {
+        return standardVocabulary == null || !standardVocabulary.trim().equalsIgnoreCase("ignore");
     }
 }

@@ -66,6 +66,7 @@
         <!-- Main dependencies -->
         <ver.jena>5.5.0</ver.jena>
         <ver.cimxml>0.0.0-SNAPSHOT</ver.cimxml>
+        <ver.jackson>2.18.3</ver.jackson>
 
         <!-- Logging -->
         <ver.slf4j>2.0.17</ver.slf4j>
@@ -100,6 +101,13 @@
             <groupId>de.soptim.opencgmes</groupId>
             <artifactId>cimxml</artifactId>
             <version>${ver.cimxml}</version>
+        </dependency>
+
+        <!-- Jackson for parsing the opencgmes.json project config -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${ver.jackson}</version>
         </dependency>
 
         <!-- Logging (provided by user) -->

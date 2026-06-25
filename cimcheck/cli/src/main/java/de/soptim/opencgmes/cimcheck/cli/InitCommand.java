@@ -38,7 +38,8 @@ import java.util.concurrent.Callable;
  * <h2>Exit codes</h2>
  * <ul>
  *   <li>0 — file written</li>
- *   <li>2 — the file already exists (use {@code --force}) or could not be written</li>
+ *   <li>1 — the file could not be written ({@link ExitCode#SOFTWARE})</li>
+ *   <li>2 — the file already exists (use {@code --force}) ({@link ExitCode#USAGE})</li>
  * </ul>
  */
 @Command(

@@ -18,11 +18,11 @@
 
 package de.soptim.opencgmes.cimcheck.cli;
 
-import de.soptim.opencgmes.cimcheck.cli.config.CliConfig;
-import de.soptim.opencgmes.cimcheck.cli.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.cli.schema.SchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
+import de.soptim.opencgmes.cimcheck.core.config.CimcheckConfig;
+import de.soptim.opencgmes.cimcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.core.explain.QueryExplanation;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import picocli.CommandLine.Command;
@@ -134,7 +134,7 @@ public class ExplainCommand implements Callable<Integer> {
     private SparqlValidationApi tryBuildApi() {
         try {
             RdfsSchemaIndex index;
-            CliConfig config = null;
+            CimcheckConfig config = null;
             if (!schemaFiles.isEmpty()) {
                 index = SchemaLoader.load(schemaFiles);
             } else {

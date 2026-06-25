@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package de.soptim.opencgmes.cimcheck.lsp.config;
+package de.soptim.opencgmes.cimcheck.core.config;
 
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -29,7 +29,8 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Locates and parses the project config file {@code opencgmes.json}.
+ * Locates and parses the project config file {@code opencgmes.json}, shared by the CLI and LSP
+ * modules so the discovery rules and parsing behaviour cannot drift apart.
  *
  * <p>All CIMcheck settings live under a top-level {@code "cimcheck"} object so {@code opencgmes.json}
  * can host configuration for other OpenCGMES tools alongside it:</p>
@@ -42,11 +43,10 @@ import java.util.Optional;
  * }
  * }</pre>
  *
- * <p>The file is optional: when none is found (or it omits {@code schemas}/{@code schemasDirectory}),
- * no schema is loaded and documents are validated syntax-only — there is no bundled default schema —
- * unless a document declares a {@code # [endpoint=...]} that supplies the schema.</p>
- *
- * <p>Auto-discovery walks upward from a start directory; explicit loading takes a direct path.</p>
+ * <p>Auto-discovery walks the directory tree upward from a start directory looking for
+ * {@code opencgmes.json}; an explicit path can also be provided. The file is optional — when none is
+ * found (or it declares no {@code schemas}/{@code schemasDirectory}), validation is syntax-only;
+ * there is no bundled default schema. Java-style comments and trailing commas are tolerated.</p>
  */
 public final class ConfigLoader {
 
@@ -64,31 +64,31 @@ public final class ConfigLoader {
     private ConfigLoader() {}
 
     /**
-     * Loads config from an explicit {@code opencgmes.json} path, returning the {@code cimcheck}
-     * section. A missing section yields an empty config (no schemas → syntax-only validation).
+     * Loads the {@code cimcheck} section from an explicit {@code opencgmes.json} path. A missing
+     * section yields an empty config (no schemas → syntax-only validation).
      *
      * @throws ConfigException if the file cannot be read or parsed
      */
-    public static LspConfig load(Path configFile) throws ConfigException {
+    public static CimcheckConfig load(Path configFile) throws ConfigException {
         try {
             JsonNode root = MAPPER.readTree(configFile.toFile());
             JsonNode section = root == null ? null : root.get(SECTION);
             if (section == null || section.isNull()) {
-                return emptyConfig();
+                return CimcheckConfig.empty();
             }
-            return MAPPER.treeToValue(section, LspConfig.class);
+            return MAPPER.treeToValue(section, CimcheckConfig.class);
         } catch (IOException e) {
-            throw new ConfigException("Cannot read config " + configFile + ": " + e.getMessage(), e);
+            throw new ConfigException("Cannot read config file " + configFile + ": " + e.getMessage(), e);
         }
     }
 
     /**
      * Walks upward from {@code startDir} looking for {@code opencgmes.json}.
      *
-     * @return the parsed {@code cimcheck} section, or empty if no file is found in the hierarchy
-     * @throws ConfigException if a file is found but cannot be parsed
+     * @return the parsed {@code cimcheck} section, or empty if no file was found in the hierarchy
+     * @throws ConfigException if a config file is found but cannot be parsed
      */
-    public static Optional<LspConfig> discover(Path startDir) throws ConfigException {
+    public static Optional<CimcheckConfig> discover(Path startDir) throws ConfigException {
         Optional<Path> file = discoverFile(startDir);
         return file.isPresent() ? Optional.of(load(file.get())) : Optional.empty();
     }
@@ -108,10 +108,6 @@ public final class ConfigLoader {
             dir = dir.getParent();
         }
         return Optional.empty();
-    }
-
-    private static LspConfig emptyConfig() {
-        return new LspConfig(null, null, null, null, null, null);
     }
 
     /** Thrown when the config file cannot be loaded or parsed. */

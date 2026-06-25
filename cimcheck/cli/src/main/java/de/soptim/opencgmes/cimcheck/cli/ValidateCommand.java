@@ -26,8 +26,8 @@ import de.soptim.opencgmes.cimcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
-import de.soptim.opencgmes.cimcheck.cli.config.CliConfig;
-import de.soptim.opencgmes.cimcheck.cli.config.ConfigLoader;
+import de.soptim.opencgmes.cimcheck.core.config.CimcheckConfig;
+import de.soptim.opencgmes.cimcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.cli.output.FileResult;
 import de.soptim.opencgmes.cimcheck.cli.output.Format;
 import de.soptim.opencgmes.cimcheck.cli.output.JsonFormatter;
@@ -177,124 +177,166 @@ public class ValidateCommand implements Callable<Integer> {
                     + "or use the 'explain' subcommand. See --help.");
             return ExitCode.USAGE;
         }
-
-        Format format;
         try {
-            format = Format.parse(formatName);
+            Format format = parseFormat();
+            requireValidStrictnessFlag(); // fail fast on a bad flag before loading anything
+
+            SchemaContext schema = resolveSchema();
+            StrictnessLevel strictness = resolveStrictness(schema.config());
+            Map<Node, Collection<VersionIri>> namedGraphScope = buildNamedGraphScope(schema);
+            SparqlValidationApi api = buildApi(schema);
+
+            List<FileResult> results = validateInputs(schema, api, namedGraphScope, strictness);
+            writeResults(format, results);
+
+            // Exit code: 1 if any file is invalid, otherwise 0.
+            return results.stream().anyMatch(r -> !r.valid()) ? 1 : ExitCode.OK;
+        } catch (AbortException e) {
+            return e.code;
+        }
+    }
+
+    // ---- Phases of call() -------------------------------------------------------------------
+
+    /** Schema source resolved for a run: the index (null in syntax-only mode), the config it came
+     *  from (if any), and any endpoint-derived named-graph scope. */
+    private record SchemaContext(
+            RdfsSchemaIndex index,
+            CimcheckConfig config,
+            Map<Node, Collection<VersionIri>> endpointScope,
+            boolean syntaxOnly) {
+
+        static SchemaContext syntaxOnly(CimcheckConfig config) {
+            return new SchemaContext(null, config, null, true);
+        }
+    }
+
+    private Format parseFormat() {
+        try {
+            return Format.parse(formatName);
         } catch (IllegalArgumentException e) {
-            System.err.println("Error: " + e.getMessage());
-            return ExitCode.USAGE;
+            throw abortUsage(e.getMessage());
         }
+    }
 
-        // Resolve strictness early so config-load errors don't hide a bad flag.
-        if (strictnessValue != null) {
-            try {
-                StrictnessLevel.parse(strictnessValue);
-            } catch (IllegalArgumentException e) {
-                System.err.println("Error: " + e.getMessage());
-                return ExitCode.USAGE;
-            }
+    /** Validates the {@code --strictness} flag early so config-load errors don't hide a bad flag. */
+    private void requireValidStrictnessFlag() {
+        if (strictnessValue == null) return;
+        try {
+            StrictnessLevel.parse(strictnessValue);
+        } catch (IllegalArgumentException e) {
+            throw abortUsage(e.getMessage());
         }
+    }
 
-        // 1. Load schema index. From a SPARQL endpoint (with auto graph→profile mapping) when
-        //    --endpoint is given, otherwise from explicit schema files, a config, or the bundle.
-        //    An endpoint that exposes no schema leaves index null and switches to syntax-only mode.
-        RdfsSchemaIndex index = null;
-        CliConfig config = null;
-        Map<Node, Collection<VersionIri>> endpointScope = null;
-        boolean syntaxOnly = false;
-        if (endpoint != null) {
-            if (!schemaFiles.isEmpty() || configFile != null) {
-                System.err.println("Error: --endpoint cannot be combined with --schema or --config.");
-                return ExitCode.USAGE;
+    /**
+     * Loads the schema. From a SPARQL endpoint (with auto graph→profile mapping) when
+     * {@code --endpoint} is given, otherwise from explicit schema files or a config file. There is
+     * no bundled default schema, so an absent/empty source switches to syntax-only mode.
+     */
+    private SchemaContext resolveSchema() {
+        return endpoint != null ? resolveSchemaFromEndpoint() : resolveSchemaFromFilesOrConfig();
+    }
+
+    private SchemaContext resolveSchemaFromEndpoint() {
+        if (!schemaFiles.isEmpty() || configFile != null) {
+            throw abortUsage("--endpoint cannot be combined with --schema or --config.");
+        }
+        EndpointSchema es;
+        try {
+            es = EndpointSchemaLoader.loadFromEndpoint(endpoint, Duration.ofSeconds(30));
+        } catch (RuntimeException e) {
+            throw abortUsage("failed to load schema from endpoint " + endpoint + " — " + e.getMessage());
+        }
+        if (!es.hasSchema()) {
+            String msg = "endpoint " + endpoint + " exposes no CIM schema graphs";
+            if (strictEndpoint) {
+                throw abortUsage(msg + " (--strict-endpoint).");
             }
-            EndpointSchema es;
-            try {
-                es = EndpointSchemaLoader.loadFromEndpoint(endpoint, Duration.ofSeconds(30));
-            } catch (RuntimeException e) {
-                System.err.println("Error: failed to load schema from endpoint "
-                        + endpoint + " — " + e.getMessage());
-                return ExitCode.USAGE;
+            System.err.println("Warning: " + msg + " — validating SPARQL syntax only.");
+            return SchemaContext.syntaxOnly(null);
+        }
+        System.err.println("Info: endpoint schema loaded — " + es.instanceGraphsMapped()
+                + " instance graph(s) auto-mapped to profiles, "
+                + es.schemaGraphNames().size() + " schema graph(s) detected.");
+        if (!es.unmatchedGraphs().isEmpty()) {
+            System.err.println("Warning: could not auto-detect a CGMES profile for "
+                    + es.unmatchedGraphs().size()
+                    + " named graph(s); their terms will be reported as unknown.");
+        }
+        return new SchemaContext(es.index(), null, es.namedGraphScope(), false);
+    }
+
+    private SchemaContext resolveSchemaFromFilesOrConfig() {
+        try {
+            if (!schemaFiles.isEmpty()) {
+                return new SchemaContext(SchemaLoader.load(schemaFiles), null, null, false);
             }
-            if (!es.hasSchema()) {
-                String msg = "endpoint " + endpoint + " exposes no CIM schema graphs";
-                if (strictEndpoint) {
-                    System.err.println("Error: " + msg + " (--strict-endpoint).");
-                    return ExitCode.USAGE;
-                }
-                System.err.println("Warning: " + msg + " — validating SPARQL syntax only.");
-                syntaxOnly = true;
+            // Explicit --config, else an auto-discovered opencgmes.json. There is no bundled default
+            // schema: a config without schemas (or no config at all) means syntax-only.
+            CimcheckConfig config;
+            Path base;
+            if (configFile != null) {
+                config = ConfigLoader.load(configFile);
+                base = configFile.toAbsolutePath().getParent();
             } else {
-                index = es.index();
-                endpointScope = es.namedGraphScope();
-                System.err.println("Info: endpoint schema loaded — " + es.instanceGraphsMapped()
-                        + " instance graph(s) auto-mapped to profiles, "
-                        + es.schemaGraphNames().size() + " schema graph(s) detected.");
-                if (!es.unmatchedGraphs().isEmpty()) {
-                    System.err.println("Warning: could not auto-detect a CGMES profile for "
-                            + es.unmatchedGraphs().size()
-                            + " named graph(s); their terms will be reported as unknown.");
-                }
+                config = ConfigLoader.discover(Path.of(".")).orElse(null);
+                base = Path.of(".").toAbsolutePath();
             }
-        } else {
-            try {
-                if (!schemaFiles.isEmpty()) {
-                    index = SchemaLoader.load(schemaFiles);
-                } else {
-                    // Explicit --config, else an auto-discovered opencgmes.json. There is no bundled
-                    // default schema: a config without schemas (or no config at all) means syntax-only.
-                    Path base;
-                    if (configFile != null) {
-                        config = ConfigLoader.load(configFile);
-                        base = configFile.toAbsolutePath().getParent();
-                    } else {
-                        config = ConfigLoader.discover(Path.of(".")).orElse(null);
-                        base = Path.of(".").toAbsolutePath();
-                    }
-                    index = (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
-                    if (index == null) {
-                        System.err.println("Info: no schema configured — checking syntax only. Use "
-                                + "--schema/--config (or --endpoint) for schema-based validation.");
-                        syntaxOnly = true;
-                    }
-                }
-            } catch (ConfigLoader.ConfigException | SchemaLoader.SchemaLoadException e) {
-                System.err.println("Error: " + e.getMessage());
-                return ExitCode.USAGE;
+            RdfsSchemaIndex index = (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
+            if (index == null) {
+                System.err.println("Info: no schema configured — checking syntax only. Use "
+                        + "--schema/--config (or --endpoint) for schema-based validation.");
+                return SchemaContext.syntaxOnly(config);
             }
+            return new SchemaContext(index, config, null, false);
+        } catch (ConfigLoader.ConfigException | SchemaLoader.SchemaLoadException e) {
+            throw abortUsage(e.getMessage());
         }
+    }
 
-        // 2. Resolve effective strictness: CLI flag → config file → "default".
+    /** Resolves the effective strictness: CLI flag → config file → {@code "default"}. */
+    private StrictnessLevel resolveStrictness(CimcheckConfig config) {
         String levelStr = strictnessValue != null ? strictnessValue
                 : (config != null && config.strictness() != null ? config.strictness() : "default");
-        StrictnessLevel strictness;
         try {
-            strictness = StrictnessLevel.parse(levelStr);
+            return StrictnessLevel.parse(levelStr);
         } catch (IllegalArgumentException e) {
-            System.err.println("Error: " + e.getMessage());
-            return ExitCode.USAGE;
+            throw abortUsage(e.getMessage());
         }
+    }
 
-        // 3. Build scope: auto-detected from the endpoint, or from the config's namedGraphs.
-        //    In syntax-only mode there is no index, so the scope is irrelevant (empty).
-        Map<Node, Collection<VersionIri>> namedGraphScope =
-                endpointScope != null ? endpointScope
-                : index == null ? Map.of()
-                : SparqlValidationApi.buildNamedGraphScope(
-                        config == null ? Map.of() : config.namedGraphs(),
-                        index,
-                        msg -> System.err.println("Warning: " + msg));
+    /**
+     * Builds the named-graph scope: auto-detected from the endpoint, or from the config's
+     * {@code namedGraphs}. In syntax-only mode there is no index, so the scope is empty.
+     */
+    private Map<Node, Collection<VersionIri>> buildNamedGraphScope(SchemaContext schema) {
+        if (schema.endpointScope() != null) return schema.endpointScope();
+        if (schema.index() == null) return Map.of();
+        return SparqlValidationApi.buildNamedGraphScope(
+                schema.config() == null ? Map.of() : schema.config().namedGraphs(),
+                schema.index(),
+                msg -> System.err.println("Warning: " + msg));
+    }
 
-        // 4. Validate each input. In syntax-only mode (no schema source) no API is built.
-        SparqlValidationApi api = null;
-        if (!syntaxOnly) {
-            var effectivePrefixes = (config != null && config.prefixes() != null)
-                    ? config.prefixes()
-                    : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
-            var checkStdVocab = config == null || config.checkStandardVocabulary();
-            api = new SparqlValidationApi(index, effectivePrefixes, checkStdVocab);
-        }
-        var results   = new ArrayList<FileResult>();
+    /** Builds the validation API, or {@code null} in syntax-only mode (no schema source). */
+    private SparqlValidationApi buildApi(SchemaContext schema) {
+        if (schema.syntaxOnly()) return null;
+        CimcheckConfig config = schema.config();
+        var prefixes = (config != null && config.prefixes() != null)
+                ? config.prefixes()
+                : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, schema.index());
+        boolean checkStdVocab = config == null || config.checkStandardVocabulary();
+        return new SparqlValidationApi(schema.index(), prefixes, checkStdVocab);
+    }
+
+    private List<FileResult> validateInputs(
+            SchemaContext schema,
+            SparqlValidationApi api,
+            Map<Node, Collection<VersionIri>> namedGraphScope,
+            StrictnessLevel strictness) {
+
+        var results = new ArrayList<FileResult>();
         String stdinText = null;
         for (String input : inputs) {
             String source = input.equals("-") ? "<stdin>" : input;
@@ -308,35 +350,55 @@ public class ValidateCommand implements Callable<Integer> {
                 }
             } catch (IOException e) {
                 System.err.println("Error reading " + source + ": " + e.getMessage());
-                return ExitCode.USAGE;
+                throw new AbortException(ExitCode.USAGE);
             }
-
-            FileResult fileResult;
-            if (syntaxOnly) {
-                fileResult = applyStrictness(validateSyntaxOnly(source, text, isTurtleFile(input)), strictness);
-            } else if (isTurtleFile(input)) {
-                fileResult = applyStrictness(validateShaclInput(api, source, text), strictness);
-            } else {
-                SparqlValidationResult r = validateSparql(api, text, namedGraphScope, index);
-                List<SparqlValidationAnnotation> effective = strictness.apply(r.annotations());
-                boolean valid = effective.stream()
-                        .noneMatch(a -> a.severity() == SparqlValidationSeverity.ERROR);
-                fileResult = new FileResult(source, valid, effective);
-            }
-            results.add(fileResult);
+            results.add(validateOne(schema, api, namedGraphScope, strictness, input, source, text));
         }
+        return results;
+    }
 
-        // 5. Format output.
+    private FileResult validateOne(
+            SchemaContext schema,
+            SparqlValidationApi api,
+            Map<Node, Collection<VersionIri>> namedGraphScope,
+            StrictnessLevel strictness,
+            String input, String source, String text) {
+
+        if (schema.syntaxOnly()) {
+            return applyStrictness(validateSyntaxOnly(source, text, isTurtleFile(input)), strictness);
+        }
+        if (isTurtleFile(input)) {
+            return applyStrictness(validateShaclInput(api, source, text), strictness);
+        }
+        SparqlValidationResult r = validateSparql(api, text, namedGraphScope);
+        List<SparqlValidationAnnotation> effective = strictness.apply(r.annotations());
+        boolean valid = effective.stream()
+                .noneMatch(a -> a.severity() == SparqlValidationSeverity.ERROR);
+        return new FileResult(source, valid, effective);
+    }
+
+    private void writeResults(Format format, List<FileResult> results) {
         var writer = new PrintWriter(System.out, true, StandardCharsets.UTF_8);
         switch (format) {
             case TEXT -> new TextFormatter(writer, verbose).write(results);
             case JSON -> new JsonFormatter(writer, verbose).write(results);
         }
         writer.flush();
+    }
 
-        // 6. Exit code: 1 if any file is invalid.
-        boolean anyInvalid = results.stream().anyMatch(r -> !r.valid());
-        return anyInvalid ? 1 : ExitCode.OK;
+    /** Prints {@code "Error: <message>"} and signals a usage-error early exit. */
+    private static AbortException abortUsage(String message) {
+        System.err.println("Error: " + message);
+        return new AbortException(ExitCode.USAGE);
+    }
+
+    /** Unwinds {@link #call()} with a specific process exit code; the message is already printed. */
+    private static final class AbortException extends RuntimeException {
+        final int code;
+        AbortException(int code) {
+            super(null, null, false, false);
+            this.code = code;
+        }
     }
 
     // ---- Helpers ----------------------------------------------------------------------------
@@ -344,8 +406,7 @@ public class ValidateCommand implements Callable<Integer> {
     private SparqlValidationResult validateSparql(
             SparqlValidationApi api,
             String queryText,
-            Map<Node, Collection<VersionIri>> namedGraphScope,
-            RdfsSchemaIndex index) {
+            Map<Node, Collection<VersionIri>> namedGraphScope) {
 
         if (!namedGraphScope.isEmpty()) {
             return api.validateSparql(queryText, namedGraphScope);
