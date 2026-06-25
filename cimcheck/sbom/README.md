@@ -21,9 +21,26 @@ All BOMs are [CycloneDX](https://cyclonedx.org/) 1.6 JSON.
 scripts/generate-sbom.sh        # requires mvn, node/npm and the Gradle wrapper
 ```
 
-The script regenerates every file in place. Output is deterministic (stable
-component ordering; serial numbers and build timestamps are stripped/disabled),
-so re-running with unchanged dependencies produces byte-identical files.
+The script regenerates every file in place and then **canonicalizes** each
+`bom.json` so the committed copy is byte-identical no matter which machine
+generated it (the CI `sbom` job re-runs the script and fails on any drift). The
+canonicalization strips/normalizes the values the CycloneDX toolchain derives
+from the local environment, which would otherwise churn the files:
+
+- the `metadata.timestamp` build stamp;
+- the git remote URL form (an `ssh://git@github.com:…` checkout is rewritten to
+  the canonical `https://github.com/…`, matching CI's https checkout);
+- the generating `npm` version recorded by `cyclonedx-npm`;
+- component / dependency ordering (sorted deterministically);
+- the per-file hashes in `intellij/bom.json` — the IntelliJ Platform Gradle
+  plugin hashes the **bytecode-instrumented** platform jars
+  (`instrumented-lsp4ij-*.jar`, …), and the instrumenter output is not
+  reproducible across JDK/IDE builds. These cover compile-only, non-shipped
+  artifacts, so the hashes are dropped (component, version and license — what
+  the license gate needs — are kept).
+
+With those normalized, re-running with unchanged dependencies produces
+byte-identical files on any machine.
 
 **Whenever you change a dependency** — a version in any `pom.xml`,
 `cimcheck/vscode/package.json` / `package-lock.json`, or the
