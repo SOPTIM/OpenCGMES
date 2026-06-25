@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package de.soptim.opencgmes.cimcheck.lsp.config;
+package de.soptim.opencgmes.cimcheck.core.config;
 
 import de.soptim.opencgmes.cimcheck.core.ConfigTemplate;
 import org.junit.Rule;
@@ -41,7 +41,7 @@ public class ConfigLoaderTest {
     @Test
     public void generatedTemplateParsesWithNoSchemasConfigured() throws Exception {
         Path file = write(tmp.getRoot().toPath(), ConfigTemplate.defaultJson());
-        LspConfig cfg = ConfigLoader.load(file);
+        CimcheckConfig cfg = ConfigLoader.load(file);
         // The scaffold leaves schemas commented out -> empty -> syntax-only (no bundled default).
         assertTrue("schemas should be empty", cfg.schemas().isEmpty());
         assertNull("schemasDirectory should be unset", cfg.schemasDirectory());
@@ -60,7 +60,7 @@ public class ConfigLoaderTest {
                 }
                 """;
         Path file = write(tmp.getRoot().toPath(), json);
-        LspConfig cfg = ConfigLoader.load(file);
+        CimcheckConfig cfg = ConfigLoader.load(file);
         assertEquals("strict", cfg.strictness());
         assertTrue(cfg.namedGraphs().containsKey("urn:uuid:eq"));
     }
@@ -68,7 +68,7 @@ public class ConfigLoaderTest {
     @Test
     public void missingSectionYieldsEmptyConfig() throws Exception {
         Path file = write(tmp.getRoot().toPath(), "{ \"otherTool\": { \"x\": 1 } }");
-        LspConfig cfg = ConfigLoader.load(file);
+        CimcheckConfig cfg = ConfigLoader.load(file);
         assertTrue(cfg.schemas().isEmpty());
         assertNull(cfg.schemasDirectory());
     }

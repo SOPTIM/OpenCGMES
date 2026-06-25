@@ -18,8 +18,8 @@
 
 package de.soptim.opencgmes.cimcheck.cli.schema;
 
-import de.soptim.opencgmes.cimcheck.cli.config.CliConfig;
 import de.soptim.opencgmes.cimcheck.core.CgmesSchemaLoader;
+import de.soptim.opencgmes.cimcheck.core.config.CimcheckConfig;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +50,7 @@ public final class SchemaLoader {
      *
      * @throws SchemaLoadException if schema files are configured but none can be found/parsed
      */
-    public static Optional<RdfsSchemaIndex> load(CliConfig config, Path configBase)
+    public static Optional<RdfsSchemaIndex> load(CimcheckConfig config, Path configBase)
             throws SchemaLoadException {
         if (config.schemas().isEmpty() && config.schemasDirectory() == null) {
             return Optional.empty();
@@ -72,7 +72,7 @@ public final class SchemaLoader {
 
     // ---- private helpers -------------------------------------------------------------------
 
-    private static List<Path> resolveFiles(CliConfig config, Path base) throws SchemaLoadException {
+    private static List<Path> resolveFiles(CimcheckConfig config, Path base) throws SchemaLoadException {
         if (!config.schemas().isEmpty()) {
             return config.schemas().stream()
                     .map(s -> base.resolve(s).normalize())

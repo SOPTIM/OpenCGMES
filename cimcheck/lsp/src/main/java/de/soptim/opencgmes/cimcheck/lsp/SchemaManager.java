@@ -23,11 +23,11 @@ import de.soptim.opencgmes.cimcheck.core.DefaultPrefixes;
 import de.soptim.opencgmes.cimcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimcheck.core.VersionIri;
+import de.soptim.opencgmes.cimcheck.core.config.CimcheckConfig;
+import de.soptim.opencgmes.cimcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimcheck.core.schema.EndpointSchemaLoader;
 import de.soptim.opencgmes.cimcheck.core.schema.RdfsSchemaIndex;
-import de.soptim.opencgmes.cimcheck.lsp.config.ConfigLoader;
-import de.soptim.opencgmes.cimcheck.lsp.config.LspConfig;
 import de.soptim.opencgmes.cimcheck.lsp.schema.SchemaLoader;
 import org.apache.jena.graph.Node;
 import org.eclipse.lsp4j.MessageParams;
@@ -441,7 +441,7 @@ final class SchemaManager {
      */
     private WorkspaceSchema buildSchemaForConfig(Path configFile) throws Exception {
         Path base = configFile.toAbsolutePath().getParent();
-        LspConfig config = ConfigLoader.load(configFile);
+        CimcheckConfig config = ConfigLoader.load(configFile);
         Optional<SchemaLoader.SchemaAndSources> loaded = SchemaLoader.loadWithSources(config, base);
         if (loaded.isEmpty()) {
             // Config present but no schemas declared → syntax-only (unless documents use an endpoint).
@@ -452,7 +452,7 @@ final class SchemaManager {
     }
 
     /** Assembles the API, strictness, definition index, and named-graph scope from a config + schema. */
-    private WorkspaceSchema assemble(LspConfig config, SchemaLoader.SchemaAndSources loaded) {
+    private WorkspaceSchema assemble(CimcheckConfig config, SchemaLoader.SchemaAndSources loaded) {
         var prefixes = config.prefixes() != null
                 ? config.prefixes()
                 : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, loaded.index());
@@ -482,7 +482,7 @@ final class SchemaManager {
         }
     }
 
-    private static StrictnessLevel parseLevel(LspConfig config) {
+    private static StrictnessLevel parseLevel(CimcheckConfig config) {
         try {
             return StrictnessLevel.parse(config.strictness());
         } catch (IllegalArgumentException e) {
