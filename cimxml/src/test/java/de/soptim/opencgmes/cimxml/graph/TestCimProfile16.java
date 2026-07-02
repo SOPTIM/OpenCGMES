@@ -202,7 +202,7 @@ public class TestCimProfile16 {
             </rdf:RDF>
             """;
 
-        var graph = new GraphMem2Roaring();
+        var graph = new GraphMemRoaring();
         RDFParser.create()
                 .source(new StringReader(rdfxml))
                 .lang(org.apache.jena.riot.Lang.RDFXML)

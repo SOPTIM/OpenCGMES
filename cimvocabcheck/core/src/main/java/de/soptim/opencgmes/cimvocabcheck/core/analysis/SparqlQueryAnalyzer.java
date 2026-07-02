@@ -63,10 +63,18 @@ public final class SparqlQueryAnalyzer {
    * <p>Without an explicit base, Jena resolves relative IRIs against the JVM working directory,
    * producing {@code file:///path/EQ} URIs that never match user-configured graph names. Using this
    * stable, non-file base keeps relative graph references predictable: {@code <EQ>} always becomes
-   * {@code urn:x-cimvocabcheck:base/EQ}, which callers can match by prepending this prefix to a
-   * relative config key.
+   * {@code https://opencgmes.soptim.de/cimvocabcheck/base/EQ}, which callers can match by prepending
+   * this prefix to a relative config key.
+   *
+   * <p>The base intentionally uses an {@code https} scheme (with authority). Jena's IRI resolver
+   * follows RFC 3986 §5.4.2 non-strict resolution, which strips the scheme of a reference whose
+   * scheme equals the base's. A {@code urn:} base therefore corrupts absolute {@code urn:...}
+   * references (notably CGMES {@code urn:uuid:...} graph names), rewriting {@code <urn:uuid:x>} to
+   * {@code <base/uuid:x>}. An {@code https://} base cannot collide this way: {@code urn:} references
+   * keep their scheme, and absolute {@code http(s)://} references carry an authority and so are left
+   * untouched, while only genuinely relative references are resolved against it.
    */
-  public static final String RELATIVE_IRI_BASE = "urn:x-cimvocabcheck:base/";
+  public static final String RELATIVE_IRI_BASE = "https://opencgmes.soptim.de/cimvocabcheck/base/";
 
   /** Parses the query and runs the analysis. */
   public SparqlQueryAnalysis analyze(String queryString) throws InvalidQueryException {
