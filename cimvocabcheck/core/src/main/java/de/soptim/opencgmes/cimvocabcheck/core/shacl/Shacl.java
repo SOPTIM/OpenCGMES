@@ -101,6 +101,56 @@ public final class Shacl {
   /** {@code sh:datatype} — the required XSD datatype of the value nodes. */
   public static final Node DATATYPE = NodeFactory.createURI(NS + "datatype");
 
+  /** {@code sh:in} — the value must be one of the members of this RDF list. */
+  public static final Node IN = NodeFactory.createURI(NS + "in");
+
+  /** {@code sh:hasValue} — the value nodes must include this specific value. */
+  public static final Node HAS_VALUE = NodeFactory.createURI(NS + "hasValue");
+
+  /** {@code sh:deactivated} — when {@code true}, the shape and its constraints are ignored. */
+  public static final Node DEACTIVATED = NodeFactory.createURI(NS + "deactivated");
+
+  // ---- Target predicates naming a property -----------------------------------------------
+
+  /** {@code sh:targetSubjectsOf} — focus nodes are subjects of this property. */
+  public static final Node TARGET_SUBJECTS_OF = NodeFactory.createURI(NS + "targetSubjectsOf");
+
+  /** {@code sh:targetObjectsOf} — focus nodes are objects of this property. */
+  public static final Node TARGET_OBJECTS_OF = NodeFactory.createURI(NS + "targetObjectsOf");
+
+  /**
+   * {@code sh:ignoredProperties} — RDF list of properties excluded from a {@code sh:closed} check.
+   */
+  public static final Node IGNORED_PROPERTIES = NodeFactory.createURI(NS + "ignoredProperties");
+
+  // ---- Property-pair constraint predicates (value is another property IRI) ----------------
+
+  /** {@code sh:equals} — the value nodes must equal the values of this property. */
+  public static final Node EQUALS = NodeFactory.createURI(NS + "equals");
+
+  /** {@code sh:disjoint} — the value nodes must be disjoint from the values of this property. */
+  public static final Node DISJOINT = NodeFactory.createURI(NS + "disjoint");
+
+  /** {@code sh:lessThan} — the value nodes must be less than the values of this property. */
+  public static final Node LESS_THAN = NodeFactory.createURI(NS + "lessThan");
+
+  /** {@code sh:lessThanOrEquals} — the value nodes must be ≤ the values of this property. */
+  public static final Node LESS_THAN_OR_EQUALS = NodeFactory.createURI(NS + "lessThanOrEquals");
+
+  // ---- Value-range constraint predicates -------------------------------------------------
+
+  /** {@code sh:minInclusive} — inclusive lower bound of the value nodes. */
+  public static final Node MIN_INCLUSIVE = NodeFactory.createURI(NS + "minInclusive");
+
+  /** {@code sh:maxInclusive} — inclusive upper bound of the value nodes. */
+  public static final Node MAX_INCLUSIVE = NodeFactory.createURI(NS + "maxInclusive");
+
+  /** {@code sh:minExclusive} — exclusive lower bound of the value nodes. */
+  public static final Node MIN_EXCLUSIVE = NodeFactory.createURI(NS + "minExclusive");
+
+  /** {@code sh:maxExclusive} — exclusive upper bound of the value nodes. */
+  public static final Node MAX_EXCLUSIVE = NodeFactory.createURI(NS + "maxExclusive");
+
   // ---- sh:nodeKind values ----------------------------------------------------------------
 
   /** Node kind: IRI nodes only. */

@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -90,6 +91,14 @@ public final class ShaclShapeAnalyzer {
   private static final List<Node> COMPONENT_INTERNAL_LINKS =
       List.of(Shacl.PARAMETER, Shacl.VALIDATOR, Shacl.NODE_VALIDATOR, Shacl.PROPERTY_VALIDATOR);
 
+  /** Predicates whose URI object names a CIM property used as a validation target. */
+  private static final List<Node> TARGET_PREDICATES =
+      List.of(Shacl.TARGET_SUBJECTS_OF, Shacl.TARGET_OBJECTS_OF);
+
+  /** Property-pair constraint predicates whose URI object names another CIM property. */
+  private static final List<Node> PROPERTY_PAIR_PREDICATES =
+      List.of(Shacl.EQUALS, Shacl.DISJOINT, Shacl.LESS_THAN, Shacl.LESS_THAN_OR_EQUALS);
+
   private final SchemaIndex schemaIndex;
   private final TermResolver termResolver;
   private final boolean checkStandardVocabulary;
@@ -121,6 +130,7 @@ public final class ShaclShapeAnalyzer {
 
     Set<Node> localDefs = collectLocalDefinitions(shapesGraph);
     Set<Node> componentInternals = collectComponentInternalShapes(shapesGraph);
+    Set<Node> deactivated = collectDeactivatedShapes(shapesGraph);
 
     checkClassReferences(
         shapesGraph,
@@ -129,10 +139,26 @@ public final class ShaclShapeAnalyzer {
         scope,
         localDefs,
         componentInternals,
+        deactivated,
         out);
     checkClassReferences(
-        shapesGraph, Shacl.CLASS, "sh:class", scope, localDefs, componentInternals, out);
-    checkPropertyShapes(shapesGraph, scope, localDefs, componentInternals, out);
+        shapesGraph,
+        Shacl.CLASS,
+        "sh:class",
+        scope,
+        localDefs,
+        componentInternals,
+        deactivated,
+        out);
+    checkPropertyShapes(shapesGraph, scope, localDefs, componentInternals, deactivated, out);
+    checkInLists(shapesGraph, scope, localDefs, deactivated, out);
+    checkHasValue(shapesGraph, scope, localDefs, deactivated, out);
+    checkValueRanges(shapesGraph, deactivated, out);
+    checkDatatypeVocabulary(shapesGraph, deactivated, out);
+    checkPropertyRefPredicates(shapesGraph, TARGET_PREDICATES, scope, localDefs, deactivated, out);
+    checkPropertyRefPredicates(
+        shapesGraph, PROPERTY_PAIR_PREDICATES, scope, localDefs, deactivated, out);
+    checkIgnoredProperties(shapesGraph, scope, localDefs, deactivated, out);
     checkVocabularyTerms(shapesGraph, checkStandardVocabulary, out);
 
     return List.copyOf(out);
@@ -315,6 +341,7 @@ public final class ShaclShapeAnalyzer {
       Collection<VersionIri> scope,
       Set<Node> localDefs,
       Set<Node> componentInternals,
+      Set<Node> deactivated,
       List<SparqlValidationAnnotation> out) {
 
     var it = g.find(Node.ANY, predicate, Node.ANY);
@@ -323,6 +350,10 @@ public final class ShaclShapeAnalyzer {
         Triple t = it.next();
         Node cls = t.getObject();
         if (!cls.isURI()) {
+          continue;
+        }
+        // A deactivated shape and its constraints are ignored.
+        if (deactivated.contains(t.getSubject())) {
           continue;
         }
         // Inside a constraint-component parameter/validator, sh:class names the accepted value
@@ -359,6 +390,7 @@ public final class ShaclShapeAnalyzer {
       Collection<VersionIri> scope,
       Set<Node> localDefs,
       Set<Node> componentInternals,
+      Set<Node> deactivated,
       List<SparqlValidationAnnotation> out) {
 
     var it = g.find(Node.ANY, Shacl.PATH, Node.ANY);
@@ -367,6 +399,11 @@ public final class ShaclShapeAnalyzer {
         Triple t = it.next();
         Node shape = t.getSubject();
         Node pathNode = t.getObject();
+
+        // A deactivated shape and its constraints are ignored.
+        if (deactivated.contains(shape)) {
+          continue;
+        }
 
         // On a constraint-component parameter/validator, sh:path declares a parameter name rather
         // than a CIM data-property path: skip both the property-existence and the range checks.
@@ -665,6 +702,335 @@ public final class ShaclShapeAnalyzer {
     }
   }
 
+  // ---- sh:in / sh:hasValue value checks --------------------------------------------------
+
+  /**
+   * Checks the URI members of every {@code sh:in} value list. When the shape's {@code sh:path}
+   * property has a known enumeration range, members that are not values of that enumeration are
+   * reported as {@link SparqlValidationCode#INVALID_ENUM_VALUE}. Otherwise a member that is a URI
+   * unknown to every CIM index (class, property, enumeration member) is reported as a missing term.
+   * Literal members, standard/open/header terms and locally declared terms are left alone;
+   * closed-namespace typos are handled by {@link #checkVocabularyTerms}.
+   */
+  private void checkInLists(
+      Graph g,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      Set<Node> deactivated,
+      List<SparqlValidationAnnotation> out) {
+
+    var it = g.find(Node.ANY, Shacl.IN, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        Node shape = t.getSubject();
+        if (deactivated.contains(shape)) {
+          continue;
+        }
+        Node prop = simplePathProperty(g, shape);
+        Set<Node> ranges = prop == null ? Set.of() : schemaIndex.rangesOf(prop, scope);
+        Set<Node> enumMembers = enumMembers(ranges, scope);
+        var members = new ArrayList<Node>();
+        walkList(g, t.getObject(), members::add);
+        for (Node m : members) {
+          checkInMember(m, enumMembers, ranges, scope, localDefs, out);
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+  }
+
+  private void checkInMember(
+      Node m,
+      Set<Node> enumMembers,
+      Set<Node> ranges,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      List<SparqlValidationAnnotation> out) {
+    if (!m.isURI() || isVocabularyOrLocal(m, localDefs)) {
+      return;
+    }
+    if (enumMembers != null) {
+      if (!enumMembers.contains(m)) {
+        out.add(enumValueAnnotation(m, ranges, scope, "sh:in"));
+      }
+      return;
+    }
+    if (!existsAsCimTerm(m, scope)) {
+      out.add(inUnknownTermAnnotation(m, scope));
+    }
+  }
+
+  /**
+   * Checks {@code sh:hasValue}: when the shape's {@code sh:path} property has a known enumeration
+   * range and the required value is a URI that is not a member of that enumeration, it is reported
+   * as {@link SparqlValidationCode#INVALID_ENUM_VALUE}.
+   */
+  private void checkHasValue(
+      Graph g,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      Set<Node> deactivated,
+      List<SparqlValidationAnnotation> out) {
+
+    var it = g.find(Node.ANY, Shacl.HAS_VALUE, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        Node shape = t.getSubject();
+        Node value = t.getObject();
+        if (deactivated.contains(shape)
+            || !value.isURI()
+            || isVocabularyOrLocal(value, localDefs)) {
+          continue;
+        }
+        Node prop = simplePathProperty(g, shape);
+        Set<Node> ranges = prop == null ? Set.of() : schemaIndex.rangesOf(prop, scope);
+        Set<Node> enumMembers = enumMembers(ranges, scope);
+        if (enumMembers != null && !enumMembers.contains(value)) {
+          out.add(enumValueAnnotation(value, ranges, scope, "sh:hasValue"));
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+  }
+
+  // ---- sh:datatype vocabulary, target/property-pair, ignoredProperties, value ranges ------
+
+  /**
+   * Flags an {@code sh:datatype} whose value is in the XSD namespace but is not a known XSD 1.1
+   * datatype — e.g. {@code sh:datatype xsd:strng}. The XSD namespace is otherwise accepted
+   * wholesale by {@link ExemptVocabulary}, so this is the only place such a typo is caught.
+   */
+  private void checkDatatypeVocabulary(
+      Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
+    if (!checkStandardVocabulary) {
+      return;
+    }
+    var it = g.find(Node.ANY, Shacl.DATATYPE, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        Node dt = t.getObject();
+        if (deactivated.contains(t.getSubject())) {
+          continue;
+        }
+        if (StandardVocabulary.isXsdNamespace(dt) && !StandardVocabulary.isKnownXsdDatatype(dt)) {
+          out.add(xsdDatatypeAnnotation(dt));
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+  }
+
+  /**
+   * Checks predicates whose URI object names a CIM property — {@code sh:targetSubjectsOf}/{@code
+   * sh:targetObjectsOf} and the property-pair constraints {@code sh:equals}/{@code sh:disjoint}/
+   * {@code sh:lessThan}/{@code sh:lessThanOrEquals}. A URI that is not a known property (nor a
+   * standard/open/header/local term) is reported as {@link SparqlValidationCode#UNKNOWN_PROPERTY}.
+   */
+  private void checkPropertyRefPredicates(
+      Graph g,
+      List<Node> predicates,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      Set<Node> deactivated,
+      List<SparqlValidationAnnotation> out) {
+    for (Node predicate : predicates) {
+      String label = "sh:" + localName(predicate.getURI());
+      var it = g.find(Node.ANY, predicate, Node.ANY);
+      try {
+        while (it.hasNext()) {
+          Triple t = it.next();
+          Node obj = t.getObject();
+          if (!obj.isURI() || deactivated.contains(t.getSubject())) {
+            continue;
+          }
+          if (isUnknownProperty(obj, scope, localDefs)) {
+            out.add(propertyRefAnnotation(obj, label, scope, schemaIndex.findProperty(obj)));
+          }
+        }
+      } finally {
+        closeQuietly(it);
+      }
+    }
+  }
+
+  /**
+   * Checks the {@code sh:ignoredProperties} RDF list: every URI must be a known property or a
+   * standard/open/header/local term (the common {@code ( rdf:type )} case is accepted). Unknown
+   * terms are reported as {@link SparqlValidationCode#UNKNOWN_PROPERTY}.
+   */
+  private void checkIgnoredProperties(
+      Graph g,
+      Collection<VersionIri> scope,
+      Set<Node> localDefs,
+      Set<Node> deactivated,
+      List<SparqlValidationAnnotation> out) {
+    var it = g.find(Node.ANY, Shacl.IGNORED_PROPERTIES, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        if (deactivated.contains(t.getSubject())) {
+          continue;
+        }
+        var members = new ArrayList<Node>();
+        walkList(g, t.getObject(), members::add);
+        for (Node m : members) {
+          if (m.isURI() && isUnknownProperty(m, scope, localDefs)) {
+            out.add(
+                propertyRefAnnotation(
+                    m, "sh:ignoredProperties", scope, schemaIndex.findProperty(m)));
+          }
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+  }
+
+  /**
+   * Flags a self-contradictory value range — a lower bound ({@code sh:minInclusive}/{@code
+   * sh:minExclusive}) strictly greater than an upper bound ({@code sh:maxInclusive}/{@code
+   * sh:maxExclusive}) on the same shape, which no value can satisfy. Only numeric bounds are
+   * compared; non-numeric bounds are skipped.
+   */
+  private void checkValueRanges(
+      Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
+    var shapes = new LinkedHashSet<Node>();
+    for (Node p :
+        List.of(
+            Shacl.MIN_INCLUSIVE, Shacl.MIN_EXCLUSIVE, Shacl.MAX_INCLUSIVE, Shacl.MAX_EXCLUSIVE)) {
+      forEachSubject(g, p, shapes::add);
+    }
+    for (Node shape : shapes) {
+      if (!deactivated.contains(shape)) {
+        checkValueRange(g, shape, out);
+      }
+    }
+  }
+
+  private void checkValueRange(Graph g, Node shape, List<SparqlValidationAnnotation> out) {
+    OptionalDouble minInc = literalDouble(singleObject(g, shape, Shacl.MIN_INCLUSIVE));
+    OptionalDouble minExc = literalDouble(singleObject(g, shape, Shacl.MIN_EXCLUSIVE));
+    OptionalDouble maxInc = literalDouble(singleObject(g, shape, Shacl.MAX_INCLUSIVE));
+    OptionalDouble maxExc = literalDouble(singleObject(g, shape, Shacl.MAX_EXCLUSIVE));
+    Node term = simplePathProperty(g, shape);
+
+    if (contradicts(minInc, maxInc)) {
+      out.add(valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxInclusive", maxInc, term));
+    } else if (contradicts(minInc, maxExc)) {
+      out.add(valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxExclusive", maxExc, term));
+    } else if (contradicts(minExc, maxInc)) {
+      out.add(valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxInclusive", maxInc, term));
+    } else if (contradicts(minExc, maxExc)) {
+      out.add(valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxExclusive", maxExc, term));
+    }
+  }
+
+  private static boolean contradicts(OptionalDouble lower, OptionalDouble upper) {
+    return lower.isPresent() && upper.isPresent() && lower.getAsDouble() > upper.getAsDouble();
+  }
+
+  // ---- shared helpers for the checks above ------------------------------------------------
+
+  /**
+   * Returns the {@code sh:path} value of {@code shape} when it is a single URI, else {@code null}.
+   */
+  private static Node simplePathProperty(Graph g, Node shape) {
+    Node p = singleObject(g, shape, Shacl.PATH);
+    return p != null && p.isURI() ? p : null;
+  }
+
+  /**
+   * Returns the union of enumeration members if <em>every</em> range in {@code ranges} is an
+   * enumeration with known members in scope; otherwise {@code null} (be permissive — the property
+   * is not a known enumeration-typed one).
+   */
+  private Set<Node> enumMembers(Set<Node> ranges, Collection<VersionIri> scope) {
+    if (ranges.isEmpty()) {
+      return null;
+    }
+    var members = new LinkedHashSet<Node>();
+    for (Node r : ranges) {
+      Set<Node> m = schemaIndex.enumMembersOf(r, scope);
+      if (m.isEmpty()) {
+        return null; // non-enumeration range — permissive
+      }
+      members.addAll(m);
+    }
+    return members;
+  }
+
+  /** Whether {@code m} exists as a class, property or enumeration member in the CIM schema. */
+  private boolean existsAsCimTerm(Node m, Collection<VersionIri> scope) {
+    return schemaIndex.classExists(m, scope)
+        || schemaIndex.propertyExists(m, scope)
+        || schemaIndex.enumMemberExists(m, null);
+  }
+
+  /**
+   * Whether {@code term} is a standard/open/header vocabulary term, a closed-namespace typo
+   * (handled elsewhere), or a locally declared term — i.e. not something to check against the CIM
+   * schema in a value position.
+   */
+  private static boolean isVocabularyOrLocal(Node term, Set<Node> localDefs) {
+    return TermResolver.vocabularyClassification(term) != null || localDefs.contains(term);
+  }
+
+  /**
+   * Whether {@code obj} should be reported as an unknown property in a property-reference position:
+   * a URI that is not accepted as a property, standard/open/header/local term, and not a closed
+   * namespace typo (those are reported by {@link #checkVocabularyTerms}).
+   */
+  private boolean isUnknownProperty(Node obj, Collection<VersionIri> scope, Set<Node> localDefs) {
+    Classification kind = termResolver.classify(obj, Role.PROPERTY, scope, localDefs);
+    return !TermResolver.isAccepted(kind, Role.PROPERTY) && kind != Classification.VOCAB_TYPO;
+  }
+
+  private static OptionalDouble literalDouble(Node n) {
+    if (n == null || !n.isLiteral()) {
+      return OptionalDouble.empty();
+    }
+    try {
+      return OptionalDouble.of(Double.parseDouble(n.getLiteralLexicalForm()));
+    } catch (NumberFormatException e) {
+      return OptionalDouble.empty();
+    }
+  }
+
+  private static void forEachSubject(Graph g, Node predicate, Consumer<Node> consumer) {
+    var it = g.find(Node.ANY, predicate, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        consumer.accept(it.next().getSubject());
+      }
+    } finally {
+      closeQuietly(it);
+    }
+  }
+
+  /** Collects shape nodes deactivated with {@code sh:deactivated true}. */
+  private static Set<Node> collectDeactivatedShapes(Graph g) {
+    var out = new HashSet<Node>();
+    var it = g.find(Node.ANY, Shacl.DEACTIVATED, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        Node o = t.getObject();
+        if (o.isLiteral() && "true".equalsIgnoreCase(o.getLiteralLexicalForm().trim())) {
+          out.add(t.getSubject());
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+    return out;
+  }
+
   // ---- annotation builders ---------------------------------------------------------------
 
   private static SparqlValidationAnnotation classAnnotation(
@@ -838,6 +1204,135 @@ public final class ShaclShapeAnalyzer {
         List.copyOf(scope),
         List.of(),
         null);
+  }
+
+  private static SparqlValidationAnnotation enumValueAnnotation(
+      Node value, Collection<Node> ranges, Collection<VersionIri> scope, String context) {
+    var msg =
+        new StringBuilder(context)
+            .append(": <")
+            .append(value.getURI())
+            .append("> is not a value of enumeration ")
+            .append(formatUris(ranges))
+            .append('.');
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.ERROR,
+        null,
+        null,
+        msg.toString(),
+        SparqlValidationCode.INVALID_ENUM_VALUE,
+        value,
+        List.copyOf(scope),
+        List.of(),
+        null);
+  }
+
+  private static SparqlValidationAnnotation inUnknownTermAnnotation(
+      Node term, Collection<VersionIri> scope) {
+    var msg =
+        new StringBuilder("Shape sh:in: <")
+            .append(term.getURI())
+            .append("> does not exist as a class, property or enumeration member in ");
+    appendScopeLabel(msg, scope);
+    msg.append('.');
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.ERROR,
+        null,
+        null,
+        msg.toString(),
+        SparqlValidationCode.UNKNOWN_CLASS,
+        term,
+        List.copyOf(scope),
+        List.of(),
+        null);
+  }
+
+  private static SparqlValidationAnnotation propertyRefAnnotation(
+      Node prop, String predicateLabel, Collection<VersionIri> scope, List<VersionIri> elsewhere) {
+    var msg =
+        new StringBuilder("Shape ")
+            .append(predicateLabel)
+            .append(": property <")
+            .append(prop.getURI())
+            .append("> does not exist in ");
+    appendScopeLabel(msg, scope);
+    msg.append('.');
+    if (!elsewhere.isEmpty()) {
+      msg.append(" Exists in profile").append(elsewhere.size() == 1 ? " " : "s ");
+      IriFormat.appendIris(msg, elsewhere);
+      msg.append('.');
+    }
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.ERROR,
+        null,
+        null,
+        msg.toString(),
+        SparqlValidationCode.UNKNOWN_PROPERTY,
+        prop,
+        List.copyOf(scope),
+        List.copyOf(elsewhere),
+        null);
+  }
+
+  private static SparqlValidationAnnotation xsdDatatypeAnnotation(Node datatype) {
+    String msg =
+        "sh:datatype <"
+            + IriFormat.shortIri(datatype.getURI())
+            + "> is not a term in the XSD vocabulary.";
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.ERROR,
+        null,
+        null,
+        msg,
+        SparqlValidationCode.UNKNOWN_VOCABULARY_TERM,
+        datatype,
+        List.of(),
+        List.of(),
+        null);
+  }
+
+  private static SparqlValidationAnnotation valueRangeAnnotation(
+      String lowerLabel, OptionalDouble lower, String upperLabel, OptionalDouble upper, Node term) {
+    String msg =
+        lowerLabel
+            + " "
+            + formatBound(lower.getAsDouble())
+            + " exceeds "
+            + upperLabel
+            + " "
+            + formatBound(upper.getAsDouble())
+            + ": property shape can never be satisfied.";
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.ERROR,
+        null,
+        null,
+        msg,
+        SparqlValidationCode.INVALID_VALUE_RANGE,
+        term,
+        List.of(),
+        List.of(),
+        null);
+  }
+
+  /** Formats a numeric bound without a trailing {@code .0} for whole numbers. */
+  private static String formatBound(double d) {
+    return d == Math.floor(d) && !Double.isInfinite(d)
+        ? Long.toString((long) d)
+        : Double.toString(d);
+  }
+
+  /** Joins a set of URI nodes as {@code <a>, <b>} for diagnostics. */
+  private static String formatUris(Collection<Node> nodes) {
+    var sb = new StringBuilder();
+    boolean first = true;
+    for (Node n : nodes) {
+      if (!first) {
+        sb.append(", ");
+      }
+      sb.append('<').append(n.isURI() ? n.getURI() : n.toString()).append('>');
+      first = false;
+    }
+    return sb.toString();
   }
 
   private static void appendScopeLabel(StringBuilder msg, Collection<VersionIri> scope) {

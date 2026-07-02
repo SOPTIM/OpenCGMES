@@ -61,5 +61,10 @@ public enum SparqlValidationCode {
    * Object IRI of a property whose {@code rdfs:range} is an enumeration is not one of that
    * enumeration's members — almost always a typo (e.g. {@code cim:WindGenUnitKind.offshroe}).
    */
-  INVALID_ENUM_VALUE
+  INVALID_ENUM_VALUE,
+  /**
+   * A value-range constraint is self-contradictory — e.g. {@code sh:minInclusive} exceeds {@code
+   * sh:maxInclusive} — so the property shape can never be satisfied.
+   */
+  INVALID_VALUE_RANGE
 }

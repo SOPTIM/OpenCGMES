@@ -143,6 +143,24 @@ public class CgmesShacl30IntegrationTest {
   }
 
   @Test
+  public void equipmentSimpleShapes_noFalseInOrDatatypeErrors() throws IOException {
+    // The EQ Simple SHACL uses sh:in value lists (enum members and class value-types) and many
+    // sh:datatype declarations. Against the real CGMES 3.0 schema these must not misfire.
+    Graph g = loadShacl(EQ_SIMPLE_SHACL);
+    var r = api.validateShacl(g);
+    var bad =
+        r.shapeAnnotations().stream()
+            .filter(
+                a ->
+                    a.code() == SparqlValidationCode.INVALID_ENUM_VALUE
+                        || a.code() == SparqlValidationCode.INVALID_VALUE_RANGE
+                        || a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM)
+            .toList();
+    assertTrue(
+        "EQ Simple coverage checks must not misfire on valid CGMES; got: " + bad, bad.isEmpty());
+  }
+
+  @Test
   public void equipmentSimpleShapes_profileDependencyIncludesEq() throws IOException {
     Graph g = loadShacl(EQ_SIMPLE_SHACL);
     Collection<VersionIri> profiles = api.getShaclProfileDependencies(g);

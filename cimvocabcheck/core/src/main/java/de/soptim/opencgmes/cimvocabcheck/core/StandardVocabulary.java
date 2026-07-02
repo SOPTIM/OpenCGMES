@@ -54,6 +54,66 @@ public final class StandardVocabulary {
   /** Closed-vocabulary namespace → short display name used in diagnostics. */
   private static final Map<String, String> CLOSED_NAMESPACES;
 
+  /** The XML Schema datatype namespace. */
+  private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
+
+  /**
+   * The closed set of XSD built-in and derived datatype local names (XSD 1.1). Unlike the
+   * open-ended annotation namespaces accepted wholesale by {@link ExemptVocabulary}, this set lets
+   * the validator catch a typo such as {@code xsd:strng} in a {@code sh:datatype}.
+   */
+  private static final Set<String> XSD_DATATYPES =
+      Set.of(
+          // Primitive built-ins.
+          "string",
+          "boolean",
+          "decimal",
+          "float",
+          "double",
+          "duration",
+          "dateTime",
+          "time",
+          "date",
+          "gYearMonth",
+          "gYear",
+          "gMonthDay",
+          "gDay",
+          "gMonth",
+          "hexBinary",
+          "base64Binary",
+          "anyURI",
+          "QName",
+          "NOTATION",
+          // Derived built-ins.
+          "normalizedString",
+          "token",
+          "language",
+          "NMTOKEN",
+          "NMTOKENS",
+          "Name",
+          "NCName",
+          "ID",
+          "IDREF",
+          "IDREFS",
+          "ENTITY",
+          "ENTITIES",
+          "integer",
+          "nonPositiveInteger",
+          "negativeInteger",
+          "long",
+          "int",
+          "short",
+          "byte",
+          "nonNegativeInteger",
+          "unsignedLong",
+          "unsignedInt",
+          "unsignedShort",
+          "unsignedByte",
+          "positiveInteger",
+          "yearMonthDuration",
+          "dayTimeDuration",
+          "dateTimeStamp");
+
   static {
     var m = new LinkedHashMap<String, String>();
     m.put("http://www.w3.org/1999/02/22-rdf-syntax-ns#", "RDF");
@@ -137,6 +197,19 @@ public final class StandardVocabulary {
   /** Returns whether {@code node} is a URI in a closed standard vocabulary namespace. */
   public static boolean isClosedNamespace(Node node) {
     return node.isURI() && closedNamespaceOf(node.getURI()) != null;
+  }
+
+  /** Returns whether {@code node} is a URI in the XML Schema datatype namespace. */
+  public static boolean isXsdNamespace(Node node) {
+    return node.isURI() && node.getURI().startsWith(XSD_NS);
+  }
+
+  /**
+   * Returns whether {@code node} is a known XSD built-in or derived datatype (XSD 1.1). Callers
+   * should first confirm {@link #isXsdNamespace}; a non-XSD term always returns {@code false}.
+   */
+  public static boolean isKnownXsdDatatype(Node node) {
+    return isXsdNamespace(node) && XSD_DATATYPES.contains(node.getURI().substring(XSD_NS.length()));
   }
 
   /** Returns whether {@code node} is a known, valid term of a closed standard vocabulary. */
