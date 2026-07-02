@@ -154,6 +154,8 @@ public class CgmesShacl30IntegrationTest {
                 a ->
                     a.code() == SparqlValidationCode.INVALID_ENUM_VALUE
                         || a.code() == SparqlValidationCode.INVALID_VALUE_RANGE
+                        || a.code()
+                            == SparqlValidationCode.CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY
                         || a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM)
             .toList();
     assertTrue(

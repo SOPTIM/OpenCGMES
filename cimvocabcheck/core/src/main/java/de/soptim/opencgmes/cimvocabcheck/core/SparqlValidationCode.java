@@ -72,5 +72,11 @@ public enum SparqlValidationCode {
    * to every schema index (class, property and enumeration member). Reported as a warning because
    * such a constant can legitimately be an instance IRI the schema does not track.
    */
-  UNKNOWN_TERM_IN_EXPRESSION
+  UNKNOWN_TERM_IN_EXPRESSION,
+  /**
+   * A SHACL {@code sh:minCount}/{@code sh:maxCount} is incompatible with the property's declared
+   * CIM {@code cims:multiplicity} — e.g. requiring more values than the schema's upper bound
+   * allows, so the constraint can never be satisfied against conformant data.
+   */
+  CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY
 }

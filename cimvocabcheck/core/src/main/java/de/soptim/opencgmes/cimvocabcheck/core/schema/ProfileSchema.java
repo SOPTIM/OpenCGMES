@@ -45,6 +45,8 @@ import org.apache.jena.graph.Node;
  * @param enumMembers enumeration class URI → set of its member (individual) URIs, e.g. {@code
  *     cim:WindGenUnitKind} → its {@code .offshore} / {@code .onshore} values. Empty for profiles
  *     with no enumerations or built without enum indexing.
+ * @param propertyMultiplicity property URI → its {@code cims:multiplicity} value IRI (e.g. {@code
+ *     cims:M:1..1}). Empty for profiles without CIM multiplicity metadata.
  */
 public record ProfileSchema(
     VersionIri versionIri,
@@ -55,7 +57,8 @@ public record ProfileSchema(
     Map<Node, Set<Node>> subClassOf,
     Map<Node, String> termLabels,
     Map<Node, String> termComments,
-    Map<Node, Set<Node>> enumMembers) {
+    Map<Node, Set<Node>> enumMembers,
+    Map<Node, Node> propertyMultiplicity) {
 
   /** Canonical constructor; validates the version IRI and defensively copies the collections. */
   public ProfileSchema {
@@ -68,6 +71,8 @@ public record ProfileSchema(
     termLabels = termLabels == null ? Map.of() : Map.copyOf(termLabels);
     termComments = termComments == null ? Map.of() : Map.copyOf(termComments);
     enumMembers = deepCopy(enumMembers);
+    propertyMultiplicity =
+        propertyMultiplicity == null ? Map.of() : Map.copyOf(propertyMultiplicity);
   }
 
   /** Convenience for callers that only know class+property sets and no relations. */
@@ -77,6 +82,7 @@ public record ProfileSchema(
         versionIri,
         classes,
         properties,
+        Map.of(),
         Map.of(),
         Map.of(),
         Map.of(),

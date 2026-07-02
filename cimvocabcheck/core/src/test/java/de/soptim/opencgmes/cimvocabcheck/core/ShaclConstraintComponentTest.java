@@ -208,6 +208,34 @@ public class ShaclConstraintComponentTest {
             r, SparqlValidationCode.UNKNOWN_PROPERTY, "http://example.org/local#localProp"));
   }
 
+  /** A property declared only via rdfs:domain (no rdf:type) is still a local definition. */
+  @Test
+  public void propertyDeclaredViaDomainOnly_accepted() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + ":helperProp rdfs:domain cim:ACLineSegment .\n"
+                    + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                    + "  sh:property [ sh:path :helperProp ] ."));
+    assertFalse(
+        hasCodeForTerm(
+            r, SparqlValidationCode.UNKNOWN_PROPERTY, "http://example.org/local#helperProp"));
+  }
+
+  /** A class declared only via rdfs:subClassOf (no rdf:type) is still a local definition. */
+  @Test
+  public void classDeclaredViaSubClassOfOnly_accepted() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + ":LocalSub rdfs:subClassOf cim:ACLineSegment .\n"
+                    + "ex:S a sh:NodeShape ; sh:targetClass :LocalSub ."));
+    assertFalse(
+        hasCodeForTerm(r, SparqlValidationCode.UNKNOWN_CLASS, "http://example.org/local#LocalSub"));
+  }
+
   // ============================================================================================
   // No over-suppression — genuine errors must still be reported
   // ============================================================================================

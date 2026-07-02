@@ -72,6 +72,16 @@ public interface SchemaIndex {
   }
 
   /**
+   * The CIM {@code cims:multiplicity} declared for {@code propertyUri} across the scope, when all
+   * declaring profiles in scope agree on a single value; empty otherwise (unknown or conflicting).
+   * Used to cross-check SHACL {@code sh:minCount}/{@code sh:maxCount} against the schema
+   * cardinality.
+   */
+  default Optional<Multiplicity> multiplicityOf(Node propertyUri, Collection<VersionIri> profiles) {
+    return Optional.empty();
+  }
+
+  /**
    * Transitive {@code rdfs:subClassOf} closure of {@code classUri} within the scope, inclusive of
    * {@code classUri} itself. Cycles are handled with a visited set.
    */

@@ -29,12 +29,14 @@ import de.soptim.opencgmes.cimvocabcheck.core.TermResolver;
 import de.soptim.opencgmes.cimvocabcheck.core.TermResolver.Classification;
 import de.soptim.opencgmes.cimvocabcheck.core.TermResolver.Role;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.Multiplicity;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -44,6 +46,7 @@ import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.vocabulary.RDF;
+import org.apache.jena.vocabulary.RDFS;
 
 /**
  * Static analysis of SHACL shape structure against a CIM schema.
@@ -98,6 +101,18 @@ public final class ShaclShapeAnalyzer {
   /** Property-pair constraint predicates whose URI object names another CIM property. */
   private static final List<Node> PROPERTY_PAIR_PREDICATES =
       List.of(Shacl.EQUALS, Shacl.DISJOINT, Shacl.LESS_THAN, Shacl.LESS_THAN_OR_EQUALS);
+
+  /**
+   * Predicates whose URI subject counts as a local term definition — the subject is being declared
+   * (typed, sub-classed, sub-propertied, or given a domain/range), not merely referenced.
+   */
+  private static final List<Node> LOCAL_DEFINITION_PREDICATES =
+      List.of(
+          RDF.type.asNode(),
+          RDFS.subClassOf.asNode(),
+          RDFS.subPropertyOf.asNode(),
+          RDFS.domain.asNode(),
+          RDFS.range.asNode());
 
   private final SchemaIndex schemaIndex;
   private final TermResolver termResolver;
@@ -166,23 +181,30 @@ public final class ShaclShapeAnalyzer {
 
   /**
    * Collects IRIs that the shapes document <em>defines itself</em> — every URI subject of an {@code
-   * rdf:type} triple. CIM terms referenced by shapes ({@code sh:targetClass}/{@code sh:path}
-   * values) appear in object position, not as typed subjects, so a genuine CIM typo is still
-   * reported; but a helper class or property declared in the same file (e.g. a custom {@code
-   * :myProperty a rdf:Property}) is treated as known rather than flagged as missing from CIM.
+   * rdf:type}, {@code rdfs:subClassOf}, {@code rdfs:subPropertyOf}, {@code rdfs:domain} or {@code
+   * rdfs:range} triple. Any of these declares its subject just as strongly as {@code rdf:type}. CIM
+   * terms referenced by shapes ({@code sh:targetClass}/{@code sh:path} values) appear in object
+   * position, not as subjects of these predicates, so a genuine CIM typo is still reported; but a
+   * helper class or property declared in the same file (e.g. {@code :myProperty rdfs:domain :C}) is
+   * treated as known rather than flagged as missing from CIM.
+   *
+   * <p>SHACL predicates are deliberately excluded — a shape node bearing {@code sh:path} is a
+   * constraint, not a term definition.
    */
   private static Set<Node> collectLocalDefinitions(Graph g) {
     var defs = new HashSet<Node>();
-    var it = g.find(Node.ANY, RDF.type.asNode(), Node.ANY);
-    try {
-      while (it.hasNext()) {
-        Node s = it.next().getSubject();
-        if (s.isURI()) {
-          defs.add(s);
+    for (Node predicate : LOCAL_DEFINITION_PREDICATES) {
+      var it = g.find(Node.ANY, predicate, Node.ANY);
+      try {
+        while (it.hasNext()) {
+          Node s = it.next().getSubject();
+          if (s.isURI()) {
+            defs.add(s);
+          }
         }
+      } finally {
+        closeQuietly(it);
       }
-    } finally {
-      closeQuietly(it);
     }
     return defs;
   }
@@ -429,6 +451,7 @@ public final class ShaclShapeAnalyzer {
           checkNodeKind(g, shape, pathNode, scope, out);
           checkDatatypeVsRange(g, shape, pathNode, scope, out);
           checkClassVsRange(g, shape, pathNode, scope, out);
+          checkCardinalityVsMultiplicity(g, shape, pathNode, scope, out);
         }
 
         // 3. sh:minCount / sh:maxCount contradiction (meaningful for parameters too)
@@ -499,6 +522,36 @@ public final class ShaclShapeAnalyzer {
     }
   }
 
+  /**
+   * Cross-checks a property shape's {@code sh:minCount}/{@code sh:maxCount} against the property's
+   * declared CIM {@code cims:multiplicity}. Reports a contradiction only — a shape may legitimately
+   * be <em>stricter</em> than the schema (the usual profile-tightening pattern); it is flagged just
+   * when the SHACL cardinality and the schema multiplicity have no overlap, so no conformant data
+   * could satisfy the shape: {@code sh:minCount} above the schema's upper bound, or {@code
+   * sh:maxCount} below the schema's lower bound.
+   */
+  private void checkCardinalityVsMultiplicity(
+      Graph g,
+      Node shape,
+      Node prop,
+      Collection<VersionIri> scope,
+      List<SparqlValidationAnnotation> out) {
+    Optional<Multiplicity> declared = schemaIndex.multiplicityOf(prop, scope);
+    if (declared.isEmpty()) {
+      return; // schema is silent — permissive
+    }
+    Multiplicity m = declared.get();
+
+    OptionalInt shMin = parseLiteralInt(singleObject(g, shape, Shacl.MIN_COUNT));
+    OptionalInt shMax = parseLiteralInt(singleObject(g, shape, Shacl.MAX_COUNT));
+
+    boolean exceedsUpper = m.max() != null && shMin.isPresent() && shMin.getAsInt() > m.max();
+    boolean belowLower = shMax.isPresent() && shMax.getAsInt() < m.min();
+    if (exceedsUpper || belowLower) {
+      out.add(multiplicityAnnotation(prop, m, shMin, shMax, scope));
+    }
+  }
+
   private void checkDatatypeVsRange(
       Graph g,
       Node shape,
@@ -548,7 +601,7 @@ public final class ShaclShapeAnalyzer {
   }
 
   private static OptionalInt parseLiteralInt(Node n) {
-    if (!n.isLiteral()) {
+    if (n == null || !n.isLiteral()) {
       return OptionalInt.empty();
     }
     try {
@@ -1166,6 +1219,37 @@ public final class ShaclShapeAnalyzer {
         SparqlValidationCode.INVALID_CARDINALITY,
         term,
         List.of(),
+        List.of(),
+        null);
+  }
+
+  private static SparqlValidationAnnotation multiplicityAnnotation(
+      Node prop,
+      Multiplicity declared,
+      OptionalInt shMin,
+      OptionalInt shMax,
+      Collection<VersionIri> scope) {
+    var shacl = new StringBuilder();
+    shMin.ifPresent(v -> shacl.append("sh:minCount ").append(v));
+    shMax.ifPresent(
+        v -> shacl.append(shacl.length() > 0 ? " / " : "").append("sh:maxCount ").append(v));
+    var msg =
+        new StringBuilder(shacl)
+            .append(" conflicts with the CIM multiplicity ")
+            .append(declared.display())
+            .append(" of <")
+            .append(prop.getURI())
+            .append("> in ");
+    appendScopeLabel(msg, scope);
+    msg.append(": no conformant data can satisfy the shape.");
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.WARN,
+        null,
+        null,
+        msg.toString(),
+        SparqlValidationCode.CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY,
+        prop,
+        List.copyOf(scope),
         List.of(),
         null);
   }

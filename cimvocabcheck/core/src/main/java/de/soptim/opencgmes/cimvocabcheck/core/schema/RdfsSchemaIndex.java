@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.jena.graph.Graph;
@@ -73,6 +74,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   private static final Node RDFS_DATATYPE = RDFS.Datatype.asNode();
   private static final Node RDFS_LABEL = RDFS.label.asNode();
   private static final Node RDFS_COMMENT = RDFS.comment.asNode();
+  private static final Node CIMS_MULTIPLICITY =
+      NodeFactory.createURI("http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#multiplicity");
 
   private final Map<VersionIri, ProfileSchema> profiles;
   private final Map<Node, List<VersionIri>> classToProfiles;
@@ -240,6 +243,28 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   }
 
   @Override
+  public Optional<Multiplicity> multiplicityOf(Node propertyUri, Collection<VersionIri> scope) {
+    Collection<VersionIri> effective = (scope == null) ? profiles.keySet() : scope;
+    Node found = null;
+    for (VersionIri v : effective) {
+      ProfileSchema ps = profiles.get(v);
+      if (ps == null) {
+        continue;
+      }
+      Node m = ps.propertyMultiplicity().get(propertyUri);
+      if (m == null) {
+        continue;
+      }
+      if (found == null) {
+        found = m;
+      } else if (!found.equals(m)) {
+        return Optional.empty(); // profiles disagree — be permissive
+      }
+    }
+    return found == null ? Optional.empty() : Multiplicity.parse(found);
+  }
+
+  @Override
   public Set<Node> superClassesOf(Node classUri, Collection<VersionIri> scope) {
     if (classUri == null || !classUri.isURI()) {
       return Set.of();
@@ -341,6 +366,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
     var subClassOf = new LinkedHashMap<Node, Set<Node>>();
     var termLabels = new LinkedHashMap<Node, String>();
     var termComments = new LinkedHashMap<Node, String>();
+    var propertyMultiplicity = new LinkedHashMap<Node, Node>();
     // Candidate enum members: subject typed by some non-keyword URI (the presumed enum class).
     // Promoted to real members after the pass, once we know which type URIs are declared classes.
     var candidateMembers = new LinkedHashMap<Node, Set<Node>>();
@@ -401,6 +427,9 @@ public final class RdfsSchemaIndex implements SchemaIndex {
           }
         } else if (RDFS_COMMENT.equals(p) && s.isURI() && o.isLiteral()) {
           termComments.putIfAbsent(s, o.getLiteralLexicalForm());
+        } else if (CIMS_MULTIPLICITY.equals(p) && s.isURI() && o.isURI()) {
+          properties.add(s);
+          propertyMultiplicity.putIfAbsent(s, o);
         }
       }
     } finally {
@@ -423,7 +452,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         subClassOf,
         termLabels,
         termComments,
-        enumMembers);
+        enumMembers,
+        propertyMultiplicity);
   }
 
   /** Returns a new {@link Builder} for assembling an index. */
@@ -510,7 +540,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
         baseline.subClassOf(),
         baseline.termLabels(),
         baseline.termComments(),
-        baseline.enumMembers());
+        baseline.enumMembers(),
+        baseline.propertyMultiplicity());
   }
 
   private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";
@@ -595,6 +626,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
               toNodeMap(propertyDomain),
               toNodeMap(propertyRange),
               toNodeMap(subClassOf),
+              Map.of(),
               Map.of(),
               Map.of(),
               Map.of()));
