@@ -44,6 +44,7 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.query.Query;
 import org.apache.jena.shared.PrefixMapping;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 
 /**
@@ -54,6 +55,12 @@ import org.apache.jena.vocabulary.RDF;
  * directly to inspect intermediate analyses or to plug in a custom schema index.
  */
 public final class SparqlQueryValidator {
+
+  static {
+    // Jena 6 lazy init NPEs re-entrantly if a vocabulary constant is the first Jena class
+    // touched; force a full init before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private final SchemaIndex schemaIndex;
   private final TermResolver termResolver;

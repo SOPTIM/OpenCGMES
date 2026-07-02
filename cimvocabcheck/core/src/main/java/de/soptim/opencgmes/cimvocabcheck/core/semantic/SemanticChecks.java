@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.function.Function;
 import org.apache.jena.graph.Node;
 import org.apache.jena.shared.PrefixMapping;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 
 /**
@@ -63,6 +64,12 @@ import org.apache.jena.vocabulary.RDF;
  * set, no inferred subject type. Better silent than wrong on incomplete profiles.
  */
 public final class SemanticChecks {
+
+  static {
+    // Jena 6 lazy init NPEs re-entrantly if a vocabulary constant is the first Jena class
+    // touched; force a full init before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private static final Node RDF_TYPE = RDF.type.asNode();
   private static final String XSD_NS = "http://www.w3.org/2001/XMLSchema#";

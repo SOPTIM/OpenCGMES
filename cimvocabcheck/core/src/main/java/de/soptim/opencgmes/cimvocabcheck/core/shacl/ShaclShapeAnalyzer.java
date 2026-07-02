@@ -46,6 +46,7 @@ import java.util.function.Predicate;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 
@@ -78,6 +79,12 @@ import org.apache.jena.vocabulary.RDFS;
  * <p>The analyzer is stateless and thread-safe.
  */
 public final class ShaclShapeAnalyzer {
+
+  static {
+    // Jena 6 lazy init NPEs re-entrantly if a vocabulary constant is the first Jena class
+    // touched; force a full init before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private static final Node RDF_FIRST = RDF.first.asNode();
   private static final Node RDF_REST = RDF.rest.asNode();

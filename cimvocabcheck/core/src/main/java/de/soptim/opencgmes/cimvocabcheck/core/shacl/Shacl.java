@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.core.shacl;
 
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.sys.JenaSystem;
 
 /**
  * SHACL vocabulary constants needed by the SPARQL extractor.
@@ -28,6 +29,12 @@ import org.apache.jena.graph.NodeFactory;
  * <em>execute</em> SHACL, it only reads the few predicates that carry embedded SPARQL.
  */
 public final class Shacl {
+
+  static {
+    // Jena 6 lazy init NPEs re-entrantly if a vocabulary constant is the first Jena class
+    // touched; force a full init before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private Shacl() {}
 

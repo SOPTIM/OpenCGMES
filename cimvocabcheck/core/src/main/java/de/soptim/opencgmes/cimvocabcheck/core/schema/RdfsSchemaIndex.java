@@ -36,6 +36,7 @@ import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.OWL2;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
@@ -61,6 +62,14 @@ import org.apache.jena.vocabulary.RDFS;
  * convenience that reuses the property/class declarations already present in CIM profiles.
  */
 public final class RdfsSchemaIndex implements SchemaIndex {
+
+  static {
+    // Jena 6's lazy subsystem init (JenaSystem.init) NPEs re-entrantly when a vocabulary constant
+    // (RDF/RDFS/OWL) is the very first Jena class touched — NodeFactory.<clinit> triggers the init
+    // which loops back through NodeFactory before it is ready. Forcing a full init here (as cimxml
+    // does in its parser) guarantees Jena is ready before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private static final Node RDF_TYPE = RDF.type.asNode();
   private static final Node RDFS_CLASS = RDFS.Class.asNode();

@@ -75,6 +75,7 @@ import org.apache.jena.sparql.path.P_ZeroOrMore1;
 import org.apache.jena.sparql.path.P_ZeroOrMoreN;
 import org.apache.jena.sparql.path.P_ZeroOrOne;
 import org.apache.jena.sparql.path.Path;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 
 /**
@@ -88,6 +89,12 @@ import org.apache.jena.vocabulary.RDF;
  * <p>The visitor is not thread-safe; create one per analysis.
  */
 public final class AlgebraAnalysisVisitor {
+
+  static {
+    // Jena 6 lazy init NPEs re-entrantly if a vocabulary constant is the first Jena class
+    // touched; force a full init before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private static final Node RDF_TYPE = RDF.type.asNode();
 

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.jena.graph.Node;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 
 /**
@@ -37,6 +38,12 @@ import org.apache.jena.vocabulary.RDF;
  * type assertions like {@code ?s a ?cls} are ignored.
  */
 public final class SubjectTypeInference {
+
+  static {
+    // Jena 6 lazy init NPEs re-entrantly if a vocabulary constant is the first Jena class
+    // touched; force a full init before the static Node constants below resolve.
+    JenaSystem.init();
+  }
 
   private static final Node RDF_TYPE = RDF.type.asNode();
 
