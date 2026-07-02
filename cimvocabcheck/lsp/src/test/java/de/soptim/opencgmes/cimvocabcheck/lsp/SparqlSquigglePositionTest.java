@@ -322,53 +322,20 @@ public class SparqlSquigglePositionTest {
   }
 
   /**
-   * Replicates the position computation from {@code convertEmbeddedAnnotation} for test use. Kept
-   * minimal — only computes the range, not the full diagnostic.
+   * Replicates the position computation from {@code convertEmbeddedAnnotation} for test use: the
+   * rendered→Turtle mapping is delegated to the shared {@code EmbeddedSourceMapper}, and only the
+   * LSP-specific backward token scan and highlight length are computed here.
    */
   private static Diagnostic buildEmbeddedDiagnosticForTest(
       de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation a,
       de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql embedded,
       String turtleText) {
 
-    int renderedLine = a.line() != null ? a.line() : 0;
-    int renderedCol = a.column() != null ? a.column() : 0;
-    if (a.term() == null && a.message() != null) {
-      java.util.regex.Matcher m =
-          java.util.regex.Pattern.compile("line (\\d+), column (\\d+)").matcher(a.message());
-      if (m.find()) {
-        renderedLine = Integer.parseInt(m.group(1));
-        renderedCol = Integer.parseInt(m.group(2));
-      }
-    }
-
-    int lineInRendered = renderedLine - 1;
-    int lineInRaw = lineInRendered - embedded.prefixes().size();
-    int col = Math.max(0, renderedCol - 1);
-    if (lineInRaw < 0) {
-      lineInRaw = 0;
-      col = 0;
-    }
-
-    String rawQuery = embedded.rawQuery();
-    int rawStart = (rawQuery != null && !rawQuery.isEmpty()) ? turtleText.indexOf(rawQuery) : -1;
-
-    int turtleLine = 0;
-    if (rawStart >= 0) {
-      int offset = rawStart;
-      for (int i = 0; i < lineInRaw; i++) {
-        int nl = turtleText.indexOf('\n', offset);
-        if (nl < 0) {
-          offset = turtleText.length();
-          break;
-        }
-        offset = nl + 1;
-      }
-      for (int i = 0; i < offset && i < turtleText.length(); i++) {
-        if (turtleText.charAt(i) == '\n') {
-          turtleLine++;
-        }
-      }
-    }
+    int[] pos =
+        de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper.toTurtlePosition(
+            a, embedded, turtleText);
+    int turtleLine = pos[0];
+    int col = pos[1];
 
     // Backward scan
     String[] srcLines = turtleText.split("\n", -1);

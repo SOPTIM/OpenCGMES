@@ -75,4 +75,34 @@ public record SparqlValidationAnnotation(
         foundInOtherProfiles,
         graph);
   }
+
+  /**
+   * Returns a copy of this annotation with a different line and column (both may be {@code null}).
+   */
+  public SparqlValidationAnnotation withPosition(Integer newLine, Integer newColumn) {
+    return new SparqlValidationAnnotation(
+        severity,
+        newLine,
+        newColumn,
+        message,
+        code,
+        term,
+        selectedProfiles,
+        foundInOtherProfiles,
+        graph);
+  }
+
+  /** Returns a copy of this annotation with a different message. */
+  public SparqlValidationAnnotation withMessage(String newMessage) {
+    return new SparqlValidationAnnotation(
+        severity,
+        line,
+        column,
+        newMessage,
+        code,
+        term,
+        selectedProfiles,
+        foundInOtherProfiles,
+        graph);
+  }
 }

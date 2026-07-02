@@ -128,4 +128,24 @@ public class ShaclSyntaxOnlyValidationTest {
     assertTrue(result.shapeAnnotations().isEmpty());
     assertTrue(result.embeddedResults().isEmpty());
   }
+
+  @Test
+  public void vocabularyTypoIsReportedByDefault() {
+    Graph g = parse(PREAMBLE + "ex:Shape a sh:NodeShape ; sh:taaargetClass cim:ACLineSegment .");
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertTrue(
+        "a misspelt SHACL term must be reported in syntax-only mode by default",
+        result.shapeAnnotations().stream()
+            .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
+  }
+
+  @Test
+  public void vocabularyTypoIsSuppressedWhenStandardVocabularyDisabled() {
+    Graph g = parse(PREAMBLE + "ex:Shape a sh:NodeShape ; sh:taaargetClass cim:ACLineSegment .");
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g, false);
+    assertFalse(
+        "checkStandardVocabulary=false must suppress the vocabulary typo in syntax-only mode",
+        result.shapeAnnotations().stream()
+            .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
+  }
 }

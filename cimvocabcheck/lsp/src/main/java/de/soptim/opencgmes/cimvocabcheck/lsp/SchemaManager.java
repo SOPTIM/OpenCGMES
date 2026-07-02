@@ -223,6 +223,27 @@ final class SchemaManager {
         return ws.api() == null ? Optional.empty() : Optional.of(ws);
     }
 
+    /**
+     * Resolves the nearest config's {@code checkStandardVocabulary} flag for {@code docDir},
+     * independent of whether a schema actually loaded. Used by the syntax-only fallback so a
+     * config's {@code "standardVocabulary": "ignore"} is still honoured when no schema is available.
+     * Defaults to {@code true} (checking enabled) when no config applies.
+     */
+    boolean checkStandardVocabularyFor(Path docDir) {
+        if (docDir == null) {
+            return checkStdVocabRef.get();
+        }
+        Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
+        if (configFile.isEmpty()) {
+            return true; // no config → default (check enabled)
+        }
+        String key = configFile.get().toString();
+        if (key.equals(primaryConfigKey)) {
+            return checkStdVocabRef.get();
+        }
+        return workspaceSchemaCache.computeIfAbsent(key, this::buildForKey).checkStandardVocab();
+    }
+
     /** Synthesizes the primary workspace schema from the {@code *Ref} fields, or empty if unloaded. */
     private Optional<WorkspaceSchema> primarySchema() {
         SparqlValidationApi api = apiRef.get();

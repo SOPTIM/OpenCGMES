@@ -38,6 +38,7 @@ import de.soptim.opencgmes.cimvocabcheck.cli.schema.SchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
@@ -369,7 +370,10 @@ public class ValidateCommand implements Callable<Integer> {
             String input, String source, String text) {
 
         if (schema.syntaxOnly()) {
-            return applyStrictness(validateSyntaxOnly(source, text, isTurtleFile(input)), strictness);
+            boolean checkStdVocab =
+                    schema.config() == null || schema.config().checkStandardVocabulary();
+            return applyStrictness(
+                    validateSyntaxOnly(source, text, isTurtleFile(input), checkStdVocab), strictness);
         }
         if (isTurtleFile(input)) {
             return applyStrictness(validateShaclInput(api, source, text), strictness);
@@ -442,7 +446,8 @@ public class ValidateCommand implements Callable<Integer> {
      * {@code --strict-endpoint} was not set: SPARQL files get a syntax check, Turtle/SHACL files
      * get a Turtle parse plus an embedded-SPARQL syntax check, so broken input still surfaces.
      */
-    private static FileResult validateSyntaxOnly(String source, String text, boolean turtle) {
+    private static FileResult validateSyntaxOnly(
+            String source, String text, boolean turtle, boolean checkStandardVocabulary) {
         if (!turtle) {
             SparqlValidationResult r = SparqlValidationApi.checkSyntaxOnly(text);
             boolean valid = r.annotations().stream()
@@ -455,7 +460,8 @@ public class ValidateCommand implements Callable<Integer> {
         } catch (RuntimeException e) {
             return new FileResult(source, false, List.of(turtleParseError(e)));
         }
-        ShaclValidationResult r = SparqlValidationApi.checkShaclSyntaxOnly(graph);
+        ShaclValidationResult r =
+                SparqlValidationApi.checkShaclSyntaxOnly(graph, checkStandardVocabulary);
         return new FileResult(
                 source, r.isValid(), flattenShaclAnnotations(r, text, graph.getPrefixMapping()));
     }
@@ -507,8 +513,10 @@ public class ValidateCommand implements Callable<Integer> {
      * (the analyzer sees only a Graph, not the source text). This method fills them in via {@link
      * SourceLocator} using the original Turtle source and its prefix mapping.
      *
-     * <p>Embedded-SPARQL positions are relative to the embedded query string, not the Turtle file —
-     * they are stripped and the message prefixed so the output is unambiguous.
+     * <p>Embedded-SPARQL positions are relative to the embedded (rendered) query string; they are
+     * mapped back to the Turtle source with {@link EmbeddedSourceMapper} so a finding in an embedded
+     * {@code sh:select} points at the right line, and the message is prefixed with {@code [embedded
+     * <kind>]} to make the origin unambiguous.
      */
     private static List<SparqlValidationAnnotation> flattenShaclAnnotations(
             ShaclValidationResult r, String turtleSource, PrefixMapping prefixes) {
@@ -519,16 +527,10 @@ public class ValidateCommand implements Callable<Integer> {
         for (var er : r.embeddedResults()) {
             String kind = er.embedded().kind().toString();
             for (var a : er.result().annotations()) {
-                annotations.add(new SparqlValidationAnnotation(
-                        a.severity(),
-                        null,
-                        null,
-                        "[embedded " + kind + "] " + a.message(),
-                        a.code(),
-                        a.term(),
-                        a.selectedProfiles(),
-                        a.foundInOtherProfiles(),
-                        a.graph()));
+                int[] pos = EmbeddedSourceMapper.toTurtlePosition(a, er.embedded(), turtleSource);
+                annotations.add(
+                        a.withMessage("[embedded " + kind + "] " + a.message())
+                                .withPosition(pos[0] + 1, pos[1] + 1));
             }
         }
         return List.copyOf(annotations);

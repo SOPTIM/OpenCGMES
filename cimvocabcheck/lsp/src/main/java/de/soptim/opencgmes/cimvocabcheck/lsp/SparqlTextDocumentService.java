@@ -28,6 +28,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimvocabcheck.core.StandardVocabulary;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
+import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
 import java.net.URI;
@@ -641,8 +642,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
       if (endpointDeclared) {
         diagnostics.add(syntaxOnlyNotice(text));
       }
+      boolean checkStdVocab = schemaManager.checkStandardVocabularyFor(documentDir(uri));
       ShaclValidationResult result =
-          SparqlValidationApi.checkShaclSyntaxOnly(parsed.model().getGraph());
+          SparqlValidationApi.checkShaclSyntaxOnly(parsed.model().getGraph(), checkStdVocab);
       // Schema-independent shape findings (vocabulary typos such as sh:taaargetClass).
       for (var a : result.shapeAnnotations()) {
         diagnostics.add(convertShapeAnnotation(a, text, parsed.model()));
@@ -838,21 +840,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
       SparqlValidationAnnotation a, String kind, EmbeddedSparql embedded, String turtleText) {
     String msg = "[embedded " + kind + "] " + a.message();
 
-    // Jena's QueryParseException.getLine()/getColumn() can point to the wrong position
-    // (e.g. end of a preceding PREFIX declaration rather than the bad token). The
-    // human-readable exception message carries the correct line/column via the format
-    // "line N, column C", so for syntax errors we parse position from there instead.
-    int renderedLine = a.line() != null ? a.line() : 0;
-    int renderedCol = a.column() != null ? a.column() : 0;
-    if (a.term() == null && a.message() != null) {
-      Matcher m = SPARQL_POSITION.matcher(a.message());
-      if (m.find()) {
-        renderedLine = Integer.parseInt(m.group(1));
-        renderedCol = Integer.parseInt(m.group(2));
-      }
-    }
-
-    int[] pos = embeddedAnnotationTurtlePos(renderedLine, renderedCol, embedded, turtleText);
+    // Map the rendered-query position back into the Turtle source. EmbeddedSourceMapper also
+    // re-parses the "line N, column C" position from the message for syntax errors, where Jena's
+    // reported line/column can point at the wrong token.
+    int[] pos = EmbeddedSourceMapper.toTurtlePosition(a, embedded, turtleText);
     int line = pos[0];
     int col = pos[1];
 
@@ -865,92 +856,6 @@ final class SparqlTextDocumentService implements TextDocumentService {
     int endCol =
         col + tokenLengthInSource(turtleText, new SourceLocator.Location(line + 1, col + 1));
     return buildDiagnostic(a.severity(), msg, a.code(), line, col, Math.max(col + 1, endCol));
-  }
-
-  /**
-   * Maps a rendered-query position (1-based line + column) back to a [line, col] pair in the Turtle
-   * source (both 0-based).
-   *
-   * <p>The rendered query = {@code prefixes.size()} PREFIX lines + rawQuery. The raw query string
-   * is an exact substring of the Turtle source (literal value between the {@code """..."""}
-   * delimiters). We locate it with {@link String#indexOf} and navigate forward by the required
-   * number of lines — precise and anchor-free.
-   *
-   * <p>Falls back to a line-anchor search when {@code indexOf} cannot find the raw query.
-   */
-  private static int[] embeddedAnnotationTurtlePos(
-      int renderedLine1based, int renderedCol1based, EmbeddedSparql embedded, String turtleText) {
-    if (renderedLine1based <= 0) {
-      return new int[] {0, 0};
-    }
-
-    int lineInRendered = renderedLine1based - 1; // 0-based in rendered query
-    int lineInRaw = lineInRendered - embedded.prefixes().size(); // 0-based in rawQuery
-    int col = Math.max(0, renderedCol1based - 1);
-    if (lineInRaw < 0) {
-      lineInRaw = 0;
-      col = 0;
-    }
-
-    String rawQuery = embedded.rawQuery();
-
-    // Exact match: rawQuery IS a literal substring of the Turtle source.
-    int rawStart = (rawQuery != null && !rawQuery.isEmpty()) ? turtleText.indexOf(rawQuery) : -1;
-    if (rawStart >= 0) {
-      // Navigate lineInRaw newlines forward from rawStart.
-      int offset = rawStart;
-      for (int i = 0; i < lineInRaw; i++) {
-        int nl = turtleText.indexOf('\n', offset);
-        if (nl < 0) {
-          offset = turtleText.length();
-          break;
-        }
-        offset = nl + 1;
-      }
-      // Count newlines before offset → 0-based line index in turtle text.
-      int turtleLine = 0;
-      for (int i = 0; i < offset && i < turtleText.length(); i++) {
-        if (turtleText.charAt(i) == '\n') {
-          turtleLine++;
-        }
-      }
-      return new int[] {turtleLine, col};
-    }
-
-    // Fallback: find first non-blank, non-comment rawQuery line as search anchor.
-    int rawStartLine = findRawQueryStartLine(rawQuery, turtleText);
-    return new int[] {rawStartLine + lineInRaw, col};
-  }
-
-  /**
-   * Fallback for {@link #embeddedAnnotationTurtlePos}: uses the first non-blank, non-comment line
-   * of {@code rawQuery} as an anchor and searches for it in the Turtle source.
-   */
-  private static int findRawQueryStartLine(String rawQuery, String turtleText) {
-    if (rawQuery == null || turtleText == null) {
-      return 0;
-    }
-    String[] rawLines = rawQuery.split("\n", -1);
-    int anchorIdx = -1;
-    String anchor = null;
-    for (int i = 0; i < rawLines.length; i++) {
-      String t = rawLines[i].trim();
-      if (!t.isEmpty() && !t.startsWith("#")) {
-        anchorIdx = i;
-        anchor = t;
-        break;
-      }
-    }
-    if (anchor == null) {
-      return 0;
-    }
-    String[] turtleLines = turtleText.split("\n", -1);
-    for (int i = 0; i < turtleLines.length; i++) {
-      if (turtleLines[i].contains(anchor)) {
-        return Math.max(0, i - anchorIdx);
-      }
-    }
-    return 0;
   }
 
   /**

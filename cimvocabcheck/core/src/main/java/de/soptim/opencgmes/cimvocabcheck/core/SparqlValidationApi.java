@@ -224,6 +224,18 @@ public final class SparqlValidationApi {
    * separately.
    */
   public static ShaclValidationResult checkShaclSyntaxOnly(Graph shapesGraph) {
+    return checkShaclSyntaxOnly(shapesGraph, true);
+  }
+
+  /**
+   * Variant of {@link #checkShaclSyntaxOnly(Graph)} that honours the {@code
+   * checkStandardVocabulary} opt-out for the schema-independent vocabulary-typo check: when {@code
+   * false}, a misspelt closed vocabulary term (e.g. {@code sh:taaargetClass}) is silently accepted
+   * instead of reported as {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM}. Embedded-SPARQL
+   * syntax checking is unaffected.
+   */
+  public static ShaclValidationResult checkShaclSyntaxOnly(
+      Graph shapesGraph, boolean checkStandardVocabulary) {
     Objects.requireNonNull(shapesGraph, "shapesGraph");
     var extractor = new ShaclSparqlExtractor();
     var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
@@ -234,7 +246,8 @@ public final class SparqlValidationApi {
     // The vocabulary-typo check is schema-independent (it consults only the bundled W3C
     // vocabularies), so run it even in the syntax-only fallback — otherwise a misspelt SHACL
     // term would go unreported whenever a schema can't be resolved (e.g. unreachable endpoint).
-    var shapeAnnotations = ShaclShapeAnalyzer.checkVocabularyOnly(shapesGraph);
+    var shapeAnnotations =
+        ShaclShapeAnalyzer.checkVocabularyOnly(shapesGraph, checkStandardVocabulary);
     return new ShaclValidationResult(shapeAnnotations, embeddedResults);
   }
 

@@ -210,8 +210,18 @@ public final class ShaclShapeAnalyzer {
    * than silently ignored.
    */
   public static List<SparqlValidationAnnotation> checkVocabularyOnly(Graph shapesGraph) {
+    return checkVocabularyOnly(shapesGraph, true);
+  }
+
+  /**
+   * Variant of {@link #checkVocabularyOnly(Graph)} that honours the {@code checkStandardVocabulary}
+   * opt-out: when {@code false}, unknown closed-vocabulary terms are silently accepted rather than
+   * reported as {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM}.
+   */
+  public static List<SparqlValidationAnnotation> checkVocabularyOnly(
+      Graph shapesGraph, boolean checkStandardVocabulary) {
     var out = new ArrayList<SparqlValidationAnnotation>();
-    checkVocabularyTerms(shapesGraph, true, out);
+    checkVocabularyTerms(shapesGraph, checkStandardVocabulary, out);
     return List.copyOf(out);
   }
 
