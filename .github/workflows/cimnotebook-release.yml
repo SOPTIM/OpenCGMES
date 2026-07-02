@@ -43,24 +43,21 @@ jobs:
           fi
           RELEASE_VERSION="${TAG#cimnotebook-v}"
 
-          # Bundle the LSP at the LATEST released cimvocabcheck version. Falls back to the
-          # in-repo SNAPSHOT until the first cimvocabcheck-vX.Y.Z tag exists.
-          CIMVOCABCHECK_TAG="$(git tag --sort=-version:refname --list 'cimvocabcheck-v*' | head -1)"
-          if [[ -n "${CIMVOCABCHECK_TAG}" ]]; then
-            CIMVOCABCHECK_VERSION="${CIMVOCABCHECK_TAG#cimvocabcheck-v}"
-          else
+          # Bundle the LSP at the LATEST released cimvocabcheck version reachable from HEAD.
+          # compute-version.sh filters tags with --merged HEAD and returns 0.0.0-SNAPSHOT as a
+          # fallback until the first cimvocabcheck-vX.Y.Z tag exists.
+          CIMVOCABCHECK_VERSION="$(bash scripts/compute-version.sh cimvocabcheck --released)"
+          if [[ "${CIMVOCABCHECK_VERSION}" == "0.0.0-SNAPSHOT" ]]; then
             echo "::warning::No cimvocabcheck release tag found; bundling the in-repo 0.0.0-SNAPSHOT LSP." >&2
-            CIMVOCABCHECK_VERSION="0.0.0-SNAPSHOT"
           fi
 
           # cimxml is a transitive dependency of the LSP (lsp -> core -> cimxml).
           CIMXML_TAG="$(git tag --sort=-version:refname --list 'cimxml-v*' | head -1)"
           if [[ -z "${CIMXML_TAG}" ]]; then
-            echo "::warning::No cimxml release tag found; using 0.0.0-SNAPSHOT." >&2
-            # exit 1 # TODO: Remove version bypass
+            echo "No cimxml release tag found. At least one cimxml-vX.Y.Z tag is required." >&2
+            exit 1
           fi
-          # CIMXML_VERSION="${CIMXML_TAG#cimxml-v}"
-          CIMXML_VERSION="0.0.0-SNAPSHOT" # TODO: Remove version bypass
+          CIMXML_VERSION="${CIMXML_TAG#cimxml-v}"
 
           echo "release_version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "cimvocabcheck_version=${CIMVOCABCHECK_VERSION}" >> "${GITHUB_OUTPUT}"
@@ -109,6 +106,9 @@ jobs:
         run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}" "${RELEASE_VERSION}"
 
       - name: Install cimxml and cimvocabcheck-core into local repo
+        # Note: cimvocabcheck-core and the LSP are built from THIS checkout (the cimnotebook tag's
+        # commit) and merely stamped with CIMVOCABCHECK_VERSION. The bundled jar's content reflects
+        # the current commit, not the released cimvocabcheck-v<version> commit.
         run: |
           mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
           mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean install
@@ -187,6 +187,9 @@ jobs:
         run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}" "${RELEASE_VERSION}"
 
       - name: Install cimxml and cimvocabcheck-core into local repo
+        # Note: cimvocabcheck-core and the LSP are built from THIS checkout (the cimnotebook tag's
+        # commit) and merely stamped with CIMVOCABCHECK_VERSION. The bundled jar's content reflects
+        # the current commit, not the released cimvocabcheck-v<version> commit.
         run: |
           mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
           mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean install

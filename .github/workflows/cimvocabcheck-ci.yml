@@ -193,7 +193,7 @@ jobs:
   # fresh schema-less CLI image to test against. Remove this job if it adds too much main CI time;
   # the authoritative versioned images come from the release workflow.
   publish-edge-image:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/cimvocabcheck') # TODO: Test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - lint
       - build-test
