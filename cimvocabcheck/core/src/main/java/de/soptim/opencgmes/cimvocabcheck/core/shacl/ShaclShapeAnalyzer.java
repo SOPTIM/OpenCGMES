@@ -1148,28 +1148,7 @@ public final class ShaclShapeAnalyzer {
 
   private static SparqlValidationAnnotation propertyAnnotation(
       Node prop, Collection<VersionIri> scope, List<VersionIri> elsewhere) {
-
-    var msg =
-        new StringBuilder("Shape sh:path: property <")
-            .append(prop.getURI())
-            .append("> does not exist in ");
-    appendScopeLabel(msg, scope);
-    msg.append('.');
-    if (!elsewhere.isEmpty()) {
-      msg.append(" Exists in profile").append(elsewhere.size() == 1 ? " " : "s ");
-      IriFormat.appendIris(msg, elsewhere);
-      msg.append('.');
-    }
-    return new SparqlValidationAnnotation(
-        SparqlValidationSeverity.ERROR,
-        null,
-        null,
-        msg.toString(),
-        SparqlValidationCode.UNKNOWN_PROPERTY,
-        prop,
-        List.copyOf(scope),
-        List.copyOf(elsewhere),
-        null);
+    return propertyRefAnnotation(prop, "sh:path", scope, elsewhere);
   }
 
   private static SparqlValidationAnnotation nodeKindAnnotation(
@@ -1410,9 +1389,8 @@ public final class ShaclShapeAnalyzer {
 
   /** Formats a numeric bound without a trailing {@code .0} for whole numbers. */
   private static String formatBound(double d) {
-    return d == Math.floor(d) && !Double.isInfinite(d)
-        ? Long.toString((long) d)
-        : Double.toString(d);
+    String s = Double.toString(d);
+    return s.endsWith(".0") ? s.substring(0, s.length() - 2) : s;
   }
 
   /** Joins a set of URI nodes as {@code <a>, <b>} for diagnostics. */
