@@ -63,9 +63,15 @@ The static helper `SparqlValidationApi.buildNamedGraphScope(...)` constructs the
 public ShaclValidationResult validateShacl(Graph shapesGraph);
 public ShaclValidationResult validateShacl(Graph shapesGraph, Collection<VersionIri> profiles);
 public static ShaclValidationResult checkShaclSyntaxOnly(Graph shapesGraph);
+public static ShaclValidationResult checkShaclSyntaxOnly(Graph shapesGraph,
+                                                         boolean checkStandardVocabulary);
 public List<EmbeddedSparql> extractShaclSparql(Graph shapesGraph);
 public Collection<VersionIri> inferProfileScope(Graph shapesGraph);
 ```
+
+`checkShaclSyntaxOnly` is the schema-independent fallback (Turtle parse + embedded-SPARQL syntax +
+vocabulary typos) used when no schema resolves; the two-arg overload honors the
+[`standardVocabulary`](/cimvocabcheck/configuration#standardvocabulary) opt-out.
 
 ## Result types
 

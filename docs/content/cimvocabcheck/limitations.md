@@ -74,10 +74,13 @@ triple's subject. Positions may be wrong or missing when:
 
 - the IRI appears only inside a string literal or comment (a simple bracket/string tracker can be
   confused by complex multi-line strings);
-- the IRI is assembled by `BIND` / `VALUES` (reported as *no source location*);
-- the finding is a SHACL **shape-level** annotation — these always report *no source location*
-  because the shapes graph is RDF, not text. (The [editors](/cimnotebook/overview) resolve shape
-  positions back into the source file.)
+- the IRI is a constant in a `BIND` / `VALUES` / `FILTER` expression — such constants **are**
+  validated (existence, enumeration, vocabulary typos), but their reported source position may be
+  approximate or absent;
+- the finding is a SHACL **shape-level** annotation — the shapes graph is RDF, not text, so the
+  position is resolved by searching the Turtle source for the offending term. Findings from embedded
+  SPARQL are mapped back to their line/column in the Turtle source by all consumers (CLI, editors,
+  and Code Quality reports alike).
 
 ## SHACL: structural checks vs. SPARQL-validated
 
@@ -88,26 +91,40 @@ CIMVocabCheck makes **two passes** over a SHACL shapes graph.
 | Predicate | What is checked |
 | --- | --- |
 | `sh:targetClass` / `sh:class` | CIM class IRI must exist in the selected profiles. Standard-vocab classes, classes the file declares itself, and constraint-component parameters are exempt; a closed-namespace typo (e.g. `sh:Fooo`) is reported as `UNKNOWN_VOCABULARY_TERM` |
-| `sh:path` | Every URI segment must be a known property (standard-vocab terms, properties the file declares itself, and constraint-component parameter paths are exempt) |
+| `sh:path` | Every URI segment must be a known property (standard-vocab terms, header extensions, properties the file declares itself, and constraint-component parameter paths are exempt); a closed-namespace typo (e.g. `rdf:typ`) is reported as `UNKNOWN_VOCABULARY_TERM` |
 | `sh:nodeKind` + `rdfs:range` | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` |
-| `sh:datatype` / `sh:class` vs `rdfs:range` | `DATATYPE_INCOMPATIBLE_WITH_RANGE` / `CLASS_INCOMPATIBLE_WITH_RANGE` |
-| `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min &gt; max |
+| `sh:datatype` / `sh:class` vs `rdfs:range` | `DATATYPE_INCOMPATIBLE_WITH_RANGE` / `CLASS_INCOMPATIBLE_WITH_RANGE`; a non-XSD-datatype `sh:datatype` is `UNKNOWN_VOCABULARY_TERM` |
+| `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min &gt; max; `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` when incompatible with the property's `cims:multiplicity` |
+| `sh:in` / `sh:hasValue` | Enumeration-member and existence checks on the listed/required values |
+| `sh:minInclusive` / `sh:maxInclusive` / `sh:minExclusive` / `sh:maxExclusive` | `INVALID_VALUE_RANGE` on a contradictory bound |
+| `sh:targetSubjectsOf` / `sh:targetObjectsOf`, `sh:equals` / `sh:disjoint` / `sh:lessThan`(`OrEquals`), `sh:ignoredProperties` | Referenced property IRIs must exist |
+
+Shapes carrying `sh:deactivated true` are skipped entirely.
 
 **Pass 2 — embedded SPARQL** extracts and fully validates inline SPARQL (`sh:sparql`→`sh:select`,
 `sh:target`→`sh:select`, `sh:validator`→`sh:ask`, `sh:rule`→`sh:construct`), with `$this` typed as
 the shape's `sh:targetClass`. `QUERY_IMPLIED_TYPE` is suppressed inside embedded results (the
 intermediate bindings are transient and not expected to be type-annotated).
 
-**SHACL features not checked at all** (they require data or boolean-shape reasoning):
-`sh:pattern`/`sh:flags`, `sh:in`, `sh:hasValue`, `sh:qualifiedValueShape`/`Min`/`MaxCount`,
-`sh:equals`/`sh:disjoint`/`sh:lessThan`(`OrEquals`), `sh:uniqueLang`, `sh:minLength`/`sh:maxLength`,
-`sh:closed`/`sh:ignoredProperties`, `sh:or`/`sh:and`/`sh:not`/`sh:xone`, `sh:targetNode`,
-`sh:targetSubjectsOf`/`sh:targetObjectsOf`.
+**SHACL features not checked** (they require data or boolean-shape reasoning):
+`sh:pattern`/`sh:flags`, `sh:qualifiedValueShape`/`Min`/`MaxCount`, `sh:uniqueLang`,
+`sh:minLength`/`sh:maxLength`, `sh:or`/`sh:and`/`sh:not`/`sh:xone`, and `sh:targetNode`. The
+shape-declared **`sh:severity`** is not honored either — findings use CIMVocabCheck's own
+`ERROR`/`WARN` mapping (adjust it globally with [`strictness`](/cimvocabcheck/configuration#strictness))
+rather than the severity a shape declares.
+
+## `owl:imports` are not followed
+
+When schema files are loaded from disk, `owl:imports` declarations are **not** resolved — every
+profile file that contributes terms must be passed explicitly (via `schemas` / `schemasDirectory`,
+`--schema`, or a schema-bearing endpoint). CGMES import references are namespace IRIs with no
+IRI→file catalog, so there is nothing to resolve them against automatically.
 
 ## Roadmap
 
 - Tighter path-chain checks (inverse / alternative operators).
-- More SHACL structural checks.
+- Remaining SHACL constraints (`sh:pattern`, qualified value shapes, logical constraints).
+- Honor shape-declared `sh:severity`.
 - `SERVICE` schema hints via config.
 - Completion in full-IRI (`<http://…`) position.
 

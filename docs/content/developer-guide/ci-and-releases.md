@@ -70,18 +70,31 @@ Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's 
 - **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
 
 :::note Cross-product dependency pinning at release time
-CI builds use each component's own in-repo SNAPSHOT version. Releases instead pin cross-product dependencies to the latest released tag (cimvocabcheck → cimxml; cimnotebook → cimvocabcheck → cimxml), because Maven Central rejects SNAPSHOT references. Until the first `cimxml-v*` / `cimvocabcheck-v*` tags exist, the workflows currently fall back to `0.0.0-SNAPSHOT` via a documented temporary bypass.
+CI builds use each component's own in-repo SNAPSHOT version. Releases instead pin cross-product
+dependencies to the latest released tag **reachable from `HEAD`** (cimvocabcheck → cimxml;
+cimnotebook → cimvocabcheck → cimxml), because Maven Central rejects SNAPSHOT references. The cimxml
+dependency is **required**: a cimvocabcheck or cimnotebook release fails if no `cimxml-v*` tag
+exists. The cimnotebook release resolves the bundled cimvocabcheck version with
+`compute-version.sh cimvocabcheck --released` and falls back — with a warning — to the in-repo
+`0.0.0-SNAPSHOT` LSP only until the first `cimvocabcheck-v*` tag exists.
 :::
 
 ## Versioning
 
 Two scripts under `scripts/` derive and apply versions from Git state, so versions are never hand-edited in poms for a release.
 
-### `compute-version.sh <component>`
+### `compute-version.sh <component> [--released]`
 Prints the Maven version for `cimxml`, `cimvocabcheck`, or `cimnotebook`:
 
 - On a tagged release push (`<component>-vX.Y.Z`) → prints `X.Y.Z`.
-- On any other ref → finds the last `<component>-v*` tag reachable from `HEAD`, bumps the patch by one, and appends `-SNAPSHOT`. Falls back to `0.0.0-SNAPSHOT` when no tag exists.
+- On any other ref → finds the last `<component>-v*` tag **reachable from `HEAD`** (`git tag
+  --merged HEAD`), bumps the patch by one, and appends `-SNAPSHOT`. Falls back to `0.0.0-SNAPSHOT`
+  when no tag exists.
+- With `--released` → prints the newest released `<component>-v*` tag reachable from `HEAD` as-is
+  (no patch bump, no `-SNAPSHOT`), again falling back to `0.0.0-SNAPSHOT`. This is what the
+  cimnotebook release uses to pin the bundled cimvocabcheck version. The `--merged HEAD` filter
+  matters: it ignores tags that are not ancestors of the commit being released, so a release never
+  pins to a version that does not exist in its own history.
 
 ### `set-versions.sh <cimxml> [<cimvocabcheck>] [<cimnotebook>]`
 Applies the computed versions across every build file: the cimxml pom; the cimvocabcheck core/cli/lsp poms and their inter-module dependency properties (`ver.cimxml`, `ver.cimvocabcheck-core`); and the cimnotebook plugin versions (`pluginVersion` in `gradle.properties`, `version` in `package.json`). The Gradle and npm toolchains strip the `-SNAPSHOT` suffix because they don't use Maven snapshot conventions. A cimnotebook build still needs a cimvocabcheck version because it bundles the LSP fat JAR.

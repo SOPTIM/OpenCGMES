@@ -92,7 +92,7 @@ Controls which findings are reported and how their severities are mapped:
 
 | Level | Behaviour |
 | --- | --- |
-| `permissive` | Structural errors only (`SYNTAX_ERROR`, `UNKNOWN_CLASS`, `UNKNOWN_PROPERTY`, `UNKNOWN_VOCABULARY_TERM`, `INVALID_CARDINALITY`); semantic checks and hints suppressed |
+| `permissive` | Structural errors only (`SYNTAX_ERROR`, `UNKNOWN_CLASS`, `UNKNOWN_PROPERTY`, `UNKNOWN_VOCABULARY_TERM`, `INVALID_CARDINALITY`, `INVALID_VALUE_RANGE`); semantic checks and hints suppressed |
 | `default` | All findings as-is (errors are errors, warnings are warnings) |
 | `strict` | Warnings promoted to errors — recommended for CI |
 | `pedantic` | Warnings **and** infos/hints promoted to errors |

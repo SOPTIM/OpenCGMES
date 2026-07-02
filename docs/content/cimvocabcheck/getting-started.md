@@ -98,9 +98,11 @@ fragments:
 ```
 
 :::note Source positions
-The command-line example operates on an RDF graph, not raw text, so SHACL shape-level findings
-report *(no source location)*. The [editor integrations](/cimnotebook/overview) resolve positions
-back into the source file for all annotation types.
+This example calls the core library directly on an RDF graph, not raw text, so its SHACL shape-level
+findings report *(no source location)*. The [CLI](/cimvocabcheck/cli) and the
+[editor integrations](/cimnotebook/overview) resolve positions back into the source file for all
+annotation types — including findings from embedded SPARQL, which are mapped to their line in the
+Turtle source.
 :::
 
 ## Where to go next

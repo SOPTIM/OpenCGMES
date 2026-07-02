@@ -143,7 +143,9 @@ Severities map `ERROR → major`, `WARN → minor`, `INFO → info`; pass `--ver
 `INFO` findings. The `fingerprint` is a stable hash so a finding can be tracked across runs.
 
 `location.path` is the file argument verbatim, so **invoke the CLI with paths relative to the
-repository root** for the findings to line up with a merge-request diff. CI systems such as GitLab
+repository root** for the findings to line up with a merge-request diff. Findings inside embedded
+SPARQL (a `sh:select`/`sh:ask` in a shapes file) are mapped back to their line in the Turtle source,
+so they point at the offending query rather than the top of the file. CI systems such as GitLab
 consume the file as a `codequality` report artifact and render the findings inline; the non-zero exit
 code on errors still fails the job.
 
