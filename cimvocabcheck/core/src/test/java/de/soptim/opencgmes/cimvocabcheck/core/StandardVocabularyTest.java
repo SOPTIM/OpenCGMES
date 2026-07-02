@@ -136,6 +136,17 @@ public class StandardVocabularyTest {
     assertNoVocabError(r);
   }
 
+  /** Header extensions (rdf:Statements.subject) are accepted in SPARQL predicate position too. */
+  @Test
+  public void headerExtensionPredicateAccepted() {
+    var r =
+        api(true).validateSparql(PREAMBLE + "SELECT * WHERE { ?s rdf:Statements.subject ?o . }");
+    assertNoVocabError(r);
+    assertFalse(
+        "header extension must not be reported as an unknown property",
+        r.annotations().stream().anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY));
+  }
+
   @Test
   public void vocabularyErrorSurvivesPermissiveStrictness() {
     // UNKNOWN_VOCABULARY_TERM is a structural "term does not exist" error, like UNKNOWN_PROPERTY,
@@ -210,6 +221,78 @@ public class StandardVocabularyTest {
                 + "ex:S a sh:NodeShape ;\n"
                 + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCountt 1 ] .\n");
     assertTrue(vocabErrors(r).isEmpty());
+  }
+
+  // ---- vocabulary typos are now caught in every position, header extensions accepted ----
+
+  /** The CIM-552 header coins rdf:Statements.subject under rdf:; accepted in sh:path position. */
+  @Test
+  public void shaclHeaderExtensionInPathAccepted() {
+    var r =
+        shacl(
+            true,
+            SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path rdf:Statements.subject ] .\n");
+    assertTrue("header extension must not be a vocabulary typo", vocabErrors(r).isEmpty());
+    assertFalse(
+        "header extension must not be reported as an unknown property",
+        r.shapeAnnotations().stream()
+            .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY));
+  }
+
+  /** A closed-namespace typo in sh:path is no longer silently skipped. */
+  @Test
+  public void shaclClosedNamespaceTypoInPathReported() {
+    var r =
+        shacl(
+            true,
+            SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path rdf:typ ] .\n");
+    var hits = vocabErrors(r);
+    assertEquals("expected exactly one vocab error, got: " + r.shapeAnnotations(), 1, hits.size());
+    assertTrue(hits.get(0).message().contains("RDF"));
+  }
+
+  /** A typo in sh:nodeKind object position is now reported. */
+  @Test
+  public void shaclNodeKindTypoReported() {
+    var r =
+        shacl(
+            true,
+            SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:nodeKind sh:IRII ] .\n");
+    var hits = vocabErrors(r);
+    assertEquals("expected exactly one vocab error, got: " + r.shapeAnnotations(), 1, hits.size());
+    assertTrue(hits.get(0).message().contains("SHACL"));
+  }
+
+  /** A genuine sh:severity value in object position stays accepted. */
+  @Test
+  public void shaclSeverityValueAccepted() {
+    var r =
+        shacl(
+            true,
+            SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCount 1 ;\n"
+                + "                sh:severity sh:Violation ] .\n");
+    assertTrue("sh:Violation is a valid SHACL term", vocabErrors(r).isEmpty());
+  }
+
+  /** A typo in sh:severity object position is reported. */
+  @Test
+  public void shaclSeverityTypoReported() {
+    var r =
+        shacl(
+            true,
+            SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCount 1 ;\n"
+                + "                sh:severity sh:Violatio ] .\n");
+    assertEquals(1, vocabErrors(r).size());
   }
 
   // ---- helpers --------------------------------------------------------------------------

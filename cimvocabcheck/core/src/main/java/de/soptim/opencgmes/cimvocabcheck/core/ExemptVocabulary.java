@@ -68,6 +68,19 @@ public final class ExemptVocabulary {
     if (StandardVocabulary.isKnownTerm(node)) {
       return true;
     }
+    return isOpenNamespace(node);
+  }
+
+  /**
+   * Returns {@code true} when {@code node} is a URI in one of the open annotation/datatype {@link
+   * #NAMESPACES} accepted wholesale. Unlike {@link #isExempt}, this does <em>not</em> also accept
+   * known terms of the closed standard vocabularies — it reports membership of an open namespace
+   * alone.
+   */
+  public static boolean isOpenNamespace(Node node) {
+    if (!node.isURI()) {
+      return false;
+    }
     String uri = node.getURI();
     for (String ns : NAMESPACES) {
       if (uri.startsWith(ns)) {

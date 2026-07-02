@@ -55,6 +55,7 @@ import org.apache.jena.vocabulary.RDF;
 public final class SparqlQueryValidator {
 
   private final SchemaIndex schemaIndex;
+  private final TermResolver termResolver;
   private final boolean checkStandardVocabulary;
   private final SparqlQueryAnalyzer analyzer = new SparqlQueryAnalyzer();
 
@@ -72,6 +73,7 @@ public final class SparqlQueryValidator {
    */
   public SparqlQueryValidator(SchemaIndex schemaIndex, boolean checkStandardVocabulary) {
     this.schemaIndex = Objects.requireNonNull(schemaIndex, "schemaIndex");
+    this.termResolver = new TermResolver(schemaIndex);
     this.checkStandardVocabulary = checkStandardVocabulary;
   }
 
@@ -296,15 +298,17 @@ public final class SparqlQueryValidator {
 
     // 3. Classes.
     for (ClassReference c : refs.classes()) {
-      if (StandardVocabulary.isClosedNamespace(c.classNode())) {
+      Collection<VersionIri> selected = scopeProfiles(scope, c.graph());
+      TermResolver.Classification kind =
+          termResolver.classify(c.classNode(), TermResolver.Role.CLASS, selected, null);
+      if (TermResolver.isAccepted(kind, TermResolver.Role.CLASS)) {
+        continue;
+      }
+      if (kind == TermResolver.Classification.VOCAB_TYPO) {
         addVocabularyAnnotation(annotations, c.classNode(), c.graph(), original, prefixes);
         continue;
       }
-      Collection<VersionIri> selected = scopeProfiles(scope, c.graph());
-      if (schemaIndex.classExists(c.classNode(), selected)) {
-        continue;
-      }
-      if (schemaIndex.enumMemberExists(c.classNode(), null)) {
+      if (kind == TermResolver.Classification.ENUM_MEMBER) {
         annotations.add(
             buildAnnotation(
                 SparqlValidationSeverity.ERROR,
@@ -338,15 +342,17 @@ public final class SparqlQueryValidator {
 
     // 4. Properties.
     for (PropertyReference p : refs.properties()) {
-      if (StandardVocabulary.isClosedNamespace(p.propertyNode())) {
+      Collection<VersionIri> selected = scopeProfiles(scope, p.graph());
+      TermResolver.Classification kind =
+          termResolver.classify(p.propertyNode(), TermResolver.Role.PROPERTY, selected, null);
+      if (TermResolver.isAccepted(kind, TermResolver.Role.PROPERTY)) {
+        continue;
+      }
+      if (kind == TermResolver.Classification.VOCAB_TYPO) {
         addVocabularyAnnotation(annotations, p.propertyNode(), p.graph(), original, prefixes);
         continue;
       }
-      Collection<VersionIri> selected = scopeProfiles(scope, p.graph());
-      if (schemaIndex.propertyExists(p.propertyNode(), selected)) {
-        continue;
-      }
-      if (schemaIndex.enumMemberExists(p.propertyNode(), null)) {
+      if (kind == TermResolver.Classification.ENUM_MEMBER) {
         annotations.add(
             buildAnnotation(
                 SparqlValidationSeverity.ERROR,

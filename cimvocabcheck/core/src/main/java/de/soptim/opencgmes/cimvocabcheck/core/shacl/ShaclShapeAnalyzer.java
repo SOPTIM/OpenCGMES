@@ -25,6 +25,9 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationCode;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimvocabcheck.core.StandardVocabulary;
+import de.soptim.opencgmes.cimvocabcheck.core.TermResolver;
+import de.soptim.opencgmes.cimvocabcheck.core.TermResolver.Classification;
+import de.soptim.opencgmes.cimvocabcheck.core.TermResolver.Role;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import java.util.ArrayList;
@@ -88,6 +91,7 @@ public final class ShaclShapeAnalyzer {
       List.of(Shacl.PARAMETER, Shacl.VALIDATOR, Shacl.NODE_VALIDATOR, Shacl.PROPERTY_VALIDATOR);
 
   private final SchemaIndex schemaIndex;
+  private final TermResolver termResolver;
   private final boolean checkStandardVocabulary;
 
   /** Creates an analyzer over {@code schemaIndex} with standard-vocabulary checking enabled. */
@@ -104,6 +108,7 @@ public final class ShaclShapeAnalyzer {
    */
   public ShaclShapeAnalyzer(SchemaIndex schemaIndex, boolean checkStandardVocabulary) {
     this.schemaIndex = schemaIndex;
+    this.termResolver = new TermResolver(schemaIndex);
     this.checkStandardVocabulary = checkStandardVocabulary;
   }
 
@@ -186,25 +191,30 @@ public final class ShaclShapeAnalyzer {
 
   /**
    * Flags typos in closed standard vocabularies ({@code rdf}/{@code rdfs}/{@code owl}/{@code sh})
-   * used anywhere in the shapes graph as a predicate or as an {@code rdf:type} object — e.g. {@code
-   * sh:minCountt}, {@code sh:NodeShap}, {@code owl:Clas}. Each distinct unknown term is reported
-   * once. Known terms, open namespaces (xsd, dcterms, …) and CIM terms are left alone; the latter
-   * are validated by the targeted shape checks above. Schema-independent.
+   * used anywhere in the shapes graph — in subject, predicate or object position — e.g. {@code
+   * sh:minCountt}, {@code sh:NodeShap}, {@code sh:nodeKind sh:IRII}, {@code sh:severity
+   * sh:Violatio}. Each distinct unknown term is reported once. Known terms, curated header
+   * extensions ({@code rdf:Statements.subject}), open namespaces (xsd, dcterms, …) and CIM terms
+   * are left alone; the latter are validated by the targeted shape checks above.
+   *
+   * <p>Terms occupying {@code sh:targetClass}/{@code sh:class} object position or a {@code sh:path}
+   * leaf are already validated (and, when they are typos, reported) by the targeted checks, so they
+   * are skipped here to avoid double reporting. Schema-independent.
    */
   private static void checkVocabularyTerms(
       Graph g, boolean checkStandardVocabulary, List<SparqlValidationAnnotation> out) {
     if (!checkStandardVocabulary) {
       return;
     }
+    Set<Node> targeted = collectTargetedTerms(g);
     var seen = new HashSet<Node>();
     var it = g.find(Node.ANY, Node.ANY, Node.ANY);
     try {
       while (it.hasNext()) {
         Triple t = it.next();
-        checkVocabularyTerm(t.getPredicate(), "Predicate", seen, out);
-        if (RDF.type.asNode().equals(t.getPredicate())) {
-          checkVocabularyTerm(t.getObject(), "rdf:type", seen, out);
-        }
+        checkVocabularyTerm(t.getSubject(), "Subject", targeted, seen, out);
+        checkVocabularyTerm(t.getPredicate(), "Predicate", targeted, seen, out);
+        checkVocabularyTerm(t.getObject(), "Object", targeted, seen, out);
       }
     } finally {
       closeQuietly(it);
@@ -212,13 +222,40 @@ public final class ShaclShapeAnalyzer {
   }
 
   /**
-   * Reports {@code term} as an unknown vocabulary term if it is an unknown closed-namespace URI,
-   * once.
+   * Collects the URI terms already validated by the targeted shape checks — {@code
+   * sh:targetClass}/{@code sh:class} objects and {@code sh:path} leaves — so the graph-wide
+   * vocabulary scan does not report them a second time.
+   */
+  private static Set<Node> collectTargetedTerms(Graph g) {
+    var covered = new HashSet<Node>();
+    Consumer<Node> addUri =
+        n -> {
+          if (n.isURI()) {
+            covered.add(n);
+          }
+        };
+    forEachObject(g, Shacl.TARGET_CLASS, addUri);
+    forEachObject(g, Shacl.CLASS, addUri);
+    var pathLeaves = new ArrayList<Node>();
+    forEachObject(g, Shacl.PATH, pathNode -> extractPropertyUris(g, pathNode, pathLeaves));
+    covered.addAll(pathLeaves);
+    return covered;
+  }
+
+  /**
+   * Reports {@code term} as an unknown vocabulary term if it is an unknown closed-namespace URI not
+   * already covered by a targeted check, once.
    */
   private static void checkVocabularyTerm(
-      Node term, String context, Set<Node> seen, List<SparqlValidationAnnotation> out) {
-    if (StandardVocabulary.isClosedNamespace(term)
-        && !StandardVocabulary.isKnownTerm(term)
+      Node term,
+      String context,
+      Set<Node> targeted,
+      Set<Node> seen,
+      List<SparqlValidationAnnotation> out) {
+    if (!term.isURI() || targeted.contains(term)) {
+      return;
+    }
+    if (TermResolver.vocabularyClassification(term) == Classification.VOCAB_TYPO
         && seen.add(term)) {
       addVocabularyAnnotation(term, context, out);
     }
@@ -293,22 +330,15 @@ public final class ShaclShapeAnalyzer {
         if (componentInternals.contains(t.getSubject())) {
           continue;
         }
-        // Known standard-vocabulary class (rdf:List, rdfs:Resource, owl:Thing, …) or open
-        // annotation namespace: accept without a CIM existence check.
-        if (ExemptVocabulary.isExempt(cls)) {
+        Classification kind = termResolver.classify(cls, Role.CLASS, scope, localDefs);
+        // Known standard/open/header term, a local definition, or a genuine CIM class: accept.
+        if (TermResolver.isAccepted(kind, Role.CLASS)) {
           continue;
         }
         // Unknown term in a closed standard namespace (e.g. sh:Fooo, rdf:Lst): a vocabulary typo,
         // not a missing CIM class — report it as such rather than as UNKNOWN_CLASS.
-        if (StandardVocabulary.isClosedNamespace(cls)) {
+        if (kind == Classification.VOCAB_TYPO) {
           addVocabularyAnnotation(cls, "Shape " + predicateLabel, out);
-          continue;
-        }
-        // Declared in this shapes document itself: not a CIM term, leave it alone.
-        if (localDefs.contains(cls)) {
-          continue;
-        }
-        if (schemaIndex.classExists(cls, scope)) {
           continue;
         }
         out.add(classAnnotation(cls, predicateLabel, scope, schemaIndex.findClass(cls)));
@@ -553,20 +583,19 @@ public final class ShaclShapeAnalyzer {
         g,
         path,
         uri -> {
-          // sh:path values name data properties (CIM properties, or domain extensions such
-          // as the CIM-552 header's rdf:Statements.subject). They are not vocabulary terms,
-          // so closed standard namespaces are skipped here — vocabulary typos are caught by
-          // checkVocabularyTerms in predicate / rdf:type position instead.
-          if (ExemptVocabulary.isExempt(uri) || StandardVocabulary.isClosedNamespace(uri)) {
+          // sh:path values name data properties (CIM properties, or curated header extensions such
+          // as the CIM-552 header's rdf:Statements.subject). Accept known standard/open/header
+          // terms, local definitions and genuine CIM properties; report a closed-namespace typo
+          // (e.g. sh:path rdf:typ) as a vocabulary term; report an unknown CIM term as missing.
+          Classification kind = termResolver.classify(uri, Role.PROPERTY, scope, localDefs);
+          if (TermResolver.isAccepted(kind, Role.PROPERTY)) {
             return;
           }
-          // Declared in this shapes document itself: not a CIM term, leave it alone.
-          if (localDefs.contains(uri)) {
+          if (kind == Classification.VOCAB_TYPO) {
+            addVocabularyAnnotation(uri, "Shape sh:path", out);
             return;
           }
-          if (!schemaIndex.propertyExists(uri, scope)) {
-            out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
-          }
+          out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
         },
         group -> checkAlternativeGroup(group, scope, localDefs, out));
   }
@@ -588,17 +617,14 @@ public final class ShaclShapeAnalyzer {
     var unknown = new ArrayList<Node>();
     for (Node prop : allProps) {
       // See checkPathPropertyExistence: sh:path values are data properties, not vocabulary.
-      if (ExemptVocabulary.isExempt(prop) || StandardVocabulary.isClosedNamespace(prop)) {
-        continue;
-      }
-      // Declared in this shapes document itself: not a CIM term, leave it alone.
-      if (localDefs.contains(prop)) {
-        continue;
-      }
-      if (schemaIndex.propertyExists(prop, scope)) {
-        known.add(prop);
-      } else {
-        unknown.add(prop);
+      Classification kind = termResolver.classify(prop, Role.PROPERTY, scope, localDefs);
+      switch (kind) {
+        case CIM_PROPERTY -> known.add(prop);
+        case KNOWN_STANDARD, OPEN_NAMESPACE, HEADER_EXTENSION, LOCAL_DEF -> {
+          // accepted without a CIM existence check
+        }
+        case VOCAB_TYPO -> addVocabularyAnnotation(prop, "Shape sh:path", out);
+        default -> unknown.add(prop); // CIM_CLASS, ENUM_MEMBER, UNKNOWN
       }
     }
     for (Node prop : unknown) {
