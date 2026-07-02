@@ -1465,12 +1465,6 @@ public final class ShaclShapeAnalyzer {
 
   /** Closes a Jena iterator if it is {@link AutoCloseable}, swallowing any close failure. */
   private static void closeQuietly(Object it) {
-    if (it instanceof AutoCloseable c) {
-      try {
-        c.close();
-      } catch (Exception ignored) {
-        // Intentionally ignored.
-      }
-    }
+    JenaIterators.closeQuietly(it);
   }
 }

@@ -101,6 +101,52 @@ public class ValidateCommandTest {
         out.contains("UNKNOWN_VOCABULARY_TERM"));
   }
 
+  // ---- syntax-only SPARQL, valid input, output formats ------------------------------------
+
+  @Test
+  public void sparqlSyntaxOnly_validQuery_exitsZero() throws Exception {
+    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path query = write("q.rq", "SELECT * WHERE { ?s ?p ?o }");
+    assertEquals(0, exitOf("--config", config.toString(), query.toString()));
+  }
+
+  @Test
+  public void sparqlSyntaxOnly_brokenQuery_reportsSyntaxError() throws Exception {
+    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path query = write("q.rq", "SELEEECT * WHERE { ?s ?p ?o }");
+    String out = run("--config", config.toString(), "--format", "json", query.toString());
+    assertTrue("broken query must report a syntax error: " + out, out.contains("SYNTAX_ERROR"));
+    assertEquals(1, exitOf("--config", config.toString(), query.toString()));
+  }
+
+  @Test
+  public void validTurtle_exitsZero() throws Exception {
+    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path shapes =
+        write(
+            "ok.ttl",
+            "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+                + "@prefix ex: <http://example.org/> .\n"
+                + "ex:S a sh:NodeShape .\n");
+    assertEquals(0, exitOf("--config", config.toString(), shapes.toString()));
+  }
+
+  @Test
+  public void textFormat_reportsFinding() throws Exception {
+    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path shapes = write("shapes.ttl", SHAPES_BROKEN_EMBEDDED);
+    // Default (text) format, verbose to include all findings.
+    String out = run("--config", config.toString(), "--verbose", shapes.toString());
+    assertTrue("text output must mention the syntax error: " + out, out.contains("SYNTAX_ERROR"));
+  }
+
+  @Test
+  public void unreadableInput_returnsUsageError() throws Exception {
+    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    int exit = exitOf("--config", config.toString(), tmp.getRoot() + "/does-not-exist.ttl");
+    assertEquals(2, exit);
+  }
+
   // ---- helpers ----------------------------------------------------------------------------
 
   private Path write(String name, String content) throws Exception {
@@ -119,5 +165,19 @@ public class ValidateCommandTest {
       System.setOut(originalOut);
     }
     return buffer.toString(StandardCharsets.UTF_8);
+  }
+
+  private static int exitOf(String... args) {
+    PrintStream originalOut = System.out;
+    PrintStream originalErr = System.err;
+    var sink = new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8);
+    System.setOut(sink);
+    System.setErr(sink);
+    try {
+      return new CommandLine(new ValidateCommand()).execute(args);
+    } finally {
+      System.setOut(originalOut);
+      System.setErr(originalErr);
+    }
   }
 }

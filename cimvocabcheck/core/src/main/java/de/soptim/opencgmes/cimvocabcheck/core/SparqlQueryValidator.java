@@ -314,18 +314,14 @@ public final class SparqlQueryValidator {
       }
       if (kind == TermResolver.Classification.ENUM_MEMBER) {
         annotations.add(
-            buildAnnotation(
-                SparqlValidationSeverity.ERROR,
-                SparqlValidationCode.UNKNOWN_CLASS,
+            enumMisuseAnnotation(
                 c.classNode(),
                 c.graph(),
                 selected,
-                List.of(),
+                SparqlValidationCode.UNKNOWN_CLASS,
+                "class; it cannot be an rdf:type",
                 original,
-                prefixes,
-                "<"
-                    + c.classNode().getURI()
-                    + "> is an enumeration value, not a class; it cannot be an rdf:type."));
+                prefixes));
         continue;
       }
       List<VersionIri> elsewhere = schemaIndex.findClass(c.classNode());
@@ -358,18 +354,14 @@ public final class SparqlQueryValidator {
       }
       if (kind == TermResolver.Classification.ENUM_MEMBER) {
         annotations.add(
-            buildAnnotation(
-                SparqlValidationSeverity.ERROR,
-                SparqlValidationCode.UNKNOWN_PROPERTY,
+            enumMisuseAnnotation(
                 p.propertyNode(),
                 p.graph(),
                 selected,
-                List.of(),
+                SparqlValidationCode.UNKNOWN_PROPERTY,
+                "property; it cannot be a predicate",
                 original,
-                prefixes,
-                "<"
-                    + p.propertyNode().getURI()
-                    + "> is an enumeration value, not a property; it cannot be a predicate."));
+                prefixes));
         continue;
       }
       List<VersionIri> elsewhere = schemaIndex.findProperty(p.propertyNode());
@@ -560,6 +552,31 @@ public final class SparqlQueryValidator {
   }
 
   // ---- message rendering -----------------------------------------------------------------
+
+  /**
+   * Builds the annotation reported when an enumeration member is misused where a class or property
+   * is expected (as an {@code rdf:type} object or as a predicate). {@code rolePhrase} completes the
+   * message "&lt;term&gt; is an enumeration value, not a &lt;rolePhrase&gt;.".
+   */
+  private static SparqlValidationAnnotation enumMisuseAnnotation(
+      Node term,
+      Node graph,
+      Collection<VersionIri> selected,
+      SparqlValidationCode code,
+      String rolePhrase,
+      String original,
+      PrefixMapping prefixes) {
+    return buildAnnotation(
+        SparqlValidationSeverity.ERROR,
+        code,
+        term,
+        graph,
+        selected,
+        List.of(),
+        original,
+        prefixes,
+        "<" + term.getURI() + "> is an enumeration value, not a " + rolePhrase + ".");
+  }
 
   /**
    * Formats a "&lt;term&gt; does not exist" message for a missing class or property.

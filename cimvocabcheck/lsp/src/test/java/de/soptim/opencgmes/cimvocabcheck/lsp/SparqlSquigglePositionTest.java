@@ -23,6 +23,8 @@ import static org.junit.Assert.*;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
+import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
 import java.util.List;
 import org.apache.jena.graph.Graph;
@@ -327,13 +329,9 @@ public class SparqlSquigglePositionTest {
    * LSP-specific backward token scan and highlight length are computed here.
    */
   private static Diagnostic buildEmbeddedDiagnosticForTest(
-      de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation a,
-      de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql embedded,
-      String turtleText) {
+      SparqlValidationAnnotation a, EmbeddedSparql embedded, String turtleText) {
 
-    int[] pos =
-        de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper.toTurtlePosition(
-            a, embedded, turtleText);
+    int[] pos = EmbeddedSourceMapper.toTurtlePosition(a, embedded, turtleText);
     int turtleLine = pos[0];
     int col = pos[1];
 

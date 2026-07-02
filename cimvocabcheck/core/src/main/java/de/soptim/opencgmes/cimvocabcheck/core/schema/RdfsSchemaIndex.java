@@ -314,16 +314,16 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   }
 
   @Override
-  public java.util.Optional<String> labelOf(Node term, Collection<VersionIri> scope) {
+  public Optional<String> labelOf(Node term, Collection<VersionIri> scope) {
     return firstStringAcrossScope(scope, ps -> ps.termLabels().get(term));
   }
 
   @Override
-  public java.util.Optional<String> commentOf(Node term, Collection<VersionIri> scope) {
+  public Optional<String> commentOf(Node term, Collection<VersionIri> scope) {
     return firstStringAcrossScope(scope, ps -> ps.termComments().get(term));
   }
 
-  private java.util.Optional<String> firstStringAcrossScope(
+  private Optional<String> firstStringAcrossScope(
       Collection<VersionIri> scope, Function<ProfileSchema, String> lookup) {
     Collection<VersionIri> effective = (scope == null) ? profiles.keySet() : scope;
     for (VersionIri v : effective) {
@@ -333,10 +333,10 @@ public final class RdfsSchemaIndex implements SchemaIndex {
       }
       String val = lookup.apply(ps);
       if (val != null && !val.isBlank()) {
-        return java.util.Optional.of(val.strip());
+        return Optional.of(val.strip());
       }
     }
-    return java.util.Optional.empty();
+    return Optional.empty();
   }
 
   /** Union of profile-local sets retrieved via {@code lookup}, over every profile in scope. */

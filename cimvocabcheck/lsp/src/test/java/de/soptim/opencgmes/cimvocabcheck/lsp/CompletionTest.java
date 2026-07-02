@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import static org.junit.Assert.*;
 
+import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import java.util.List;
@@ -382,7 +383,7 @@ public class CompletionTest {
   private static SchemaIndex indexFromTurtle(String ttl) {
     Graph g = GraphFactory.createDefaultGraph();
     RDFParser.fromString(ttl, Lang.TURTLE).parse(g);
-    var v = de.soptim.opencgmes.cimvocabcheck.core.VersionIri.of(PROFILE);
+    var v = VersionIri.of(PROFILE);
     var schema = RdfsSchemaIndex.indexGraph(v, g);
     return RdfsSchemaIndex.builder().addProfile(schema).build();
   }

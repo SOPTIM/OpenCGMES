@@ -109,13 +109,7 @@ public final class ShaclSparqlExtractor {
                 container, predicate, kind, queryText, prefixes, targetClasses, shPaths));
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
   }
 
@@ -140,13 +134,7 @@ public final class ShaclSparqlExtractor {
         }
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
     return result;
   }
@@ -182,13 +170,7 @@ public final class ShaclSparqlExtractor {
           addGrandparentClasses(g, parent, Shacl.VALIDATOR, shapeToTargetClasses, result);
         }
       } finally {
-        if (it instanceof AutoCloseable c) {
-          try {
-            c.close();
-          } catch (Exception ignored) {
-            // Intentionally ignored.
-          }
-        }
+        JenaIterators.closeQuietly(it);
       }
     }
     return result.isEmpty() ? Set.of() : Set.copyOf(result);
@@ -206,13 +188,7 @@ public final class ShaclSparqlExtractor {
         addClassesFor(it.next().getSubject(), shapeToTargetClasses, result);
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
   }
 
@@ -237,13 +213,7 @@ public final class ShaclSparqlExtractor {
         out.computeIfAbsent(t.getSubject(), k -> new LinkedHashSet<>()).add(t.getObject());
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
     return out;
   }
@@ -272,13 +242,7 @@ public final class ShaclSparqlExtractor {
         }
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
     return merged;
   }
@@ -288,13 +252,7 @@ public final class ShaclSparqlExtractor {
     try {
       return it.hasNext() ? it.next().getObject() : null;
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
   }
 
@@ -319,13 +277,7 @@ public final class ShaclSparqlExtractor {
         byOwner.computeIfAbsent(owner, k -> new TreeMap<>()).put(prefix, namespace);
       }
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
     return byOwner;
   }
@@ -339,13 +291,7 @@ public final class ShaclSparqlExtractor {
       Node o = it.next().getObject();
       return o.isLiteral() ? o.getLiteralLexicalForm() : null;
     } finally {
-      if (it instanceof AutoCloseable c) {
-        try {
-          c.close();
-        } catch (Exception ignored) {
-          // Intentionally ignored.
-        }
-      }
+      JenaIterators.closeQuietly(it);
     }
   }
 }

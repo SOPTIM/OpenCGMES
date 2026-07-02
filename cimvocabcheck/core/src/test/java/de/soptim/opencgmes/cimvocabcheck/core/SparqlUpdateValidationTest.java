@@ -344,8 +344,7 @@ public class SparqlUpdateValidationTest {
     SparqlValidationApi twoApi = new SparqlValidationApi(twoProfileIndex);
 
     Node eqGraph = NodeFactory.createURI("urn:graph:eq");
-    java.util.Map<Node, Collection<VersionIri>> scope =
-        java.util.Map.of(eqGraph, List.of(VersionIri.of(profileEq)));
+    Map<Node, Collection<VersionIri>> scope = Map.of(eqGraph, List.of(VersionIri.of(profileEq)));
 
     // WITH <urn:graph:eq> scopes to EQ; VoltageLevel lives only in TP → UNKNOWN_CLASS.
     var r =
@@ -384,8 +383,8 @@ public class SparqlUpdateValidationTest {
 
     Node eqGraph = NodeFactory.createURI("urn:graph:eq");
     Node tpGraph = NodeFactory.createURI("urn:graph:tp");
-    java.util.Map<Node, Collection<VersionIri>> scope =
-        java.util.Map.of(
+    Map<Node, Collection<VersionIri>> scope =
+        Map.of(
             eqGraph, List.of(VersionIri.of(PROFILE_EQ)),
             tpGraph, List.of(VersionIri.of(profileTp)));
 
@@ -411,8 +410,7 @@ public class SparqlUpdateValidationTest {
   @Test
   public void withGraphValidTermsProduceNoErrors() {
     Node eqGraph = NodeFactory.createURI("urn:graph:eq");
-    java.util.Map<Node, Collection<VersionIri>> scope =
-        java.util.Map.of(eqGraph, List.of(VersionIri.of(PROFILE_EQ)));
+    Map<Node, Collection<VersionIri>> scope = Map.of(eqGraph, List.of(VersionIri.of(PROFILE_EQ)));
     var r =
         api.validateSparql(
             PREAMBLE
