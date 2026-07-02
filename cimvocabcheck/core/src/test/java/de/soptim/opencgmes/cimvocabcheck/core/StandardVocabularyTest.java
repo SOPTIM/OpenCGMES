@@ -255,6 +255,18 @@ public class StandardVocabularyTest {
     assertTrue(hits.get(0).message().contains("RDF"));
   }
 
+  /** With standardVocabulary disabled, the sh:path typo is suppressed like any other. */
+  @Test
+  public void shaclClosedNamespaceTypoInPathSuppressedWhenIgnored() {
+    var r =
+        shacl(
+            false,
+            SHACL_PREAMBLE
+                + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path rdf:typ ] .\n");
+    assertTrue(vocabErrors(r).isEmpty());
+  }
+
   /** A typo in sh:nodeKind object position is now reported. */
   @Test
   public void shaclNodeKindTypoReported() {

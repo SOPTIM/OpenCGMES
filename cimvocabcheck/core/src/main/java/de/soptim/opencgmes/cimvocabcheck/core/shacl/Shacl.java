@@ -83,6 +83,9 @@ public final class Shacl {
   /** {@code sh:property} — links a node shape to a property shape. */
   public static final Node PROPERTY = NodeFactory.createURI(NS + "property");
 
+  /** {@code sh:node} — links a shape to another node shape that its value nodes must conform to. */
+  public static final Node NODE = NodeFactory.createURI(NS + "node");
+
   /** {@code sh:path} — the property path of a property shape. */
   public static final Node PATH = NodeFactory.createURI(NS + "path");
 

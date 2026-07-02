@@ -136,7 +136,8 @@ Beyond the range checks, several value-level SHACL constraints are validated:
 - **`sh:datatype`** — a value in the XSD namespace that is not a valid XSD 1.1 datatype is reported
   as `UNKNOWN_VOCABULARY_TERM` (e.g. `xsd:strng`).
 - **Value ranges** — `sh:minInclusive` / `sh:minExclusive` / `sh:maxInclusive` / `sh:maxExclusive`
-  are checked for a self-contradiction (a lower bound greater than an upper bound → `INVALID_VALUE_RANGE`).
+  are checked for a self-contradiction: a lower bound above an upper bound (and, when either bound is
+  exclusive, a lower bound *equal* to an upper bound, which admits no value) → `INVALID_VALUE_RANGE`.
 
 ### Target and property-reference constraints
 

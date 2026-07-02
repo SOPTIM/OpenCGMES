@@ -148,4 +148,24 @@ public class ShaclSyntaxOnlyValidationTest {
         result.shapeAnnotations().stream()
             .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
   }
+
+  @Test
+  public void targetedPositionTypoIsReportedInSyntaxOnly() {
+    // In syntax-only mode the targeted shape checks don't run, so the graph-wide vocabulary scan
+    // must still catch a typo in sh:targetClass object position (rdf:Lst, not rdf:List).
+    Graph g =
+        parse(
+            PREAMBLE
+                + "ex:Shape a sh:NodeShape ;"
+                + " sh:targetClass <http://www.w3.org/1999/02/22-rdf-syntax-ns#Lst> .");
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertTrue(
+        "sh:targetClass typo must be reported in syntax-only mode",
+        result.shapeAnnotations().stream()
+            .anyMatch(
+                a ->
+                    a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM
+                        && a.term() != null
+                        && a.term().getURI().endsWith("#Lst")));
+  }
 }

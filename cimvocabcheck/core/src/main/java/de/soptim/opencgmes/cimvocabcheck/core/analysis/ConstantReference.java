@@ -30,8 +30,9 @@ import org.apache.jena.graph.Node;
  *
  * @param constant the URI node used as a constant
  * @param graph enclosing {@code GRAPH <g>} node, or {@code null} for default-graph context
- * @param comparedVariable when the constant is compared against (or bound to) a single query
- *     variable — via {@code =}, {@code IN}, or a {@code VALUES} column — that variable; otherwise
- *     {@code null}. It gives the validator a handle for inferring the constant's expected type.
+ * @param comparedVariable when the constant is compared against a single query variable — via
+ *     {@code =}, {@code IN}, or a {@code VALUES} column — that variable; otherwise {@code null}
+ *     (including for a {@code BIND(<iri> AS ?v)} target, whose constant carries no variable
+ *     context). It gives the validator a handle for inferring the constant's expected type.
  */
 public record ConstantReference(Node constant, Node graph, Node comparedVariable) {}

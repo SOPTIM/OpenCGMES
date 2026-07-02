@@ -315,6 +315,42 @@ public class ShaclCoverageChecksTest {
     assertTrue(hasForTerm(r, SparqlValidationCode.UNKNOWN_CLASS, CIM + "DoesNotExist"));
   }
 
+  @Test
+  public void deactivatedShape_nestedPropertyShapeNotChecked() {
+    // A deactivated node shape deactivates its nested sh:property constraints too.
+    var r =
+        shacl(
+            "ex:S a sh:NodeShape ; sh:deactivated true ; sh:targetClass cim:ACLineSegment ;\n"
+                + "  sh:property [ sh:path cim:Removed.prop ; sh:minCount 1 ] .");
+    assertFalse(
+        "nested property shape of a deactivated shape must not be validated",
+        has(r, SparqlValidationCode.UNKNOWN_PROPERTY));
+  }
+
+  // ---- value-range equal bounds -----------------------------------------------------------
+
+  @Test
+  public void valueRange_exclusiveEqualBounds_flagged() {
+    // minExclusive 5 with maxExclusive 5 admits no value (x > 5 and x < 5).
+    var r =
+        shacl(
+            "ex:S a sh:NodeShape ;\n"
+                + "  sh:property [ sh:path cim:ACLineSegment.r ;\n"
+                + "    sh:minExclusive 5 ; sh:maxExclusive 5 ] .");
+    assertTrue(has(r, SparqlValidationCode.INVALID_VALUE_RANGE));
+  }
+
+  @Test
+  public void valueRange_inclusiveEqualBounds_accepted() {
+    // minInclusive 5 with maxInclusive 5 is satisfiable by the single value 5.
+    var r =
+        shacl(
+            "ex:S a sh:NodeShape ;\n"
+                + "  sh:property [ sh:path cim:ACLineSegment.r ;\n"
+                + "    sh:minInclusive 5 ; sh:maxInclusive 5 ] .");
+    assertFalse(has(r, SparqlValidationCode.INVALID_VALUE_RANGE));
+  }
+
   // ---- helpers ----------------------------------------------------------------------------
 
   private ShaclValidationResult shacl(String shapesBody) {

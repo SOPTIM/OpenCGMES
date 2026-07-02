@@ -259,13 +259,28 @@ final class SchemaManager {
         } catch (Exception e) {
             LOG.error("Failed to load schema for {}: {}", key, e.getMessage(), e);
             notify(MessageType.Error, "CIMVocabCheck: schema load failed for " + key + " — " + e.getMessage());
-            return noSchemaWorkspace();
+            // Even when the schema fails to load, honour the config's standard-vocabulary flag so
+            // the syntax-only fallback still respects "standardVocabulary": "ignore".
+            return noSchemaWorkspace(readCheckStandardVocab(Path.of(key)));
+        }
+    }
+
+    /** Best-effort read of a config's standard-vocabulary flag; defaults to {@code true} on error. */
+    private static boolean readCheckStandardVocab(Path configFile) {
+        try {
+            return ConfigLoader.load(configFile).checkStandardVocabulary();
+        } catch (Exception e) {
+            return true;
         }
     }
 
     /** A {@link WorkspaceSchema} carrying no schema — documents fall back to a syntax-only check. */
     private static WorkspaceSchema noSchemaWorkspace() {
-        return new WorkspaceSchema(null, StrictnessLevel.DEFAULT, null, Map.of(), true);
+        return noSchemaWorkspace(true);
+    }
+
+    private static WorkspaceSchema noSchemaWorkspace(boolean checkStandardVocab) {
+        return new WorkspaceSchema(null, StrictnessLevel.DEFAULT, null, Map.of(), checkStandardVocab);
     }
 
     private static boolean isRemote(String endpoint) {
@@ -452,6 +467,8 @@ final class SchemaManager {
             apiRef.set(null);
             defRef.set(null);
             namedGraphRef.set(Map.of());
+            // Preserve the config's standard-vocabulary flag so the syntax-only fallback honours it.
+            checkStdVocabRef.set(configFile.map(SchemaManager::readCheckStandardVocab).orElse(true));
         }
     }
 

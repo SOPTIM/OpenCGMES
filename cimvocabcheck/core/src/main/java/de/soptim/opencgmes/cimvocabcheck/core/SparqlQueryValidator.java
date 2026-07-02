@@ -437,8 +437,8 @@ public final class SparqlQueryValidator {
     // context is a known enumeration (e.g. FILTER(?kind = cim:WindGenUnitKind.offshroe)).
     if (cr.comparedVariable() != null) {
       Set<Node> ranges = comparedVariableRanges(cr.comparedVariable(), triples, selected);
-      Set<Node> members = enumMembers(ranges, selected);
-      if (members != null) {
+      Set<Node> members = schemaIndex.enumMembersIfAllEnumerated(ranges, selected);
+      if (!members.isEmpty()) {
         if (!members.contains(c)) {
           annotations.add(
               buildAnnotation(
@@ -453,7 +453,7 @@ public final class SparqlQueryValidator {
                   "<"
                       + c.getURI()
                       + "> is not a value of enumeration "
-                      + formatUris(ranges)
+                      + IriFormat.angleBracketed(ranges)
                       + "."));
         }
         return; // enumeration context resolved (valid member or reported)
@@ -497,39 +497,6 @@ public final class SparqlQueryValidator {
       }
     }
     return ranges;
-  }
-
-  /**
-   * Returns the union of enumeration members if <em>every</em> range in {@code ranges} is an
-   * enumeration with known members in scope; otherwise {@code null} (permissive — not a definite
-   * enumeration context). Mirrors {@code SemanticChecks.checkEnumValue}.
-   */
-  private Set<Node> enumMembers(Set<Node> ranges, Collection<VersionIri> scope) {
-    if (ranges.isEmpty()) {
-      return null;
-    }
-    var members = new LinkedHashSet<Node>();
-    for (Node r : ranges) {
-      Set<Node> m = schemaIndex.enumMembersOf(r, scope);
-      if (m.isEmpty()) {
-        return null;
-      }
-      members.addAll(m);
-    }
-    return members;
-  }
-
-  private static String formatUris(Collection<Node> nodes) {
-    var sb = new StringBuilder();
-    boolean first = true;
-    for (Node n : nodes) {
-      if (!first) {
-        sb.append(", ");
-      }
-      sb.append('<').append(n.isURI() ? n.getURI() : n.toString()).append('>');
-      first = false;
-    }
-    return sb.toString();
   }
 
   // ---- scope resolution ------------------------------------------------------------------

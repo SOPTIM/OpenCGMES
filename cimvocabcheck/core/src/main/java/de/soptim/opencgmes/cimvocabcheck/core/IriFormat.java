@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.core;
 
 import java.util.Collection;
+import org.apache.jena.graph.Node;
 
 /**
  * Small helpers for rendering IRIs and profile lists in human-readable diagnostic messages.
@@ -57,5 +58,19 @@ public final class IriFormat {
       first = false;
     }
     msg.append(']');
+  }
+
+  /** Renders {@code <a>, <b>, …} — angle-bracketed URIs joined by commas — for diagnostics. */
+  public static String angleBracketed(Collection<Node> nodes) {
+    var sb = new StringBuilder();
+    boolean first = true;
+    for (Node n : nodes) {
+      if (!first) {
+        sb.append(", ");
+      }
+      sb.append('<').append(n.isURI() ? n.getURI() : n.toString()).append('>');
+      first = false;
+    }
+    return sb.toString();
   }
 }

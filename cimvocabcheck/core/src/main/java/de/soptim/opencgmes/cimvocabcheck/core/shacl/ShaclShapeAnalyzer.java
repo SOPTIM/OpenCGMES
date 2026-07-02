@@ -31,6 +31,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.TermResolver.Role;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.Multiplicity;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -101,6 +102,10 @@ public final class ShaclShapeAnalyzer {
   /** Property-pair constraint predicates whose URI object names another CIM property. */
   private static final List<Node> PROPERTY_PAIR_PREDICATES =
       List.of(Shacl.EQUALS, Shacl.DISJOINT, Shacl.LESS_THAN, Shacl.LESS_THAN_OR_EQUALS);
+
+  /** Links through which {@code sh:deactivated} propagates to nested shapes. */
+  private static final List<Node> DEACTIVATION_PROPAGATING_LINKS =
+      List.of(Shacl.PROPERTY, Shacl.NODE);
 
   /**
    * Predicates whose URI subject counts as a local term definition — the subject is being declared
@@ -174,7 +179,7 @@ public final class ShaclShapeAnalyzer {
     checkPropertyRefPredicates(
         shapesGraph, PROPERTY_PAIR_PREDICATES, scope, localDefs, deactivated, out);
     checkIgnoredProperties(shapesGraph, scope, localDefs, deactivated, out);
-    checkVocabularyTerms(shapesGraph, checkStandardVocabulary, out);
+    checkVocabularyTerms(shapesGraph, checkStandardVocabulary, true, out);
 
     return List.copyOf(out);
   }
@@ -243,7 +248,7 @@ public final class ShaclShapeAnalyzer {
   public static List<SparqlValidationAnnotation> checkVocabularyOnly(
       Graph shapesGraph, boolean checkStandardVocabulary) {
     var out = new ArrayList<SparqlValidationAnnotation>();
-    checkVocabularyTerms(shapesGraph, checkStandardVocabulary, out);
+    checkVocabularyTerms(shapesGraph, checkStandardVocabulary, false, out);
     return List.copyOf(out);
   }
 
@@ -256,15 +261,21 @@ public final class ShaclShapeAnalyzer {
    * are left alone; the latter are validated by the targeted shape checks above.
    *
    * <p>Terms occupying {@code sh:targetClass}/{@code sh:class} object position or a {@code sh:path}
-   * leaf are already validated (and, when they are typos, reported) by the targeted checks, so they
-   * are skipped here to avoid double reporting. Schema-independent.
+   * leaf are already validated (and, when they are typos, reported) by the targeted checks in the
+   * schema-aware {@link #analyze} path, so they are excluded there to avoid double reporting. In
+   * the syntax-only path ({@link #checkVocabularyOnly}) the targeted checks do not run, so {@code
+   * excludeTargeted} is {@code false} and this scan is the only backstop for those positions.
+   * Schema-independent.
    */
   private static void checkVocabularyTerms(
-      Graph g, boolean checkStandardVocabulary, List<SparqlValidationAnnotation> out) {
+      Graph g,
+      boolean checkStandardVocabulary,
+      boolean excludeTargeted,
+      List<SparqlValidationAnnotation> out) {
     if (!checkStandardVocabulary) {
       return;
     }
-    Set<Node> targeted = collectTargetedTerms(g);
+    Set<Node> targeted = excludeTargeted ? collectTargetedTerms(g) : Set.of();
     var seen = new HashSet<Node>();
     var it = g.find(Node.ANY, Node.ANY, Node.ANY);
     try {
@@ -315,7 +326,9 @@ public final class ShaclShapeAnalyzer {
     }
     if (TermResolver.vocabularyClassification(term) == Classification.VOCAB_TYPO
         && seen.add(term)) {
-      addVocabularyAnnotation(term, context, out);
+      // Reached only when standard-vocabulary checking is enabled (checkVocabularyTerms returns
+      // early otherwise), so report unconditionally.
+      addVocabularyAnnotation(term, context, true, out);
     }
   }
 
@@ -401,7 +414,7 @@ public final class ShaclShapeAnalyzer {
         // Unknown term in a closed standard namespace (e.g. sh:Fooo, rdf:Lst): a vocabulary typo,
         // not a missing CIM class — report it as such rather than as UNKNOWN_CLASS.
         if (kind == Classification.VOCAB_TYPO) {
-          addVocabularyAnnotation(cls, "Shape " + predicateLabel, out);
+          addVocabularyAnnotation(cls, "Shape " + predicateLabel, checkStandardVocabulary, out);
           continue;
         }
         out.add(classAnnotation(cls, predicateLabel, scope, schemaIndex.findClass(cls)));
@@ -692,7 +705,7 @@ public final class ShaclShapeAnalyzer {
             return;
           }
           if (kind == Classification.VOCAB_TYPO) {
-            addVocabularyAnnotation(uri, "Shape sh:path", out);
+            addVocabularyAnnotation(uri, "Shape sh:path", checkStandardVocabulary, out);
             return;
           }
           out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
@@ -723,7 +736,8 @@ public final class ShaclShapeAnalyzer {
         case KNOWN_STANDARD, OPEN_NAMESPACE, HEADER_EXTENSION, LOCAL_DEF -> {
           // accepted without a CIM existence check
         }
-        case VOCAB_TYPO -> addVocabularyAnnotation(prop, "Shape sh:path", out);
+        case VOCAB_TYPO ->
+            addVocabularyAnnotation(prop, "Shape sh:path", checkStandardVocabulary, out);
         default -> unknown.add(prop); // CIM_CLASS, ENUM_MEMBER, UNKNOWN
       }
     }
@@ -792,7 +806,7 @@ public final class ShaclShapeAnalyzer {
         }
         Node prop = simplePathProperty(g, shape);
         Set<Node> ranges = prop == null ? Set.of() : schemaIndex.rangesOf(prop, scope);
-        Set<Node> enumMembers = enumMembers(ranges, scope);
+        Set<Node> enumMembers = schemaIndex.enumMembersIfAllEnumerated(ranges, scope);
         var members = new ArrayList<Node>();
         walkList(g, t.getObject(), members::add);
         for (Node m : members) {
@@ -814,7 +828,7 @@ public final class ShaclShapeAnalyzer {
     if (!m.isURI() || isVocabularyOrLocal(m, localDefs)) {
       return;
     }
-    if (enumMembers != null) {
+    if (!enumMembers.isEmpty()) {
       if (!enumMembers.contains(m)) {
         out.add(enumValueAnnotation(m, ranges, scope, "sh:in"));
       }
@@ -850,8 +864,8 @@ public final class ShaclShapeAnalyzer {
         }
         Node prop = simplePathProperty(g, shape);
         Set<Node> ranges = prop == null ? Set.of() : schemaIndex.rangesOf(prop, scope);
-        Set<Node> enumMembers = enumMembers(ranges, scope);
-        if (enumMembers != null && !enumMembers.contains(value)) {
+        Set<Node> enumMembers = schemaIndex.enumMembersIfAllEnumerated(ranges, scope);
+        if (!enumMembers.isEmpty() && !enumMembers.contains(value)) {
           out.add(enumValueAnnotation(value, ranges, scope, "sh:hasValue"));
         }
       }
@@ -872,6 +886,7 @@ public final class ShaclShapeAnalyzer {
     if (!checkStandardVocabulary) {
       return;
     }
+    var seen = new HashSet<Node>();
     var it = g.find(Node.ANY, Shacl.DATATYPE, Node.ANY);
     try {
       while (it.hasNext()) {
@@ -880,7 +895,9 @@ public final class ShaclShapeAnalyzer {
         if (deactivated.contains(t.getSubject())) {
           continue;
         }
-        if (StandardVocabulary.isXsdNamespace(dt) && !StandardVocabulary.isKnownXsdDatatype(dt)) {
+        if (StandardVocabulary.isXsdNamespace(dt)
+            && !StandardVocabulary.isKnownXsdDatatype(dt)
+            && seen.add(dt)) {
           out.add(xsdDatatypeAnnotation(dt));
         }
       }
@@ -983,19 +1000,30 @@ public final class ShaclShapeAnalyzer {
     OptionalDouble maxExc = literalDouble(singleObject(g, shape, Shacl.MAX_EXCLUSIVE));
     Node term = simplePathProperty(g, shape);
 
-    if (contradicts(minInc, maxInc)) {
+    if (contradicts(minInc, maxInc, false)) {
       out.add(valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxInclusive", maxInc, term));
-    } else if (contradicts(minInc, maxExc)) {
+    } else if (contradicts(minInc, maxExc, true)) {
       out.add(valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxExclusive", maxExc, term));
-    } else if (contradicts(minExc, maxInc)) {
+    } else if (contradicts(minExc, maxInc, true)) {
       out.add(valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxInclusive", maxInc, term));
-    } else if (contradicts(minExc, maxExc)) {
+    } else if (contradicts(minExc, maxExc, true)) {
       out.add(valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxExclusive", maxExc, term));
     }
   }
 
-  private static boolean contradicts(OptionalDouble lower, OptionalDouble upper) {
-    return lower.isPresent() && upper.isPresent() && lower.getAsDouble() > upper.getAsDouble();
+  /**
+   * Whether a lower bound cannot coexist with an upper bound. With {@code orEqual} (an exclusive
+   * bound on either side) equal bounds are already unsatisfiable — {@code minExclusive 5} with
+   * {@code maxExclusive 5} (or {@code maxInclusive 5}, or {@code minInclusive 5} with {@code
+   * maxExclusive 5}) admits no value; only two inclusive bounds may be equal (the single value).
+   */
+  private static boolean contradicts(OptionalDouble lower, OptionalDouble upper, boolean orEqual) {
+    if (lower.isEmpty() || upper.isEmpty()) {
+      return false;
+    }
+    double lo = lower.getAsDouble();
+    double hi = upper.getAsDouble();
+    return orEqual ? lo >= hi : lo > hi;
   }
 
   // ---- shared helpers for the checks above ------------------------------------------------
@@ -1006,26 +1034,6 @@ public final class ShaclShapeAnalyzer {
   private static Node simplePathProperty(Graph g, Node shape) {
     Node p = singleObject(g, shape, Shacl.PATH);
     return p != null && p.isURI() ? p : null;
-  }
-
-  /**
-   * Returns the union of enumeration members if <em>every</em> range in {@code ranges} is an
-   * enumeration with known members in scope; otherwise {@code null} (be permissive — the property
-   * is not a known enumeration-typed one).
-   */
-  private Set<Node> enumMembers(Set<Node> ranges, Collection<VersionIri> scope) {
-    if (ranges.isEmpty()) {
-      return null;
-    }
-    var members = new LinkedHashSet<Node>();
-    for (Node r : ranges) {
-      Set<Node> m = schemaIndex.enumMembersOf(r, scope);
-      if (m.isEmpty()) {
-        return null; // non-enumeration range — permissive
-      }
-      members.addAll(m);
-    }
-    return members;
   }
 
   /** Whether {@code m} exists as a class, property or enumeration member in the CIM schema. */
@@ -1076,7 +1084,12 @@ public final class ShaclShapeAnalyzer {
     }
   }
 
-  /** Collects shape nodes deactivated with {@code sh:deactivated true}. */
+  /**
+   * Collects shape nodes deactivated with {@code sh:deactivated true}, plus the shapes they link to
+   * via {@code sh:property}/{@code sh:node} (transitively). Per SHACL a deactivated shape has no
+   * effect, and neither do its nested property/node constraints — deactivation is exactly how
+   * profiles retire a shape (and its constraints) for terms that no longer exist.
+   */
   private static Set<Node> collectDeactivatedShapes(Graph g) {
     var out = new HashSet<Node>();
     var it = g.find(Node.ANY, Shacl.DEACTIVATED, Node.ANY);
@@ -1090,6 +1103,24 @@ public final class ShaclShapeAnalyzer {
       }
     } finally {
       closeQuietly(it);
+    }
+    // Propagate deactivation into nested shapes reachable via sh:property / sh:node.
+    var frontier = new ArrayDeque<>(out);
+    while (!frontier.isEmpty()) {
+      Node shape = frontier.poll();
+      for (Node link : DEACTIVATION_PROPAGATING_LINKS) {
+        var lit = g.find(shape, link, Node.ANY);
+        try {
+          while (lit.hasNext()) {
+            Node child = lit.next().getObject();
+            if (out.add(child)) {
+              frontier.add(child);
+            }
+          }
+        } finally {
+          closeQuietly(lit);
+        }
+      }
     }
     return out;
   }
@@ -1127,11 +1158,17 @@ public final class ShaclShapeAnalyzer {
   /**
    * Emits an {@link SparqlValidationCode#UNKNOWN_VOCABULARY_TERM} annotation for an unknown term in
    * a closed standard vocabulary. {@code context} is a short human label for where the term was
-   * used (e.g. {@code "Shape sh:path"}, {@code "Predicate"}). No-op when standard-vocabulary
-   * checking is disabled.
+   * used (e.g. {@code "Shape sh:path"}, {@code "Predicate"}). No-op when {@code
+   * checkStandardVocabulary} is {@code false}.
    */
   private static void addVocabularyAnnotation(
-      Node term, String context, List<SparqlValidationAnnotation> out) {
+      Node term,
+      String context,
+      boolean checkStandardVocabulary,
+      List<SparqlValidationAnnotation> out) {
+    if (!checkStandardVocabulary) {
+      return;
+    }
     String vocab = StandardVocabulary.vocabularyName(term.getURI());
     out.add(
         new SparqlValidationAnnotation(
@@ -1286,7 +1323,7 @@ public final class ShaclShapeAnalyzer {
             .append(": <")
             .append(value.getURI())
             .append("> is not a value of enumeration ")
-            .append(formatUris(ranges))
+            .append(IriFormat.angleBracketed(ranges))
             .append('.');
     return new SparqlValidationAnnotation(
         SparqlValidationSeverity.ERROR,
@@ -1391,20 +1428,6 @@ public final class ShaclShapeAnalyzer {
   private static String formatBound(double d) {
     String s = Double.toString(d);
     return s.endsWith(".0") ? s.substring(0, s.length() - 2) : s;
-  }
-
-  /** Joins a set of URI nodes as {@code <a>, <b>} for diagnostics. */
-  private static String formatUris(Collection<Node> nodes) {
-    var sb = new StringBuilder();
-    boolean first = true;
-    for (Node n : nodes) {
-      if (!first) {
-        sb.append(", ");
-      }
-      sb.append('<').append(n.isURI() ? n.getURI() : n.toString()).append('>');
-      first = false;
-    }
-    return sb.toString();
   }
 
   private static void appendScopeLabel(StringBuilder msg, Collection<VersionIri> scope) {

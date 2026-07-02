@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.core.schema;
 
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -147,6 +148,29 @@ public interface SchemaIndex {
    */
   default boolean enumMemberExists(Node term, Collection<VersionIri> profiles) {
     return false;
+  }
+
+  /**
+   * Returns the union of enumeration members when <em>every</em> range in {@code ranges} is an
+   * enumeration with known members in the given scope; an empty set otherwise (no ranges, or at
+   * least one non-enumeration/out-of-scope range — treat as "not a definite enumeration context"
+   * and be permissive). A non-empty result is always a genuine all-enumeration case, so callers can
+   * validate a value against it. Shared by the SHACL {@code sh:in}/{@code sh:hasValue} checks and
+   * the SPARQL expression-constant check so their "must be an enumeration" semantics stay aligned.
+   */
+  default Set<Node> enumMembersIfAllEnumerated(Set<Node> ranges, Collection<VersionIri> profiles) {
+    if (ranges == null || ranges.isEmpty()) {
+      return Set.of();
+    }
+    var members = new LinkedHashSet<Node>();
+    for (Node r : ranges) {
+      Set<Node> m = enumMembersOf(r, profiles);
+      if (m.isEmpty()) {
+        return Set.of();
+      }
+      members.addAll(m);
+    }
+    return members;
   }
 
   /** All enumeration-member nodes registered across every profile in this index. */
