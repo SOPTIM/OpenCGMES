@@ -66,5 +66,11 @@ public enum SparqlValidationCode {
    * A value-range constraint is self-contradictory — e.g. {@code sh:minInclusive} exceeds {@code
    * sh:maxInclusive} — so the property shape can never be satisfied.
    */
-  INVALID_VALUE_RANGE
+  INVALID_VALUE_RANGE,
+  /**
+   * A constant IRI used in a {@code FILTER}, {@code VALUES} or {@code BIND} expression is unknown
+   * to every schema index (class, property and enumeration member). Reported as a warning because
+   * such a constant can legitimately be an instance IRI the schema does not track.
+   */
+  UNKNOWN_TERM_IN_EXPRESSION
 }

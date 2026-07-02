@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.core;
 
 import de.soptim.opencgmes.cimvocabcheck.core.analysis.ClassReference;
+import de.soptim.opencgmes.cimvocabcheck.core.analysis.ConstantReference;
 import de.soptim.opencgmes.cimvocabcheck.core.analysis.GraphReference;
 import de.soptim.opencgmes.cimvocabcheck.core.analysis.PathChainReference;
 import de.soptim.opencgmes.cimvocabcheck.core.analysis.PropertyReference;
@@ -139,6 +140,7 @@ public final class SparqlQueryValidator {
             a.properties(),
             triples,
             a.pathChains(),
+            a.constants(),
             a.dynamicPredicate(),
             a.dynamicClass());
     List<SparqlValidationAnnotation> ann =
@@ -194,6 +196,7 @@ public final class SparqlQueryValidator {
               a.properties(),
               a.triples(),
               a.pathChains(),
+              a.constants(),
               a.dynamicPredicate(),
               a.dynamicClass());
       List<SparqlValidationAnnotation> ann =
@@ -226,6 +229,7 @@ public final class SparqlQueryValidator {
       List<PropertyReference> properties,
       List<TriplePatternReference> triples,
       List<PathChainReference> pathChains,
+      List<ConstantReference> constants,
       boolean dynamicPredicate,
       boolean dynamicClass) {}
 
@@ -394,7 +398,138 @@ public final class SparqlQueryValidator {
             original,
             prefixes));
 
+    // 6. Constant IRIs in FILTER / VALUES / BIND expressions.
+    for (ConstantReference cr : refs.constants()) {
+      validateConstant(cr, scope, refs.triples(), annotations, original, prefixes);
+    }
+
     return annotations;
+  }
+
+  /**
+   * Validates a constant IRI from a FILTER/VALUES/BIND expression: a closed-namespace typo is
+   * reported as an unknown vocabulary term; a constant compared against a variable whose property
+   * context is an enumeration is checked for membership ({@link
+   * SparqlValidationCode#INVALID_ENUM_VALUE}); a constant unknown to every schema index is reported
+   * as a warning ({@link SparqlValidationCode#UNKNOWN_TERM_IN_EXPRESSION}). Standard, open, header
+   * and already-known terms are accepted.
+   */
+  private void validateConstant(
+      ConstantReference cr,
+      ValidationScope scope,
+      List<TriplePatternReference> triples,
+      List<SparqlValidationAnnotation> annotations,
+      String original,
+      PrefixMapping prefixes) {
+    Node c = cr.constant();
+    TermResolver.Classification vocab = TermResolver.vocabularyClassification(c);
+    if (vocab == TermResolver.Classification.VOCAB_TYPO) {
+      addVocabularyAnnotation(annotations, c, cr.graph(), original, prefixes);
+      return;
+    }
+    if (vocab != null) {
+      return; // known standard / open annotation / header extension — accept
+    }
+
+    Collection<VersionIri> selected = scopeProfiles(scope, cr.graph());
+
+    // Enumeration-aware check when the constant is compared against a variable whose property
+    // context is a known enumeration (e.g. FILTER(?kind = cim:WindGenUnitKind.offshroe)).
+    if (cr.comparedVariable() != null) {
+      Set<Node> ranges = comparedVariableRanges(cr.comparedVariable(), triples, selected);
+      Set<Node> members = enumMembers(ranges, selected);
+      if (members != null) {
+        if (!members.contains(c)) {
+          annotations.add(
+              buildAnnotation(
+                  SparqlValidationSeverity.ERROR,
+                  SparqlValidationCode.INVALID_ENUM_VALUE,
+                  c,
+                  cr.graph(),
+                  selected,
+                  List.of(),
+                  original,
+                  prefixes,
+                  "<"
+                      + c.getURI()
+                      + "> is not a value of enumeration "
+                      + formatUris(ranges)
+                      + "."));
+        }
+        return; // enumeration context resolved (valid member or reported)
+      }
+    }
+
+    if (schemaIndex.classExists(c, selected)
+        || schemaIndex.propertyExists(c, selected)
+        || schemaIndex.enumMemberExists(c, null)) {
+      return; // a known class, property or enumeration member
+    }
+    annotations.add(
+        buildAnnotation(
+            SparqlValidationSeverity.WARN,
+            SparqlValidationCode.UNKNOWN_TERM_IN_EXPRESSION,
+            c,
+            cr.graph(),
+            selected,
+            List.of(),
+            original,
+            prefixes,
+            "<"
+                + c.getURI()
+                + "> is used as a constant in an expression but is not a known class, property or"
+                + " enumeration member in the selected schema scope."));
+  }
+
+  /**
+   * Union of {@code rdfs:range} classes of every property for which {@code variable} appears in
+   * object position (ignoring {@code rdf:type}), used to infer the type a compared constant is
+   * expected to have.
+   */
+  private Set<Node> comparedVariableRanges(
+      Node variable, List<TriplePatternReference> triples, Collection<VersionIri> scope) {
+    var ranges = new LinkedHashSet<Node>();
+    for (TriplePatternReference t : triples) {
+      Triple tr = t.triple();
+      Node p = tr.getPredicate();
+      if (variable.equals(tr.getObject()) && p.isURI() && !RDF_TYPE.equals(p)) {
+        ranges.addAll(schemaIndex.rangesOf(p, scope));
+      }
+    }
+    return ranges;
+  }
+
+  /**
+   * Returns the union of enumeration members if <em>every</em> range in {@code ranges} is an
+   * enumeration with known members in scope; otherwise {@code null} (permissive — not a definite
+   * enumeration context). Mirrors {@code SemanticChecks.checkEnumValue}.
+   */
+  private Set<Node> enumMembers(Set<Node> ranges, Collection<VersionIri> scope) {
+    if (ranges.isEmpty()) {
+      return null;
+    }
+    var members = new LinkedHashSet<Node>();
+    for (Node r : ranges) {
+      Set<Node> m = schemaIndex.enumMembersOf(r, scope);
+      if (m.isEmpty()) {
+        return null;
+      }
+      members.addAll(m);
+    }
+    return members;
+  }
+
+  private static String formatUris(Collection<Node> nodes) {
+    var sb = new StringBuilder();
+    boolean first = true;
+    for (Node n : nodes) {
+      if (!first) {
+        sb.append(", ");
+      }
+      sb.append('<').append(n.isURI() ? n.getURI() : n.toString()).append('>');
+      first = false;
+    }
+    return sb.toString();
   }
 
   // ---- scope resolution ------------------------------------------------------------------

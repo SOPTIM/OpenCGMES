@@ -22,6 +22,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.ExemptVocabulary;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +31,7 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.sparql.algebra.Op;
+import org.apache.jena.sparql.algebra.Table;
 import org.apache.jena.sparql.algebra.op.Op1;
 import org.apache.jena.sparql.algebra.op.Op2;
 import org.apache.jena.sparql.algebra.op.OpBGP;
@@ -42,13 +45,22 @@ import org.apache.jena.sparql.algebra.op.OpPath;
 import org.apache.jena.sparql.algebra.op.OpQuadBlock;
 import org.apache.jena.sparql.algebra.op.OpQuadPattern;
 import org.apache.jena.sparql.algebra.op.OpService;
+import org.apache.jena.sparql.algebra.op.OpTable;
 import org.apache.jena.sparql.algebra.op.OpUnion;
 import org.apache.jena.sparql.algebra.walker.Walker;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.sparql.core.TriplePath;
+import org.apache.jena.sparql.core.Var;
+import org.apache.jena.sparql.engine.binding.Binding;
+import org.apache.jena.sparql.expr.E_Equals;
+import org.apache.jena.sparql.expr.E_OneOf;
 import org.apache.jena.sparql.expr.Expr;
+import org.apache.jena.sparql.expr.ExprFunction2;
+import org.apache.jena.sparql.expr.ExprFunctionN;
 import org.apache.jena.sparql.expr.ExprFunctionOp;
+import org.apache.jena.sparql.expr.ExprVar;
 import org.apache.jena.sparql.expr.ExprVisitorBase;
+import org.apache.jena.sparql.expr.NodeValue;
 import org.apache.jena.sparql.path.P_Alt;
 import org.apache.jena.sparql.path.P_Inverse;
 import org.apache.jena.sparql.path.P_Link;
@@ -92,6 +104,13 @@ public final class AlgebraAnalysisVisitor {
   private final Set<Node> seenGraphBlocks = new LinkedHashSet<>();
   private final List<PathChainReference> pathChains = new ArrayList<>();
   private final Deque<Node> graphStack = new ArrayDeque<>();
+
+  /**
+   * Constant IRIs used in expression positions (FILTER / VALUES / BIND), mapped to the single query
+   * variable they are compared against or bound to (or {@code null}). A map so the same constant is
+   * emitted once, keeping the most specific variable context seen.
+   */
+  private final LinkedHashMap<ConstantKey, Node> seenConstants = new LinkedHashMap<>();
 
   private boolean dynamicPredicate;
   private boolean dynamicClass;
@@ -142,6 +161,18 @@ public final class AlgebraAnalysisVisitor {
     return pathChains;
   }
 
+  /** Constant IRIs collected from FILTER / VALUES / BIND expression positions. */
+  public List<ConstantReference> constants() {
+    var out = new ArrayList<ConstantReference>(seenConstants.size());
+    for (var e : seenConstants.entrySet()) {
+      out.add(new ConstantReference(e.getKey().constant(), e.getKey().graph(), e.getValue()));
+    }
+    return out;
+  }
+
+  /** Key de-duplicating a constant by its IRI and enclosing graph context. */
+  private record ConstantKey(Node constant, Node graph) {}
+
   private Node currentGraph() {
     return graphStack.peek();
   }
@@ -190,6 +221,7 @@ public final class AlgebraAnalysisVisitor {
       case OpService ignored -> {
         // Do not descend into SERVICE — remote endpoint has its own schema.
       }
+      case OpTable table -> collectTableConstants(table);
       case OpUnion union -> {
         // Each UNION branch is an independent alternative — types from one branch must
         // not bleed into the other. Each branch extends the parent chain with a fresh ID.
@@ -235,7 +267,7 @@ public final class AlgebraAnalysisVisitor {
         }
       }
       default -> {
-        // Leaf or uninteresting ops: OpTable, OpNull, OpDatasetNames, OpLabel, OpTriple, ...
+        // Leaf or uninteresting ops: OpNull, OpDatasetNames, OpLabel, OpTriple, ...
       }
     }
   }
@@ -413,10 +445,101 @@ public final class AlgebraAnalysisVisitor {
             // Types declared inside must not influence domain checks outside this pattern.
             analyzeIsolated(funcOp.getGraphPattern());
           }
+
+          @Override
+          public void visit(NodeValue nv) {
+            // Any constant IRI in an expression (BIND target, function argument, bare FILTER term).
+            noteConstant(nv.getNode());
+          }
+
+          @Override
+          public void visit(ExprFunction2 func) {
+            // Equality against a variable: FILTER(?var = <const>) — capture the variable context.
+            if (func instanceof E_Equals) {
+              captureComparison(func.getArg1(), func.getArg2());
+            }
+          }
+
+          @Override
+          public void visit(ExprFunctionN func) {
+            // IN list against a variable: FILTER(?var IN (<c1>, <c2>, …)).
+            if (func instanceof E_OneOf oneOf) {
+              Node var = asVariable(oneOf.getLHS());
+              if (var != null) {
+                for (Expr member : oneOf.getRHS()) {
+                  noteComparison(asConstantUri(member), var);
+                }
+              }
+            }
+          }
         };
     for (Expr e : exprs) {
       Walker.walk(e, visitor);
     }
+  }
+
+  /** Collects the URI constants of a {@code VALUES} table, tagged with their column variable. */
+  private void collectTableConstants(OpTable opTable) {
+    Table table = opTable.getTable();
+    if (table == null) {
+      return;
+    }
+    Iterator<Binding> rows = table.rows();
+    while (rows.hasNext()) {
+      Binding binding = rows.next();
+      Iterator<Var> vars = binding.vars();
+      while (vars.hasNext()) {
+        Var v = vars.next();
+        noteComparison(binding.get(v), v);
+      }
+    }
+  }
+
+  /** Records a bare constant IRI with no known variable context (unless one is already known). */
+  private void noteConstant(Node c) {
+    if (c != null && c.isURI() && !ExemptVocabulary.isExempt(c)) {
+      seenConstants.putIfAbsent(new ConstantKey(c, currentGraph()), null);
+    }
+  }
+
+  /** Records a constant IRI compared against / bound to a single variable, keeping that context. */
+  private void noteComparison(Node c, Node var) {
+    if (c != null
+        && c.isURI()
+        && !ExemptVocabulary.isExempt(c)
+        && var != null
+        && var.isVariable()) {
+      seenConstants.put(new ConstantKey(c, currentGraph()), var);
+    }
+  }
+
+  /** From an {@code a = b} comparison, records the constant side against the variable side. */
+  private void captureComparison(Expr a, Expr b) {
+    Node var = asVariable(a);
+    Node constant = asConstantUri(b);
+    if (var != null && constant != null) {
+      noteComparison(constant, var);
+      return;
+    }
+    var = asVariable(b);
+    constant = asConstantUri(a);
+    if (var != null && constant != null) {
+      noteComparison(constant, var);
+    }
+  }
+
+  private static Node asVariable(Expr e) {
+    return e instanceof ExprVar ev ? ev.getAsNode() : null;
+  }
+
+  private static Node asConstantUri(Expr e) {
+    if (e instanceof NodeValue nv) {
+      Node n = nv.getNode();
+      if (n != null && n.isURI()) {
+        return n;
+      }
+    }
+    return null;
   }
 
   /**

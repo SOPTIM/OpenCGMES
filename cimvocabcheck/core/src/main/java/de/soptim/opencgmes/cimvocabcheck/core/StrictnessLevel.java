@@ -108,7 +108,8 @@ public enum StrictnessLevel {
           UNKNOWN_CLASS,
           UNKNOWN_PROPERTY,
           UNKNOWN_VOCABULARY_TERM,
-          INVALID_CARDINALITY ->
+          INVALID_CARDINALITY,
+          INVALID_VALUE_RANGE ->
           true;
       default -> false;
     };
