@@ -5,6 +5,7 @@
     "fileTypes": ["ttl", "shacl"],
     "patterns": [
         { "include": "#comment" },
+        { "include": "#embedded-sparql" },
         { "include": "#string-triple-double" },
         { "include": "#string-triple-single" },
         { "include": "#string-double" },
@@ -25,6 +26,38 @@
         "comment": {
             "name": "comment.line.number-sign.turtle",
             "match": "#.*$"
+        },
+        "embedded-sparql": {
+            "patterns": [
+                {
+                    "name": "meta.embedded.sparql.turtle",
+                    "begin": "(sh:(?:select|ask|construct|update))\\s*(\"\"\")",
+                    "beginCaptures": {
+                        "1": { "name": "keyword.other.sparql-constraint.turtle" },
+                        "2": { "name": "punctuation.definition.string.begin.turtle" }
+                    },
+                    "end": "(\"\"\")",
+                    "endCaptures": {
+                        "1": { "name": "punctuation.definition.string.end.turtle" }
+                    },
+                    "contentName": "meta.embedded.block.sparql",
+                    "patterns": [{ "include": "source.sparql" }]
+                },
+                {
+                    "name": "meta.embedded.sparql.turtle",
+                    "begin": "(sh:(?:select|ask|construct|update))\\s*(''')",
+                    "beginCaptures": {
+                        "1": { "name": "keyword.other.sparql-constraint.turtle" },
+                        "2": { "name": "punctuation.definition.string.begin.turtle" }
+                    },
+                    "end": "(''')",
+                    "endCaptures": {
+                        "1": { "name": "punctuation.definition.string.end.turtle" }
+                    },
+                    "contentName": "meta.embedded.block.sparql",
+                    "patterns": [{ "include": "source.sparql" }]
+                }
+            ]
         },
         "string-triple-double": {
             "name": "string.quoted.triple.double.turtle",
