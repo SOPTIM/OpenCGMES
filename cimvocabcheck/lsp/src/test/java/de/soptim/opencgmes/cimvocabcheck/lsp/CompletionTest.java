@@ -376,6 +376,96 @@ public class CompletionTest {
         items.stream().noneMatch(i -> i.getKind() == CompletionItemKind.EnumMember));
   }
 
+  @Test
+  public void enumMembers_offeredWhenPropertyIsOnAnEarlierLine() {
+    // Long CIM property names are routinely wrapped onto their own line — the property and the
+    // value being typed need not share a source line.
+    SchemaIndex rich = indexFromTurtle(ENUM_TTL);
+    String text =
+        "PREFIX cim: <"
+            + CIM
+            + ">\n"
+            + "SELECT * WHERE {\n"
+            + "  ?u cim:WindGeneratingUnit.windGenUnitType\n"
+            + "     cim:Wind\n"
+            + "}";
+    String[] lines = text.split("\n", -1);
+    int lineIdx = 3;
+    int col = lines[lineIdx].lastIndexOf("cim:Wind") + "cim:Wind".length();
+    List<CompletionItem> items =
+        SparqlTextDocumentService.buildCompletionItems(text, lineIdx, col, rich);
+    assertTrue(
+        "should offer the enum member even though the property is on the previous line",
+        items.stream()
+            .anyMatch(
+                i ->
+                    i.getLabel().equals("cim:WindGenUnitKind.offshore")
+                        && i.getKind() == CompletionItemKind.EnumMember));
+  }
+
+  @Test
+  public void enumMembers_offeredInShaclInList() {
+    // sh:in ( … ) values are not textually adjacent to their governing property at all — it is
+    // named by sh:path earlier in the enclosing shape.
+    SchemaIndex rich = indexFromTurtle(ENUM_TTL);
+    String shacl =
+        "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+            + "@prefix cim: <"
+            + CIM
+            + "> .\n"
+            + "@prefix ex: <http://example.org/shapes#> .\n"
+            + "ex:Shape sh:property [\n"
+            + "  sh:path cim:WindGeneratingUnit.windGenUnitType ;\n"
+            + "  sh:in (\n"
+            + "    cim:Wind\n"
+            + "  )\n"
+            + "] .\n";
+    String[] lines = shacl.split("\n", -1);
+    int lineIdx = 6;
+    int col = lines[lineIdx].lastIndexOf("cim:Wind") + "cim:Wind".length();
+    List<CompletionItem> items =
+        SparqlTextDocumentService.buildCompletionItems(shacl, lineIdx, col, rich);
+    assertTrue(
+        "should offer the enum member inside a multi-line sh:in list",
+        items.stream()
+            .anyMatch(
+                i ->
+                    i.getLabel().equals("cim:WindGenUnitKind.offshore")
+                        && i.getKind() == CompletionItemKind.EnumMember));
+  }
+
+  @Test
+  public void enumMembers_offeredForSecondItemInShaclInList() {
+    // The property must still resolve when the value being typed is not the first list item
+    // (the immediately preceding token is then a previous enum member, not sh:path/sh:in).
+    SchemaIndex rich = indexFromTurtle(ENUM_TTL);
+    String shacl =
+        "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+            + "@prefix cim: <"
+            + CIM
+            + "> .\n"
+            + "@prefix ex: <http://example.org/shapes#> .\n"
+            + "ex:Shape sh:property [\n"
+            + "  sh:path cim:WindGeneratingUnit.windGenUnitType ;\n"
+            + "  sh:in (\n"
+            + "    cim:WindGenUnitKind.offshore\n"
+            + "    cim:Wind\n"
+            + "  )\n"
+            + "] .\n";
+    String[] lines = shacl.split("\n", -1);
+    int lineIdx = 7;
+    int col = lines[lineIdx].lastIndexOf("cim:Wind") + "cim:Wind".length();
+    List<CompletionItem> items =
+        SparqlTextDocumentService.buildCompletionItems(shacl, lineIdx, col, rich);
+    assertTrue(
+        "should offer the enum member for the second item in the list too",
+        items.stream()
+            .anyMatch(
+                i ->
+                    i.getLabel().equals("cim:WindGenUnitKind.onshore")
+                        && i.getKind() == CompletionItemKind.EnumMember));
+  }
+
   // ============================================================================================
   // Helper
   // ============================================================================================

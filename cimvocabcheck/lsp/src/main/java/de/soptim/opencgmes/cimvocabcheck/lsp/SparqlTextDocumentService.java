@@ -267,9 +267,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
         Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(List.of(loc)));
   }
 
-  /** Whether {@code term} is declared as a class or property in the given schema index. */
+  /** Whether {@code term} is declared as a class, property, or enum member in the schema index. */
   private static boolean termKnown(SchemaIndex index, Node term) {
-    return !index.findClass(term).isEmpty() || !index.findProperty(term).isEmpty();
+    return !index.findClass(term).isEmpty()
+        || !index.findProperty(term).isEmpty()
+        || !index.findEnumMember(term).isEmpty();
   }
 
   @Override
@@ -1118,8 +1120,13 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     // Object position after an enum-ranged property: offer that enumeration's members, e.g.
     // after `cim:WindGeneratingUnit.windGenUnitType ` offer cim:WindGenUnitKind.offshore/.onshore.
+    // The governing property can be several lines above the cursor (long CIM property names are
+    // routinely wrapped onto their own line) or not textually adjacent at all (a SHACL `sh:in ( )`
+    // list, where the property is instead named by `sh:path` earlier in the enclosing shape) —
+    // governingPredicate handles both by scanning the whole document, not just the current line.
     if (!classCtx) {
-      Node predicate = precedingPredicate(src, tokenStart, prefixes);
+      int offset = toOffset(lines, line, tokenStart);
+      Node predicate = governingPredicate(text, offset, prefixes, index, allProfiles);
       if (predicate != null) {
         for (Node range : index.rangesOf(predicate, allProfiles)) {
           for (Node member : index.enumMembersOf(range, allProfiles)) {
@@ -1140,6 +1147,75 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     items.sort(Comparator.comparing(CompletionItem::getLabel));
     return items;
+  }
+
+  /**
+   * Returns the absolute character offset of {@code (line, col)} within the joined {@code lines}.
+   */
+  private static int toOffset(String[] lines, int line, int col) {
+    int offset = 0;
+    for (int i = 0; i < line; i++) {
+      offset += lines[i].length() + 1; // +1 for the '\n' consumed by split
+    }
+    return offset + col;
+  }
+
+  /**
+   * {@code sh:path} followed by a {@code prefix:local} token — used to find the property that
+   * governs a SHACL {@code sh:in ( … )} / {@code sh:hasValue} value, which is not textually
+   * adjacent to the value at all.
+   */
+  private static final Pattern SH_PATH_PATTERN =
+      Pattern.compile("sh:path\\s+([\\w.\\-]+:[\\w.\\-]+)");
+
+  /**
+   * Resolves the property that governs the value being typed at {@code offset}, for enum-member
+   * completion. Two forms are recognised:
+   *
+   * <ol>
+   *   <li>The value directly follows its property, e.g. {@code
+   *       cim:WindGeneratingUnit.windGenUnitType cim:Wind} — the common SPARQL/Turtle triple form.
+   *       {@code previousToken} already skips whitespace (including newlines), so the property may
+   *       be on an earlier line (long CIM property names are routinely wrapped onto their own
+   *       line).
+   *   <li>The value is an item of a SHACL {@code sh:in ( … )} list or a {@code sh:hasValue}, where
+   *       the governing property is instead named by {@code sh:path} earlier in the enclosing
+   *       shape. The nearest {@code sh:path} before {@code offset} is used.
+   * </ol>
+   */
+  private static Node governingPredicate(
+      String text, int offset, PrefixMapping prefixes, SchemaIndex index, List<VersionIri> scope) {
+    String prev = previousToken(text, offset);
+    Node adjacent = resolvePrefixedName(prev, prefixes);
+    if (adjacent != null && !index.rangesOf(adjacent, scope).isEmpty()) {
+      return adjacent;
+    }
+    String before = text.substring(0, Math.min(offset, text.length()));
+    Matcher m = SH_PATH_PATTERN.matcher(before);
+    String lastPath = null;
+    while (m.find()) {
+      lastPath = m.group(1);
+    }
+    return lastPath == null ? null : resolvePrefixedName(lastPath, prefixes);
+  }
+
+  /**
+   * Resolves a {@code prefix:local} token to a URI node using {@code prefixes}, or {@code null}
+   * when it isn't prefixed or its prefix is undeclared.
+   */
+  private static Node resolvePrefixedName(String token, PrefixMapping prefixes) {
+    if (token == null || token.isEmpty()) {
+      return null;
+    }
+    int colon = token.indexOf(':');
+    if (colon <= 0) {
+      return null;
+    }
+    String ns = prefixes.getNsPrefixURI(token.substring(0, colon));
+    if (ns == null) {
+      return null;
+    }
+    return NodeFactory.createURI(ns + token.substring(colon + 1));
   }
 
   private static void addIfMatching(
@@ -1239,16 +1315,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * undeclared prefix. Used to offer an enumeration's members in object position.
    */
   static Node precedingPredicate(String src, int tokenStart, PrefixMapping prefixes) {
-    String prev = previousToken(src, tokenStart);
-    int colon = prev.indexOf(':');
-    if (colon <= 0) {
-      return null;
-    }
-    String ns = prefixes.getNsPrefixURI(prev.substring(0, colon));
-    if (ns == null) {
-      return null;
-    }
-    return NodeFactory.createURI(ns + prev.substring(colon + 1));
+    return resolvePrefixedName(previousToken(src, tokenStart), prefixes);
   }
 
   // ---- Hover helpers ---------------------------------------------------------------------
@@ -1422,11 +1489,15 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     boolean isProperty = !index.findProperty(term).isEmpty();
     boolean isClass = !index.findClass(term).isEmpty();
-    if (!isProperty && !isClass) {
+    boolean isEnumMember = !isProperty && !isClass && !index.findEnumMember(term).isEmpty();
+    if (!isProperty && !isClass && !isEnumMember) {
       return null;
     }
 
-    List<VersionIri> termProfiles = isProperty ? index.findProperty(term) : index.findClass(term);
+    List<VersionIri> termProfiles =
+        isProperty
+            ? index.findProperty(term)
+            : isClass ? index.findClass(term) : index.findEnumMember(term);
 
     var sb = new StringBuilder();
 
