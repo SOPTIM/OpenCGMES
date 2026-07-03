@@ -18,13 +18,11 @@
 
 package de.soptim.opencgmes.cimxml.graph;
 
-import de.soptim.opencgmes.cimxml.CimVersion;
-import org.apache.jena.mem.GraphMemRoaring;
 import org.apache.jena.riot.RDFParser;
+import org.apache.jena.sparql.graph.GraphFactory;
 import org.junit.Test;
 
 import java.io.StringReader;
-import java.util.Set;
 
 import static org.junit.Assert.*;
 
@@ -56,7 +54,7 @@ public class TestCimProfile17 {
             </rdf:RDF>
             """;
 
-        var graph = new GraphMemRoaring();
+        var graph = GraphFactory.createGraphMem();
 
         RDFParser.create()
             .source(new StringReader(rdfxml))
@@ -67,12 +65,12 @@ public class TestCimProfile17 {
         var ontology = CimProfile.wrap(graph);
 
         assertFalse(ontology.isHeaderProfile());
-        assertTrue(Set.of(CimVersion.CIM_17, CimVersion.CIM_18).contains(ontology.getCIMVersion()));
+        assertEquals(CimProfile17.CIM_NAMESPACE, ontology.getCimNamespace());
 
-        assertEquals(2, ontology.getOwlVersionIRIs().size());
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertEquals(2, ontology.getOwlVersionIris().size());
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://example.org/MyCustom/Core/1/1")));
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://example.org/MyCustom/Operation/1/1")));
         assertEquals("1.1.0", ontology.getOwlVersionInfo());
         assertEquals("MYCUST", ontology.getDcatKeyword());
@@ -95,7 +93,7 @@ public class TestCimProfile17 {
             """;
 
 
-        var graph = new GraphMemRoaring();
+        var graph = GraphFactory.createGraphMem();
 
         RDFParser.create()
                 .source(new StringReader(rdfxml))
@@ -106,7 +104,7 @@ public class TestCimProfile17 {
         var ontology = CimProfile.wrap(graph);
 
         assertTrue(ontology.isHeaderProfile());
-        assertEquals(CimVersion.CIM_17, ontology.getCIMVersion());
+        assertEquals(CimProfile17.CIM_NAMESPACE, ontology.getCimNamespace());
     }
 
 }

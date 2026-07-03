@@ -18,39 +18,36 @@
 
 package de.soptim.opencgmes.cimxml.graph;
 
-import de.soptim.opencgmes.cimxml.CimVersion;
+import java.util.Objects;
 import org.apache.jena.graph.Graph;
 
-import java.util.Objects;
-
 /**
- * A specialization of {@link Graph} that provides methods to determine the CIM version
- * of the graph based on its namespace prefixes.
+ * A specialization of {@link Graph} that provides methods to determine the 'cim' namespace of the
+ * graph based on its namespace prefixes.
  */
 public interface CimGraph extends Graph {
 
-    /**
-     * Determines the CIM version of this graph based on its namespace prefixes.
-     * If the graph does not use a CIM namespace, {@link CimVersion#NO_CIM} is returned.
-     * @return The CIM version of the graph, or {@link CimVersion#NO_CIM} if no CIM namespace is used.
-     */
-    default CimVersion getCIMVersion() {
-        return getCIMXMLVersion(this);
-    }
+  /**
+   * Get the CIM namespace URI associated with the 'cim' prefix in the given graph's prefix
+   * mapping.
+   *
+   * @param graph the graph from which to retrieve the CIM namespace
+   * @return the CIM namespace URI or null if the 'cim' prefix is not defined in the graph's prefix
+   *     mapping
+   * @throws NullPointerException if the graph is null
+   */
+  static String getCimNs(Graph graph) {
+    Objects.requireNonNull(graph, "graph");
+    return graph.getPrefixMapping().getNsPrefixURI("cim");
+  }
 
-    /**
-     * Determines the CIM version of the given graph based on its namespace prefixes.
-     * If the graph does not use a CIM namespace, {@link CimVersion#NO_CIM} is returned.
-     * @param graph The graph to determine the CIM version for. Must not be null.
-     * @return The CIM version of the graph, or {@link CimVersion#NO_CIM} if no CIM namespace is used.
-     * @throws NullPointerException if the graph is null.
-     */
-    static CimVersion getCIMXMLVersion(Graph graph) {
-        Objects.requireNonNull(graph, "graph");
-        var cimURI = graph.getPrefixMapping().getNsPrefixURI("cim");
-        if (cimURI == null)
-            return CimVersion.NO_CIM;
-
-        return CimVersion.fromCimNamespace(graph.getPrefixMapping().getNsPrefixURI("cim"));
-    }
+  /**
+   * Get the CIM namespace URI associated with the 'cim' prefix in the graph's prefix mapping.
+   *
+   * @return the CIM namespace URI or null if the 'cim' prefix is not defined in the graph's prefix
+   *     mapping
+   */
+  default String getCimNamespace() {
+    return getCimNs(this);
+  }
 }

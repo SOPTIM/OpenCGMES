@@ -19,8 +19,9 @@
 package de.soptim.opencgmes.cimxml.graph;
 
 import de.soptim.opencgmes.cimxml.parser.ReaderCIMXML_StAX_SR;
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXMLToDatasetGraph;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXmlToDatasetGraph;
 import org.apache.jena.graph.Node;
+import org.apache.jena.riot.system.ErrorHandlerFactory;
 import org.junit.Test;
 
 import java.io.StringReader;
@@ -52,14 +53,14 @@ public class TestCimModelHeader {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertTrue(streamRDF.getCIMDatasetGraph().isFullModel());
-        assertNotNull(streamRDF.getCIMDatasetGraph().getModelHeader());
-        var modelHeader = streamRDF.getCIMDatasetGraph().getModelHeader();
+        assertTrue(streamRDF.getCimDatasetGraph().isFullModel());
+        assertNotNull(streamRDF.getCimDatasetGraph().getModelHeader());
+        var modelHeader = streamRDF.getCimDatasetGraph().getModelHeader();
 
         assertEquals("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6", modelHeader.getModel().toString());
 
@@ -102,14 +103,14 @@ public class TestCimModelHeader {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertTrue(streamRDF.getCIMDatasetGraph().isDifferenceModel());
-        assertNotNull(streamRDF.getCIMDatasetGraph().getModelHeader());
-        var modelHeader = streamRDF.getCIMDatasetGraph().getModelHeader();
+        assertTrue(streamRDF.getCimDatasetGraph().isDifferenceModel());
+        assertNotNull(streamRDF.getCimDatasetGraph().getModelHeader());
+        var modelHeader = streamRDF.getCimDatasetGraph().getModelHeader();
 
         assertEquals("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6", modelHeader.getModel().toString());
 

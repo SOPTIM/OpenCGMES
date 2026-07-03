@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<FindBugsFilter>
+  <Match>
+    <!-- these classes originate from Apache Jena and should be changed as littel as possible
+         to avoid merge conflicts when updating the Jena version -->
+    <Source name="ParserCIMXML_StAX_SR.java"/>
+  </Match>
+  <Match>
+    <!-- these classes originate from Apache Jena and should be changed as littel as possible
+         to avoid merge conflicts when updating the Jena version -->
+    <Source name="ReaderCIMXML_StAX_SR.java"/>
+  </Match>
+
+<!--  <Match>-->
+<!--    <Class name="de.soptim.opencgmes.cimxml.graph.FastDeltaGraph">-->
+<!--      <Method name="getBase"/>-->
+<!--    </Class>-->
+<!--    <Bug pattern="EI_EXPOSE_REP"/>-->
+<!--  </Match>-->
+
+<!--  <Match>-->
+<!--    <Class name="de.soptim.opencgmes.cimxml.graph.CimProfile16">-->
+<!--      <Method name="CimProfile16"/>-->
+<!--    </Class>-->
+<!--    <Bug pattern="CT_CONSTRUCTOR_THROW"/>-->
+<!--  </Match>-->
+<!--  <Match>-->
+<!--    <Class name="de.soptim.opencgmes.cimxml.graph.CimProfile17">-->
+<!--      <Method name="CimProfile17"/>-->
+<!--    </Class>-->
+<!--    <Bug pattern="CT_CONSTRUCTOR_THROW"/>-->
+<!--  </Match>-->
+<!--  <Match>-->
+<!--    <Class name="de.soptim.opencgmes.cimxml.graph.CimProfile18">-->
+<!--      <Method name="CimProfile18"/>-->
+<!--    </Class>-->
+<!--    <Bug pattern="CT_CONSTRUCTOR_THROW"/>-->
+<!--  </Match>-->
+  <Match>
+    <!-- While it usually makes sense to not do work in constructors and
+         thus not have exceptions thrown from constructors, there are
+         enough cases where simple checks, like nullity checks do make
+         sense. -->
+    <Bug pattern="CT_CONSTRUCTOR_THROW" />
+  </Match>
+  <Match>
+    <!-- While it usually makes sense to not expose internal representation, there are
+         enough cases where this is intentional and does not cause any issues. -->
+    <Bug pattern="EI_EXPOSE_REP"/>
+  </Match>
+  <Match>
+    <!-- While it usually makes sense to not expose internal representation, there are
+         enough cases where this is intentional and does not cause any issues. -->
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+</FindBugsFilter>

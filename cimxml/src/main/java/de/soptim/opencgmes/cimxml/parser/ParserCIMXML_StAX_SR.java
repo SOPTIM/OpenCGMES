@@ -19,9 +19,9 @@
 package de.soptim.opencgmes.cimxml.parser;
 
 import de.soptim.opencgmes.cimxml.CimHeaderVocabulary;
-import de.soptim.opencgmes.cimxml.CimVersion;
 import de.soptim.opencgmes.cimxml.CimXmlDocumentContext;
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXML;
+import de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXml;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jena.atlas.io.IndentedWriter;
@@ -68,6 +68,7 @@ import static org.apache.jena.riot.SysRIOT.fmtMessage;
  * This implementation is based on the RDF/XML parser ParserRRX_StAX_SR in Apache Jena, originally.
  * It has been adapted to handle CIMXML specifics.
  */
+@SuppressWarnings("PMD")
 public class ParserCIMXML_StAX_SR {
 
     static {
@@ -78,7 +79,7 @@ public class ParserCIMXML_StAX_SR {
         }
     }
 
-    private final static int IRI_CACHE_SIZE = 8192;
+    private static final int IRI_CACHE_SIZE = 8192;
     private final IndentedWriter trace;
 
     private final XMLStreamReader2 xmlSource;
@@ -99,12 +100,12 @@ public class ParserCIMXML_StAX_SR {
     private boolean hasRDF = false;
     private boolean hasCimXmlNamespace = false;
     private boolean isCimXmlModel = false;
-    private CimVersion versionOfCIMXML = CimVersion.NO_CIM;
+    private String versionOfCIMXML = null;
 
     private final ErrorHandler errorHandler;
-    private final StreamCIMXML destination;
+    private final StreamCimXml destination;
     private final CimProfileRegistry cimProfileRegistry;
-    private final static String PROCESSING_INSTRUCTION_IEC61970_552 = "iec61970-552";
+    private static final String PROCESSING_INSTRUCTION_IEC61970_552 = "iec61970-552";
 
     private void updateCurrentIriCacheForCurrentBase() {
         if (currentBase != null) {
@@ -216,7 +217,7 @@ public class ParserCIMXML_StAX_SR {
     private static class Counter { int value = 1; }
 
     public ParserCIMXML_StAX_SR(XMLStreamReader2 reader, CimProfileRegistry cimProfileRegistry, String xmlBase,
-                                StreamCIMXML destination, ErrorHandler errorHandler) {
+                                StreamCimXml destination, ErrorHandler errorHandler) {
         // Debug
         IndentedWriter out = IndentedWriter.stdout.clone();
         out.setFlushOnNewline(true);
@@ -258,6 +259,7 @@ public class ParserCIMXML_StAX_SR {
     private static final QName rdfDatatype = new QName(rdfNS, "datatype");
     private static final QName rdfParseType = new QName(rdfNS, "parseType");
     private static final QName rdfResource = new QName(rdfNS, "resource");
+    private static final QName rdfVersion = new QName(rdfNS, "version");
 
     private static final QName rdfAboutEach = new QName(rdfNS, "aboutEach");
     private static final QName rdfAboutEachPrefix = new QName(rdfNS, "aboutEachPrefix");
@@ -405,7 +407,7 @@ public class ParserCIMXML_StAX_SR {
             // Not necessary to track this element when parsing.
             hasFrame = startElement();
             // Only the XML base and namespaces that apply throughout rdf:RDF are parser output.
-            emitInitialBaseAndNamespacesDetermineCIMVersionAndSetBaseIfNeeded();
+            emitInitialBaseAndNamespacesDetermineCimNamespaceAndSetBaseIfNeeded();
             hasRDF = true;
             eventType = nextEventTag();
         }
@@ -523,7 +525,7 @@ public class ParserCIMXML_StAX_SR {
                         RDFXMLparseWarning("No CimProfileRegistry has been provided, so missing datatypes in CIMXML cannot be resolved.", location);
                     } else {
                         currentDataTypeMap = cimProfileRegistry.getHeaderPropertiesAndDatatypes(versionOfCIMXML);
-                        if (currentDataTypeMap == null) {
+                        if (currentDataTypeMap.isEmpty()) {
                             RDFXMLparseWarning("No header profile has been registered for CIM version " + versionOfCIMXML, location);
                         }
                         currentListOfPropertiesNotInProfile = new HashSet<>();
@@ -1399,7 +1401,7 @@ public class ParserCIMXML_StAX_SR {
                 if ( lookingAt(ev, PROCESSING_INSTRUCTION) ) {
                     if (PROCESSING_INSTRUCTION_IEC61970_552.equals(xmlSource.getPITarget())) {
                         final var versionOfIEC61970_552 = xmlSource.getPIData();
-                        destination.setVersionOfIEC61970_552(versionOfIEC61970_552);
+                        destination.setVersionOfIec61970_552(versionOfIEC61970_552);
                     } else {
                         RDFXMLparseWarning("XML Processing instruction - ignored");
                     }
@@ -1482,7 +1484,11 @@ public class ParserCIMXML_StAX_SR {
 
     // ---- Parser output
 
-    private void emitInitialBaseAndNamespacesDetermineCIMVersionAndSetBaseIfNeeded() {
+    private void emitInitialBaseAndNamespacesDetermineCimNamespaceAndSetBaseIfNeeded() {
+
+        String rdfVersionStr = attribute(rdfVersion);
+        if ( rdfVersionStr != null )
+            emitVersion(rdfVersionStr);
 
         int numNS = xmlSource.getNamespaceCount();
         for ( int i = 0 ; i < numNS ; i++ ) {
@@ -1492,9 +1498,9 @@ public class ParserCIMXML_StAX_SR {
                 prefix = "";
             } else if ("cim".equals(prefix)) {
                 // Determine CIM version.
-                versionOfCIMXML = CimVersion.fromCimNamespace(prefixURI);
-                if (versionOfCIMXML == CimVersion.NO_CIM) {
-                    RDFXMLparseWarning("Unrecognized 'cim' namespace: " + prefixURI, location());
+                versionOfCIMXML = prefixURI;
+                if (!CimNamespaceFactoryRegistry.hasProfileFactory(prefixURI)) {
+                    RDFXMLparseWarning("The provided 'cim' namespace: " + prefixURI + " is not registered in CimNamespaceMapper.", location());
                 }
                 if (ReaderCIMXML_StAX_SR.TRACE) {
                     trace.printf("CIM version of CIMXML: %s\n", versionOfCIMXML);
@@ -1504,9 +1510,9 @@ public class ParserCIMXML_StAX_SR {
         }
 
         String xmlBase = attribute(xmlQNameBase);
-        if (versionOfCIMXML != CimVersion.NO_CIM) {
+        if (versionOfCIMXML != null) {
             hasCimXmlNamespace = true;
-            destination.setVersionOfCIMXML(versionOfCIMXML);
+            destination.setCimNamespace(versionOfCIMXML);
             if (xmlBase == null) {
                 xmlBase = xmlBaseForCIMXML;
                 currentBase = IRIx.create(xmlBase);
@@ -1544,6 +1550,10 @@ public class ParserCIMXML_StAX_SR {
 
     private void emitPrefix(String prefix, String iriStr) {
         destination.prefix(prefix, iriStr);
+    }
+
+    private void emitVersion(String version) {
+        destination.version(version);
     }
 
     /**

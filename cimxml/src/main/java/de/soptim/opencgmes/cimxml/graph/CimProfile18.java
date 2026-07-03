@@ -22,48 +22,42 @@ import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 
 /**
- * A wrapper for a graph that contains a CIM profile ontology as defined in CIM 18
+ * A wrapper for a graph that contains a CIM profile ontology as defined in CIM 18.
  */
-public class CimProfile18 extends CimProfile17 implements CimProfile {
+public class CimProfile18 extends CimProfile17 {
 
-    final static String DOCUMENT_HEADER_VERSION_IRI_START = "https://ap-voc.cim4.eu/DocumentHeader";
+  public static final String CIM_NAMESPACE = "https://cim.ucaiug.io/ns#";
+  private static final String DOCUMENT_HEADER_VERSION_IRI_START = "https://ap-voc.cim4.eu/DocumentHeader";
 
-    /**
-     * Wraps the given graph as a CimProfile18.
-     * @param graph The graph to wrap.
-     * @throws IllegalArgumentException if the graph does not contain the required information to be a CimProfile18.
-     */
-    public CimProfile18(Graph graph, boolean isHeaderProfile) {
-        super(graph, isHeaderProfile);
+  /**
+   * Wraps the given graph as a CimProfile18.
+   *
+   * @param graph The graph to wrap.
+   * @throws IllegalArgumentException if the graph does not contain the required information to be a
+   *                                  CimProfile18.
+   */
+  public CimProfile18(Graph graph) {
+    super(graph, CimProfile18::isCim18HeaderProfile);
+  }
+
+  /**
+   * Checks if the given graph is a header profile. A header profile is identified by having an
+   * ontology with a version IRI that starts with
+   * {@code https://ap-voc.cim4.eu/DocumentHeader}.
+   *
+   * @param graph The graph to check.
+   * @return true if the graph is a header profile, false otherwise.
+   */
+  public static boolean isCim18HeaderProfile(Graph graph) {
+    if (!hasOntology(graph)) {
+      return false;
     }
+    var ontology = getOntology(graph);
 
-    /**
-     * Checks if the given graph contains both a DCAT keyword and an OWL version IRI.
-     * @param graph The graph to check.
-     * @return true if both a DCAT keyword and an OWL version IRI are present, false otherwise.
-     */
-    public static boolean hasVersionIRIAndKeyword(Graph graph) {
-        return graph.find(Node.ANY, PREDICATE_DCAT_KEYWORD, Node.ANY).hasNext()
-                && graph.find(Node.ANY, PREDICATE_OWL_VERSION_IRI, Node.ANY).hasNext();
-    }
-
-    /**
-     * Checks if the given graph is a header profile.
-     * A header profile is identified by having an ontology with a version IRI
-     * that starts with "https://ap-voc.cim4.eu/DocumentHeader".
-     *
-     * @param graph The graph to check.
-     * @return true if the graph is a header profile, false otherwise.
-     */
-    public static boolean isHeaderProfile(Graph graph) {
-        if (!hasOntology(graph))
-            return false;
-        var ontology = getOntology(graph);
-
-        // look for https://ap.cim4.eu/DocumentHeader# without # in version IRIs
-        return graph.stream(ontology, PREDICATE_OWL_VERSION_IRI, Node.ANY)
-                .anyMatch(t
-                        -> t.getObject().isURI()
-                        && t.getObject().getURI().startsWith(DOCUMENT_HEADER_VERSION_IRI_START));
-    }
+    // look for https://ap.cim4.eu/DocumentHeader# without # in version IRIs
+    return graph.stream(ontology, PREDICATE_OWL_VERSION_IRI, Node.ANY)
+        .anyMatch(t
+            -> t.getObject().isURI()
+            && t.getObject().getURI().startsWith(DOCUMENT_HEADER_VERSION_IRI_START));
+  }
 }

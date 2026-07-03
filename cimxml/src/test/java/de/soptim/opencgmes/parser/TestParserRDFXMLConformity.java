@@ -19,13 +19,12 @@
 package de.soptim.opencgmes.parser;
 
 import de.soptim.opencgmes.cimxml.parser.ReaderCIMXML_StAX_SR;
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXMLToDatasetGraph;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXmlToDatasetGraph;
 import org.apache.jena.graph.Graph;
-import org.apache.jena.mem.GraphMemRoaring;
-import org.apache.jena.mem.IndexingStrategy;
 import org.apache.jena.riot.RDFParser;
 import org.apache.jena.riot.system.PrefixMap;
 import org.apache.jena.shared.PrefixMapping;
+import org.apache.jena.sparql.graph.GraphFactory;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -149,14 +148,14 @@ public class TestParserRDFXMLConformity {
 
     public void parseAndCompare(Path rdfxml, Path nTriples) throws Exception {
         Objects.requireNonNull(rdfxml);
-        final var expectedGraph = new GraphMemRoaring(IndexingStrategy.LAZY);
+        final var expectedGraph = GraphFactory.createGraphMem();
         final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         try(var fileReader = new FileReader(rdfxml.toFile())) {
             parser.read(fileReader, streamRDF);
         }
-        var graph = streamRDF.getCIMDatasetGraph().getDefaultGraph();
+        var graph = streamRDF.getCimDatasetGraph().getDefaultGraph();
 
         RDFParser.create()
                 .source(rdfxml)
@@ -165,10 +164,10 @@ public class TestParserRDFXMLConformity {
                 .parse(expectedGraph);
 
         assertGraphEquals(expectedGraph, graph);
-        assertPrefixMappingEquals(expectedGraph.getPrefixMapping(), streamRDF.getCIMDatasetGraph().prefixes());
+        assertPrefixMappingEquals(expectedGraph.getPrefixMapping(), streamRDF.getCimDatasetGraph().prefixes());
 
         if (nTriples != null) {
-            final var nTriplesGraph = new GraphMemRoaring(IndexingStrategy.LAZY);
+            final var nTriplesGraph = GraphFactory.createGraphMem();
             RDFParser.create()
                     .source(nTriples)
                     .lang(org.apache.jena.riot.Lang.NTRIPLES)

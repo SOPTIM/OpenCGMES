@@ -18,7 +18,7 @@
 
 package de.soptim.opencgmes.cimxml.parser;
 
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXML;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXml;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.lang.rdfxml.SysRRX;
@@ -41,6 +41,7 @@ import java.io.Reader;
  *
  * @see <a href="https://webstore.iec.ch/en/publication/25939">https://webstore.iec.ch/en/publication/25939</a>
  */
+@SuppressWarnings("PMD")
 public class ReaderCIMXML_StAX_SR
 {
     public static XMLInputFactory2 createXMLInputFactory() {
@@ -63,19 +64,19 @@ public class ReaderCIMXML_StAX_SR
         this.errorHandler = errorHandler;
     }
 
-    public void read(InputStream input, StreamCIMXML output) {
+    public void read(InputStream input, StreamCimXml output) {
         read(input, null, null, output);
     }
 
-    public void read(InputStream input, CimProfileRegistry cimProfileRegistry, StreamCIMXML output) {
+    public void read(InputStream input, CimProfileRegistry cimProfileRegistry, StreamCimXml output) {
         read(input, cimProfileRegistry, null, output);
     }
 
-    public void read(InputStream input, String xmlBase, StreamCIMXML output) {
+    public void read(InputStream input, String xmlBase, StreamCimXml output) {
         read(input, null, xmlBase, output);
     }
 
-    public void read(InputStream input, CimProfileRegistry cimProfileRegistry, String xmlBase, StreamCIMXML output) {
+    public void read(InputStream input, CimProfileRegistry cimProfileRegistry, String xmlBase, StreamCimXml output) {
         try {
             var xmlStreamReader = (XMLStreamReader2) xmlInputFactory.createXMLStreamReader(input);
             parse(xmlStreamReader, cimProfileRegistry, xmlBase, output);
@@ -84,19 +85,19 @@ public class ReaderCIMXML_StAX_SR
         }
     }
 
-    public void read(Reader reader, StreamCIMXML output) {
+    public void read(Reader reader, StreamCimXml output) {
         read(reader, null, null, output);
     }
 
-    public void read(Reader reader, String xmlBase, StreamCIMXML output) {
+    public void read(Reader reader, String xmlBase, StreamCimXml output) {
         read(reader, null, xmlBase, output);
     }
 
-    public void read(Reader reader, CimProfileRegistry cimProfileRegistry, StreamCIMXML output) {
+    public void read(Reader reader, CimProfileRegistry cimProfileRegistry, StreamCimXml output) {
         read(reader, cimProfileRegistry, null, output);
     }
 
-    public void read(Reader reader, CimProfileRegistry cimProfileRegistry, String xmlBase, StreamCIMXML output) {
+    public void read(Reader reader, CimProfileRegistry cimProfileRegistry, String xmlBase, StreamCimXml output) {
         try {
             var xmlStreamReader = (XMLStreamReader2) xmlInputFactory.createXMLStreamReader(reader);
             parse(xmlStreamReader, cimProfileRegistry, xmlBase, output);
@@ -106,7 +107,7 @@ public class ReaderCIMXML_StAX_SR
     }
 
     private void parse(XMLStreamReader2 xmlStreamReader, CimProfileRegistry cimProfileRegistry, String xmlBase,
-                       StreamCIMXML destination) {
+                       StreamCimXml destination) {
         var parser = new ParserCIMXML_StAX_SR(xmlStreamReader, cimProfileRegistry, xmlBase, destination, errorHandler);
         destination.start();
         try {

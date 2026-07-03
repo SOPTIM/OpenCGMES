@@ -18,14 +18,16 @@
 
 package de.soptim.opencgmes.parser;
 
-import de.soptim.opencgmes.cimxml.CimVersion;
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
+import de.soptim.opencgmes.cimxml.graph.CimProfile17;
+import de.soptim.opencgmes.cimxml.graph.CimProfile18;
 import de.soptim.opencgmes.cimxml.parser.ReaderCIMXML_StAX_SR;
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXMLToDatasetGraph;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXmlToDatasetGraph;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.riot.system.ErrorHandlerFactory;
 import org.junit.Test;
 
 import java.io.StringReader;
@@ -33,7 +35,6 @@ import java.io.StringReader;
 import static org.junit.Assert.*;
 
 public class TestParserCIMXMLConformity {
-
 
     /**
      * Test that the parser can parse a CIMXML document with a version declaration.
@@ -48,12 +49,12 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertEquals("version=\"2.0\"", streamRDF.getVersionOfIEC61970_552());
+        assertEquals("version=\"2.0\"", streamRDF.getVersionOfIec61970_552());
     }
 
     /**
@@ -67,16 +68,16 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertNull(streamRDF.getVersionOfIEC61970_552());
+        assertNull(streamRDF.getVersionOfIec61970_552());
     }
 
     @Test
-    public void parseCIMVersion17() {
+    public void parseCimNamespace17() {
         final var rdfxml = """
             <?xml version="1.0" encoding="UTF-8"?>
             <rdf:RDF
@@ -85,16 +86,16 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertEquals(CimVersion.CIM_17, streamRDF.getVersionOfCIMXML());
+        assertEquals(CimProfile17.CIM_NAMESPACE, streamRDF.getCimNamespace());
     }
 
     @Test
-    public void parseCIMVersion18() {
+    public void parseCimNamespace18() {
         final var rdfxml = """
             <?xml version="1.0" encoding="UTF-8"?>
             <rdf:RDF
@@ -103,12 +104,12 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertEquals(CimVersion.CIM_18, streamRDF.getVersionOfCIMXML());
+        assertEquals(CimProfile18.CIM_NAMESPACE, streamRDF.getCimNamespace());
     }
 
     @Test
@@ -125,20 +126,20 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertTrue(streamRDF.getCIMDatasetGraph().isFullModel());
+        assertTrue(streamRDF.getCimDatasetGraph().isFullModel());
 
-        assertNotNull(streamRDF.getCIMDatasetGraph().getModelHeader());
-        var modelHeader = streamRDF.getCIMDatasetGraph().getModelHeader();
+        assertNotNull(streamRDF.getCimDatasetGraph().getModelHeader());
+        var modelHeader = streamRDF.getCimDatasetGraph().getModelHeader();
         assertEquals("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6", modelHeader.getModel().toString());
         assertEquals(1, modelHeader.getProfiles().size());
         assertTrue(modelHeader.getProfiles().stream().map(Node::getLiteralLexicalForm).toList()
                 .contains("http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"));
 
-        var graph = streamRDF.getCIMDatasetGraph().getDefaultGraph();
+        var graph = streamRDF.getCimDatasetGraph().getDefaultGraph();
         assertTrue(graph.contains(
                 NodeFactory.createURI("urn:uuid:f67fc354-9e39-4191-a456-67537399bc48"),
                 NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
@@ -206,18 +207,18 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertTrue(streamRDF.getCIMDatasetGraph().isDifferenceModel());
-        assertNotNull(streamRDF.getCIMDatasetGraph().getModelHeader());
-        var modelHeader = streamRDF.getCIMDatasetGraph().getModelHeader();
+        assertTrue(streamRDF.getCimDatasetGraph().isDifferenceModel());
+        assertNotNull(streamRDF.getCimDatasetGraph().getModelHeader());
+        var modelHeader = streamRDF.getCimDatasetGraph().getModelHeader();
 
         assertEquals("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6", modelHeader.getModel().toString());
 
-        var preconditions = streamRDF.getCIMDatasetGraph().getPreconditions();
+        var preconditions = streamRDF.getCimDatasetGraph().getPreconditions();
         assertNotNull(preconditions);
         assertEquals(1, preconditions.size());
         assertTrue(preconditions.contains(
@@ -226,7 +227,7 @@ public class TestParserCIMXMLConformity {
                 NodeFactory.createLiteralString("Name of my element")
         ));
 
-        var forwardDifferences = streamRDF.getCIMDatasetGraph().getForwardDifferences();
+        var forwardDifferences = streamRDF.getCimDatasetGraph().getForwardDifferences();
         assertNotNull(forwardDifferences);
         assertEquals(4, forwardDifferences.size());
         assertTrue(forwardDifferences.contains(
@@ -250,7 +251,7 @@ public class TestParserCIMXMLConformity {
                 NodeFactory.createLiteralString("property of new element")
         ));
 
-        var reverseDifferences = streamRDF.getCIMDatasetGraph().getReverseDifferences();
+        var reverseDifferences = streamRDF.getCimDatasetGraph().getReverseDifferences();
         assertNotNull(reverseDifferences);
         assertEquals(4, reverseDifferences.size());
         assertTrue(reverseDifferences.contains(
@@ -299,29 +300,29 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        assertTrue(streamRDF.getCIMDatasetGraph().isDifferenceModel());
-        assertNotNull(streamRDF.getCIMDatasetGraph().getModelHeader());
-        var modelHeader = streamRDF.getCIMDatasetGraph().getModelHeader();
+        assertTrue(streamRDF.getCimDatasetGraph().isDifferenceModel());
+        assertNotNull(streamRDF.getCimDatasetGraph().getModelHeader());
+        var modelHeader = streamRDF.getCimDatasetGraph().getModelHeader();
 
         assertEquals(4, modelHeader.getPrefixMapping().numPrefixes());
         assertEquals("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6", modelHeader.getModel().toString());
 
-        var preconditions = streamRDF.getCIMDatasetGraph().getPreconditions();
+        var preconditions = streamRDF.getCimDatasetGraph().getPreconditions();
         assertNotNull(preconditions);
         assertTrue(preconditions.getPrefixMapping().samePrefixMappingAs(modelHeader.getPrefixMapping()));
         assertEquals(0, preconditions.size());
 
-        var forwardDifferences = streamRDF.getCIMDatasetGraph().getForwardDifferences();
+        var forwardDifferences = streamRDF.getCimDatasetGraph().getForwardDifferences();
         assertNotNull(forwardDifferences);
         assertTrue(forwardDifferences.getPrefixMapping().samePrefixMappingAs(modelHeader.getPrefixMapping()));
         assertEquals(0, forwardDifferences.size());
 
-        var reverseDifferences = streamRDF.getCIMDatasetGraph().getReverseDifferences();
+        var reverseDifferences = streamRDF.getCimDatasetGraph().getReverseDifferences();
         assertNotNull(reverseDifferences);
         assertTrue(reverseDifferences.getPrefixMapping().samePrefixMappingAs(modelHeader.getPrefixMapping()));
         assertEquals(0, reverseDifferences.size());
@@ -342,11 +343,11 @@ public class TestParserCIMXMLConformity {
             """;
 
         final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        var graph = streamRDF.getCIMDatasetGraph().getDefaultGraph();
+        var graph = streamRDF.getCimDatasetGraph().getDefaultGraph();
         assertTrue(graph.contains(
                 NodeFactory.createURI("urn:uuid:f67fc354-9e39-4191-a456-67537399bc48"),
                 NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
@@ -378,12 +379,12 @@ public class TestParserCIMXMLConformity {
             </rdf:RDF>
             """;
 
-        final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var parser = new ReaderCIMXML_StAX_SR(ErrorHandlerFactory.errorHandlerNoWarnings);
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        var graph = streamRDF.getCIMDatasetGraph().getDefaultGraph();
+        var graph = streamRDF.getCimDatasetGraph().getDefaultGraph();
         assertTrue(graph.contains(
                 NodeFactory.createURI("urn:uuid:f67fc354-9e39-4191-a456-67537399bc48"),
                 NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
@@ -507,14 +508,14 @@ public class TestParserCIMXMLConformity {
 
         final var parser = new ReaderCIMXML_StAX_SR();
 
-        final var streamFileHeaderHeaderProfile = new StreamCIMXMLToDatasetGraph();
+        final var streamFileHeaderHeaderProfile = new StreamCimXmlToDatasetGraph();
         parser.read(new StringReader(rdfxmlFileHeaderProfile), streamFileHeaderHeaderProfile);
-        var fileHeaderGraph = streamFileHeaderHeaderProfile.getCIMDatasetGraph().getDefaultGraph();
+        var fileHeaderGraph = streamFileHeaderHeaderProfile.getCimDatasetGraph().getDefaultGraph();
         var fileHeaderProfile = CimProfile.wrap(fileHeaderGraph);
 
-        final var streamRDFProfile = new StreamCIMXMLToDatasetGraph();
+        final var streamRDFProfile = new StreamCimXmlToDatasetGraph();
         parser.read(new StringReader(rdfxmlCimProfile), streamRDFProfile);
-        var profileGraph = streamRDFProfile.getCIMDatasetGraph().getDefaultGraph();
+        var profileGraph = streamRDFProfile.getCimDatasetGraph().getDefaultGraph();
         var profile = CimProfile.wrap(profileGraph);
 
 
@@ -523,10 +524,10 @@ public class TestParserCIMXMLConformity {
         registry.register(profile);
 
 
-        final var streamInstanceData = new StreamCIMXMLToDatasetGraph();
+        final var streamInstanceData = new StreamCimXmlToDatasetGraph();
         parser.read(new StringReader(cimxmlInstanceData), registry, streamInstanceData);
 
-        var instanceGraph = streamInstanceData.getCIMDatasetGraph().getBody();
+        var instanceGraph = streamInstanceData.getCimDatasetGraph().getBody();
         assertNotNull(instanceGraph);
         assertEquals(6, instanceGraph.size());
 
