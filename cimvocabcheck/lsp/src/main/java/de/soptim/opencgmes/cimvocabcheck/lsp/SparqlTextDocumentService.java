@@ -693,9 +693,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return new ParsedTurtle(model, parseErrors);
   }
 
-  private static Diagnostic convertShapeAnnotation(
+  static Diagnostic convertShapeAnnotation(
       SparqlValidationAnnotation a, String text, PrefixMapping prefixes) {
-    var loc = SourceLocator.locate(text, a.term(), prefixes);
+    var loc = SourceLocator.locateWithHint(text, a.term(), prefixes, a.locationHint());
     int line = loc.line() != null ? loc.line() - 1 : 0;
     int col = loc.column() != null ? loc.column() - 1 : 0;
     int endCol = col + tokenLengthInSource(text, loc);

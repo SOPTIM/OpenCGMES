@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.core;
 
 import static org.junit.Assert.*;
 
+import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryFactory;
@@ -336,5 +337,47 @@ public class SourceLocatorTest {
             q, NodeFactory.createURI(CIM + "ACLineSegment.r"), parsed.getPrefixMapping(), hint);
 
     assertEquals("URI hint on line 4 → picks predicate on line 4", Integer.valueOf(4), loc.line());
+  }
+
+  /**
+   * Regression test for a bug where two shapes referencing the very same offending term (e.g. the
+   * same unknown class used by two different Turtle shapes, each on its own multi-line block) were
+   * both squiggled at the *first* occurrence: the hint (the shape's own subject) is on a different
+   * line than its own term occurrence, so the "same line" heuristic doesn't fire, and the old
+   * "nearest by raw character distance" fallback could pick an *earlier*, unrelated statement's
+   * occurrence — because that earlier occurrence can sit closer, in character count, to the second
+   * hint than the second hint's own (later) occurrence does.
+   */
+  @Test
+  public void locateWithHint_turtleMultilineShapes_eachHintPicksItsOwnOccurrence() {
+    String turtle =
+        "@prefix sh:  <http://www.w3.org/ns/shacl#> .\n"
+            + "@prefix cim: <"
+            + CIM
+            + "> .\n"
+            + "@prefix ex:  <http://example.org/shapes#> .\n"
+            + "\n"
+            + "ex:ShapeOne\n"
+            + "    a sh:NodeShape ;\n"
+            + "    sh:targetClass cim:DoesNotExist .\n"
+            + "\n"
+            + "ex:ShapeTwo\n"
+            + "    a sh:NodeShape ;\n"
+            + "    sh:targetClass cim:DoesNotExist .\n";
+    PrefixMapping pm = PrefixMapping.Factory.create();
+    pm.setNsPrefix("cim", CIM);
+    pm.setNsPrefix("sh", "http://www.w3.org/ns/shacl#");
+    pm.setNsPrefix("ex", "http://example.org/shapes#");
+    Node term = NodeFactory.createURI(CIM + "DoesNotExist");
+
+    var locOne =
+        SourceLocator.locateWithHint(
+            turtle, term, pm, NodeFactory.createURI("http://example.org/shapes#ShapeOne"));
+    var locTwo =
+        SourceLocator.locateWithHint(
+            turtle, term, pm, NodeFactory.createURI("http://example.org/shapes#ShapeTwo"));
+
+    assertEquals("ex:ShapeOne's own occurrence is on line 7", Integer.valueOf(7), locOne.line());
+    assertEquals("ex:ShapeTwo's own occurrence is on line 11", Integer.valueOf(11), locTwo.line());
   }
 }

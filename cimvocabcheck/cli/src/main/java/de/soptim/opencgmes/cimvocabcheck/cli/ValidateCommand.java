@@ -560,7 +560,7 @@ public class ValidateCommand implements Callable<Integer> {
     if (a.term() == null) {
       return a;
     }
-    var loc = SourceLocator.locate(source, a.term(), prefixes);
+    var loc = SourceLocator.locateWithHint(source, a.term(), prefixes, a.locationHint());
     if (loc.line() == null) {
       return a;
     }

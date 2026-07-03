@@ -40,6 +40,12 @@ import org.apache.jena.graph.Node;
  * @param selectedProfiles profiles that were in scope at the offending location (may be empty)
  * @param foundInOtherProfiles profiles in which the term <em>does</em> exist, hint for the user
  * @param graph named graph context, or {@code null} for default-graph context
+ * @param locationHint a second node — typically the enclosing shape/subject — used to disambiguate
+ *     which occurrence of {@link #term()} in the source text this annotation refers to, when the
+ *     same term is referenced more than once (e.g. the same unknown class used by two different
+ *     shapes). {@code null} when no such hint is available or applicable; {@link
+ *     SourceLocator#locateWithHint} falls back to the first occurrence of {@link #term()} in that
+ *     case.
  */
 public record SparqlValidationAnnotation(
     SparqlValidationSeverity severity,
@@ -50,7 +56,8 @@ public record SparqlValidationAnnotation(
     Node term,
     Collection<VersionIri> selectedProfiles,
     Collection<VersionIri> foundInOtherProfiles,
-    Node graph) {
+    Node graph,
+    Node locationHint) {
 
   /** Canonical constructor; validates required fields and copies the profile collections. */
   public SparqlValidationAnnotation {
@@ -60,6 +67,34 @@ public record SparqlValidationAnnotation(
     selectedProfiles = selectedProfiles == null ? List.of() : List.copyOf(selectedProfiles);
     foundInOtherProfiles =
         foundInOtherProfiles == null ? List.of() : List.copyOf(foundInOtherProfiles);
+  }
+
+  /**
+   * Convenience constructor for callers that have no {@link #locationHint()} to offer (the vast
+   * majority — it only matters for shape-structure annotations that may be emitted more than once
+   * for the same term). Equivalent to passing {@code null} as the location hint.
+   */
+  public SparqlValidationAnnotation(
+      SparqlValidationSeverity severity,
+      Integer line,
+      Integer column,
+      String message,
+      SparqlValidationCode code,
+      Node term,
+      Collection<VersionIri> selectedProfiles,
+      Collection<VersionIri> foundInOtherProfiles,
+      Node graph) {
+    this(
+        severity,
+        line,
+        column,
+        message,
+        code,
+        term,
+        selectedProfiles,
+        foundInOtherProfiles,
+        graph,
+        null);
   }
 
   /** Returns a copy of this annotation with a different severity. */
@@ -73,7 +108,8 @@ public record SparqlValidationAnnotation(
         term,
         selectedProfiles,
         foundInOtherProfiles,
-        graph);
+        graph,
+        locationHint);
   }
 
   /**
@@ -89,7 +125,8 @@ public record SparqlValidationAnnotation(
         term,
         selectedProfiles,
         foundInOtherProfiles,
-        graph);
+        graph,
+        locationHint);
   }
 
   /** Returns a copy of this annotation with a different message. */
@@ -103,6 +140,7 @@ public record SparqlValidationAnnotation(
         term,
         selectedProfiles,
         foundInOtherProfiles,
-        graph);
+        graph,
+        locationHint);
   }
 }

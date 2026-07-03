@@ -129,7 +129,33 @@ public final class SourceLocator {
       }
     }
 
-    // Fallback: no same-line co-occurrence — pick by minimum character distance.
+    // Fallback: no same-line co-occurrence — e.g. a Turtle subject on its own line followed by
+    // its predicate/object a few lines further down. Prefer the *nearest occurrence following* a
+    // hint occurrence: in both SPARQL triple patterns and Turtle statements, a subject always
+    // precedes its own predicate/object textually, so scanning forward from the hint is the
+    // semantically correct match. Plain minimum character distance (regardless of direction) is
+    // unsound here: an unrelated term occurrence belonging to an *earlier* statement can easily
+    // sit closer (in raw character count) to this hint than this hint's own — later — occurrence,
+    // e.g. two consecutive shapes referencing the same offending class.
+    int bestForward = -1;
+    int bestForwardDist = Integer.MAX_VALUE;
+    for (int hintOffset : hintOffsets) {
+      for (int termOffset : termOffsets) {
+        if (termOffset >= hintOffset) {
+          int d = termOffset - hintOffset;
+          if (d < bestForwardDist) {
+            bestForwardDist = d;
+            bestForward = termOffset;
+          }
+        }
+      }
+    }
+    if (bestForward >= 0) {
+      return toLineColumn(query, bestForward);
+    }
+
+    // Last resort: no term occurrence follows any hint occurrence at all — pick by minimum
+    // character distance, regardless of direction.
     int best = termOffsets.get(0);
     int bestDist = minDist(best, hintOffsets);
     for (int off : termOffsets) {

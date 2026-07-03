@@ -334,8 +334,9 @@ public final class ShaclShapeAnalyzer {
     if (TermResolver.vocabularyClassification(term) == Classification.VOCAB_TYPO
         && seen.add(term)) {
       // Reached only when standard-vocabulary checking is enabled (checkVocabularyTerms returns
-      // early otherwise), so report unconditionally.
-      addVocabularyAnnotation(term, context, true, out);
+      // early otherwise), so report unconditionally. Deduplicated by `seen` above (one annotation
+      // per distinct term for the whole graph), so no location hint is needed here.
+      addVocabularyAnnotation(term, context, true, null, out);
     }
   }
 
@@ -418,13 +419,15 @@ public final class ShaclShapeAnalyzer {
         if (TermResolver.isAccepted(kind, Role.CLASS)) {
           continue;
         }
+        Node hint = resolveHintNode(g, t.getSubject());
         // Unknown term in a closed standard namespace (e.g. sh:Fooo, rdf:Lst): a vocabulary typo,
         // not a missing CIM class — report it as such rather than as UNKNOWN_CLASS.
         if (kind == Classification.VOCAB_TYPO) {
-          addVocabularyAnnotation(cls, "Shape " + predicateLabel, checkStandardVocabulary, out);
+          addVocabularyAnnotation(
+              cls, "Shape " + predicateLabel, checkStandardVocabulary, hint, out);
           continue;
         }
-        out.add(classAnnotation(cls, predicateLabel, scope, schemaIndex.findClass(cls)));
+        out.add(classAnnotation(cls, predicateLabel, scope, schemaIndex.findClass(cls), hint));
       }
     } finally {
       closeQuietly(it);
@@ -460,22 +463,23 @@ public final class ShaclShapeAnalyzer {
         // On a constraint-component parameter/validator, sh:path declares a parameter name rather
         // than a CIM data-property path: skip both the property-existence and the range checks.
         boolean internal = componentInternals.contains(shape);
+        Node hint = resolveHintNode(g, shape);
 
         // 1. Unknown property in path
         if (!internal) {
-          checkPathPropertyExistence(g, pathNode, scope, localDefs, out);
+          checkPathPropertyExistence(g, pathNode, scope, localDefs, hint, out);
         }
 
         // 2. Range-compatibility checks (only for simple single-URI paths)
         if (!internal && pathNode.isURI()) {
-          checkNodeKind(g, shape, pathNode, scope, out);
-          checkDatatypeVsRange(g, shape, pathNode, scope, out);
-          checkClassVsRange(g, shape, pathNode, scope, out);
-          checkCardinalityVsMultiplicity(g, shape, pathNode, scope, out);
+          checkNodeKind(g, shape, pathNode, scope, hint, out);
+          checkDatatypeVsRange(g, shape, pathNode, scope, hint, out);
+          checkClassVsRange(g, shape, pathNode, scope, hint, out);
+          checkCardinalityVsMultiplicity(g, shape, pathNode, scope, hint, out);
         }
 
         // 3. sh:minCount / sh:maxCount contradiction (meaningful for parameters too)
-        checkCardinality(g, shape, pathNode, out);
+        checkCardinality(g, shape, pathNode, hint, out);
       }
     } finally {
       closeQuietly(it);
@@ -487,6 +491,7 @@ public final class ShaclShapeAnalyzer {
       Node shape,
       Node prop,
       Collection<VersionIri> scope,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
 
     Node nodeKindNode = singleObject(g, shape, Shacl.NODE_KIND);
@@ -513,16 +518,21 @@ public final class ShaclShapeAnalyzer {
     if (allDatatypes && requiresNonLiteral) {
       out.add(
           nodeKindAnnotation(
-              prop, nodeKindNode, "a literal (datatype property)", "a non-literal", scope));
+              prop, nodeKindNode, "a literal (datatype property)", "a non-literal", scope, hint));
     } else if (allClasses && requiresLiteral) {
       out.add(
           nodeKindAnnotation(
-              prop, nodeKindNode, "an IRI or blank node (object property)", "a literal", scope));
+              prop,
+              nodeKindNode,
+              "an IRI or blank node (object property)",
+              "a literal",
+              scope,
+              hint));
     }
   }
 
   private static void checkCardinality(
-      Graph g, Node shape, Node pathNode, List<SparqlValidationAnnotation> out) {
+      Graph g, Node shape, Node pathNode, Node hint, List<SparqlValidationAnnotation> out) {
 
     Node minNode = singleObject(g, shape, Shacl.MIN_COUNT);
     Node maxNode = singleObject(g, shape, Shacl.MAX_COUNT);
@@ -538,7 +548,7 @@ public final class ShaclShapeAnalyzer {
 
     if (min.getAsInt() > max.getAsInt()) {
       Node term = pathNode.isURI() ? pathNode : null;
-      out.add(cardinalityAnnotation(min.getAsInt(), max.getAsInt(), term));
+      out.add(cardinalityAnnotation(min.getAsInt(), max.getAsInt(), term, hint));
     }
   }
 
@@ -555,6 +565,7 @@ public final class ShaclShapeAnalyzer {
       Node shape,
       Node prop,
       Collection<VersionIri> scope,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
     Optional<Multiplicity> declared = schemaIndex.multiplicityOf(prop, scope);
     if (declared.isEmpty()) {
@@ -568,7 +579,7 @@ public final class ShaclShapeAnalyzer {
     boolean exceedsUpper = m.max() != null && shMin.isPresent() && shMin.getAsInt() > m.max();
     boolean belowLower = shMax.isPresent() && shMax.getAsInt() < m.min();
     if (exceedsUpper || belowLower) {
-      out.add(multiplicityAnnotation(prop, m, shMin, shMax, scope));
+      out.add(multiplicityAnnotation(prop, m, shMin, shMax, scope, hint));
     }
   }
 
@@ -577,6 +588,7 @@ public final class ShaclShapeAnalyzer {
       Node shape,
       Node prop,
       Collection<VersionIri> scope,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
 
     Node datatypeNode = singleObject(g, shape, Shacl.DATATYPE);
@@ -593,7 +605,7 @@ public final class ShaclShapeAnalyzer {
     if (!allClasses) {
       return; // mixed or already a datatype range — permissive
     }
-    out.add(datatypeIncompatibleAnnotation(prop, datatypeNode, scope));
+    out.add(datatypeIncompatibleAnnotation(prop, datatypeNode, scope, hint));
   }
 
   private void checkClassVsRange(
@@ -601,6 +613,7 @@ public final class ShaclShapeAnalyzer {
       Node shape,
       Node prop,
       Collection<VersionIri> scope,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
 
     Node classNode = singleObject(g, shape, Shacl.CLASS);
@@ -617,7 +630,7 @@ public final class ShaclShapeAnalyzer {
     if (!allDatatypes) {
       return; // mixed or class range — permissive
     }
-    out.add(classIncompatibleAnnotation(prop, classNode, scope));
+    out.add(classIncompatibleAnnotation(prop, classNode, scope, hint));
   }
 
   private static OptionalInt parseLiteralInt(Node n) {
@@ -698,6 +711,7 @@ public final class ShaclShapeAnalyzer {
       Node path,
       Collection<VersionIri> scope,
       Set<Node> localDefs,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
     walkPath(
         g,
@@ -712,12 +726,12 @@ public final class ShaclShapeAnalyzer {
             return;
           }
           if (kind == Classification.VOCAB_TYPO) {
-            addVocabularyAnnotation(uri, "Shape sh:path", checkStandardVocabulary, out);
+            addVocabularyAnnotation(uri, "Shape sh:path", checkStandardVocabulary, hint, out);
             return;
           }
-          out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri)));
+          out.add(propertyAnnotation(uri, scope, schemaIndex.findProperty(uri), hint));
         },
-        group -> checkAlternativeGroup(group, scope, localDefs, out));
+        group -> checkAlternativeGroup(group, scope, localDefs, hint, out));
   }
 
   /**
@@ -732,6 +746,7 @@ public final class ShaclShapeAnalyzer {
       List<Node> allProps,
       Collection<VersionIri> scope,
       Set<Node> localDefs,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
     var known = new ArrayList<Node>();
     var unknown = new ArrayList<Node>();
@@ -744,7 +759,7 @@ public final class ShaclShapeAnalyzer {
           // accepted without a CIM existence check
         }
         case VOCAB_TYPO ->
-            addVocabularyAnnotation(prop, "Shape sh:path", checkStandardVocabulary, out);
+            addVocabularyAnnotation(prop, "Shape sh:path", checkStandardVocabulary, hint, out);
         default -> unknown.add(prop); // CIM_CLASS, ENUM_MEMBER, UNKNOWN
       }
     }
@@ -753,7 +768,7 @@ public final class ShaclShapeAnalyzer {
       boolean hasKnownSibling =
           known.stream().anyMatch(k -> localName(k.getURI()).equals(localName));
       if (!hasKnownSibling) {
-        out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop)));
+        out.add(propertyAnnotation(prop, scope, schemaIndex.findProperty(prop), hint));
       }
     }
   }
@@ -814,10 +829,11 @@ public final class ShaclShapeAnalyzer {
         Node prop = simplePathProperty(g, shape);
         Set<Node> ranges = prop == null ? Set.of() : schemaIndex.rangesOf(prop, scope);
         Set<Node> enumMembers = schemaIndex.enumMembersIfAllEnumerated(ranges, scope);
+        Node hint = resolveHintNode(g, shape);
         var members = new ArrayList<Node>();
         walkList(g, t.getObject(), members::add);
         for (Node m : members) {
-          checkInMember(m, enumMembers, ranges, scope, localDefs, out);
+          checkInMember(m, enumMembers, ranges, scope, localDefs, hint, out);
         }
       }
     } finally {
@@ -831,18 +847,19 @@ public final class ShaclShapeAnalyzer {
       Set<Node> ranges,
       Collection<VersionIri> scope,
       Set<Node> localDefs,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
     if (!m.isURI() || isVocabularyOrLocal(m, localDefs)) {
       return;
     }
     if (!enumMembers.isEmpty()) {
       if (!enumMembers.contains(m)) {
-        out.add(enumValueAnnotation(m, ranges, scope, "sh:in"));
+        out.add(enumValueAnnotation(m, ranges, scope, "sh:in", hint));
       }
       return;
     }
     if (!existsAsCimTerm(m, scope)) {
-      out.add(inUnknownTermAnnotation(m, scope));
+      out.add(inUnknownTermAnnotation(m, scope, hint));
     }
   }
 
@@ -873,7 +890,8 @@ public final class ShaclShapeAnalyzer {
         Set<Node> ranges = prop == null ? Set.of() : schemaIndex.rangesOf(prop, scope);
         Set<Node> enumMembers = schemaIndex.enumMembersIfAllEnumerated(ranges, scope);
         if (!enumMembers.isEmpty() && !enumMembers.contains(value)) {
-          out.add(enumValueAnnotation(value, ranges, scope, "sh:hasValue"));
+          out.add(
+              enumValueAnnotation(value, ranges, scope, "sh:hasValue", resolveHintNode(g, shape)));
         }
       }
     } finally {
@@ -937,7 +955,13 @@ public final class ShaclShapeAnalyzer {
             continue;
           }
           if (isUnknownProperty(obj, scope, localDefs)) {
-            out.add(propertyRefAnnotation(obj, label, scope, schemaIndex.findProperty(obj)));
+            out.add(
+                propertyRefAnnotation(
+                    obj,
+                    label,
+                    scope,
+                    schemaIndex.findProperty(obj),
+                    resolveHintNode(g, t.getSubject())));
           }
         }
       } finally {
@@ -964,13 +988,14 @@ public final class ShaclShapeAnalyzer {
         if (deactivated.contains(t.getSubject())) {
           continue;
         }
+        Node hint = resolveHintNode(g, t.getSubject());
         var members = new ArrayList<Node>();
         walkList(g, t.getObject(), members::add);
         for (Node m : members) {
           if (m.isURI() && isUnknownProperty(m, scope, localDefs)) {
             out.add(
                 propertyRefAnnotation(
-                    m, "sh:ignoredProperties", scope, schemaIndex.findProperty(m)));
+                    m, "sh:ignoredProperties", scope, schemaIndex.findProperty(m), hint));
           }
         }
       }
@@ -1006,15 +1031,20 @@ public final class ShaclShapeAnalyzer {
     OptionalDouble maxInc = literalDouble(singleObject(g, shape, Shacl.MAX_INCLUSIVE));
     OptionalDouble maxExc = literalDouble(singleObject(g, shape, Shacl.MAX_EXCLUSIVE));
     Node term = simplePathProperty(g, shape);
+    Node hint = resolveHintNode(g, shape);
 
     if (contradicts(minInc, maxInc, false)) {
-      out.add(valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxInclusive", maxInc, term));
+      out.add(
+          valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxInclusive", maxInc, term, hint));
     } else if (contradicts(minInc, maxExc, true)) {
-      out.add(valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxExclusive", maxExc, term));
+      out.add(
+          valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxExclusive", maxExc, term, hint));
     } else if (contradicts(minExc, maxInc, true)) {
-      out.add(valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxInclusive", maxInc, term));
+      out.add(
+          valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxInclusive", maxInc, term, hint));
     } else if (contradicts(minExc, maxExc, true)) {
-      out.add(valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxExclusive", maxExc, term));
+      out.add(
+          valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxExclusive", maxExc, term, hint));
     }
   }
 
@@ -1041,6 +1071,58 @@ public final class ShaclShapeAnalyzer {
   private static Node simplePathProperty(Graph g, Node shape) {
     Node p = singleObject(g, shape, Shacl.PATH);
     return p != null && p.isURI() ? p : null;
+  }
+
+  /**
+   * Resolves a {@link SourceLocator} disambiguation hint for a violation found on {@code
+   * shapeNode}: the node itself when it is a URI (the common case — a top-level named shape), or
+   * else the nearest named ancestor reachable by walking {@code sh:property}/{@code sh:node} links
+   * backwards (an anonymous property shape nested inside a named node shape, e.g. {@code ex:Shape
+   * sh:property [ sh:path ... ] }).
+   *
+   * <p>Without this, two shapes that reference the very same offending term (e.g. the same
+   * misspelled class used as {@code sh:targetClass} on two different shapes) would each produce an
+   * annotation carrying only that shared term, and {@link SourceLocator#locate} would resolve both
+   * to the same (first) occurrence in the source text — the same violation would then be squiggled
+   * twice at one spot instead of once per shape. Returns {@code null} when no named ancestor can be
+   * found (e.g. a shape that is anonymous throughout, such as one nested in an {@code sh:or} list),
+   * in which case {@link SourceLocator#locateWithHint} falls back to the first occurrence, matching
+   * prior behaviour.
+   */
+  private static Node resolveHintNode(Graph g, Node shapeNode) {
+    if (shapeNode == null) {
+      return null;
+    }
+    if (shapeNode.isURI()) {
+      return shapeNode;
+    }
+    if (!shapeNode.isBlank()) {
+      return null;
+    }
+    var visited = new HashSet<Node>();
+    var frontier = new ArrayDeque<Node>();
+    frontier.add(shapeNode);
+    visited.add(shapeNode);
+    while (!frontier.isEmpty()) {
+      Node cur = frontier.poll();
+      for (Node link : DEACTIVATION_PROPAGATING_LINKS) {
+        var it = g.find(Node.ANY, link, cur);
+        try {
+          while (it.hasNext()) {
+            Node parent = it.next().getSubject();
+            if (parent.isURI()) {
+              return parent;
+            }
+            if (parent.isBlank() && visited.add(parent)) {
+              frontier.add(parent);
+            }
+          }
+        } finally {
+          closeQuietly(it);
+        }
+      }
+    }
+    return null;
   }
 
   /** Whether {@code m} exists as a class, property or enumeration member in the CIM schema. */
@@ -1135,7 +1217,11 @@ public final class ShaclShapeAnalyzer {
   // ---- annotation builders ---------------------------------------------------------------
 
   private static SparqlValidationAnnotation classAnnotation(
-      Node cls, String predicateLabel, Collection<VersionIri> scope, List<VersionIri> elsewhere) {
+      Node cls,
+      String predicateLabel,
+      Collection<VersionIri> scope,
+      List<VersionIri> elsewhere,
+      Node hint) {
 
     var msg =
         new StringBuilder("Shape ")
@@ -1159,7 +1245,8 @@ public final class ShaclShapeAnalyzer {
         cls,
         List.copyOf(scope),
         List.copyOf(elsewhere),
-        null);
+        null,
+        hint);
   }
 
   /**
@@ -1172,6 +1259,7 @@ public final class ShaclShapeAnalyzer {
       Node term,
       String context,
       boolean checkStandardVocabulary,
+      Node hint,
       List<SparqlValidationAnnotation> out) {
     if (!checkStandardVocabulary) {
       return;
@@ -1187,12 +1275,13 @@ public final class ShaclShapeAnalyzer {
             term,
             List.of(),
             List.of(),
-            null));
+            null,
+            hint));
   }
 
   private static SparqlValidationAnnotation propertyAnnotation(
-      Node prop, Collection<VersionIri> scope, List<VersionIri> elsewhere) {
-    return propertyRefAnnotation(prop, "sh:path", scope, elsewhere);
+      Node prop, Collection<VersionIri> scope, List<VersionIri> elsewhere, Node hint) {
+    return propertyRefAnnotation(prop, "sh:path", scope, elsewhere, hint);
   }
 
   private static SparqlValidationAnnotation nodeKindAnnotation(
@@ -1200,7 +1289,8 @@ public final class ShaclShapeAnalyzer {
       Node nodeKindNode,
       String actualKind,
       String declaredKind,
-      Collection<VersionIri> scope) {
+      Collection<VersionIri> scope,
+      Node hint) {
 
     var msg =
         new StringBuilder("sh:nodeKind <")
@@ -1223,10 +1313,12 @@ public final class ShaclShapeAnalyzer {
         prop,
         List.copyOf(scope),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
-  private static SparqlValidationAnnotation cardinalityAnnotation(int min, int max, Node term) {
+  private static SparqlValidationAnnotation cardinalityAnnotation(
+      int min, int max, Node term, Node hint) {
 
     String msg =
         "sh:minCount "
@@ -1243,7 +1335,8 @@ public final class ShaclShapeAnalyzer {
         term,
         List.of(),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation multiplicityAnnotation(
@@ -1251,7 +1344,8 @@ public final class ShaclShapeAnalyzer {
       Multiplicity declared,
       OptionalInt shMin,
       OptionalInt shMax,
-      Collection<VersionIri> scope) {
+      Collection<VersionIri> scope,
+      Node hint) {
     var shacl = new StringBuilder();
     shMin.ifPresent(v -> shacl.append("sh:minCount ").append(v));
     shMax.ifPresent(
@@ -1274,11 +1368,12 @@ public final class ShaclShapeAnalyzer {
         prop,
         List.copyOf(scope),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation datatypeIncompatibleAnnotation(
-      Node prop, Node datatypeNode, Collection<VersionIri> scope) {
+      Node prop, Node datatypeNode, Collection<VersionIri> scope, Node hint) {
 
     var msg =
         new StringBuilder("sh:datatype <")
@@ -1297,11 +1392,12 @@ public final class ShaclShapeAnalyzer {
         prop,
         List.copyOf(scope),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation classIncompatibleAnnotation(
-      Node prop, Node classNode, Collection<VersionIri> scope) {
+      Node prop, Node classNode, Collection<VersionIri> scope, Node hint) {
 
     var msg =
         new StringBuilder("sh:class <")
@@ -1320,11 +1416,16 @@ public final class ShaclShapeAnalyzer {
         prop,
         List.copyOf(scope),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation enumValueAnnotation(
-      Node value, Collection<Node> ranges, Collection<VersionIri> scope, String context) {
+      Node value,
+      Collection<Node> ranges,
+      Collection<VersionIri> scope,
+      String context,
+      Node hint) {
     var msg =
         new StringBuilder(context)
             .append(": <")
@@ -1341,11 +1442,12 @@ public final class ShaclShapeAnalyzer {
         value,
         List.copyOf(scope),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation inUnknownTermAnnotation(
-      Node term, Collection<VersionIri> scope) {
+      Node term, Collection<VersionIri> scope, Node hint) {
     var msg =
         new StringBuilder("Shape sh:in: <")
             .append(term.getURI())
@@ -1361,11 +1463,16 @@ public final class ShaclShapeAnalyzer {
         term,
         List.copyOf(scope),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation propertyRefAnnotation(
-      Node prop, String predicateLabel, Collection<VersionIri> scope, List<VersionIri> elsewhere) {
+      Node prop,
+      String predicateLabel,
+      Collection<VersionIri> scope,
+      List<VersionIri> elsewhere,
+      Node hint) {
     var msg =
         new StringBuilder("Shape ")
             .append(predicateLabel)
@@ -1388,7 +1495,8 @@ public final class ShaclShapeAnalyzer {
         prop,
         List.copyOf(scope),
         List.copyOf(elsewhere),
-        null);
+        null,
+        hint);
   }
 
   private static SparqlValidationAnnotation xsdDatatypeAnnotation(Node datatype) {
@@ -1409,7 +1517,12 @@ public final class ShaclShapeAnalyzer {
   }
 
   private static SparqlValidationAnnotation valueRangeAnnotation(
-      String lowerLabel, OptionalDouble lower, String upperLabel, OptionalDouble upper, Node term) {
+      String lowerLabel,
+      OptionalDouble lower,
+      String upperLabel,
+      OptionalDouble upper,
+      Node term,
+      Node hint) {
     String msg =
         lowerLabel
             + " "
@@ -1428,7 +1541,8 @@ public final class ShaclShapeAnalyzer {
         term,
         List.of(),
         List.of(),
-        null);
+        null,
+        hint);
   }
 
   /** Formats a numeric bound without a trailing {@code .0} for whole numbers. */
