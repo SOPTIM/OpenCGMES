@@ -25,28 +25,34 @@ import org.apache.jena.graph.NodeFactory;
  * Vocabulary for CIMXML header information in RDF.
  */
 public final class CimHeaderVocabulary {
-    public final static String NS_MD = "http://iec.ch/TC57/61970-552/ModelDescription/1#";
-    public final static String NS_DM = "http://iec.ch/TC57/61970-552/DifferenceModel/1#";
-    public final static String CLASSNAME_FULL_MODEL = "FullModel";
-    public final static String CLASSNAME_DIFFERENCE_MODEL = "DifferenceModel";
-    public final static String TAG_NAME_FORWARD_DIFFERENCES = "forwardDifferences";
-    public final static String TAG_NAME_REVERSE_DIFFERENCES = "reverseDifferences";
-    public final static String TAG_NAME_PRECONDITIONS = "preconditions";
 
-    public final static Node PREDICATE_PROFILE = NodeFactory.createURI(NS_MD + "Model.profile");
-    public final static Node PREDICATE_SUPERSEDES = NodeFactory.createURI(NS_MD + "Model.Supersedes");
-    public final static Node PREDICATE_DEPENDENT_ON = NodeFactory.createURI(NS_MD + "Model.DependentOn");
+  public static final String NS_MD = "http://iec.ch/TC57/61970-552/ModelDescription/1#";
+  public static final String NS_DM = "http://iec.ch/TC57/61970-552/DifferenceModel/1#";
+  public static final String CLASSNAME_FULL_MODEL = "FullModel";
+  public static final String CLASSNAME_DIFFERENCE_MODEL = "DifferenceModel";
+  public static final String TAG_NAME_FORWARD_DIFFERENCES = "forwardDifferences";
+  public static final String TAG_NAME_REVERSE_DIFFERENCES = "reverseDifferences";
+  public static final String TAG_NAME_PRECONDITIONS = "preconditions";
 
-    public final static String FULL_MODEL_URI = NS_MD + CLASSNAME_FULL_MODEL;
-    public final static String TYPE_DIFFERENCE_MODEL_URI = NS_DM + CLASSNAME_DIFFERENCE_MODEL;
-    public final static String GRAPH_FORWARD_DIFFERENCES_URI = NS_DM + TAG_NAME_FORWARD_DIFFERENCES;
-    public final static String GRAPH_REVERSE_DIFFERENCES_URI = NS_DM + TAG_NAME_REVERSE_DIFFERENCES;
-    public final static String GRAPH_PRECONDITIONS_URI = NS_DM + TAG_NAME_PRECONDITIONS;
+  public static final Node PREDICATE_PROFILE = NodeFactory.createURI(NS_MD + "Model.profile");
+  public static final Node PREDICATE_SUPERSEDES = NodeFactory.createURI(NS_MD + "Model.Supersedes");
+  public static final Node PREDICATE_DEPENDENT_ON
+      = NodeFactory.createURI(NS_MD + "Model.DependentOn");
 
-    public final static Node TYPE_FULL_MODEL = NodeFactory.createURI(FULL_MODEL_URI);
-    public final static Node TYPE_DIFFERENCE_MODEL = NodeFactory.createURI(TYPE_DIFFERENCE_MODEL_URI);
+  public static final String FULL_MODEL_URI = NS_MD + CLASSNAME_FULL_MODEL;
+  public static final Node TYPE_FULL_MODEL = NodeFactory.createURI(FULL_MODEL_URI);
+  public static final String TYPE_DIFFERENCE_MODEL_URI = NS_DM + CLASSNAME_DIFFERENCE_MODEL;
+  public static final Node TYPE_DIFFERENCE_MODEL = NodeFactory.createURI(TYPE_DIFFERENCE_MODEL_URI);
+  public static final String GRAPH_FORWARD_DIFFERENCES_URI = NS_DM + TAG_NAME_FORWARD_DIFFERENCES;
+  public static final Node GRAPH_FORWARD_DIFFERENCES
+      = NodeFactory.createURI(GRAPH_FORWARD_DIFFERENCES_URI);
+  public static final String GRAPH_REVERSE_DIFFERENCES_URI = NS_DM + TAG_NAME_REVERSE_DIFFERENCES;
+  public static final Node GRAPH_REVERSE_DIFFERENCES
+      = NodeFactory.createURI(GRAPH_REVERSE_DIFFERENCES_URI);
+  public static final String GRAPH_PRECONDITIONS_URI = NS_DM + TAG_NAME_PRECONDITIONS;
+  public static final Node GRAPH_PRECONDITIONS = NodeFactory.createURI(GRAPH_PRECONDITIONS_URI);
 
-    public final static Node GRAPH_FORWARD_DIFFERENCES = NodeFactory.createURI(GRAPH_FORWARD_DIFFERENCES_URI);
-    public final static Node GRAPH_REVERSE_DIFFERENCES = NodeFactory.createURI(GRAPH_REVERSE_DIFFERENCES_URI);
-    public final static Node GRAPH_PRECONDITIONS = NodeFactory.createURI(GRAPH_PRECONDITIONS_URI);
+  private CimHeaderVocabulary() {
+    // prevent instantiation
+  }
 }

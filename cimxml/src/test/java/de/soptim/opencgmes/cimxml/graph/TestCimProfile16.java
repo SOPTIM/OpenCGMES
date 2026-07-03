@@ -18,9 +18,8 @@
 
 package de.soptim.opencgmes.cimxml.graph;
 
-import de.soptim.opencgmes.cimxml.CimVersion;
-import org.apache.jena.mem.GraphMemRoaring;
 import org.apache.jena.riot.RDFParser;
+import org.apache.jena.sparql.graph.GraphFactory;
 import org.junit.Test;
 
 import java.io.StringReader;
@@ -118,7 +117,7 @@ public class TestCimProfile16 {
             </rdf:RDF>
             """;
 
-        var graph = new GraphMemRoaring();
+        var graph = GraphFactory.createGraphMem();
 
         RDFParser.create()
             .source(new StringReader(rdfxml))
@@ -129,20 +128,20 @@ public class TestCimProfile16 {
         var ontology = CimProfile.wrap(graph);
 
         assertFalse(ontology.isHeaderProfile());
-        assertEquals(CimVersion.CIM_16, ontology.getCIMVersion());
+        assertEquals(CimProfile16.CIM_NAMESPACE, ontology.getCimNamespace());
 
-        assertEquals(6, ontology.getOwlVersionIRIs().size());
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertEquals(6, ontology.getOwlVersionIris().size());
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://example.org/MyCustom/Core/1/1")));
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://example.org/MyCustom/Operation/1/1")));
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://example.org/MyCustom/ShortCircuit/1/1")));
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://entsoe.eu/CIM/MyCustomCore/2/2")));
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://entsoe.eu/CIM/MyCustomOperation/2/2")));
-        assertTrue(ontology.getOwlVersionIRIs().stream()
+        assertTrue(ontology.getOwlVersionIris().stream()
                 .anyMatch(n -> n.getURI().equals("http://entsoe.eu/CIM/MyCustomShortCircuit/2/2")));
 
         assertNull(ontology.getOwlVersionInfo());
@@ -164,7 +163,7 @@ public class TestCimProfile16 {
             </rdf:RDF>
             """;
 
-        var graph = new GraphMemRoaring();
+        var graph = GraphFactory.createGraphMem();
 
         RDFParser.create()
                 .source(new StringReader(rdfxml))
@@ -175,6 +174,6 @@ public class TestCimProfile16 {
         var ontology = CimProfile.wrap(graph);
 
         assertTrue(ontology.isHeaderProfile());
-        assertEquals(CimVersion.CIM_16, ontology.getCIMVersion());
+        assertEquals(CimProfile16.CIM_NAMESPACE, ontology.getCimNamespace());
     }
 }

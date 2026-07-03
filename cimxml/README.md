@@ -59,12 +59,12 @@ The OpenCGMES CIMXML module provides a specialized parser and data structures fo
 <dependency>
     <groupId>de.soptim.opencgmes</groupId>
     <artifactId>cimxml</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 ### Gradle
 ```gradle
-implementation 'de.soptim.opencgmes:cimxml:1.0.0'
+implementation 'de.soptim.opencgmes:cimxml:1.1.0'
 ```
 
 ## Quick Start
@@ -260,9 +260,7 @@ try (QueryExecution qexec = QueryExecutionFactory.create(query, dataset)) {
 
 The module uses specialized graph implementations optimized for CIM data:
 
-- `GraphMem2Roaring`: Roaring bitmap-based indexing for large graphs
-- `IndexingStrategy.LAZY_PARALLEL`: Deferred parallel index construction
-- `FastDeltaGraph`: Efficient difference application without materialization
+- `FastDeltaGraph`: Efficient difference application of difference models without materialization
 
 ### Large File Handling
 

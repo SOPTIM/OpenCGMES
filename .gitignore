@@ -23,5 +23,5 @@
 hs_err_pid*
 replay_pid*
 
+/cimxml/target/
 target/
-.idea/

@@ -22,30 +22,31 @@ import org.apache.jena.graph.Node;
 import org.apache.jena.sparql.core.Quad;
 
 /**
- * The context of a CIMXML document: full model, difference model, or one of the named graphs
- * in a difference model.
+ * The context of a CIMXML document: full model, difference model, or one of the named graphs in a
+ * difference model.
  */
 public enum CimXmlDocumentContext {
-    fullModel,
-    body,
-    differenceModel,
-    forwardDifferences,
-    reverseDifferences,
-    preconditions;
+  fullModel,
+  body,
+  differenceModel,
+  forwardDifferences,
+  reverseDifferences,
+  preconditions;
 
-    /**
-     * Get the graph name (Node) for the given context.
-     * @param context the context
-     * @return the graph name (Node)
-     */
-    public static Node getGraphName(CimXmlDocumentContext context) {
-        return switch (context) {
-            case fullModel -> CimHeaderVocabulary.TYPE_FULL_MODEL;
-            case body -> Quad.defaultGraphIRI;
-            case differenceModel -> CimHeaderVocabulary.TYPE_DIFFERENCE_MODEL;
-            case forwardDifferences -> CimHeaderVocabulary.GRAPH_FORWARD_DIFFERENCES;
-            case reverseDifferences -> CimHeaderVocabulary.GRAPH_REVERSE_DIFFERENCES;
-            case preconditions -> CimHeaderVocabulary.GRAPH_PRECONDITIONS;
-        };
-    }
+  /**
+   * Get the graph name (Node) for the given context.
+   *
+   * @param context the context
+   * @return the graph name (Node)
+   */
+  public static Node getGraphName(CimXmlDocumentContext context) {
+    return switch (context) {
+      case fullModel -> CimHeaderVocabulary.TYPE_FULL_MODEL;
+      case body -> Quad.defaultGraphIRI;
+      case differenceModel -> CimHeaderVocabulary.TYPE_DIFFERENCE_MODEL;
+      case forwardDifferences -> CimHeaderVocabulary.GRAPH_FORWARD_DIFFERENCES;
+      case reverseDifferences -> CimHeaderVocabulary.GRAPH_REVERSE_DIFFERENCES;
+      case preconditions -> CimHeaderVocabulary.GRAPH_PRECONDITIONS;
+    };
+  }
 }

@@ -21,7 +21,7 @@ package de.soptim.opencgmes.cimxml.rdfs;
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
 import de.soptim.opencgmes.cimxml.parser.ReaderCIMXML_StAX_SR;
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXMLToDatasetGraph;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXmlToDatasetGraph;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.NodeFactory;
 import org.junit.Test;
@@ -88,11 +88,11 @@ public class CimProfileRegistryStdTest {
             """;
 
         final var parser = new ReaderCIMXML_StAX_SR();
-        final var streamRDF = new StreamCIMXMLToDatasetGraph();
+        final var streamRDF = new StreamCimXmlToDatasetGraph();
 
         parser.read(new StringReader(rdfxml), streamRDF);
 
-        var graph = streamRDF.getCIMDatasetGraph().getDefaultGraph();
+        var graph = streamRDF.getCimDatasetGraph().getDefaultGraph();
 
         var profile = CimProfile.wrap(graph);
 
@@ -183,7 +183,7 @@ public class CimProfileRegistryStdTest {
                     NodeFactory.createURI("http://example.org/AnyOtherProfile/1/1"));
 
             assertFalse(registry.containsProfile(owlVersionIRIs));
-            assertNull(registry.getPropertiesAndDatatypes(owlVersionIRIs));
+            assertTrue(registry.getPropertiesAndDatatypes(owlVersionIRIs).isEmpty());
         }
     }
 
@@ -375,7 +375,7 @@ public class CimProfileRegistryStdTest {
                     NodeFactory.createURI("http://example.org/AnyOtherProfile/1/1"));
 
             assertFalse(registry.containsProfile(owlVersionIRIs));
-            assertNull(registry.getPropertiesAndDatatypes(owlVersionIRIs));
+            assertTrue(registry.getPropertiesAndDatatypes(owlVersionIRIs).isEmpty());
         }
     }
 

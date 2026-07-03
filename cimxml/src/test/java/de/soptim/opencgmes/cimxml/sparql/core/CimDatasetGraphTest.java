@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimxml.sparql.core;
 
 import de.soptim.opencgmes.cimxml.parser.CimXmlParser;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.riot.system.ErrorHandlerFactory;
 import org.junit.Test;
 
 import java.io.StringReader;
@@ -42,7 +43,8 @@ public class CimDatasetGraphTest {
             </rdf:RDF>
             """;
 
-        var model = new CimXmlParser().parseCimModel(new StringReader(rdfxml));
+        var model = new CimXmlParser(ErrorHandlerFactory.errorHandlerNoWarnings)
+            .parseCimModel(new StringReader(rdfxml));
 
         var fullGraph = model.fullModelToSingleGraph();
         assertNotNull(fullGraph);
@@ -147,8 +149,10 @@ public class CimDatasetGraphTest {
             </rdf:RDF>
             """;
 
-        var predecessorFullModel = new CimXmlParser().parseCimModel(new StringReader(rdfXmlFullModel));
-        var differenceModel = new CimXmlParser().parseCimModel(new StringReader(rdfxmlDifferenceModel));
+        var predecessorFullModel = new CimXmlParser(ErrorHandlerFactory.errorHandlerNoWarnings)
+            .parseCimModel(new StringReader(rdfXmlFullModel));
+        var differenceModel = new CimXmlParser(ErrorHandlerFactory.errorHandlerNoWarnings)
+            .parseCimModel(new StringReader(rdfxmlDifferenceModel));
 
         var fullGraph = differenceModel.differenceModelToFullModel(predecessorFullModel);
         assertNotNull(fullGraph);

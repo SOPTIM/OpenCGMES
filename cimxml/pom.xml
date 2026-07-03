@@ -27,7 +27,7 @@
 
     <groupId>de.soptim.opencgmes</groupId>
     <artifactId>cimxml</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>OpenCGMES - IEC61970-552 CIMXML</name>
@@ -96,6 +96,16 @@
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
         <ver.plugin.central-publishing>0.10.0</ver.plugin.central-publishing>
+
+        <!-- Static analysis plugins -->
+        <ver.plugin.spotbugs-maven-plugin>4.9.8.2</ver.plugin.spotbugs-maven-plugin>
+        <ver.plugin.maven-checkstyle-plugin>3.6.0</ver.plugin.maven-checkstyle-plugin>
+        <ver.plugin.maven-jxr-plugin>3.6.0</ver.plugin.maven-jxr-plugin>
+        <ver.plugin.cyclonedx-maven-plugin>2.9.1</ver.plugin.cyclonedx-maven-plugin>
+        <ver.plugin.jacoco-maven-plugin>0.8.14</ver.plugin.jacoco-maven-plugin>
+        <ver.plugin.maven-pmd-plugin>3.28.0</ver.plugin.maven-pmd-plugin>
+        <ver.plugin.license-maven-plugin>2.7.1</ver.plugin.license-maven-plugin>
+        <ver.plugin.checkstyle>13.2.0</ver.plugin.checkstyle>
     </properties>
 
     <dependencies>
@@ -197,6 +207,11 @@
                 <version>${ver.plugin.compiler}</version>
                 <configuration>
                     <release>${java.version}</release>
+                    <compilerArgs>
+                        <arg>-Xlint:all,-options</arg>
+                        <arg>-Werror</arg>
+                        <arg>-proc:none</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
 
@@ -235,6 +250,207 @@
                 <configuration>
                     <release>${java.version}</release>
                     <doclint>-missing</doclint>
+                </configuration>
+            </plugin>
+
+            <!-- SpotBugs -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${ver.plugin.spotbugs-maven-plugin}</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Low</threshold>
+                    <xmlOutput>true</xmlOutput>
+                    <excludeFilterFile>${project.basedir}/spotbugs-excludes.xml</excludeFilterFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Checkstyle -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${ver.plugin.maven-checkstyle-plugin}</version>
+                <dependencies>
+                    <!-- Upgrade Checkstyle to 10.21.0 for latest google_checks.xml -->
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>${ver.plugin.checkstyle}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <!-- Single configuration: Google Style -->
+                    <configLocation>google_checks.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <failsOnError>true</failsOnError>
+                    <violationSeverity>warning</violationSeverity>
+                    <excludes>**/parser/ParserCIMXML_StAX_SR.java,**/parser/ReaderCIMXML_StAX_SR.java</excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- PMD -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>${ver.plugin.maven-pmd-plugin}</version>
+                <configuration>
+                    <failOnViolation>true</failOnViolation>
+                    <printFailingErrors>true</printFailingErrors>
+                    <!-- Use custom ruleset that includes unused code detection -->
+                    <skipEmptyReport>true</skipEmptyReport>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>pmd-check</id>
+                        <goals>
+                            <goal>check</goal>
+                            <goal>cpd-check</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Suppress HTML report generation during checks to avoid parent URL warning -->
+                            <format>xml</format>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- JXR Plugin for source cross-references (used by PMD reports) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jxr-plugin</artifactId>
+                <version>${ver.plugin.maven-jxr-plugin}</version>
+                <configuration>
+                    <!-- Suppress warning about missing parent URL by disabling site decoration -->
+                    <linkJavadoc>false</linkJavadoc>
+                    <docTitle>vc-server Source Cross Reference</docTitle>
+                    <windowTitle>vc-server Source Cross Reference</windowTitle>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>generate-xref</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>jxr</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- JaCoCo Code Coverage -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${ver.plugin.jacoco-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.40</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.30</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- License Maven Plugin -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${ver.plugin.license-maven-plugin}</version>
+                <configuration>
+                    <licenseName>apache_v2</licenseName>
+                    <failOnMissingHeader>false</failOnMissingHeader>
+                    <failOnNotUptodateHeader>false</failOnNotUptodateHeader>
+                    <includedLicenses>
+                        <includedLicense>Apache License, Version 2.0</includedLicense>
+                        <includedLicense>MIT License</includedLicense>
+                    </includedLicenses>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>download-licenses</id>
+                        <goals>
+                            <goal>download-licenses</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- CycloneDX SBOM Generator -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>${ver.plugin.cyclonedx-maven-plugin}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeAggregateBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <projectType>application</projectType>
+                    <schemaVersion>1.5</schemaVersion>
+                    <includeBomSerialNumber>true</includeBomSerialNumber>
+                    <includeCompileScope>true</includeCompileScope>
+                    <includeProvidedScope>true</includeProvidedScope>
+                    <includeRuntimeScope>true</includeRuntimeScope>
+                    <includeSystemScope>true</includeSystemScope>
+                    <includeTestScope>false</includeTestScope>
+                    <includeLicenseText>false</includeLicenseText>
+                    <outputReactorProjects>true</outputReactorProjects>
+                    <outputFormat>all</outputFormat>
+                    <outputName>bom</outputName>
+                    <verbose>false</verbose>
                 </configuration>
             </plugin>
         </plugins>
@@ -281,4 +497,30 @@
             </build>
         </profile>
     </profiles>
+
+    <reporting>
+        <plugins>
+            <!-- JXR Plugin for source cross-references -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jxr-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                </configuration>
+            </plugin>
+
+            <!-- PMD Report Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>${ver.plugin.maven-pmd-plugin}</version>
+                <configuration>
+                    <linkXRef>true</linkXRef>
+                    <rulesets>
+                        <ruleset>/rulesets/java/quickstart.xml</ruleset>
+                    </rulesets>
+                </configuration>
+            </plugin>
+        </plugins>
+    </reporting>
 </project>

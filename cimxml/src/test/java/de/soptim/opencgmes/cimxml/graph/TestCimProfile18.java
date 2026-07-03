@@ -18,9 +18,8 @@
 
 package de.soptim.opencgmes.cimxml.graph;
 
-import de.soptim.opencgmes.cimxml.CimVersion;
-import org.apache.jena.mem.GraphMemRoaring;
 import org.apache.jena.riot.RDFParser;
+import org.apache.jena.sparql.graph.GraphFactory;
 import org.junit.Test;
 
 import java.io.StringReader;
@@ -47,7 +46,7 @@ public class TestCimProfile18 {
             """;
 
 
-        var graph = new GraphMemRoaring();
+        var graph = GraphFactory.createGraphMem();
 
         RDFParser.create()
                 .source(new StringReader(rdfxml))
@@ -58,7 +57,7 @@ public class TestCimProfile18 {
         var ontology = CimProfile.wrap(graph);
 
         assertTrue(ontology.isHeaderProfile());
-        assertEquals(CimVersion.CIM_18, ontology.getCIMVersion());
+        assertEquals(CimProfile18.CIM_NAMESPACE, ontology.getCimNamespace());
     }
 
 }

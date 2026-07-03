@@ -18,6 +18,10 @@
 
 package de.soptim.opencgmes.cimxml.graph;
 
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
@@ -25,110 +29,159 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.sparql.graph.GraphWrapper;
 import org.apache.jena.vocabulary.RDF;
 
-import java.util.Set;
-import java.util.stream.Collectors;
-
 /**
  * A wrapper for a graph that contains a CIM profile ontology as defined in CIM 17.
  */
 public class CimProfile17 extends GraphWrapper implements CimProfile {
 
-    final static String NS_OWL = "http://www.w3.org/2002/07/owl#";
-    final static String NS_DCAT = "http://www.w3.org/ns/dcat#";
-    final static Node CLASS_ONTOLOGY = NodeFactory.createURI(NS_OWL + "Ontology");
-    final static Node PREDICATE_DCAT_KEYWORD = NodeFactory.createURI(NS_DCAT + "keyword");
-    final static Node PREDICATE_OWL_VERSION_IRI = NodeFactory.createURI(NS_OWL + "versionIRI");
-    final static Node PREDICATE_OWL_VERSION_INFO = NodeFactory.createURI(NS_OWL + "versionInfo");
+  public static final String CIM_NAMESPACE = "http://iec.ch/TC57/CIM100#";
 
-    /**
-     * Find the ontology node in the graph.
-     * The ontology node is defined as a subject with type owl:Ontology.
-     * If no such node is found, null is returned.
-     *
-     * @param graph The graph to search in.
-     * @return The ontology node or null if not found.
-     */
-    static boolean hasOntology(Graph graph) {
-        return graph.find(Node.ANY, RDF.type.asNode(), CLASS_ONTOLOGY).hasNext();
+  protected static final String NS_OWL = "http://www.w3.org/2002/07/owl#";
+  protected static final Node CLASS_ONTOLOGY = NodeFactory.createURI(NS_OWL + "Ontology");
+  protected static final String NS_DCAT = "http://www.w3.org/ns/dcat#";
+  protected static final Node PREDICATE_DCAT_KEYWORD = NodeFactory.createURI(NS_DCAT + "keyword");
+  protected static final Node PREDICATE_OWL_VERSION_IRI = NodeFactory.createURI(
+      NS_OWL + "versionIRI");
+  protected static final Node PREDICATE_OWL_VERSION_INFO = NodeFactory.createURI(
+      NS_OWL + "versionInfo");
+
+  private final boolean isHeaderProfile;
+
+  /**
+   * Wraps the given graph as a CimProfile17.
+   *
+   * @param graph The graph to wrap.
+   * @throws IllegalArgumentException if the graph does not contain the required information to be a
+   *                                  CimProfile17.
+   */
+  public CimProfile17(Graph graph) {
+    this(graph, CimProfile17::isCim17HeaderProfile);
+  }
+
+  /**
+   * Wraps the given graph as a CimProfile17, using the provided predicate to determine if the graph
+   * is a header profile.
+   *
+   * @param graph The graph to wrap.
+   * @param isHeaderProfilePredicate A predicate that determines if the graph is a header profile.
+   * @throws IllegalArgumentException if the graph does not contain the required information to be a
+   *                                  CimProfile17.
+   */
+  protected CimProfile17(Graph graph, Predicate<Graph> isHeaderProfilePredicate) {
+    super(graph);
+    this.isHeaderProfile = isHeaderProfilePredicate.test(graph);
+    if (this.isHeaderProfile) {
+      return;
     }
-
-    public static Node getOntology(Graph graph) {
-        return graph.stream(Node.ANY, RDF.type.asNode(), CLASS_ONTOLOGY).findAny().map(Triple::getSubject).orElseThrow();
+    if (!hasOntology(graph)) {
+      throw new IllegalArgumentException(
+          "Graph does not contain the required ontology subject for a CIM profile.");
     }
-
-    public Node getOntology() {
-        return getOntology(this);
+    if (!hasVersionIriAndKeyword(graph)) {
+      throw new IllegalArgumentException("Graphs ontology does not contain the required versionIRI"
+          + " and keyword for a CIM profile.");
     }
+  }
 
-    public static boolean hasVersionIRIAndKeyword(Graph graph) {
-        return graph.find(Node.ANY, PREDICATE_DCAT_KEYWORD, Node.ANY).hasNext()
-                && graph.find(Node.ANY, PREDICATE_OWL_VERSION_IRI, Node.ANY).hasNext();
+  @Override
+  public String getDcatKeyword() {
+    if (isHeaderProfile()) {
+      // CGMES v3.0 file header profiles do not have a keyword.
+      return "FH"; // Use "FH" for compatibility with old CGMES 2.4.15 file header profiles.
     }
+    var iter = find(getOntology(), PREDICATE_DCAT_KEYWORD, Node.ANY);
+    return iter.hasNext() ? iter.next().getObject().getLiteralValue().toString() : null;
+  }
 
-    private final boolean isHeaderProfile;
+  @Override
+  public Set<Node> getOwlVersionIris() {
+    return stream(getOntology(), PREDICATE_OWL_VERSION_IRI, Node.ANY)
+        .map(Triple::getObject)
+        .collect(Collectors.toUnmodifiableSet());
+  }
 
-    /**
-     * Wraps the given graph as a CimProfile17.
-     * @param graph The graph to wrap.
-     * @throws IllegalArgumentException if the graph does not contain the required information to be a CimProfile17.
-     */
-    public CimProfile17(Graph graph, boolean isHeaderProfile) {
-        super(graph);
-        this.isHeaderProfile = isHeaderProfile;
+  @Override
+  public String getOwlVersionInfo() {
+    var iter = find(getOntology(), PREDICATE_OWL_VERSION_INFO, Node.ANY);
+    return iter.hasNext() ? iter.next().getObject().getLiteralValue().toString() : null;
+  }
+
+  @Override
+  public final boolean equals(Object other) {
+    if (!(other instanceof CimProfile17 that)) {
+      return false;
     }
+    return this.equals(that);
+  }
 
-    @Override
-    public boolean isHeaderProfile() {
-        return this.isHeaderProfile;
-    }
+  @Override
+  public int hashCode() {
+    return this.calculateHashCode();
+  }
 
-    @Override
-    public String getDcatKeyword() {
-        if (isHeaderProfile) {
-            // CGMES v3.0 file header profiles do not have a keyword.
-            return "DH"; // Use "DH" for compatibility with old CGMES 2.4.15 file header profiles.
-        }
-        var iter = find(getOntology(), PREDICATE_DCAT_KEYWORD, Node.ANY);
-        return iter.hasNext() ? iter.next().getObject().getLiteralValue().toString() : null;
-    }
+  /**
+   * Get the ontology node in this graph. The ontology node is defined as a subject with type
+   * owl:Ontology. If no such node is found, an exception is thrown.
+   *
+   * @return The ontology node.
+   * @throws NoSuchElementException if no ontology node is found.
+   */
+  public Node getOntology() {
+    return getOntology(this);
+  }
 
-    @Override
-    public Set<Node> getOwlVersionIRIs() {
-        return stream(getOntology(), PREDICATE_OWL_VERSION_IRI, Node.ANY)
-                .map(Triple::getObject)
-                .collect(Collectors.toUnmodifiableSet());
-    }
+  /**
+   * Get the ontology node in the graph. The ontology node is defined as a subject with type
+   * owl:Ontology. If no such node is found, an exception is thrown.
+   *
+   * @param graph The graph to search in.
+   * @return The ontology node.
+   * @throws NoSuchElementException if no ontology node is found.
+   */
+  public static Node getOntology(Graph graph) {
+    return graph.stream(Node.ANY, RDF.type.asNode(), CLASS_ONTOLOGY).findAny()
+        .map(Triple::getSubject).orElseThrow();
+  }
 
-    @Override
-    public String getOwlVersionInfo() {
-        var iter = find(getOntology(), PREDICATE_OWL_VERSION_INFO, Node.ANY);
-        return iter.hasNext() ? iter.next().getObject().getLiteralValue().toString() : null;
-    }
+  /**
+   * Find the ontology node in the graph. The ontology node is defined as a subject with type
+   * owl:Ontology. If no such node is found, null is returned.
+   *
+   * @param graph The graph to search in.
+   * @return The ontology node or null if not found.
+   */
+  static boolean hasOntology(Graph graph) {
+    return graph.contains(Node.ANY, RDF.type.asNode(), CLASS_ONTOLOGY);
+  }
 
-    @Override
-    public final boolean equals(Object other) {
-        if (!(other instanceof CimProfile17 that)) return false;
+  /**
+   * Checks if the given graph contains both a DCAT keyword and an OWL version IRI.
+   *
+   * @param graph The graph to check.
+   * @return true if both a DCAT keyword and an OWL version IRI are present, false otherwise.
+   */
+  public static boolean hasVersionIriAndKeyword(Graph graph) {
+    return graph.contains(Node.ANY, PREDICATE_DCAT_KEYWORD, Node.ANY)
+        && graph.contains(Node.ANY, PREDICATE_OWL_VERSION_IRI, Node.ANY);
+  }
 
-        return this.equals(that);
-    }
+  @Override
+  public boolean isHeaderProfile() {
+    return this.isHeaderProfile;
+  }
 
-    @Override
-    public int hashCode() {
-        return this.calculateHashCode();
-    }
-
-    /**
-     * Checks if the given graph is a header profile.
-     * A header profile is defined as a graph that contains a subject with type
-     * "cims:ClassCategory" and
-     * the subject URI ends with "#Package_FileHeaderProfile".
-     * @param graph The graph to check.
-     * @return true if the graph is a header profile, false otherwise.
-     */
-    public static boolean isHeaderProfile(Graph graph) {
-        return graph.stream(Node.ANY, RDF.type.asNode(), TYPE_CLASS_CATEGORY)
-                .anyMatch(t
-                        -> t.getSubject().isURI()
-                        && t.getSubject().getURI().endsWith(PACKAGE_FILE_HEADER_PROFILE));
-    }
+  /**
+   * Checks if the given graph is a header profile. A header profile is defined as a graph that
+   * contains a subject with type "cims:ClassCategory" and the subject URI ends with
+   * "#Package_FileHeaderProfile".
+   *
+   * @param graph The graph to check.
+   * @return true if the graph is a header profile, false otherwise.
+   */
+  public static boolean isCim17HeaderProfile(Graph graph) {
+    return graph.stream(Node.ANY, RDF.type.asNode(), TYPE_CLASS_CATEGORY)
+        .anyMatch(t
+            -> t.getSubject().isURI()
+            && t.getSubject().getURI().endsWith(PACKAGE_FILE_HEADER_PROFILE));
+  }
 }
