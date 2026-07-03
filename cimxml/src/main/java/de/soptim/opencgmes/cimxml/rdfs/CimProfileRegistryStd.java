@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.jena.datatypes.RDFDatatype;
+import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.datatypes.xsd.impl.RDFLangString;
 import org.apache.jena.graph.Graph;
@@ -46,41 +47,38 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
 
   private static final Query typedPropertiesQuery = QueryFactory.create(
       """
-      PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-      PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-      PREFIX cims: <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
-      
-      SELECT ?rdfType ?property ?cimDatatype ?primitiveType ?referenceType
-      WHERE
-      {
-        {
-           ?property rdfs:domain ?rdfType;
-                     rdfs:range ?referenceType;
-          OPTIONAL {
-           ?property cims:AssociationUsed ?associationUsed
-       }
-       FILTER(!BOUND(?associationUsed) || ?associationUsed = "Yes")
-        }
-        UNION
-        {
-          ?property rdfs:domain ?rdfType;
-                    cims:dataType ?cimDatatype.
+          PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
+          PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+          PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+          PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+    
+          SELECT ?rdfType ?property ?cimDatatype ?primitiveType ?referenceType
+          WHERE
           {
-            ?cimDatatype cims:stereotype "CIMDatatype".
-            []  rdfs:domain ?cimDatatype;
-                rdfs:label ?label;
-                #rdfs:label "value";
-                cims:dataType/cims:stereotype "Primitive";
-                cims:dataType/rdfs:label ?primitiveType.
-            FILTER (!bound(?label) ||  str(?label) = "value")
+              ?rdfType rdf:type rdfs:Class .
+              ?property rdf:type rdf:Property ;
+                        rdfs:domain ?rdfType .
+              {
+                  ?property rdfs:range ?referenceType.
+                  FILTER NOT EXISTS { ?property cims:AssociationUsed "No" } # Filter out associations that are not used as properties
+              }
+              UNION
+              {
+                  ?property cims:dataType ?cimDatatype.
+                  {
+                      ?cimDatatype cims:stereotype "Primitive";
+                                   rdfs:label ?primitiveType.
+                  }
+                  UNION
+                  {
+                      ?cimDatatype cims:stereotype "CIMDatatype".
+                      BIND(IRI(CONCAT(STR(?cimDatatype), ".value")) AS ?parentTypeValue)
+                      ?parentTypeValue rdfs:domain ?cimDatatype;
+                                       cims:dataType/cims:stereotype "Primitive";
+                                   cims:dataType/rdfs:label ?primitiveType.
+                  }
+              }
           }
-          UNION
-          {
-            ?cimDatatype cims:stereotype "Primitive";
-                         rdfs:label ?primitiveType.
-          }
-        }
-      }
       """);
   private final ErrorHandler errorHandler;
   private final Map<Set<Node>, CimProfile> multiVersionIriProfiles = new ConcurrentHashMap<>();
@@ -323,14 +321,21 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
           final var cimDatatype = vars.get("cimDatatype");
           final var primitiveType = vars.get("primitiveType");
           final var referenceType = vars.get("referenceType");
+          final var rdfDataType = primitiveType != null
+              // retrieve CIM specific primitive type mapping
+              ? getXsdDatatype(primitiveType.getLiteralLexicalForm())
+              // if no cimDatatype is given, but a referenceType is given
+              : cimDatatype == null && referenceType != null
+                  // then this may be an XSD datatype defined as rdf:range
+                  // if it cannot be mapped, we treat it as a reference type
+                  ? TypeMapper.getInstance().getTypeByName(referenceType.getURI())
+                  : null;
           map.put(property, new PropertyInfo(
               rdfType,
               property,
               cimDatatype,
-              primitiveType != null
-                  ? getXsdDatatype(primitiveType.getLiteralLexicalForm())
-                  : null,
-              referenceType));
+              rdfDataType,
+              rdfDataType != null ? null : referenceType));
         });
     return Collections.unmodifiableMap(map);
   }
