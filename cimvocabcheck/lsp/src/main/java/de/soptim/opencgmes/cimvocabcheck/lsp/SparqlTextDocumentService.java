@@ -215,12 +215,21 @@ final class SparqlTextDocumentService implements TextDocumentService {
       }
 
       // Endpoint document: resolve against the endpoint schema, never the workspace/bundled
-      // files. When the term lives in the endpoint schema, open a generated Turtle "peek".
+      // files. A local-file endpoint has a real source file to jump to, via the same
+      // DefinitionIndex mechanism as a workspace schema; a remote SPARQL endpoint has none, so
+      // the term's triples are fetched and opened as a generated read-only Turtle "peek" instead.
       String endpoint = EndpointDirective.parse(text).orElse(null);
       if (endpoint != null) {
         var rsOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
         if (rsOpt.isEmpty() || !termKnown(rsOpt.get().api().schemaIndex(), term)) {
           return noDefinition();
+        }
+        ResolvedSchema rs = rsOpt.get();
+        if (rs.definitionIndex() != null) {
+          return rs.definitionIndex()
+              .locationOf(term)
+              .map(SparqlTextDocumentService::definitionAt)
+              .orElseGet(SparqlTextDocumentService::noDefinition);
         }
         return endpointPeek
             .locationFor(endpoint, term.getURI())

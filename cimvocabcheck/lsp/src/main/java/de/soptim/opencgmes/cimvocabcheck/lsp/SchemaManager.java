@@ -331,8 +331,12 @@ final class SchemaManager {
         fail(key, MessageType.Warning, "CIMVocabCheck: endpoint schema file not found: " + file);
         return Optional.empty();
       }
-      var index = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndex();
-      ResolvedSchema schema = buildSchema(index, Map.of());
+      // loadIndexWithSources (rather than loadIndex) keeps the VersionIri → Path mapping so a
+      // DefinitionIndex can be built below — go-to-definition on a local-file endpoint must jump
+      // into that real file, not fall back to the remote-only EndpointDefinitionPeek.
+      var loaded = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndexWithSources();
+      var defIndex = DefinitionIndex.build(loaded.index(), loaded.sourcePaths());
+      ResolvedSchema schema = buildSchema(loaded.index(), Map.of(), defIndex);
       endpointCache.put(key, schema);
       LOG.info("Loaded endpoint schema from file {}", file);
       return Optional.of(schema);
@@ -380,7 +384,7 @@ final class SchemaManager {
                 + " exposes no CIM schema graphs — validating SPARQL syntax only.");
         return;
       }
-      ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope());
+      ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope(), null);
       endpointCache.put(endpoint, schema);
       LOG.info(
           "Loaded schema from endpoint {} ({} instance graph(s) auto-mapped, {} unmatched, {}"
@@ -439,12 +443,19 @@ final class SchemaManager {
     return sb.toString();
   }
 
-  /** Builds a {@link ResolvedSchema} from an index, using default prefixes and the given scope. */
+  /**
+   * Builds a {@link ResolvedSchema} from an index, using default prefixes and the given scope.
+   *
+   * @param definitionIndex go-to-definition source index, or {@code null} when {@code index} has no
+   *     backing source file (a remote SPARQL endpoint schema).
+   */
   private ResolvedSchema buildSchema(
-      RdfsSchemaIndex index, Map<Node, Collection<VersionIri>> scope) {
+      RdfsSchemaIndex index,
+      Map<Node, Collection<VersionIri>> scope,
+      DefinitionIndex definitionIndex) {
     var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
     var api = new SparqlValidationApi(index, prefixes, checkStdVocabRef.get());
-    return new ResolvedSchema(api, levelRef.get(), scope);
+    return new ResolvedSchema(api, levelRef.get(), scope, definitionIndex);
   }
 
   /** Records an endpoint as failed (negative cache) and notifies once per failure window. */

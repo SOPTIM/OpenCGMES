@@ -31,8 +31,8 @@ import org.apache.jena.graph.Node;
  * nearest config is that file.
  *
  * <p>Unlike {@link ResolvedSchema} (which also covers per-document {@code # [endpoint=...]}
- * overrides), this bundles the {@link DefinitionIndex} needed for go-to-definition and workspace
- * symbol navigation, and the {@code checkStandardVocabulary} flag from the config.
+ * overrides — themselves also carrying a {@link DefinitionIndex} when backed by a local file), this
+ * additionally bundles the {@code checkStandardVocabulary} flag from the config.
  *
  * @param api the validation API built from the config's schemas
  * @param level the strictness level from the config
@@ -49,6 +49,6 @@ record WorkspaceSchema(
 
   /** Adapts this workspace schema to a {@link ResolvedSchema} for the document-validation path. */
   ResolvedSchema toResolvedSchema() {
-    return new ResolvedSchema(api, level, namedGraphScope);
+    return new ResolvedSchema(api, level, namedGraphScope, definitionIndex);
   }
 }

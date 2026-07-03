@@ -32,8 +32,14 @@ import org.apache.jena.graph.Node;
  * <p>The workspace schema (from {@code opencgmes.json}) and schemas loaded from a SPARQL Notebook
  * {@code # [endpoint=...]} directive are both represented uniformly here so the validation path
  * does not care where the schema came from.
+ *
+ * @param definitionIndex go-to-definition source index, or {@code null} when the schema has no
+ *     backing source file to navigate to — a remote SPARQL endpoint, whose terms are instead
+ *     resolved via {@link EndpointDefinitionPeek}. Non-null for the workspace schema and for a
+ *     local-file {@code # [endpoint=...]} schema, both of which have a real file to jump to.
  */
 record ResolvedSchema(
     SparqlValidationApi api,
     StrictnessLevel strictness,
-    Map<Node, Collection<VersionIri>> namedGraphScope) {}
+    Map<Node, Collection<VersionIri>> namedGraphScope,
+    DefinitionIndex definitionIndex) {}
