@@ -126,7 +126,7 @@ if want maven; then
     ( cd "${REPO_ROOT}" && "${MVN}" -B -ntp org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom )
 
     echo ">> [maven] Generating THIRD-PARTY attribution + enforcing license allow-list ..."
-    ( cd "${REPO_ROOT}" && "${MVN}" -B -ntp license:aggregate-add-third-party )
+    ( cd "${REPO_ROOT}" && "${MVN}" -B -ntp org.codehaus.mojo:license-maven-plugin:aggregate-add-third-party )
 
     canonicalize_bom "${VOCAB_SBOM_DIR}/maven/bom.json"
 fi

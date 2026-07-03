@@ -96,6 +96,10 @@
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
         <ver.plugin.central-publishing>0.10.0</ver.plugin.central-publishing>
+        <ver.plugin.license-header>5.0.0</ver.plugin.license-header>
+
+        <!-- TODO REMOVE THIS -->
+        <cimxml.license.skip>true</cimxml.license.skip>
 
         <!-- Static analysis plugins -->
         <ver.plugin.spotbugs-maven-plugin>4.9.8.2</ver.plugin.spotbugs-maven-plugin>
@@ -452,6 +456,53 @@
                     <outputName>bom</outputName>
                     <verbose>false</verbose>
                 </configuration>
+            </plugin>
+
+            <!-- ============================================================
+                 License headers (mycila) — STAGED, currently skipped.
+                 Wired with the new SOPTIM header so the pipeline check is ready,
+                 but gated by ${cimxml.license.skip} (default: true) so it does
+                 not fail while the cimxml sources still carry the old header.
+
+                 To apply + enforce later:
+                   mvn -f cimxml/pom.xml com.mycila:license-maven-plugin:format -Dcimxml.license.skip=false
+                 then set <cimxml.license.skip> to false above.
+                 NOTE: cimxml bundles W3C-licensed RDF/XML test examples — review
+                 the <includes> before applying so their headers are not clobbered.
+                 ============================================================ -->
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${ver.plugin.license-header}</version>
+                <configuration>
+                    <skip>${cimxml.license.skip}</skip>
+                    <headerDefinitions>
+                        <headerDefinition>${project.basedir}/../license-header-style.xml</headerDefinition>
+                    </headerDefinitions>
+                    <licenseSets>
+                        <licenseSet>
+                            <header>${project.basedir}/../license-header.txt</header>
+                            <includes>
+                                <include>pom.xml</include>
+                                <include>src/**/*.java</include>
+                            </includes>
+                        </licenseSet>
+                    </licenseSets>
+                    <mapping>
+                        <java>soptim_java</java>
+                        <xml>soptim_xml</xml>
+                    </mapping>
+                    <strictCheck>true</strictCheck>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>license-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

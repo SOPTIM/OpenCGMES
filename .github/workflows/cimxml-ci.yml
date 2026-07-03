@@ -37,6 +37,15 @@ jobs:
       - name: Build and test
         run: mvn -B -ntp -f cimxml/pom.xml clean verify
 
+      # License-header status for cimxml (ADVISORY / non-blocking).
+      # To ENFORCE it:
+      #   1. mvn -f cimxml/pom.xml com.mycila:license-maven-plugin:5.0.0:format -Dcimxml.license.skip=false
+      #   2. set <cimxml.license.skip> to false in cimxml/pom.xml
+      #   3. delete this `continue-on-error` (the check then gates the build via `verify`)
+      - name: License headers — cimxml (advisory, not yet enforced)
+        continue-on-error: true
+        run: mvn -B -ntp -f cimxml/pom.xml com.mycila:license-maven-plugin:5.0.0:check -Dcimxml.license.skip=false
+
   publish-snapshot-github-packages:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-test

@@ -178,9 +178,9 @@
         "bundle": "node esbuild.js",
         "compile": "tsc --noEmit",
         "watch": "node esbuild.js --watch",
-        "lint": "eslint src",
-        "lint:fix": "eslint src --fix",
-        "format": "prettier --write .",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write . && eslint --fix .",
         "format:check": "prettier --check .",
         "copy-jar": "cp ../../cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar server/cimvocabcheck-lsp.jar"
     },

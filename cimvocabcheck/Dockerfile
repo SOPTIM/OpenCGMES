@@ -26,7 +26,7 @@ COPY cimvocabcheck/ ./cimvocabcheck/
 # SpotBugs, PMD, coverage, tests) is gated by the normal CI `verify`. The cache mount keeps Maven
 # dependencies across image builds.
 RUN --mount=type=cache,target=/root/.m2 \
-    SKIP="-DskipTests -Dspotless.check.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true -Dpmd.skip=true -Djacoco.skip=true" && \
+    SKIP="-DskipTests -Dspotless.check.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true -Dpmd.skip=true -Djacoco.skip=true -Dlicense.skip=true" && \
     mvn -B -ntp -f cimxml/pom.xml $SKIP clean install && \
     mvn -B -ntp -f cimvocabcheck/core/pom.xml $SKIP clean install && \
     mvn -B -ntp -f cimvocabcheck/cli/pom.xml $SKIP clean package && \

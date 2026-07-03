@@ -74,6 +74,14 @@ jobs:
           mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am \
             verify -DskipTests -Djacoco.skip=true
 
+      # License-header gate for the whole Maven tree (root + cimvocabcheck aggregator
+      # + core/cli/lsp poms). Java sources are covered by the Spotless step above;
+      # this recursive mycila run additionally enforces the pom.xml headers, including
+      # the aggregator poms that the -pl build above does not visit. cimxml is skipped
+      # (its migration is staged). Autofix: scripts/license-headers.sh format
+      - name: Lint — license headers (Maven)
+        run: mvn -B -ntp com.mycila:license-maven-plugin:5.0.0:check
+
   # ---- Java build + tests --------------------------------------------------
   build-test:
     runs-on: ubuntu-latest

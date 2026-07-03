@@ -1,20 +1,20 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
+ *    Copyright (c) 2026 SOPTIM AG
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ *
+ *    SPDX-License-Identifier: Apache-2.0
  */
-
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.2.0"
@@ -66,24 +66,40 @@ afterEvaluate {
 }
 
 // ---------------------------------------------------------------------------
-// Spotless: Kotlin formatting + linting via ktlint.
+// Spotless: Kotlin formatting + linting via ktlint, plus license-header checks.
 //
 //   ./gradlew spotlessCheck   # verify (wired into `check`)
-//   ./gradlew spotlessApply   # auto-format
+//   ./gradlew spotlessApply   # auto-format + insert/update license headers
 //
-// ktlint enforces the official Kotlin style. The build/ and generated server
-// resources are excluded. Matches the static-analysis policy of the Maven modules.
+// ktlint enforces the official Kotlin style. licenseHeaderFile enforces the
+// SOPTIM Apache-2.0 header on every Kotlin source, the Gradle build scripts,
+// the plugin.xml descriptor and the module README — mirroring the Maven modules
+// (mycila/Spotless). The build/ and generated server resources are excluded.
+// The header text lives under config/license/.
 // ---------------------------------------------------------------------------
 spotless {
     kotlin {
         target("src/**/*.kt")
         ktlint("1.8.0")
+        licenseHeaderFile(rootProject.file("config/license/header-kotlin.txt"))
         trimTrailingWhitespace()
         endWithNewline()
     }
     kotlinGradle {
         target("*.gradle.kts")
         ktlint("1.8.0")
+        licenseHeaderFile(
+            rootProject.file("config/license/header-kotlin.txt"),
+            "(import |plugins |rootProject|dependencyResolutionManagement|pluginManagement|@)",
+        )
+    }
+    format("pluginXml") {
+        target("src/main/resources/META-INF/plugin.xml")
+        licenseHeaderFile(rootProject.file("config/license/header-xml.txt"), "(<idea-plugin)")
+    }
+    format("readme") {
+        target("README.md")
+        licenseHeaderFile(rootProject.file("config/license/header-xml.txt"), "(#)")
     }
 }
 

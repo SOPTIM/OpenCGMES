@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    Licensed to the Apache Software Foundation (ASF) under one or more
-    contributor license agreements.  See the NOTICE file distributed with
-    this work for additional information regarding copyright ownership.
-    The ASF licenses this file to You under the Apache License, Version 2.0
-    (the "License"); you may not use this file except in compliance with
-    the License.  You may obtain a copy of the License at
+    Copyright (c) 2026 SOPTIM AG
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
 
         http://www.apache.org/licenses/LICENSE-2.0
 
@@ -14,6 +13,8 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+    SPDX-License-Identifier: Apache-2.0
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -66,6 +67,7 @@
         <ver.checkstyle>13.2.0</ver.checkstyle>
         <ver.plugin.pmd>3.28.0</ver.plugin.pmd>
         <ver.plugin.jacoco>0.8.14</ver.plugin.jacoco>
+        <ver.plugin.license-header>5.0.0</ver.plugin.license-header>
 
         <!-- JaCoCo coverage floors (calibrated per module; raise as tests grow) -->
         <jacoco.min.instruction>0.40</jacoco.min.instruction>
@@ -203,6 +205,9 @@
                             <style>GOOGLE</style>
                             <reflowLongStrings>true</reflowLongStrings>
                         </googleJavaFormat>
+                        <licenseHeader>
+                            <file>${project.basedir}/../../license-header-java.txt</file>
+                        </licenseHeader>
                         <removeUnusedImports/>
                         <trimTrailingWhitespace/>
                         <endWithNewline/>
@@ -339,6 +344,47 @@
                                 </rule>
                             </rules>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- ============================================================
+                 License headers:
+                   * Java sources  -> enforced by Spotless (licenseHeader below),
+                     so the header stays consistent with google-java-format and
+                     the Checkstyle blank-line-after-header rule.
+                   * pom.xml       -> enforced by mycila license-maven-plugin.
+                 Autofix:  mvn -pl cimvocabcheck/cli spotless:apply \
+                           && mvn com.mycila:license-maven-plugin:format
+                 ============================================================ -->
+            <plugin>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${ver.plugin.license-header}</version>
+                <configuration>
+                    <headerDefinitions>
+                        <headerDefinition>${project.basedir}/../../license-header-style.xml</headerDefinition>
+                    </headerDefinitions>
+                    <licenseSets>
+                        <licenseSet>
+                            <header>${project.basedir}/../../license-header.txt</header>
+                            <includes>
+                                <include>pom.xml</include>
+                            </includes>
+                        </licenseSet>
+                    </licenseSets>
+                    <mapping>
+                        <xml>soptim_xml</xml>
+                    </mapping>
+                    <strictCheck>true</strictCheck>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>license-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
