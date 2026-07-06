@@ -56,7 +56,6 @@ invalid SHACL cardinalities. The full list of codes and severities is on the
 [Validation checks](/cimvocabcheck/validation-checks) page.
 
 ![CIMNotebook diagnostics on a SPARQL query in IntelliJ](/img/cimnotebook/intellij-diagnostics.png)
-{/* TODO image: inline underline on an UNKNOWN_CLASS term with the IntelliJ tooltip showing the diagnostic */}
 
 ### Hover documentation
 
@@ -71,7 +70,6 @@ properties in the loaded schema. In object position after an enumeration-ranged 
 enumeration's members are suggested (e.g. `cim:WindGenUnitKind.offshore`).
 
 ![CIMNotebook completion list after typing cim: in IntelliJ](/img/cimnotebook/intellij-completion.png)
-{/* TODO image: IntelliJ completion popup listing CIM classes/properties after typing "cim:" */}
 
 ### Go to definition
 

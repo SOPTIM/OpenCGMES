@@ -23,7 +23,6 @@ get the same diagnostics, hover, and completion you would in a standalone `.rq` 
 that one cell.
 
 ![A SPARQL Notebook cell validated by CIMNotebook in VS Code](/img/cimnotebook/vscode-notebook-cell.png)
-{/* TODO image: a SPARQL Notebook cell with an endpoint directive on line 1 and an underlined UNKNOWN_PROPERTY below */}
 
 ## The `# [endpoint=...]` directive
 

@@ -49,7 +49,6 @@ conflicts, and invalid SHACL cardinalities. The complete list of codes and sever
 [Validation checks](/cimvocabcheck/validation-checks) page.
 
 ![CIMNotebook diagnostics on a SPARQL query in VS Code](/img/cimnotebook/vscode-diagnostics.png)
-{/* TODO image: squiggly underlines for UNKNOWN_PROPERTY + hover tooltip showing the diagnostic message */}
 
 ### Hover documentation
 
@@ -58,7 +57,6 @@ Hover over any CIM term (e.g. `cim:ACLineSegment`) to see its full IRI, its `rdf
 the loaded schema.
 
 ![CIMNotebook hover tooltip showing a CIM term's IRI and profile in VS Code](/img/cimnotebook/vscode-hover.png)
-{/* TODO image: hover card over cim:ACLineSegment with full IRI + source profile name */}
 
 ### Auto-completion
 
@@ -69,7 +67,6 @@ In object position after an enumeration-ranged property, the enumeration's membe
 SHACL shapes and SPARQL queries complete the same way.
 
 ![CIMNotebook completion list after typing cim: in VS Code](/img/cimnotebook/vscode-completion.png)
-{/* TODO image: completion popup listing CIM classes/properties after typing "cim:" */}
 
 ### Go-to-definition
 
