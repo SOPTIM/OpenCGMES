@@ -39,6 +39,7 @@ ALLOWED = {
     "EPL-1.0",
     "EPL-2.0",
     "GPL-2.0-with-classpath-exception",
+    "BlueOak-1.0.0",
 }
 
 # Normalise the spellings upstreams use into the canonical ids above.

@@ -188,17 +188,17 @@
         "copy-jar": "cp ../../cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar server/cimvocabcheck-lsp.jar"
     },
     "dependencies": {
-        "vscode-languageclient": "^9.0.1"
+        "vscode-languageclient": "^10.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
-        "@types/node": "^20.0.0",
+        "@types/node": "^24.0.0",
         "@types/vscode": "^1.75.0",
         "eslint": "^10.5.0",
         "eslint-config-prettier": "^10.1.8",
         "esbuild": "^0.28.0",
         "prettier": "^3.8.4",
-        "typescript": "^5.4.0",
+        "typescript": "^6.0.0",
         "typescript-eslint": "^8.61.1"
     }
 }

@@ -155,12 +155,12 @@ fi
 
 # ---------------------------------------------------------------------------
 # 3. IntelliJ plugin (compile-time IntelliJ Platform libraries + LSP4IJ)
-#    ->  cimnotebook/sbom/intellij  (cyclonedxBom destination set in build.gradle.kts)
+#    ->  cimnotebook/sbom/intellij  (cyclonedxDirectBom destination set in build.gradle.kts)
 # ---------------------------------------------------------------------------
 if want intellij; then
     echo ">> [intellij] Generating CycloneDX SBOM (compileClasspath) ..."
     # Task config (scope = compileClasspath, output path) lives in build.gradle.kts.
-    ( cd "${REPO_ROOT}/cimnotebook/intellij" && ${GRADLE} cyclonedxBom --no-daemon -q )
+    ( cd "${REPO_ROOT}/cimnotebook/intellij" && ${GRADLE} cyclonedxDirectBom --no-daemon -q )
     canonicalize_bom "${NB_SBOM_DIR}/intellij/bom.json" intellij
 
     echo ">> [intellij] Checking license allow-list + writing attribution ..."

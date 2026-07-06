@@ -126,8 +126,8 @@
     {
       "type": "library",
       "name": "balanced-match",
-      "version": "1.0.2",
-      "bom-ref": "cimnotebook@0.0.0|balanced-match@1.0.2",
+      "version": "4.0.4",
+      "bom-ref": "cimnotebook@0.0.0|balanced-match@4.0.4",
       "licenses": [
         {
           "license": {
@@ -136,15 +136,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/balanced-match@1.0.2",
+      "purl": "pkg:npm/balanced-match@4.0.4",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/balanced-match/-/balanced-match-1.0.2.tgz",
+          "url": "https://registry.npmjs.org/balanced-match/-/balanced-match-4.0.4.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "de849e50ed13315ebb84dd4099b5ec2b8c9aa94eed8e21e56f144364ea47d0a5bdf82797e1b440697d009f1b74b71d8cae94695b041a3f02252121098585393f"
+              "content": "04bae011c453c17da8ea01b118e08dc8cbc64a9df96287ee633c3d87520c4d198aaadb40659554ebb6dd6fd3ebdaf50703cfa3de2dad25f8cee82ebee26c864c"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -160,8 +160,8 @@
     {
       "type": "library",
       "name": "brace-expansion",
-      "version": "2.1.0",
-      "bom-ref": "cimnotebook@0.0.0|brace-expansion@2.1.0",
+      "version": "5.0.7",
+      "bom-ref": "cimnotebook@0.0.0|brace-expansion@5.0.7",
       "licenses": [
         {
           "license": {
@@ -170,15 +170,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/brace-expansion@2.1.0",
+      "purl": "pkg:npm/brace-expansion@5.0.7",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-2.1.0.tgz",
+          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.7.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "4cdd64099020760c1e261596a60298ad068c34770350b1e45b0408b2976d8d5e18e5abab45d6698c0aa7eb25f714fa9303d9e01c2738849c4c00c8067ef7bce7"
+              "content": "ee8172ef4dddc5f637fcd2f10b57e1d925024341fdae6018fb91290d57d78d44d3b3e1c4c11da761aa8bbfe196713b2e9b0c4f7e2cfa0b308d9305f0054c2a08"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -194,25 +194,25 @@
     {
       "type": "library",
       "name": "minimatch",
-      "version": "5.1.9",
-      "bom-ref": "cimnotebook@0.0.0|minimatch@5.1.9",
+      "version": "10.2.5",
+      "bom-ref": "cimnotebook@0.0.0|minimatch@10.2.5",
       "licenses": [
         {
           "license": {
-            "id": "ISC",
+            "id": "BlueOak-1.0.0",
             "acknowledgement": "declared"
           }
         }
       ],
-      "purl": "pkg:npm/minimatch@5.1.9",
+      "purl": "pkg:npm/minimatch@10.2.5",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/minimatch/-/minimatch-5.1.9.tgz",
+          "url": "https://registry.npmjs.org/minimatch/-/minimatch-10.2.5.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "ee8d70100d91c8c3fb22eec635b6bdbdcd11596180089382641257d862568a9d22915fb070eb2056e63db84f023e2c908641854a586e4a464f6af37bbb573617"
+              "content": "3142e454b7ca1980c561e8cfd3b40ebab0cb2d0a5c8e4ec5c3eee35d2d91d9ccd1433479eb21d1bde5393432443af887fa111364a4a4224e5cf93db71a315432"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -262,8 +262,8 @@
     {
       "type": "library",
       "name": "vscode-jsonrpc",
-      "version": "8.2.0",
-      "bom-ref": "cimnotebook@0.0.0|vscode-jsonrpc@8.2.0",
+      "version": "9.0.1",
+      "bom-ref": "cimnotebook@0.0.0|vscode-jsonrpc@9.0.1",
       "licenses": [
         {
           "license": {
@@ -272,15 +272,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/vscode-jsonrpc@8.2.0",
+      "purl": "pkg:npm/vscode-jsonrpc@9.0.1",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-8.2.0.tgz",
+          "url": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-9.0.1.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "0beaf478a25421f88321fc0986b89adf4f936163edb872571ed23b2746253a6280a3ba20c4fdb44f4cf107b1d9408161232be804fc16b248f1aef02d7e3c997c"
+              "content": "adfb80e93ef91fa9b91246e1b443f3adef694f41cf70323630ccb8fa73c520192ce49f090405070f8b5161281a04e8a32040bb491902d642b25d32ea6e687d8f"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -296,8 +296,8 @@
     {
       "type": "library",
       "name": "vscode-languageclient",
-      "version": "9.0.1",
-      "bom-ref": "cimnotebook@0.0.0|vscode-languageclient@9.0.1",
+      "version": "10.1.0",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageclient@10.1.0",
       "licenses": [
         {
           "license": {
@@ -306,15 +306,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/vscode-languageclient@9.0.1",
+      "purl": "pkg:npm/vscode-languageclient@10.1.0",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-9.0.1.tgz",
+          "url": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-10.1.0.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "2598a299576f8a612e1e1e68971871921b74f66dc9cd41b08206f9791524cf32616762a308dd27879e557e2103f687b3f43c85f3f7f3d60d62055de1fb467610"
+              "content": "5d7471ea5a958ad432fe838bafd31f358446f8c6d09215e40dac5b40c88ac449bccd935f85e44550a35bf1460d876b2d9fd6ed976c10339c191498c9be873e8c"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -330,8 +330,8 @@
     {
       "type": "library",
       "name": "vscode-languageserver-protocol",
-      "version": "3.17.5",
-      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-protocol@3.17.5",
+      "version": "3.18.2",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-protocol@3.18.2",
       "licenses": [
         {
           "license": {
@@ -340,15 +340,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/vscode-languageserver-protocol@3.17.5",
+      "purl": "pkg:npm/vscode-languageserver-protocol@3.18.2",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.17.5.tgz",
+          "url": "https://registry.npmjs.org/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.18.2.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "99bd5bbd124df125739c00d219633dbbf6f4ec7ec4720d08dce8170ee2dd9f7d3bae5fc9dc0f580fafde60eb2caa179c2f6ee12b520f640b1aaa1d348bf2658e"
+              "content": "5d1c836d3d0fa77b1236d8b7266c551143324960928b586133efca5250b2d61575ce6aeaa4cd4ec0ed76100922f1b96198bb88329689ad86e8d0ecc655f2b642"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -363,9 +363,9 @@
     },
     {
       "type": "library",
-      "name": "vscode-languageserver-types",
-      "version": "3.17.5",
-      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-types@3.17.5",
+      "name": "vscode-languageserver-textdocument",
+      "version": "1.0.13",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-textdocument@1.0.13",
       "licenses": [
         {
           "license": {
@@ -374,15 +374,49 @@
           }
         }
       ],
-      "purl": "pkg:npm/vscode-languageserver-types@3.17.5",
+      "purl": "pkg:npm/vscode-languageserver-textdocument@1.0.13",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.17.5.tgz",
+          "url": "https://registry.npmjs.org/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.13.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "2ddd557a536e5fda5d177f61d8781a79be611193366778d4aeb32059002ef368ccb59a7ba77bc94f70734e82ad648ecd810b2c6637b9a34cebc8eae142fcd002"
+              "content": "9f1d191f030622c564cc51b7fd52de25804b4da14146e35d183bdebef8eea1ac94e44392d9f1186b33a1b423373c8f4294c320e6281cd2ec17b40ab8b498fe0f"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/vscode-languageserver-textdocument"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vscode-languageserver-types",
+      "version": "3.18.0",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-types@3.18.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/vscode-languageserver-types@3.18.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.18.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "f13b063cd3083228817643918114af2e3ba210888016d3be2acb26616c50fae495be57fb4632bc60a08e8cfcd9f98034e235c457bfbb2ef912987921a4d4bdf6"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -400,47 +434,51 @@
     {
       "ref": "cimnotebook@0.0.0",
       "dependsOn": [
-        "cimnotebook@0.0.0|vscode-languageclient@9.0.1"
+        "cimnotebook@0.0.0|vscode-languageclient@10.1.0"
       ]
     },
     {
-      "ref": "cimnotebook@0.0.0|balanced-match@1.0.2"
+      "ref": "cimnotebook@0.0.0|balanced-match@4.0.4"
     },
     {
-      "ref": "cimnotebook@0.0.0|brace-expansion@2.1.0",
+      "ref": "cimnotebook@0.0.0|brace-expansion@5.0.7",
       "dependsOn": [
-        "cimnotebook@0.0.0|balanced-match@1.0.2"
+        "cimnotebook@0.0.0|balanced-match@4.0.4"
       ]
     },
     {
-      "ref": "cimnotebook@0.0.0|minimatch@5.1.9",
+      "ref": "cimnotebook@0.0.0|minimatch@10.2.5",
       "dependsOn": [
-        "cimnotebook@0.0.0|brace-expansion@2.1.0"
+        "cimnotebook@0.0.0|brace-expansion@5.0.7"
       ]
     },
     {
       "ref": "cimnotebook@0.0.0|semver@7.8.1"
     },
     {
-      "ref": "cimnotebook@0.0.0|vscode-jsonrpc@8.2.0"
+      "ref": "cimnotebook@0.0.0|vscode-jsonrpc@9.0.1"
     },
     {
-      "ref": "cimnotebook@0.0.0|vscode-languageclient@9.0.1",
+      "ref": "cimnotebook@0.0.0|vscode-languageclient@10.1.0",
       "dependsOn": [
-        "cimnotebook@0.0.0|minimatch@5.1.9",
+        "cimnotebook@0.0.0|minimatch@10.2.5",
         "cimnotebook@0.0.0|semver@7.8.1",
-        "cimnotebook@0.0.0|vscode-languageserver-protocol@3.17.5"
+        "cimnotebook@0.0.0|vscode-languageserver-protocol@3.18.2",
+        "cimnotebook@0.0.0|vscode-languageserver-textdocument@1.0.13"
       ]
     },
     {
-      "ref": "cimnotebook@0.0.0|vscode-languageserver-protocol@3.17.5",
+      "ref": "cimnotebook@0.0.0|vscode-languageserver-protocol@3.18.2",
       "dependsOn": [
-        "cimnotebook@0.0.0|vscode-jsonrpc@8.2.0",
-        "cimnotebook@0.0.0|vscode-languageserver-types@3.17.5"
+        "cimnotebook@0.0.0|vscode-jsonrpc@9.0.1",
+        "cimnotebook@0.0.0|vscode-languageserver-types@3.18.0"
       ]
     },
     {
-      "ref": "cimnotebook@0.0.0|vscode-languageserver-types@3.17.5"
+      "ref": "cimnotebook@0.0.0|vscode-languageserver-textdocument@1.0.13"
+    },
+    {
+      "ref": "cimnotebook@0.0.0|vscode-languageserver-types@3.18.0"
     }
   ]
 }

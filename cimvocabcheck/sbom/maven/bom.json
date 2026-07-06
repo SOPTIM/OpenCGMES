@@ -2384,44 +2384,44 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar",
+      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@1.0.0?type=jar",
       "group" : "org.eclipse.lsp4j",
       "name" : "org.eclipse.lsp4j.jsonrpc",
-      "version" : "0.24.0",
+      "version" : "1.0.0",
       "description" : "Generic JSON-RPC implementation",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "9bdf74b2a43f29fc4146c8cd2e879764"
+          "content" : "4922083351da1f01ed6d79b3d578e6c2"
         },
         {
           "alg" : "SHA-1",
-          "content" : "27512deb3601e0cbf71d61d1a5611fb99687ab8e"
+          "content" : "11580adce31a287dda1ed6eb4fb8f76f1a2cc815"
         },
         {
           "alg" : "SHA-256",
-          "content" : "7721572e849d4f359b46ede55d5604b982ff498d0d92ebc70e18029f59823c08"
+          "content" : "9647feb0524bf763c878e12ab878a684102b81cccb3f77feecbec709d54f9bbb"
         },
         {
           "alg" : "SHA-512",
-          "content" : "9212e7a24018e02ed0b196b56826482073a0ac89b0ced5c69decc9c55bb00649acc74c2d9df4fac3450a6ebb5296914cd463605450c337674b548f2865230770"
+          "content" : "62b2ac5c4d7950f5f4330d5683fbabe801e377bb04a36cea715d9d071a0109ddc123d10e9e0225c05e7b38b53060ff13d2d3fe5121d6a8aa5b8e68d7d16f1892"
         },
         {
           "alg" : "SHA-384",
-          "content" : "ebef605f766e2188c8ba346d927858149856a786b383b0e5b3d7df53b4aaaaa75d000f3a77eef10dd0b72c6587b6ac25"
+          "content" : "90f5381f040b6ba81dabc512d8a1c69121842aa0cc053da45459c42d5d6f97bf8f6aae97ef9143e550db1d45ac2bc922"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "a00e72ec47202558ddf64e468758f1ffa098a2d8d9cd823ffb8381ffeb99442b6bf26c958641b2296019d7c353c9bfca"
+          "content" : "5ec52e328062007338b6e83724cabafc350abea1ac7da4a1ceb8be96d0d2f4728b27ec72cd00934dc4edda385c9150d7"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "f661a191d016a2bcea1ae03d286f5220883e60e971e7c5658c3be7c821295204"
+          "content" : "46be9d5c001cafe30ec3544ad42aa101c66842b94abfdace6a6f7bad2a2c5569"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "6daf97360e9ed0d7dbe430c44c0ffb4b1242b377ce82c0275a919974d4de522b46d98db86cd1474017d3eaaf0750e21652563bfa64dc56f6bc41391a3e7d8d8c"
+          "content" : "f4ea23b331da24f77f4e684b25dbd2cdae14fbedfb96dad5f343d8a394fc2e239d00be90eb94de7ad58437101f28d8e9e0fb272573170edba60daab22abc6916"
         }
       ],
       "licenses" : [
@@ -2431,7 +2431,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar",
+      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@1.0.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2441,44 +2441,44 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
+      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
       "group" : "org.eclipse.lsp4j",
       "name" : "org.eclipse.lsp4j",
-      "version" : "0.24.0",
+      "version" : "1.0.0",
       "description" : "Java bindings for the Language Server Protocol",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "07268ad960d21e4a0c78da3cc9735c03"
+          "content" : "e5b5aedc3c2fa5eae07e85066ea7a6a2"
         },
         {
           "alg" : "SHA-1",
-          "content" : "06a0653487ea58604fc0a4fe3cdad8324b4ee3f6"
+          "content" : "414d75c051310033de34af07c0cec3705d6d0ab5"
         },
         {
           "alg" : "SHA-256",
-          "content" : "2caea31ffa2abd13c6f5d13489be071ad08f108eae83a34473ac72d96cf72922"
+          "content" : "ccd78893facc6bfcc359d56cba05d3d5b85eb41e4c40d4b4215ca45db5f416d9"
         },
         {
           "alg" : "SHA-512",
-          "content" : "1d881528a8a9802f3f1e24ca4381f11ee954c904811eab70361510d0e186a6450284163917529fdf2c47a50459510d46eef5f2dbc512bcc4e15a58b3254d6e9c"
+          "content" : "056f55320b58a3ff1361c7eba6ec3b26210de063f04a2a5fd5260307abc09e1a5523fc27d5ec0dc9ebc5d2175299fd1bea49bf97bc86b850d4f591d6d447c9fa"
         },
         {
           "alg" : "SHA-384",
-          "content" : "88162d40451f418e4ad5bc15af7d8d21f40e1dd3fa5b514c3361a0472c5d085e0c0956d4b9464d42e02519d2fab6f304"
+          "content" : "7c2441aaf2d1931f95f31d4411074fc135d2fa40f6b84a92ba2078c2c552336fae53322fdf9fc318ab118e1aeb123fd5"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "6384c010792c35327e13b0f3dee0eaad1e7a864fd51f045884e6474d01f0d3b36645a1887715102d659a344dc2a08af4"
+          "content" : "12b5ecfb1428d6a30373360f54816b599b4aa20fea0f41d743011d2687758de5d30af6474a7a7a0660c51e4ee313e53c"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "ec81237b61812fdac71d9ca04ad2043cd1ee6816e1bf2ba61e7d3d39c59eeeb9"
+          "content" : "38ba84036f461feae0493106e5f6318fc53402ac6b1274cbad530af903ca1cdc"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "0bb6d466cfbb4369b399d114726c01f9d75121604143444320520ff0ced258e5bd7501d56b09b485277d5b122a925ff8c749c3bca7b18216203eb1ae50d5c79d"
+          "content" : "57f15deb3e4bca717b5deb06693047505744dae7df0312ee2c534bbdd76577d59a20a0bd9d75404394286f8a17abd0a0928b47f00ece9b9eba856a3dd1062a20"
         }
       ],
       "licenses" : [
@@ -2488,7 +2488,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
+      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -3014,7 +3014,7 @@
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
-        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
+        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
@@ -3136,15 +3136,15 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar",
+      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@1.0.0?type=jar",
       "dependsOn" : [
         "pkg:maven/com.google.code.gson/gson@2.13.2?type=jar"
       ]
     },
     {
-      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
+      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar"
+        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@1.0.0?type=jar"
       ]
     },
     {

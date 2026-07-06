@@ -19,7 +19,7 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.4.0"
     id("org.jetbrains.intellij.platform") version "2.17.0"
-    id("org.cyclonedx.bom") version "2.4.1"
+    id("org.cyclonedx.bom") version "3.2.4"
     id("com.diffplug.spotless") version "8.8.0"
 }
 
@@ -137,13 +137,12 @@ dependencies {
 // which are not reproducible across JDK/IDE builds) so re-runs are byte-identical anywhere.
 // License compliance + attribution is handled by scripts/check-sbom-licenses.py.
 // ---------------------------------------------------------------------------
-tasks.cyclonedxBom {
-    setIncludeConfigs(listOf("compileClasspath"))
-    setOutputFormat("json")
-    setOutputName("bom")
-    setSchemaVersion("1.6")
-    setIncludeBomSerialNumber(false)
-    setDestination(layout.projectDirectory.dir("../sbom/intellij").asFile)
+tasks.cyclonedxDirectBom {
+    includeConfigs.set(listOf("compileClasspath"))
+    schemaVersion.set(org.cyclonedx.Version.VERSION_16)
+    includeBomSerialNumber.set(false)
+    jsonOutput.set(layout.projectDirectory.file("../sbom/intellij/bom.json"))
+    xmlOutput.unsetConvention()
 }
 
 intellijPlatform {

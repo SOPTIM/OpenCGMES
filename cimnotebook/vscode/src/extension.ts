@@ -30,10 +30,10 @@ const CHANNEL = "CIMNotebook";
 
 let client: LanguageClient | undefined;
 // Created at the very start of activate() so it always appears in the Output dropdown.
-let out: vscode.OutputChannel;
+let out: vscode.LogOutputChannel;
 
 export function activate(context: vscode.ExtensionContext): void {
-    out = vscode.window.createOutputChannel(CHANNEL);
+    out = vscode.window.createOutputChannel(CHANNEL, { log: true });
     context.subscriptions.push(out);
 
     out.appendLine("Extension activating...");
@@ -271,7 +271,7 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         },
     };
 
-    const traceChannel = vscode.window.createOutputChannel(`${CHANNEL} (trace)`);
+    const traceChannel = vscode.window.createOutputChannel(`${CHANNEL} (trace)`, { log: true });
     context.subscriptions.push(traceChannel);
 
     const clientOptions: LanguageClientOptions = {

@@ -9,10 +9,9 @@
           "type" : "application",
           "author" : "CycloneDX",
           "name" : "cyclonedx-gradle-plugin",
-          "version" : "2.4.1"
+          "version" : "3.2.4"
         }
-      ],
-      "services" : []
+      ]
     },
     "component" : {
       "type" : "library",

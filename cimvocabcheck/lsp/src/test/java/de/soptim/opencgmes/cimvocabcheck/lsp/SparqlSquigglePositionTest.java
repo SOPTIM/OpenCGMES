@@ -405,7 +405,7 @@ public class SparqlSquigglePositionTest {
     assertEquals("ends on first line", 0, d.getRange().getEnd().getLine());
     // Range spans the first line's content, excluding the trailing CR.
     assertEquals(45, d.getRange().getEnd().getCharacter());
-    assertTrue(d.getMessage().toLowerCase().contains("only syntax"));
+    assertTrue(d.getMessage().getLeft().toLowerCase().contains("only syntax"));
   }
 
   @Test
