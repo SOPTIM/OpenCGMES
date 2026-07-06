@@ -193,7 +193,7 @@
         "@types/vscode": "^1.75.0",
         "eslint": "^10.5.0",
         "eslint-config-prettier": "^10.1.8",
-        "esbuild": "^0.24.0",
+        "esbuild": "^0.28.0",
         "prettier": "^3.8.4",
         "typescript": "^5.4.0",
         "typescript-eslint": "^8.61.1"

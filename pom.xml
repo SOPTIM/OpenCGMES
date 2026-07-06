@@ -62,8 +62,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- Supply-chain tooling (SBOM + license compliance) -->
-        <ver.plugin.cyclonedx>2.9.1</ver.plugin.cyclonedx>
-        <ver.plugin.license>2.5.0</ver.plugin.license>
+        <ver.plugin.cyclonedx>2.9.2</ver.plugin.cyclonedx>
+        <ver.plugin.license>2.7.1</ver.plugin.license>
 
         <!-- Source license-header enforcement (mycila) -->
         <ver.plugin.license-header>5.0.0</ver.plugin.license-header>

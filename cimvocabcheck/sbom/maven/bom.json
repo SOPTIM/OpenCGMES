@@ -16,40 +16,40 @@
           "author" : "OWASP Foundation",
           "group" : "org.cyclonedx",
           "name" : "cyclonedx-maven-plugin",
-          "version" : "2.9.1",
+          "version" : "2.9.2",
           "description" : "CycloneDX Maven plugin",
           "hashes" : [
             {
               "alg" : "MD5",
-              "content" : "9c7a565cf28cce58557d0c621c5ea4b1"
+              "content" : "843a7130400f75d33f563dc7e9f52dea"
             },
             {
               "alg" : "SHA-1",
-              "content" : "be882d5a22050bfa9d19090b1420c188617d0e1c"
+              "content" : "2cac5a176b9f48801dfc4910d4f6a34bfbb13445"
             },
             {
               "alg" : "SHA-256",
-              "content" : "698e0f37184a5b28c245c4065fd036dfce253b52f82fbb7113d81d36326cc249"
+              "content" : "d9e5a12bac3c1a91d85f3a1ad84307099f457ff24aa65b438ba7de9ca784a54e"
             },
             {
               "alg" : "SHA-512",
-              "content" : "c0f0b11026858166f872a2eb54719492e5cecaa0bc9cd6b30b3ecb4a174eed220f4a1b5829d18d6734128e778d3cb3db7ffed177c92866133129cb29081814a0"
+              "content" : "636f788518752c5a23d14bad41d68b0d549e4b3a3d720d66f2f6e2b8b956207942ee12abba968a1e9aac6cf1d78d9e738a4a75eeb8bc6fca2377030fbb482407"
             },
             {
               "alg" : "SHA-384",
-              "content" : "d80964707dfe5caca8c70521d5066f57589304c0a657e6fbc7c0614ea0fc7b3b3dbe7778361eee0f54ba111e9cb0ffcb"
+              "content" : "72aad41633b92fadd4dbd1c6f5c1b956836b22d3b96afbdd7ca8b8eb0456eec00c2ed658e3c2d4e93d95048bcc23dac8"
             },
             {
               "alg" : "SHA3-384",
-              "content" : "80bc3a275d9514bc457461ff52a72add8c7ecbbc01d8912efce57139016c544ee776981851be0a58fa977ab4221f703f"
+              "content" : "9837cee0f9b7d575f8d88df3ad6f58a075032ad2635e0987abbc102240327f1cec87dc062b3034009f028ab5baf988f9"
             },
             {
               "alg" : "SHA3-256",
-              "content" : "142317d6f245390f4fd2d0c100b16281b8dfc5c0c2cff86943bdcc97039cb699"
+              "content" : "4c654267cde6eb6d295dbc06b33e33528412bee57549dae89c85b8df8202dbcb"
             },
             {
               "alg" : "SHA3-512",
-              "content" : "af0fb9137c90b65d1a07f72e4d51ae509956cdb8800f35c961b037cdda1fe4a14ce3b496cef71ba85f1621affcfe29cd42704ae4191ff0b090a9602087c8997b"
+              "content" : "f7da73632ef2fd1c2d85f0cf5eebc2b6a3ff1ae2ed0945442e679da71490562a2ff6b67422dbd5285f4042eda6637e6f3544f62825a625b38efacfdebc8df137"
             }
           ]
         }
@@ -347,45 +347,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.18.3?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.jackson.core",
       "name" : "jackson-annotations",
-      "version" : "2.18.3",
+      "version" : "2.22",
       "description" : "Core annotations used for value types, used by Jackson data binding package.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "cae46e2c56e1b40b67dcfcfc9b6e275a"
+          "content" : "04c11c456fd1e21b9a21c25c665109cc"
         },
         {
           "alg" : "SHA-1",
-          "content" : "7fa21cf7da4598f8240e4ebd9779249622af1acd"
+          "content" : "15c67f9498d6934cff9510fc70c5a12e52290457"
         },
         {
           "alg" : "SHA-256",
-          "content" : "8aa5740d80b5a5025508b41bbadbaa1fb3772267c628b2e30681a4f45f8b8931"
+          "content" : "21ddb598807d3a51a876704eb979d9296e1c6a6f47ab1826ff88c6d6a127a2d0"
         },
         {
           "alg" : "SHA-512",
-          "content" : "a872242613d5be7537db8ad5d0408aa8928d376e1670bebd473b75e0953370abe77b725e11600e67b8bfb7650739e8c0d69a142dbe843719c5178b00b5deef96"
+          "content" : "63b597ec02b4e31c57266d9b96f05f301f217bc12ffb7ba046a5658d2829728930a559947b98eb6c3cc448413a96b4939427aa669ae1e2dc3597ab5d5d287f9f"
         },
         {
           "alg" : "SHA-384",
-          "content" : "4974172f3cb367787dd20eaff3eef7ff0eda89a2f585a57a10279627d781a9f30806c0249e62e1f6eb31204a8db8a631"
+          "content" : "35b6fe651afeed54d1e6f7a39ac6cf6fdbafacdf2e3bdff7b29b965ccb79a0c53342a56bf0ecea4d6c4c4651b1d6aa19"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "fff9edb764c5f8cfc7ab3356843cc2ff210342d3e685b102ed188a7753995b3c5e4afbe7a526a8911ed62e67bad61982"
+          "content" : "72267dc54c4175c42ca0dd430a87b12cc68619a8777be2048e1d2f0747db884a568b5c346c77c9c8c0714ab96018f5f7"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "3c34ebe111dfdf9ee8687276a2f188f3d60aea2da84974f83d1ede83bd6f03c9"
+          "content" : "6bfc7b4ba70779fe5f0b1e2af585abab982f7929a68beb2c0e62ea2e2a321de0"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "4162e428f22d7eedb0d074dc4cd56ab74f5bea4514ff94b6669fc1dded5ef22b3f4784f193bf65a0914f30ba1801f085116fbb19b0d64946b6ba7f61be597974"
+          "content" : "3f1bdfa32f7df76ac14cd2a3e689b65066fa0a6a760a9b8b1121773bb1b043a44587d4148c67f361dc6c630e6b31f29b2691a57d47caabea5ca23ae44af34a5e"
         }
       ],
       "licenses" : [
@@ -395,7 +395,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.18.3?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -403,7 +403,7 @@
         },
         {
           "type" : "distribution-intake",
-          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+          "url" : "https://central.sonatype.com/api/v1/publisher"
         },
         {
           "type" : "issue-tracker",
@@ -417,45 +417,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.18.3?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.jackson.core",
       "name" : "jackson-core",
-      "version" : "2.18.3",
+      "version" : "2.22.0",
       "description" : "Core Jackson processing abstractions (aka Streaming API), implementation for JSON",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "b36e17ef5ba214242b700f8e621e6f12"
+          "content" : "b1d6835b410ec5d9c7ead9e280d36b44"
         },
         {
           "alg" : "SHA-1",
-          "content" : "78f80c259268200e588aa204dd97ecf09b76916e"
+          "content" : "f25b20bdff54546bcaf9d1ac4701447f2d3968f7"
         },
         {
           "alg" : "SHA-256",
-          "content" : "056bc4d3e5e53ce821450fa97b3f9e0f8dde125cf6da6884353bb1f09582e1d9"
+          "content" : "d2e8dd4df1e0f61b786ea06792f5bf4235d8278f158f3be6e997e955931c0c98"
         },
         {
           "alg" : "SHA-512",
-          "content" : "f741ece5a41f1d27c04bdbe839092fec0fac1a7b139d9f5fc92141b4a396f622b7f668f4fa97e42da0d6d4237334e117841753e209adb49d1ac0a1a227cfacc1"
+          "content" : "7fc88518eaeec11dbefc865d58486a00ffdf5a9572bb66f927a73eb3236a38ab363b4535142b2ccf78d38e8b038c325927379a368fbe25dae0127daea261072e"
         },
         {
           "alg" : "SHA-384",
-          "content" : "ba3a365b036c63054d5c7af2bca227e61e4ed1680d5c204eb7749a0809201917c0916d0f1801845edd5b3a11e1904652"
+          "content" : "98466110e7194180e0340bf94b25bcf18b5fd60b06cc6416777e07564469d9e22abe2c45f9d91b7a55f4aa441a432a9d"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "f29e30c227845fc13fd0d264fb6d52643414e6c9ba894f87398639f987af161ddcbd6956af9b908c85c83cbae7bd4997"
+          "content" : "1b13ec4f7a66212c214427bfc318773634167e6eaf3d6d7218227aab7705f6a87e6fe1c851ca6376f9de4bc211201c39"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "2d9735ec2deaf453f4365b3310cc515da26c9dc19263b43c5981bfd391af415e"
+          "content" : "dff778559469615c6d35c96a0eff5fd2702846115c854a9c0737a4b0a8c005ee"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "db1c4ff7711c1692218fe880986d82a6efeef6f0845bb32d9c113d5329d3264b938231f55b641f4eb8d2e1be837e2040cdb19d955f9d2e73509768469d78f5cf"
+          "content" : "e44401f19cd712e487f0d19b5ca6cab48cee192669fe69fa3b7337e7afd9c6190c13234bbdc226f0ae376dd611fb464ef2b697f611f9e03db64b02dfd9acb73b"
         }
       ],
       "licenses" : [
@@ -465,7 +465,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.18.3?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -473,7 +473,7 @@
         },
         {
           "type" : "distribution-intake",
-          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+          "url" : "https://central.sonatype.com/api/v1/publisher"
         },
         {
           "type" : "issue-tracker",
@@ -487,45 +487,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.18.3?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.jackson.core",
       "name" : "jackson-databind",
-      "version" : "2.18.3",
+      "version" : "2.22.0",
       "description" : "General data-binding functionality for Jackson: works on core streaming API",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "0cedbc3d377d089e73bb949653b1c76a"
+          "content" : "b3f464be073a99e61bef476e03f001c3"
         },
         {
           "alg" : "SHA-1",
-          "content" : "537e3886263e3b3464385040453e92567fd509e2"
+          "content" : "7aa54fc3755a9285eec2e73053bde1b9b845a9b2"
         },
         {
           "alg" : "SHA-256",
-          "content" : "510bdda75a7a6186c5bf33b851239488a1450906ae5757121f2e1cc48a7e108f"
+          "content" : "3520a0351f294699e3e1b7a37c7a726afd81e1a89ae702ac7d47ff347fd2ecbf"
         },
         {
           "alg" : "SHA-512",
-          "content" : "2a52179837b9369bae4bf1f87c249401efb0525497a86d34aa1f02a797a47880b3ea618eb84659c6c885b02e825b2bf3de1e4703ae052bbf9decc6b7051d687a"
+          "content" : "fb1dfb9a878f1e14ff250374bd94dfe5cbe921ce3390897f3917abdd21ba9dc0df0397139a77ebdf3e86bdf9cd76ac19808aaf56bc782556b271803c9377bd18"
         },
         {
           "alg" : "SHA-384",
-          "content" : "8ea53a8c5149394c12670d18c67bc2ec8047d9c83e9b74c1b14bc597c84d8d7287c16c6ff237f3308d8f466bdce7f985"
+          "content" : "e2565619db943b43edca40225bb5aeda52410edc119f566e0e6fc91c0fbcfce3a6e97d657e77be46558dba89f0e9ddc4"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "dec840ab6b8a8fa0fd3dee984495c7d2ed5e3e81693e4bb3522dd3c01486f5dc8155d3362e91c803eb6c60aa98329cad"
+          "content" : "bf8a4f24b9690886f9d5ebd8583beaaa8b84af2c1dee63f2972f9466f3c3cc9b1a1c280cec00f4b2d5e62a0c2be17355"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "d5cbc639d63a2f67db5a0acc5f61c6219aec17da4afcfca1e6ac639e7c3658e5"
+          "content" : "b1e94814a254c350b854860794f060a77b40030859664ba57c2bf55b0ee989c7"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "d7b64d8940963847785b3130db0dc52878bea9d5c3d995b725205b7dc614e3785ee1d85e09e53c1d776243032563c2ff4bc09c90651cc4c1cf8066088cd8b072"
+          "content" : "98c04d0894aa4d9cc2d8731f1d6550e99f16e1d11d3d6c027ccf114ad37ad5134ef5498abeb6d7af933023885407526c0bbaf2c0eae92103522437d23f5de791"
         }
       ],
       "licenses" : [
@@ -535,7 +535,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.18.3?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -543,7 +543,7 @@
         },
         {
           "type" : "distribution-intake",
-          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+          "url" : "https://central.sonatype.com/api/v1/publisher"
         },
         {
           "type" : "issue-tracker",
@@ -557,45 +557,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.0?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.1?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.woodstox",
       "name" : "woodstox-core",
-      "version" : "7.2.0",
+      "version" : "7.2.1",
       "description" : "Woodstox is a high-performance XML processor that implements Stax (JSR-173), SAX2 and Stax2 APIs",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "d32a36b91bfa2ba1f69e9671ce2fba6a"
+          "content" : "fb51be19a13a46002eec7061ff925f01"
         },
         {
           "alg" : "SHA-1",
-          "content" : "ec9c97f566f812e249a7aba6c76815369ac00864"
+          "content" : "68867a734916adfb379bc6881df6e1d8b575edb9"
         },
         {
           "alg" : "SHA-256",
-          "content" : "689f5be95f9bb369d6c0e8db99a99f930b0c48d6a69b46151782b5816c7ea820"
+          "content" : "95d5a916ab82aca0a8c4ca8a2cf7e4fd7eab18817c24f1fdc7738e15d2a58845"
         },
         {
           "alg" : "SHA-512",
-          "content" : "f3baa0b19322e22ef0b5bb6739c1497167938901450e141b2e8769f0acf7ec2e5498349db007f6958de7eee00b2a9b36b0a1c09fa7877f074cb8b5ad2485559d"
+          "content" : "347261a66146846eca9b4dd9251403a9b6671eb027537ab4784442d786b1f1e68a813c611c5e0f51be1424c98656b4f34f50b0c81a861106d089dda938d9fff8"
         },
         {
           "alg" : "SHA-384",
-          "content" : "d3f9eee2aa2ff88fa3efd0d52d4a0fa8cf79707d36f5a9dacc2852df80584300a32e5d54b77af3a7bf29e35b84413e18"
+          "content" : "cf53cf017f70b9e8210bdfc476283cc8c8e877e69caef7ef995573c61704bd29bd239850879b01ccf85a04e09e32952e"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "f4862abab750ed951776c465833ecf3fc8747dd2bf4f6a3108b5d4ff1e6261a24cd4708e889154848d7bad55099c6c42"
+          "content" : "332333f351bfb098b550546e593b9de1863d6c8da6bb6cb91651a9ef05e14db91a063248dd0918c8921acca3a522f3aa"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "5f57a8d1f1a9cd8920c94436f53bcbca6164a221e793e5ef5db2b8861f9b113b"
+          "content" : "9960ce63d8488dabf88ac193d6b72c77345f48d8dcbdf1a27add4bce6225376f"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "960c8d80a53fdbb0423432d018723f805fcdd674a49d2aef7a58f181bcc53d7a7adf2668ab51300e8789d9ffd4e98267cbceb34fcf03195a779b2faacbe461a8"
+          "content" : "bf65e6c02097ecfd9311ecaef6be932e0b67d062c46abeec05e520a7f02c2e8e3e7c20a157d5dd64d027dc1e4499526fefdaca6f1c2b947ba086a86c52dbd458"
         }
       ],
       "licenses" : [
@@ -605,7 +605,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.0?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -1281,44 +1281,44 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/info.picocli/picocli@4.7.6?type=jar",
+      "bom-ref" : "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
       "group" : "info.picocli",
       "name" : "picocli",
-      "version" : "4.7.6",
+      "version" : "4.7.7",
       "description" : "Java command line parser with both an annotations API and a programmatic API. Usage help with ANSI styles and colors. Autocomplete. Nested subcommands. Easily included as source to avoid adding a dependency.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "9a7b7c667004d652bcc5a8f7df2118b7"
+          "content" : "149402d1c0939a9afbf9ed7d6a2ae180"
         },
         {
           "alg" : "SHA-1",
-          "content" : "77c2cb87814b6a03d431fc856024a9f8ff605ad4"
+          "content" : "82bcae3dc45ddeb08b4954e2f596772a42219715"
         },
         {
           "alg" : "SHA-256",
-          "content" : "ed441183f309b93f104ca9e071e314a4062a893184e18a3c7ad72ec9cba12ba0"
+          "content" : "f86e30fffd10d2b13b8caa8d4b237a7ee61f2ffccf5b1941de718b765d235bf8"
         },
         {
           "alg" : "SHA-512",
-          "content" : "5df28c4ca965533f70ad2fbc115899773da05a3d02693b70984310ad997c846b8cb0836998fc8695796b1bb6c341a6b389ca89809744eed05ab35f4a4aa91c00"
+          "content" : "125a8d5cf9dac7f2d67ac82e281d47aab4f15643b4dd5e09199dd5048e385fa74f7f287ebd1162c9f23c488e0d616f1e46591015fe5319c6ad796cc4beddfff6"
         },
         {
           "alg" : "SHA-384",
-          "content" : "0876567a9878aba26b9b168d01a474062ca675e1857199c000c96a0d138e8fa9a8ac557bab3c8c1fd95f42d9a0fa793e"
+          "content" : "91d445fc22d81964883a8b520771ea62bb6ba0fd4093a5b22ac00b9d025a302e16a2cb52c50bb33b9f29d380990a8a30"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "435c64fc9fbc607131cc96ed4e34a9f8834693ce9f2905d139ab78328aaaf8cca558dd382bce747d6e7c74fcd8f13bb9"
+          "content" : "056eac83d293fa1fea73d5fa79da9216fc2af9c396971f700df3964985660e79ce362211a3de7f38e781ecbe77ef491b"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "452c491f6c88a2cd1dc3491718b63f631cd5967edba5532902ae058cbf11af44"
+          "content" : "916249db6baafc31296ce795a9eae35f7ecd253d15e20e5c37e26fc6c206fd0a"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "702326c88e7009d0d1108e7b99bd5e37fcd51806a449d0f5785d21601abea7795d5cc2498731549e8fe9c479165ffb187552f30480c52b5e7bf84e13a8ae26a2"
+          "content" : "38586c496881613573c77b3edf24afc3325726698641cfd7236b197997b8264e8fbfa732731c8ca737b64e03be8ef7d0da9d93ffe300ffa82be0bf4dbe957419"
         }
       ],
       "licenses" : [
@@ -1328,7 +1328,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/info.picocli/picocli@4.7.6?type=jar",
+      "purl" : "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2028,45 +2028,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.25.1?type=jar",
+      "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.logging.log4j",
       "name" : "log4j-api",
-      "version" : "2.25.1",
+      "version" : "2.26.1",
       "description" : "The logging API of the Log4j project. Library and application code can log through this API. It contains a simple built-in implementation (`SimpleLogger`) for trivial use cases. Production applications are recommended to use Log4j API in combination with a fully-fledged implementation, such as Log4j Core.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "efcc09f4d0eca5b7aa983f38caa08a8d"
+          "content" : "8ed35fc9ea449bc9e21a8139842d6233"
         },
         {
           "alg" : "SHA-1",
-          "content" : "c7acbbd6f110cd1457c628da46245e355b1ee57a"
+          "content" : "b9864ed8d0c01f65f3b0bf70f1447e5cc1b49c24"
         },
         {
           "alg" : "SHA-256",
-          "content" : "20b9c77c0a9e54d1063a39e551dcaf98c7d8e7a4994648f84d0b9e14c71f7215"
+          "content" : "f1810a4704ccce019d02bba029dc02a4f2ac0c997f647b465e7d409c1927f822"
         },
         {
           "alg" : "SHA-512",
-          "content" : "0422500e4522ad2752f363758ff0abea55b73195cf38784328b9ed17f4b3356546923d6b7c67de4a6bbb8d54e42063e6df2f4548eb6136da99a0452437b20aae"
+          "content" : "f29f7697ee8d8d824e5dad33abbd9d1bdea49e69c39484362a40779e8d120800ef37b3702c49589ad1fc5639b704faef2bfb592001b413e8a09e6d5947ebae1e"
         },
         {
           "alg" : "SHA-384",
-          "content" : "6ef565b0557127fa87aafaea4534c2a8fbb133f8e3533997331350184e4a8831924005727fcd30cbfdc74b07ae17e93b"
+          "content" : "e65dd682ddaeae3cb3e65facf16f1d5f926c385581a790ba6d2745905b37ec38b40d745a5c23839d9e4e74151aae0449"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "461685e33a6a19d084bcf8fd5f8f8975429518473bc105bf4115ef2a728d5b8042654c3fa6bc217267be385e8c44b96a"
+          "content" : "249f1a7205acb20510cab5bb97cf0382abc83de4a2abd25413b3e4aba1d6cb6d580d345d0cf0cbe80dd266dbbc3427dc"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "c00b35a0112be5c33a759d39862e5f76aa992bffb5b7033a3be169d4b4ec7550"
+          "content" : "468f082a33cff79ffaecb38807290ccc9aad739de84ad79e9388ef1f347792ce"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "95a8eaef0c3b57c0ce194a84c9954eaac5ce9296c3a4c57d3b13aadddfaa36d1e0529b72efb6a8c69f9c76c7395172d2ce5ae9a7f4b902b47982d3371ea826db"
+          "content" : "22db69387df0897a9ef66bb8549550f00e4682f0a57e7f12eb9cc234a0b36796a15776317518893ca4bf8b1e11d63edf16e3b902c932d46f5b5b085e35c3db65"
         }
       ],
       "licenses" : [
@@ -2077,7 +2077,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.25.1?type=jar",
+      "purl" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2103,45 +2103,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-core@2.25.1?type=jar",
+      "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.logging.log4j",
       "name" : "log4j-core",
-      "version" : "2.25.1",
+      "version" : "2.26.1",
       "description" : "A versatile, industrial-grade, and reference implementation of the Log4j API. It bundles a rich set of components to assist various use cases: Appenders targeting files, network sockets, databases, SMTP servers; Layouts that can render CSV, HTML, JSON, Syslog, etc. formatted outputs; Filters that can be configured using log event rates, regular expressions, scripts, time, etc. It contains several extension points to introduce custom components, if needed.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "ec95ac453934a56229ace160e28aa791"
+          "content" : "915f6e01608f3d5d61b8725ce226b30a"
         },
         {
           "alg" : "SHA-1",
-          "content" : "32b3a228d5a30a4528b6c7354fe6cff9524d89e7"
+          "content" : "1941359537713285d224714f63ca4e5cf004d575"
         },
         {
           "alg" : "SHA-256",
-          "content" : "78c232747855464b182f0abf78a99a22c88d4d270ff585343dab55576d7420e2"
+          "content" : "2ec8c3bf5a6d7c89be8620116a2fc973f7dda1ad0261ad393c4d4726edfd3dcb"
         },
         {
           "alg" : "SHA-512",
-          "content" : "f980579477a00759882e43ec60842a3f79264d16cb4823de271444a2919e2e8733fedb46cebb30e809824ba131ddc10bef32106cc1afa3057659a29a24937479"
+          "content" : "647cfe7777781c3db1ff63c9c3a6dd8ae16098d34a47afd39f6232b3bef32525a3a9db5f36d545734be7cf1741ffc0d57ab9be168903d28415d3cec90b6fabb1"
         },
         {
           "alg" : "SHA-384",
-          "content" : "315e67f907336d270474f093848798eef8d4c4f54774f90c6a8d065e7adb2f3e3ed35dacb5f1d83c72a558dee9085370"
+          "content" : "b0903a3c8fd97e71e178ff31a5e4ae4b8ef5b9642ba129522b44121a207d350e1005976fc4bde2907a9ca41ccce8998e"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "460c886d36b4531e1ff85b5e9f4d213afd49eddd1e1d7fdd4382b8b773835aa93a8bc0068e68192dcbe9327fb29fc10b"
+          "content" : "cbcdb785e018de4bcf635317808876344819b8231060a04f94de0a441e9e397b3311da8edec1b3d3090c833e835349cb"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "e96193dbf004e7c140952ddc58dcbbafd038b9994dce87203b5f4ea4df9012ec"
+          "content" : "11780e622bd207ac6752fd3d07bafc5a1e2e43aba3703d31a7eed72d138e6cea"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "32c56681fdfceaf68209432abbf1cefb434809855c66f9fb2a980238585c62122d270a360b2c4b3850ff6080fe810445809d5b7c164c81667fdeb495b5f36392"
+          "content" : "a70f7c99bbb4dcf308efe0e49154e7f0de572ae9c9910b7479498f790c1c873e674e2af883ecc59586c7ff0515cb49cc4de488ad818cc339c1282f54315aafce"
         }
       ],
       "licenses" : [
@@ -2152,7 +2152,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.apache.logging.log4j/log4j-core@2.25.1?type=jar",
+      "purl" : "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2178,45 +2178,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.25.1?type=jar",
+      "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.logging.log4j",
       "name" : "log4j-slf4j2-impl",
-      "version" : "2.25.1",
+      "version" : "2.26.1",
       "description" : "SLF4J 2 provider (binding) for the Apache Log4j API. It forwards SLF4J 2 calls to the Log4j API. This effectively allows using Log4j as an implementation of SLF4J 2. (Refer to the `log4j-to-slf4j` artifact for forwarding the Log4j API to SLF4J.)",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "5fb0cc7936e1667df14ed96146945f05"
+          "content" : "f782ed0408e8a1fb2d760e81e763efe4"
         },
         {
           "alg" : "SHA-1",
-          "content" : "a5ed4c3e2effa2575a4dde13f9101bfe23ccfb1a"
+          "content" : "12d67a8f362bda35a1b1a5f0b5cd595c16b2d488"
         },
         {
           "alg" : "SHA-256",
-          "content" : "7db3c92b2d7245fa56b2e015732a7fcae0039e6b8a207969fd9472d1e83e9ddb"
+          "content" : "cbdfb4c2bcc10f0927c61036db54924250f3924ecd13ea913cefe4f99c08fa66"
         },
         {
           "alg" : "SHA-512",
-          "content" : "59d85156f68b142b6c9edd41b5909d8d9a004769b284ed7b7774e2914524e0a5f844d863e3e69e17adabef8617e22c4cb7602b5435e2d495c4d2022ffa772e69"
+          "content" : "d38b71818925f10f8066e89ae7c65b7660f55ef0ca34a064ae8ba96f8f1ce146d868605463af36478c16b94270278b32853dd7e19a502d6b9cf2525bdddd894c"
         },
         {
           "alg" : "SHA-384",
-          "content" : "c169d9839d0044d468ed06c61c0a5bb1dc0ffc5c05129950e90b9214b05e65f3d0fbc2f3ababdbff338e853b6892718d"
+          "content" : "888064d1567cd205e790f809a3801fb8fe606871d0d7f2a9ec0a4bad62a35fd73955b72f8df241a0913f8eff87be973c"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "31b5b30ded97c02f99715f5d7700bb2f42f9d640e79fef01da3e4562acd65cbf67a6c08efe7def61103de75afb47c1fa"
+          "content" : "d731424eb4b8ba4064f6c29c954b94cde9f59999a95a3e62c20a91c88d65928042dfed02301d8bdb991add2b298ed184"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "1c92991b3e705b5aa9978fb544a374100932476eb7fff46531c9cd049c88b49f"
+          "content" : "8e20c9f2ecd128521d00cf6803f41bd8e3cbf36d4960f965b97cd947a6e1cfad"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "9b0d494189034d2561b6e909f7246ccae6faa35d4041e04168983f2b05c3f8ded84b7edffa08d2dadadbbc2b5e2f3c9f84c7ae4addbe16bf108304111e2af02c"
+          "content" : "37e26f8e24ed2765096fea7d6f640ec47f77598be752e896c4ee588ea415f9167780f7558ab542e7195e352cb74d03294023afbcd1566a57d72055832cb85374"
         }
       ],
       "licenses" : [
@@ -2227,7 +2227,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.25.1?type=jar",
+      "purl" : "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2384,44 +2384,44 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.23.1?type=jar",
+      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar",
       "group" : "org.eclipse.lsp4j",
       "name" : "org.eclipse.lsp4j.jsonrpc",
-      "version" : "0.23.1",
+      "version" : "0.24.0",
       "description" : "Generic JSON-RPC implementation",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "cad453d0fc40736acba35a480d531dab"
+          "content" : "9bdf74b2a43f29fc4146c8cd2e879764"
         },
         {
           "alg" : "SHA-1",
-          "content" : "20f146513350b3681c347c6026ca30111d00502b"
+          "content" : "27512deb3601e0cbf71d61d1a5611fb99687ab8e"
         },
         {
           "alg" : "SHA-256",
-          "content" : "4e1aa77474de1791d96dc55932fb46efdf53233548f38f62ba7376f8b0bc6650"
+          "content" : "7721572e849d4f359b46ede55d5604b982ff498d0d92ebc70e18029f59823c08"
         },
         {
           "alg" : "SHA-512",
-          "content" : "8cecf62269e9c8520bfab6e32c70501d04dcc588fb878cabb2e74394d21681675684162b7fb71f7f3cdf11f5f20848c4588ab5a5f1663998649c8824e4d167bd"
+          "content" : "9212e7a24018e02ed0b196b56826482073a0ac89b0ced5c69decc9c55bb00649acc74c2d9df4fac3450a6ebb5296914cd463605450c337674b548f2865230770"
         },
         {
           "alg" : "SHA-384",
-          "content" : "13561e1e28ffa38d300badea4d81ac7e95e10dbbe29974ce5f86a6fb702fff78308d796b2ca06db2b9924b25e53d7129"
+          "content" : "ebef605f766e2188c8ba346d927858149856a786b383b0e5b3d7df53b4aaaaa75d000f3a77eef10dd0b72c6587b6ac25"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "2ebb3fbbc4f0151424949fb6cfebcbf9a549a6720b04f155f2a84a7007757fa6a5247a2d6f3cbb98b1215dc1510f98ec"
+          "content" : "a00e72ec47202558ddf64e468758f1ffa098a2d8d9cd823ffb8381ffeb99442b6bf26c958641b2296019d7c353c9bfca"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "2062d0e1b210a628f08826fff62c64951192b4a91b75eb3768801571d24442ac"
+          "content" : "f661a191d016a2bcea1ae03d286f5220883e60e971e7c5658c3be7c821295204"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "e834385cbcd040e418610889be10a51085ba71d5614b08600f5f60a07bf50a07397eaccb30a835e949c880fc31594f31d3fff5e8f2264bcc85275656add23697"
+          "content" : "6daf97360e9ed0d7dbe430c44c0ffb4b1242b377ce82c0275a919974d4de522b46d98db86cd1474017d3eaaf0750e21652563bfa64dc56f6bc41391a3e7d8d8c"
         }
       ],
       "licenses" : [
@@ -2431,7 +2431,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.23.1?type=jar",
+      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2441,44 +2441,44 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.23.1?type=jar",
+      "bom-ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
       "group" : "org.eclipse.lsp4j",
       "name" : "org.eclipse.lsp4j",
-      "version" : "0.23.1",
+      "version" : "0.24.0",
       "description" : "Java bindings for the Language Server Protocol",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "9f58aad74c6712fe9678b1091ac7be45"
+          "content" : "07268ad960d21e4a0c78da3cc9735c03"
         },
         {
           "alg" : "SHA-1",
-          "content" : "d31602b86d6226f7351b0ea72f24ed75fb1b0410"
+          "content" : "06a0653487ea58604fc0a4fe3cdad8324b4ee3f6"
         },
         {
           "alg" : "SHA-256",
-          "content" : "b16bbc6232a3946e03d537bb9be74e18489dbc6a8b8c5ab6cb7980854df8440f"
+          "content" : "2caea31ffa2abd13c6f5d13489be071ad08f108eae83a34473ac72d96cf72922"
         },
         {
           "alg" : "SHA-512",
-          "content" : "66747436708acc4b5b52251ac03c02897500d163011afef798dfcc0533207cd943f3236cbd906869e49109e7805422b9e8b07b6bc39b770dad94daad9f8f5adb"
+          "content" : "1d881528a8a9802f3f1e24ca4381f11ee954c904811eab70361510d0e186a6450284163917529fdf2c47a50459510d46eef5f2dbc512bcc4e15a58b3254d6e9c"
         },
         {
           "alg" : "SHA-384",
-          "content" : "9d1132972ced433627fe7ff2f9ef32b8e264cf403d316c8277333f1016e0d4748a8323b43fb54ba4ed7af6caf000271d"
+          "content" : "88162d40451f418e4ad5bc15af7d8d21f40e1dd3fa5b514c3361a0472c5d085e0c0956d4b9464d42e02519d2fab6f304"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "179090740c0125403343dc5678177add5fe28e042c0c4cbd587633d0cc96afc2d6d29f8d62df11b8ebd865dce060afb7"
+          "content" : "6384c010792c35327e13b0f3dee0eaad1e7a864fd51f045884e6474d01f0d3b36645a1887715102d659a344dc2a08af4"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "84773aa17dadfd2c56a9cd7bc5af05dda99e0c43c6d4ea04f75dea381279a727"
+          "content" : "ec81237b61812fdac71d9ca04ad2043cd1ee6816e1bf2ba61e7d3d39c59eeeb9"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "28657ab0c9d25c305ce445b4dcd5e40fbd8fc83dfa8a4f12d474f20c569c44db14f47439576791ccc629a5df42153b0e5ff8546393e2e55a02b5fc69c38511fb"
+          "content" : "0bb6d466cfbb4369b399d114726c01f9d75121604143444320520ff0ced258e5bd7501d56b09b485277d5b122a925ff8c749c3bca7b18216203eb1ae50d5c79d"
         }
       ],
       "licenses" : [
@@ -2488,7 +2488,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.23.1?type=jar",
+      "purl" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2839,73 +2839,6 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar",
-      "publisher" : "QOS.ch",
-      "group" : "org.slf4j",
-      "name" : "slf4j-api",
-      "version" : "2.0.17",
-      "description" : "The slf4j API",
-      "scope" : "required",
-      "hashes" : [
-        {
-          "alg" : "MD5",
-          "content" : "b6480d114a23683498ac3f746f959d2f"
-        },
-        {
-          "alg" : "SHA-1",
-          "content" : "d9e58ac9c7779ba3bf8142aff6c830617a7fe60f"
-        },
-        {
-          "alg" : "SHA-256",
-          "content" : "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"
-        },
-        {
-          "alg" : "SHA-512",
-          "content" : "9a3e79db6666a6096a3021bb2e1d918f30f589d8de51d6b600f8ebd92515a510ae2d8f87919cc2dfa8365d64f10194cac8dfa0fb950160eef0e9da06f6caaeb9"
-        },
-        {
-          "alg" : "SHA-384",
-          "content" : "6ea24f814a9b6ece428cfd0535e2f3b8927005745ef61006b50fdb5a90126ee5ea05650155382b3b755c5bce38ef3944"
-        },
-        {
-          "alg" : "SHA3-384",
-          "content" : "9b1015052f0ec43f9be09764e131834157599611cb52f6fe591c4ac6a8ab4817518f2a4b8871e5e738c8678e93af5557"
-        },
-        {
-          "alg" : "SHA3-256",
-          "content" : "00559b4f4066b4917ba4fe2a6f23111eaeada321112d030910d218ced9084b5e"
-        },
-        {
-          "alg" : "SHA3-512",
-          "content" : "9579c2f7e7516e177c2d493ccc9eb8150978cf19f6f09b28d116f6935239fd56dc6af2b62b3336f79b0b462445550cd1fb5377a07001a6f44aaab6a32fa2fa47"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "MIT",
-            "url" : "https://opensource.org/license/mit/"
-          }
-        }
-      ],
-      "purl" : "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar",
-      "externalReferences" : [
-        {
-          "type" : "website",
-          "url" : "http://www.slf4j.org"
-        },
-        {
-          "type" : "distribution-intake",
-          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-        },
-        {
-          "type" : "vcs",
-          "url" : "https://github.com/qos-ch/slf4j/slf4j-parent/slf4j-api"
-        }
-      ]
-    },
-    {
-      "type" : "library",
       "bom-ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar",
       "publisher" : "QOS.ch",
       "group" : "org.slf4j",
@@ -2996,22 +2929,22 @@
       ]
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.18.3?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22?type=jar",
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.18.3?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar",
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.18.3?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.18.3?type=jar",
-        "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.18.3?type=jar"
+        "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar"
       ]
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.0?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.1?type=jar",
       "dependsOn" : [
         "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar"
       ]
@@ -3057,32 +2990,32 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-cli@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.18.3?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
-        "pkg:maven/info.picocli/picocli@4.7.6?type=jar",
-        "pkg:maven/org.apache.logging.log4j/log4j-core@2.25.1?type=jar",
-        "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.25.1?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar"
+        "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
+        "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
+        "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.18.3?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.1.0?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-lsp@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.18.3?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
-        "pkg:maven/org.apache.logging.log4j/log4j-core@2.25.1?type=jar",
-        "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.25.1?type=jar",
-        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.23.1?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar"
+        "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
+        "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
+        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
     {
@@ -3092,7 +3025,7 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.0?type=jar",
+        "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.1?type=jar",
         "pkg:maven/com.fasterxml/aalto-xml@1.4.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
         "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
@@ -3106,7 +3039,7 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/info.picocli/picocli@4.7.6?type=jar",
+      "ref" : "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
       "dependsOn" : []
     },
     {
@@ -3177,21 +3110,21 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.25.1?type=jar",
+      "ref" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.apache.logging.log4j/log4j-core@2.25.1?type=jar",
+      "ref" : "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.apache.logging.log4j/log4j-api@2.25.1?type=jar"
+        "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar"
       ]
     },
     {
-      "ref" : "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.25.1?type=jar",
+      "ref" : "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.apache.logging.log4j/log4j-api@2.25.1?type=jar",
-        "pkg:maven/org.apache.logging.log4j/log4j-core@2.25.1?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar"
+        "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",
+        "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
     {
@@ -3203,15 +3136,15 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.23.1?type=jar",
+      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar",
       "dependsOn" : [
         "pkg:maven/com.google.code.gson/gson@2.13.2?type=jar"
       ]
     },
     {
-      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.23.1?type=jar",
+      "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@0.24.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.23.1?type=jar"
+        "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@0.24.0?type=jar"
       ]
     },
     {
@@ -3229,7 +3162,7 @@
     {
       "ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.17?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
     {
@@ -3237,10 +3170,6 @@
       "dependsOn" : [
         "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
-    },
-    {
-      "ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.17?type=jar",
-      "dependsOn" : []
     },
     {
       "ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar",
