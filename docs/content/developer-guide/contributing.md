@@ -46,7 +46,15 @@ cd cimnotebook/vscode && npm run lint && npm run format:check && npm run compile
 
 # IntelliJ change
 cd cimnotebook/intellij && ./gradlew spotlessCheck buildPlugin
+
+# New source file, any language
+scripts/license-headers.sh check   # every first-party file needs the SOPTIM Apache-2.0 header
 ```
+
+New files need the standard SOPTIM Apache-2.0 header (CI checks for it, and fails the build if it's
+missing or wrong for CIMVocabCheck/IntelliJ/VS Code — CIMXML is advisory-only for now). See
+[Code style → License headers](/developer-guide/code-style#license-headers) for the details and the
+auto-fix command.
 
 :::warning Regenerate SBOMs when dependencies change
 If you add, remove, or bump any dependency, re-run `scripts/generate-sbom.sh` (the relevant subset) and commit the updated SBOM/attribution files in the same change. CI fails on SBOM drift. See [CI & releases → Supply chain](/developer-guide/ci-and-releases#supply-chain-sbom--licenses).

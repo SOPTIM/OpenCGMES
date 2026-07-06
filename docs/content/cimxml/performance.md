@@ -6,30 +6,21 @@ sidebar_position: 9
 # Performance
 
 CIMXML is built for large power-system models. It streams parsing rather than buffering whole
-documents, uses memory-efficient indexed graphs, and applies difference models as deltas instead of
-materializing copies. This page covers the choices that matter when you process big files.
+documents and applies difference models as deltas instead of materializing copies. This page covers
+the choices that matter when you process big files.
 
 ## Memory optimization
 
-The library uses specialized Jena graph implementations tuned for CIM data:
-
-| Mechanism                          | What it does                                                        |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `GraphMem2Roaring`                 | Roaring-bitmap-based indexing for compact, fast in-memory graphs   |
-| `IndexingStrategy.LAZY_PARALLEL`   | Defers index construction and builds indexes in parallel after parsing |
-| `FastDeltaGraph`                   | Applies difference models as a delta over the base, without materialization |
-
-Parsed graphs are created with `GraphMem2Roaring` using `LAZY_PARALLEL` indexing, so triples are
-ingested quickly during parsing and the per-graph indexes are initialized in parallel afterwards —
-only for the graphs that need them. The small header/structure graphs use lighter indexing, which
-avoids paying for indexes you will not query.
+Parsed graphs use plain Apache Jena `GraphFactory.createGraphMem()` graphs. The one specialized
+mechanism the module adds on top is `FastDeltaGraph`, which applies difference models as a delta
+over the base graph without materializing a merged copy.
 
 ## Difference application without copies
 
 Applying a difference model with `differenceModelToFullModel(...)` returns a `FastDeltaGraph` layered
-over the predecessor body. Additions and removals are held in their own `GraphMem2Roaring` delta
-graphs rather than rewriting the base, so applying a difference to a large model stays cheap in both
-time and memory. See [Difference models](/cimxml/difference-models).
+over the predecessor body. Additions and removals are held in their own `GraphFactory.createGraphMem()`
+delta graphs rather than rewriting the base, so applying a difference to a large model stays cheap in
+both time and memory. See [Difference models](/cimxml/difference-models).
 
 ## Large file handling
 

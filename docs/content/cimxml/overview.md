@@ -15,8 +15,10 @@ difference models, with profile-driven datatype resolution and automatic UUID no
 
 - **CIMXML parser** — a specialized StAX-based parser optimized for CIMXML documents, built on
   Apache Jena's RDF/XML parsing machinery.
-- **CIM version support** — handles CIM versions 16, 17, and 18, detected automatically from the
-  document's namespace declarations.
+- **CIM version support** — handles CIM versions 16, 17, and 18 out of the box, detected
+  automatically from the document's namespace declarations, and any other CIM namespace via the
+  `CimNamespaceFactoryRegistry`, which lets you map additional namespace URIs to custom `CimProfile`
+  implementations.
 - **Profile management** — a registry system for CIM profile ontologies (RDFS schemas) with
   datatype resolution, so property values are typed from the profiles you register.
 - **Model types** — full support for both `FullModel` and `DifferenceModel` as defined by
@@ -27,7 +29,7 @@ difference models, with profile-driven datatype resolution and automatic UUID no
   and dashes) into canonical `urn:uuid:` IRIs.
 - **Datatype resolution** — automatic resolution of CIM datatypes from registered profiles, plus
   registration of custom primitive types.
-- **Apache Jena integration** — full compatibility with Apache Jena 5.5.0, so parsed models are
+- **Apache Jena integration** — full compatibility with Apache Jena 6.1.0, so parsed models are
   ordinary Jena `DatasetGraph`/`Graph` objects ready for SPARQL queries and RDF operations.
 
 The result of parsing is a [`CimDatasetGraph`](/cimxml/architecture) — an extended Jena

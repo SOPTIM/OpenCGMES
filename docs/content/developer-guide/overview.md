@@ -65,10 +65,10 @@ The VS Code extension (npm) and IntelliJ plugin (Gradle) are **not** Maven modul
 | `cimnotebook/vscode/` | VS Code extension (TypeScript / npm) |
 | `cimnotebook/intellij/` | IntelliJ plugin (Kotlin / Gradle) |
 | `cimnotebook/sbom/` | Committed VS Code + IntelliJ SBOMs + attribution |
-| `scripts/` | Versioning (`compute-version.sh`, `set-versions.sh`) and supply-chain (`generate-sbom.sh`, `check-sbom-licenses.py`) scripts |
-| `.github/workflows/` | Six CI/release workflows — one `-ci` and one `-release` per product |
+| `scripts/` | Versioning (`compute-version.sh`, `set-versions.sh`), supply-chain (`generate-sbom.sh`, `check-sbom-licenses.py`), and license-header (`license-headers.sh`) scripts |
+| `.github/workflows/` | Eight workflows: one `-ci` and one `-release` per product, plus the reusable `docker-publish.yml` and the docs site's `deploy-docs.yml` — see [CI & releases](/developer-guide/ci-and-releases) |
 | `docs/` | This Docusaurus documentation site |
-| `QueryAndValidationUI/` | Placeholder for the upcoming web application (not yet built) |
+| `QueryAndValidationUI/` | The upcoming web application — in development, not yet public; see its `README.md` for a description and current screenshots |
 | `LICENSE` / `CONTRIBUTING.md` | Apache 2.0 license; contribution guide |
 
 ## Where to go next

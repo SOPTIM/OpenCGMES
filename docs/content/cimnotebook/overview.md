@@ -68,9 +68,9 @@ Both editors share this feature set:
 - **Workspace symbol search** — find any schema term by partial, case-insensitive name.
 
 :::note Per-editor feature parity
-The VS Code extension is currently ahead of the IntelliJ plugin in a few places (notably
-endpoint-aware hover and go-to-definition, and SPARQL Notebook cell validation). Each editor page
-documents what that editor actually does today.
+Endpoint-aware hover and go-to-definition are handled by CIMLangServer itself, so both editors get
+them equally. The one remaining gap is **SPARQL Notebook cell validation**, which today is VS Code
+only. Each editor page documents what that editor actually does today.
 :::
 
 ## Schema configuration

@@ -23,7 +23,9 @@ page describes the core components, the parse pipeline, and the data model the l
 
 ### 2. Graph structures (`de.soptim.opencgmes.cimxml.graph`)
 
-- **`CimProfile`** — represents a CIM profile ontology (versions 16, 17, 18).
+- **`CimProfile`** — represents a CIM profile ontology. Built-in implementations cover versions 16,
+  17, and 18; the `CimNamespaceFactoryRegistry` lets you map any other CIM namespace URI to a custom
+  `CimProfile` implementation.
 - **`CimModelHeader`** — a wrapper exposing model header information (`getModel`, `getProfiles`,
   `getSupersedes`, `getDependentOn`).
 - **`FastDeltaGraph`** — an efficient delta graph used when applying difference models.

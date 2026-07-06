@@ -7,7 +7,7 @@ sidebar_position: 2
 
 CIMXML is published under the `de.soptim.opencgmes` group as the `cimxml` artifact. Add it to your
 build with Maven or Gradle, ensure you are on **Java 21+**, and you are ready to parse models — the
-library pulls in **Apache Jena 5.5.0** (the `jena-arq` module) transitively.
+library pulls in **Apache Jena 6.1.0** (the `jena-arq` module) transitively.
 
 ## Maven
 
@@ -30,7 +30,7 @@ implementation("de.soptim.opencgmes:cimxml:@cimxmlVersion@")
 | Requirement      | Version             |
 | ---------------- |---------------------|
 | Java             | 21 or newer         |
-| Apache Jena      | 6.0.0               |
+| Apache Jena      | 6.1.0               |
 | Build tool       | Maven 3.9+ / Gradle |
 
 Beyond Jena, the library depends on the Woodstox and Aalto StAX processors, Apache Commons IO, and

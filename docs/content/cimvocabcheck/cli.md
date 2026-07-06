@@ -96,7 +96,14 @@ java -jar cimvocabcheck-cli.jar init
 ```
 
 Writes a commented `opencgmes.json` starter (the same template the editors' **Create Config File**
-command produces). See [Configuration](/cimvocabcheck/configuration).
+command produces) into the current directory. See [Configuration](/cimvocabcheck/configuration).
+
+| Option | Argument | Description |
+| --- | --- | --- |
+| `-d`, `--dir` | `<dir>` | Directory to write `opencgmes.json` into (default: current directory) |
+| `-f`, `--force` | | Overwrite an existing `opencgmes.json` |
+
+Without `--force`, `init` refuses to overwrite an existing file and exits `2`.
 
 ### `explain` — print the static algebra plan
 

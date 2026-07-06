@@ -75,6 +75,32 @@ cd cimnotebook/intellij
 
 The CI `build-intellij-plugin` job runs `gradle spotlessCheck` before `gradle buildPlugin`, mirroring the Maven Spotless gate.
 
+## License headers
+
+Every first-party source file carries a standard SOPTIM Apache-2.0 header (with an
+`SPDX-License-Identifier: Apache-2.0` line), and CI fails the build if a file is missing it or has
+it wrong. Check or fix all of it in one shot:
+
+```bash
+scripts/license-headers.sh check    # fails if any header is missing/wrong (default)
+scripts/license-headers.sh format   # inserts/rewrites headers in place
+```
+
+This script drives the same three gates CI uses:
+
+- **Maven (root + CIMVocabCheck)** — the `mycila` `license-maven-plugin` checks `pom.xml` files, and
+  Spotless (google-java-format) checks/formats the header on `src/**/*.java`. Enforced for
+  `cimvocabcheck/core`, `cimvocabcheck/cli`, and `cimvocabcheck/lsp`. **CIMXML is exempt** — the
+  plugin is wired up with the header but skipped by default (`cimxml.license.skip=true`); CI runs it
+  advisory-only there, so it will not fail your build.
+- **IntelliJ plugin** — Spotless `licenseHeader` for Kotlin, `*.gradle.kts`, `plugin.xml`, and
+  README, riding the existing `./gradlew spotlessCheck`.
+- **VS Code extension** — a local auto-fixable ESLint rule (`soptim/copyright-header`), riding the
+  existing `npm run lint`.
+
+The IDE side is covered too: the shared `.idea/copyright/` profile makes IntelliJ auto-insert the
+same header on new files, so you rarely need to run `format` by hand for Java/Kotlin.
+
 ## Before you push
 
 Run the relevant gate for whatever you touched:
@@ -82,5 +108,6 @@ Run the relevant gate for whatever you touched:
 - **Java change** → `mvn verify` (or `mvn spotless:apply` then `mvn verify`).
 - **VS Code change** → `npm run lint && npm run format:check && npm run compile`.
 - **IntelliJ change** → `./gradlew spotlessCheck buildPlugin`.
+- **New file, any language** → `scripts/license-headers.sh check` (or `format` to fix).
 
 If you changed any dependency, also regenerate the SBOMs — see [CI & releases → Supply chain](/developer-guide/ci-and-releases#supply-chain-sbom--licenses).
