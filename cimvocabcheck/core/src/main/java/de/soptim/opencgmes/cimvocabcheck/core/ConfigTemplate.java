@@ -65,6 +65,11 @@ public final class ConfigTemplate {
           // --- Standard vocabulary check ----------------------------------------------
           // "check" (default) flags typos in rdf/rdfs/owl/sh terms; "ignore" disables it.
           // "standardVocabulary": "check"
+
+          // --- Custom CIM namespaces ----------------------------------------------------
+          // Map non-standard "cim" namespace URIs to the built-in profile shape that matches
+          // their ontology conventions: "cim16" (CGMES 2.4.15), "cim17"/"cim18" (CGMES 3.0+).
+          // "cimNamespaces": { "http://example.org/CIM-Custom#": "cim17" }
         }
       }
       """;

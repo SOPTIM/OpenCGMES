@@ -55,6 +55,15 @@
                     "description": "Controls checking of terms in the closed standard vocabularies (rdf, rdfs, owl, sh).\n\n• check — terms are validated against the official vocabularies, so typos like rdf:typ or sh:minCountt are reported as UNKNOWN_VOCABULARY_TERM errors (default).\n• ignore — terms in these namespaces are accepted without inspection (legacy behaviour).\n\nOpen annotation/datatype namespaces (xsd, dcterms, skos, …) are always accepted regardless of this setting.",
                     "enum": ["check", "ignore"],
                     "default": "check"
+                },
+                "cimNamespaces": {
+                    "type": "object",
+                    "description": "Maps custom CIM namespace URIs to the built-in profile \"shape\" that matches their ontology conventions, so schema files/endpoint graphs using them can be parsed. Use this when a profile declares its terms under a namespace other than the standard http://iec.ch/TC57/CIM100# (or CIM version-specific equivalents).",
+                    "additionalProperties": {
+                        "type": "string",
+                        "description": "Profile shape to use for this namespace.\n\n• cim16 — legacy CGMES 2.4.15 style: cims:isFixed-based version IRIs.\n• cim17 — CGMES 3.0+ style: owl:versionIRI, dcat:keyword.\n• cim18 — like cim17, plus CIM18's DocumentHeader-based metadata.",
+                        "enum": ["cim16", "cim17", "cim18"]
+                    }
                 }
             }
         }
