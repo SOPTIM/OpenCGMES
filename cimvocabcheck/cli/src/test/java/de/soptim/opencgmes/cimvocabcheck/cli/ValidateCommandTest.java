@@ -61,7 +61,7 @@ public class ValidateCommandTest {
 
   @Test
   public void codeQualityReportsRealTurtleLineForEmbeddedSyntaxError() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     Path shapes = write("shapes.ttl", SHAPES_BROKEN_EMBEDDED);
 
     String out = run("--config", config.toString(), "--format", "codequality", shapes.toString());
@@ -81,7 +81,7 @@ public class ValidateCommandTest {
   @Test
   public void standardVocabularyIgnoreSuppressesVocabTypoInSyntaxOnly() throws Exception {
     Path config =
-        write("opencgmes.json", "{\"cimvocabcheck\": {\"standardVocabulary\": \"ignore\"}}");
+        write("opencgmes.jsonc", "{\"cimvocabcheck\": {\"standardVocabulary\": \"ignore\"}}");
     Path shapes = write("shapes.ttl", SHAPES_VOCAB_TYPO);
 
     String out = run("--config", config.toString(), "--format", "json", shapes.toString());
@@ -92,7 +92,7 @@ public class ValidateCommandTest {
 
   @Test
   public void standardVocabularyDefaultReportsVocabTypoInSyntaxOnly() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     Path shapes = write("shapes.ttl", SHAPES_VOCAB_TYPO);
 
     String out = run("--config", config.toString(), "--format", "json", shapes.toString());
@@ -105,14 +105,14 @@ public class ValidateCommandTest {
 
   @Test
   public void sparqlSyntaxOnly_validQuery_exitsZero() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     Path query = write("q.rq", "SELECT * WHERE { ?s ?p ?o }");
     assertEquals(0, exitOf("--config", config.toString(), query.toString()));
   }
 
   @Test
   public void sparqlSyntaxOnly_brokenQuery_reportsSyntaxError() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     Path query = write("q.rq", "SELEEECT * WHERE { ?s ?p ?o }");
     String out = run("--config", config.toString(), "--format", "json", query.toString());
     assertTrue("broken query must report a syntax error: " + out, out.contains("SYNTAX_ERROR"));
@@ -121,7 +121,7 @@ public class ValidateCommandTest {
 
   @Test
   public void validTurtle_exitsZero() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     Path shapes =
         write(
             "ok.ttl",
@@ -133,7 +133,7 @@ public class ValidateCommandTest {
 
   @Test
   public void textFormat_reportsFinding() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     Path shapes = write("shapes.ttl", SHAPES_BROKEN_EMBEDDED);
     // Default (text) format, verbose to include all findings.
     String out = run("--config", config.toString(), "--verbose", shapes.toString());
@@ -142,7 +142,7 @@ public class ValidateCommandTest {
 
   @Test
   public void unreadableInput_returnsUsageError() throws Exception {
-    Path config = write("opencgmes.json", "{\"cimvocabcheck\": {}}");
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
     int exit = exitOf("--config", config.toString(), tmp.getRoot() + "/does-not-exist.ttl");
     assertEquals(2, exit);
   }

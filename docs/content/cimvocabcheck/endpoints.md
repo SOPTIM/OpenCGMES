@@ -113,7 +113,7 @@ and `es.unresolvedReason()`:
   `rdfs:Class`/`owl:Ontology` graph.
 - **Schema graphs found, but none resolved to a CIM profile** (`schemaGraphNames()` non-empty,
   `unresolvedReason()` set) — almost always an unrecognized `cim` namespace. Register it with
-  [`cimNamespaces`](/cimvocabcheck/configuration#cimnamespaces) in `opencgmes.json` and reload.
+  [`cimNamespaces`](/cimvocabcheck/configuration#cimnamespaces) in `opencgmes.jsonc` and reload.
 
 The CLI and language server print distinct warnings for each case rather than a single generic
 "no schema" message.

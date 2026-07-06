@@ -21,7 +21,7 @@ mvn -q install -DskipTests
 :::note
 The submodule supplies the CGMES profiles used by the examples and the integration tests. It is
 **not** needed at runtime for your own schemas — you point CIMVocabCheck at your profiles via
-[`opencgmes.json`](/cimvocabcheck/configuration).
+[`opencgmes.jsonc`](/cimvocabcheck/configuration).
 :::
 
 ## SPARQL example

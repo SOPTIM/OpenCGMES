@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Handles workspace-level events.
  *
- * <p>Both configuration changes and watched-file changes (the {@code opencgmes.json} file
+ * <p>Both configuration changes and watched-file changes (the {@code opencgmes.jsonc} file
  * registered during {@code initialized}) trigger a schema reload. Revalidation of all open
  * documents is driven by the {@code onLoaded} callback registered in {@link SparqlLanguageServer}.
  */
@@ -51,7 +51,7 @@ final class SparqlWorkspaceService implements WorkspaceService {
   static final String CMD_EXPLAIN_QUERY = "cimvocabcheck.explainQuery";
 
   /**
-   * Command id for generating the {@code opencgmes.json} scaffold. Returns the file contents as a
+   * Command id for generating the {@code opencgmes.jsonc} scaffold. Returns the file contents as a
    * String; the client decides where to write it.
    */
   static final String CMD_CREATE_CONFIG = "cimvocabcheck.createConfig";
@@ -149,9 +149,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
       return;
     }
     boolean configChanged =
-        params.getChanges().stream().anyMatch(e -> e.getUri().endsWith("opencgmes.json"));
+        params.getChanges().stream().anyMatch(e -> e.getUri().endsWith("opencgmes.jsonc"));
     if (configChanged) {
-      LOG.info("opencgmes.json changed — reloading schema");
+      LOG.info("opencgmes.jsonc changed — reloading schema");
       schemaManager.reloadAsync();
     }
   }

@@ -9,7 +9,7 @@ Short answers to questions that come up repeatedly across the OpenCGMES products
 
 ## Is there a bundled default schema?
 
-No. CIMVocabCheck ships **no** built-in CGMES schema. Without a configured schema (via `opencgmes.json` or a `# [endpoint=...]` directive), validation is **syntax-only** — it confirms the SPARQL or Turtle parses, but cannot check classes, properties, or domain/range. Point it at your RDFS profiles to get full validation. See [Configuration](/cimvocabcheck/configuration).
+No. CIMVocabCheck ships **no** built-in CGMES schema. Without a configured schema (via `opencgmes.jsonc` or a `# [endpoint=...]` directive), validation is **syntax-only** — it confirms the SPARQL or Turtle parses, but cannot check classes, properties, or domain/range. Point it at your RDFS profiles to get full validation. See [Configuration](/cimvocabcheck/configuration).
 
 ## Why static validation instead of running the query?
 

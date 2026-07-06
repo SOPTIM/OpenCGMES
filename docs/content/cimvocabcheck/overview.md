@@ -60,5 +60,5 @@ codes, and [Known limitations](/cimvocabcheck/limitations) for what is intention
 
 - [Getting started](/cimvocabcheck/getting-started) — run the bundled SPARQL & SHACL examples.
 - [Configuration](/cimvocabcheck/configuration) — point CIMVocabCheck at your CGMES profiles via
-  `opencgmes.json`.
+  `opencgmes.jsonc`.
 - [Library & tests](/cimvocabcheck/library-and-tests) — drive it from Java / JUnit.

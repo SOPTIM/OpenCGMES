@@ -29,7 +29,7 @@ import org.apache.jena.graph.Node;
  * The schema a single document is validated against, bundled with the strictness and named-graph
  * scope that should be applied to its annotations.
  *
- * <p>The workspace schema (from {@code opencgmes.json}) and schemas loaded from a SPARQL Notebook
+ * <p>The workspace schema (from {@code opencgmes.jsonc}) and schemas loaded from a SPARQL Notebook
  * {@code # [endpoint=...]} directive are both represented uniformly here so the validation path
  * does not care where the schema came from.
  *

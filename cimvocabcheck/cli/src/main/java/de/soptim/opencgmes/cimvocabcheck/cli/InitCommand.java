@@ -29,7 +29,7 @@ import picocli.CommandLine.ExitCode;
 import picocli.CommandLine.Option;
 
 /**
- * The {@code cimvocabcheck init} subcommand: scaffolds a commented {@code opencgmes.json} so users
+ * The {@code cimvocabcheck init} subcommand: scaffolds a commented {@code opencgmes.jsonc} so users
  * do not have to author config by hand. Point its {@code schemas}/{@code schemasDirectory} at the
  * profiles to validate against; the generated file is mostly commented out and serves as
  * documentation.
@@ -45,7 +45,7 @@ import picocli.CommandLine.Option;
 @Command(
     name = "init",
     description = {
-      "Create a commented opencgmes.json config scaffold in the current directory.",
+      "Create a commented opencgmes.jsonc config scaffold in the current directory.",
       "Set 'schemas' to point CIMVocabCheck at the profiles to validate against."
     },
     mixinStandardHelpOptions = true,
@@ -55,12 +55,12 @@ public class InitCommand implements Callable<Integer> {
   @Option(
       names = {"-d", "--dir"},
       paramLabel = "<dir>",
-      description = "Directory to write opencgmes.json into (default: current directory).")
+      description = "Directory to write opencgmes.jsonc into (default: current directory).")
   private Path dir = Path.of(".");
 
   @Option(
       names = {"-f", "--force"},
-      description = "Overwrite an existing opencgmes.json.")
+      description = "Overwrite an existing opencgmes.jsonc.")
   private boolean force;
 
   @Override

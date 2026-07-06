@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand("cimnotebook.explainQuery", explainQuery),
     );
 
-    // Command: "CIMNotebook: Create Config File" — scaffold opencgmes.json in the workspace root.
+    // Command: "CIMNotebook: Create Config File" — scaffold opencgmes.jsonc in the workspace root.
     context.subscriptions.push(
         vscode.commands.registerCommand("cimnotebook.createConfig", createConfig),
     );
@@ -112,7 +112,7 @@ export function deactivate(): Thenable<void> | undefined {
 }
 
 /**
- * Scaffolds an `opencgmes.json` in the workspace root. CIMNotebook works without it (validating against
+ * Scaffolds an `opencgmes.jsonc` in the workspace root. CIMNotebook works without it (validating against
  * the bundled CGMES 3.0 schemas); the generated file is fully commented and exists for customisation.
  * The template text comes from the language server's `cimvocabcheck.createConfig` command so the CLI and
  * editors stay in sync.
@@ -120,14 +120,14 @@ export function deactivate(): Thenable<void> | undefined {
 async function createConfig(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-        vscode.window.showWarningMessage("CIMNotebook: open a folder to create opencgmes.json in.");
+        vscode.window.showWarningMessage("CIMNotebook: open a folder to create opencgmes.jsonc in.");
         return;
     }
-    const target = vscode.Uri.joinPath(folder.uri, "opencgmes.json");
+    const target = vscode.Uri.joinPath(folder.uri, "opencgmes.jsonc");
     try {
         await vscode.workspace.fs.stat(target);
         const choice = await vscode.window.showWarningMessage(
-            "CIMNotebook: opencgmes.json already exists.",
+            "CIMNotebook: opencgmes.jsonc already exists.",
             "Open",
             "Overwrite",
         );
@@ -270,7 +270,7 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher("**/opencgmes.json"),
+            fileEvents: vscode.workspace.createFileSystemWatcher("**/opencgmes.jsonc"),
         },
         traceOutputChannel: traceChannel,
     };

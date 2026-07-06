@@ -334,7 +334,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
   /**
    * The schema index a document's IDE features (hover, completion, definition) should consult: the
    * {@code # [endpoint=...]} schema when the document declares one and it has resolved, otherwise
-   * the document's workspace schema (nearest {@code opencgmes.json}). Returns empty when no schema
+   * the document's workspace schema (nearest {@code opencgmes.jsonc}). Returns empty when no schema
    * applies — no config / config without schemas, or an endpoint not yet available (still loading,
    * or the load failed) — so the editor never shows information from the wrong (workspace) schema
    * for an endpoint document.
@@ -384,7 +384,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     // A SPARQL Notebook cell may declare its schema source via "# [endpoint=...]"; otherwise the
-    // document's workspace schema (nearest opencgmes.json) is used. With neither, validation is
+    // document's workspace schema (nearest opencgmes.jsonc) is used. With neither, validation is
     // syntax-only — there is no bundled default schema.
     String endpoint = EndpointDirective.parse(text).orElse(null);
     var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));

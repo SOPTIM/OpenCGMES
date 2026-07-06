@@ -24,7 +24,7 @@ Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes 
 The plugin is a thin client around the CIMLangServer (`cimvocabcheck-lsp`), wired into the IDE through the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) LSP client.
 
 > 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/intellij> — including the
-> [`opencgmes.json` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
+> [`opencgmes.jsonc` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
 > the [validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks), and
 > [troubleshooting](https://opencgmes.soptim.de/cimnotebook/troubleshooting).
 
@@ -76,7 +76,7 @@ Right-click a SPARQL query and choose **Explain Query (Algebra Plan)** to see it
 
     > If you install CIMNotebook from a downloaded `.zip` instead (Install Plugin from Disk), IntelliJ does **not** resolve Marketplace dependencies — install **LSP4IJ** manually first (Settings → Plugins → Marketplace → search "LSP4IJ").
 
-2. **Point CIMNotebook at your CGMES profiles.** There is no bundled default schema, so without one validation is syntax-only. Run **Tools → CIMNotebook: Create Config File** (or write the file yourself) to create an `opencgmes.json`:
+2. **Point CIMNotebook at your CGMES profiles.** There is no bundled default schema, so without one validation is syntax-only. Run **Tools → CIMNotebook: Create Config File** (or write the file yourself) to create an `opencgmes.jsonc`:
 
     ```json
     {
@@ -88,14 +88,14 @@ Right-click a SPARQL query and choose **Explain Query (Algebra Plan)** to see it
 
     All settings live under the `"cimvocabcheck"` section; the file is discovered by walking up from each open file (nearest one wins), and comments are allowed. Alternatively, a query can name its own schema with a `# [endpoint=...]` directive.
 
-3. **Open a SPARQL or SHACL file.** Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file: the server starts, loads the schema in the background, and begins validating. The file is watched and the schema reloads automatically whenever `opencgmes.json` changes.
+3. **Open a SPARQL or SHACL file.** Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file: the server starts, loads the schema in the background, and begins validating. The file is watched and the schema reloads automatically whenever `opencgmes.jsonc` changes.
 
-The `opencgmes.json` format (`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`) is documented canonically at
+The `opencgmes.jsonc` format (`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`) is documented canonically at
 **<https://opencgmes.soptim.de/cimvocabcheck/configuration>**.
 
 ## Settings
 
-Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in `opencgmes.json`, not here.
+Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in `opencgmes.jsonc`, not here.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -107,7 +107,7 @@ Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration
 
 **No syntax highlighting / file not recognised** — confirm the file extension is one of `.rq`, `.sparql`, `.ttl`, `.shacl`. If another plugin already claimed `.ttl`, add the association under **Settings → Editor → File Types → SHACL**.
 
-**No diagnostics appearing** — with no schema configured, CIMNotebook reports only syntax errors; add an `opencgmes.json` or a `# [endpoint=...]` directive for full validation. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the **Language Servers** tool window (provided by LSP4IJ) to see CIMLangServer's status and message log.
+**No diagnostics appearing** — with no schema configured, CIMNotebook reports only syntax errors; add an `opencgmes.jsonc` or a `# [endpoint=...]` directive for full validation. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the **Language Servers** tool window (provided by LSP4IJ) to see CIMLangServer's status and message log.
 
 **Server fails to start, or "Schema load failed"** — usually a Java problem. Set **Settings → Tools → CIMNotebook → Java executable** to the full path of a Java 21+ executable. The LSP4IJ **Language Servers** console shows the full error.
 

@@ -42,7 +42,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * Verifies {@code opencgmes.json} discovery, the {@code cimvocabcheck} section, and comment
+ * Verifies {@code opencgmes.jsonc} discovery, the {@code cimvocabcheck} section, and comment
  * tolerance.
  */
 public class ConfigLoaderTest {
@@ -103,7 +103,7 @@ public class ConfigLoaderTest {
     Path deep = Files.createDirectories(root.resolve("a/b/c"));
     Optional<Path> found = ConfigLoader.discoverFile(deep);
     assertTrue(found.isPresent());
-    assertEquals(root.resolve("opencgmes.json").toRealPath(), found.get().toRealPath());
+    assertEquals(root.resolve("opencgmes.jsonc").toRealPath(), found.get().toRealPath());
   }
 
   @Test
@@ -181,7 +181,7 @@ public class ConfigLoaderTest {
   }
 
   private static Path write(Path dir, String content) throws IOException {
-    Path file = dir.resolve("opencgmes.json");
+    Path file = dir.resolve("opencgmes.jsonc");
     Files.writeString(file, content, StandardCharsets.UTF_8);
     return file;
   }

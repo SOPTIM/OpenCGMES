@@ -17,7 +17,7 @@ and IntelliJ plugin are thin clients around it.
 graph LR
     ED["Editor<br/>VS Code / IntelliJ / any LSP client"] -->|stdio · LSP 3.17| LSP["CIMLangServer<br/>cimvocabcheck-lsp.jar"]
     LSP --> CORE["CIMVocabCheck core"]
-    SCHEMA["opencgmes.json<br/>RDFS profiles"] --> LSP
+    SCHEMA["opencgmes.jsonc<br/>RDFS profiles"] --> LSP
     CORE --> DIAG["Diagnostics · hover · completion<br/>go-to-def · workspace symbols"]
     DIAG --> ED
 
@@ -41,12 +41,12 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
 - **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
   case-insensitive) name.
 - **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)) and
-  `cimvocabcheck.createConfig` (generate [`opencgmes.json`](/cimvocabcheck/configuration)).
+  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)).
 
 ## Configuration discovery
 
-The server discovers the nearest `opencgmes.json` (walking up from each document), loads the
-configured RDFS profiles, and **reloads** them whenever an `opencgmes.json` changes — all open
+The server discovers the nearest `opencgmes.jsonc` (walking up from each document), loads the
+configured RDFS profiles, and **reloads** them whenever an `opencgmes.jsonc` changes — all open
 documents are revalidated after a reload. When no config is found, or it declares no schemas,
 documents are validated **syntax-only** (there is no bundled default schema). See
 [Configuration](/cimvocabcheck/configuration).

@@ -30,7 +30,7 @@ If you install CIMNotebook from a downloaded `.zip` (**Install Plugin from Disk*
 :::
 
 After install, point CIMNotebook at your CGMES profiles via an
-[`opencgmes.json`](/cimvocabcheck/configuration) (run **Tools → CIMNotebook: Create Config File** to
+[`opencgmes.jsonc`](/cimvocabcheck/configuration) (run **Tools → CIMNotebook: Create Config File** to
 scaffold one) or a `# [endpoint=...]` directive in the query. Without a schema, validation is
 syntax-only — there is no bundled default schema. Then open any `.rq`, `.sparql`, `.ttl`, or
 `.shacl` file: the server starts, loads the schema in the background, and begins validating.
@@ -85,7 +85,7 @@ class or property name to navigate to any schema term. Matching is partial and c
 ## Settings
 
 Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in
-[`opencgmes.json`](/cimvocabcheck/configuration), not here.
+[`opencgmes.jsonc`](/cimvocabcheck/configuration), not here.
 
 | Setting             | Default         | Description                                                                                                    |
 | ------------------- | --------------- | ------------------------------------------------------------------------------------------------------------- |

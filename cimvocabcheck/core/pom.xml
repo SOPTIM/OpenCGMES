@@ -118,7 +118,7 @@
             <version>${ver.cimxml}</version>
         </dependency>
 
-        <!-- Jackson for parsing the opencgmes.json project config -->
+        <!-- Jackson for parsing the opencgmes.jsonc project config -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>

@@ -44,7 +44,7 @@ succeeds — the parser only logs a warning — but resolving that namespace's p
 work on whatever `cim` namespace the graph declares. If your vendor namespace's ontology follows the
 same conventions (`cims:isFixed` vs. `owl:versionIRI`/`dcat:keyword`), you don't need a custom
 `CimProfile` implementation at all: CIMVocabCheck's `cimNamespaces` config setting maps a namespace
-URI straight to one of these built-in shapes from `opencgmes.json`. See
+URI straight to one of these built-in shapes from `opencgmes.jsonc`. See
 [Configuration → `cimNamespaces`](/cimvocabcheck/configuration#cimnamespaces).
 :::
 

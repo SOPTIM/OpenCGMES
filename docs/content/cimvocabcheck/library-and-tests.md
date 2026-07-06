@@ -213,7 +213,7 @@ assertTrue(r.isValid(StrictnessLevel.STRICT));
 ```
 
 The same four levels are available on the [CLI](/cimvocabcheck/cli) (`--strictness`) and in
-[`opencgmes.json`](/cimvocabcheck/configuration#strictness).
+[`opencgmes.jsonc`](/cimvocabcheck/configuration#strictness).
 
 ## Discover profile dependencies
 

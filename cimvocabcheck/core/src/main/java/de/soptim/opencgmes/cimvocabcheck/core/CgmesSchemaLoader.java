@@ -229,7 +229,7 @@ public final class CgmesSchemaLoader {
               + " CimProfile factory: "
               + String.join(", ", unrecognizedNamespaces)
               + ". Register a factory via CimNamespaceFactoryRegistry, or declare the namespace"
-              + " in the 'cimNamespaces' setting of opencgmes.json.",
+              + " in the 'cimNamespaces' setting of opencgmes.jsonc.",
           SchemaLoadCode.UNRECOGNIZED_CIM_NAMESPACE);
     }
     return new SchemaLoadException(

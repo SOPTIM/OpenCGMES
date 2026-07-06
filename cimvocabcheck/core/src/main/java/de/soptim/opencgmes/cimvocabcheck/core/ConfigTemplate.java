@@ -20,7 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.core;
 
 /**
  * The scaffold written by {@code cimvocabcheck init} (and the editor "Create config" actions): a
- * commented {@code opencgmes.json} that documents every CIMVocabCheck setting. Most settings are
+ * commented {@code opencgmes.jsonc} that documents every CIMVocabCheck setting. Most settings are
  * pre-commented; configure {@code schemas}/{@code schemasDirectory} to point CIMVocabCheck at the
  * CGMES (or other RDFS/OWL) profiles to validate against.
  *
@@ -31,7 +31,7 @@ public final class ConfigTemplate {
   private ConfigTemplate() {}
 
   /** The file name CIMVocabCheck discovers, walking up from a document to the filesystem root. */
-  public static final String FILE_NAME = "opencgmes.json";
+  public static final String FILE_NAME = "opencgmes.jsonc";
 
   private static final String TEMPLATE =
       """
@@ -74,7 +74,7 @@ public final class ConfigTemplate {
       }
       """;
 
-  /** Returns the commented {@code opencgmes.json} scaffold. */
+  /** Returns the commented {@code opencgmes.jsonc} scaffold. */
   public static String defaultJson() {
     return TEMPLATE;
   }

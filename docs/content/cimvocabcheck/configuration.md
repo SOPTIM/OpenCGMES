@@ -3,16 +3,16 @@ title: Configuration
 sidebar_position: 3
 ---
 
-# Configuration (`opencgmes.json`)
+# Configuration (`opencgmes.jsonc`)
 
 This is the **canonical reference** for configuring CIMVocabCheck. Every form of CIMVocabCheck —
 the [CLI](/cimvocabcheck/cli), the [CIMLangServer](/cimvocabcheck/language-server), and the
-[CIMNotebook](/cimnotebook/overview) editors — reads the same `opencgmes.json` file and the same
+[CIMNotebook](/cimnotebook/overview) editors — reads the same `opencgmes.jsonc` file and the same
 `cimvocabcheck` section described here.
 
 ## The file
 
-CIMVocabCheck is configured by an `opencgmes.json` file. All settings live under a top-level
+CIMVocabCheck is configured by an `opencgmes.jsonc` file. All settings live under a top-level
 `"cimvocabcheck"` section, so the same file can host configuration for other OpenCGMES tools:
 
 ```json
@@ -29,7 +29,7 @@ JSON comments (`//`) and trailing commas are allowed.
 ### Discovery — nearest config wins
 
 The file is discovered **git-style**: CIMVocabCheck walks **up** the directory tree from each
-file being validated and uses the **nearest** `opencgmes.json`. Different subtrees of a repository
+file being validated and uses the **nearest** `opencgmes.jsonc`. Different subtrees of a repository
 can therefore use different configurations. The CLI auto-discovers upward from the current working
 directory (or takes an explicit `--config`).
 
@@ -59,7 +59,7 @@ syntax-only mode.
 | `standardVocabulary` | enum | `check` | Whether to typo-check `rdf`/`rdfs`/`owl`/`sh` terms |
 | `cimNamespaces` | object | — | Map custom `cim` namespace URIs to a built-in profile shape |
 
-All fields are optional. Paths are resolved **relative to `opencgmes.json`**.
+All fields are optional. Paths are resolved **relative to `opencgmes.jsonc`**.
 
 ### `schemas` / `schemasDirectory`
 
@@ -238,7 +238,7 @@ before CIMVocabCheck loads. See [CIMXML → Compliance](/cimxml/compliance#cim-v
 
 ## Full example
 
-```json
+```jsonc
 {
   // CIMVocabCheck settings — see https://opencgmes.soptim.de/cimvocabcheck/configuration
   "cimvocabcheck": {

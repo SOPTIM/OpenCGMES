@@ -11,7 +11,7 @@ editor it applies to — **VS Code**, **IntelliJ**, or **both**.
 ## No diagnostics at all
 
 **Both.** With no schema configured, CIMNotebook reports only syntax errors. Add an
-[`opencgmes.json`](/cimvocabcheck/configuration) with `schemas` (or `schemasDirectory`), or a
+[`opencgmes.jsonc`](/cimvocabcheck/configuration) with `schemas` (or `schemasDirectory`), or a
 `# [endpoint=...]` directive in the query, to get full schema-based validation.
 
 If even **syntax** errors are missing, the language server probably did not start:
@@ -59,7 +59,7 @@ schema path. To read the full error:
   the server never launches, confirm LSP4IJ is installed and enabled, and that
   **Settings → Tools → CIMNotebook → Java executable** points at a Java 21+ runtime.
 
-For a schema-load failure specifically, double-check that the paths in your `opencgmes.json` resolve
+For a schema-load failure specifically, double-check that the paths in your `opencgmes.jsonc` resolve
 and that each referenced RDF / Turtle file is well-formed.
 
 :::tip Confirming the schema loaded
@@ -70,5 +70,5 @@ never see it, the schema did not load; check the output channel.
 ## See also
 
 - [VS Code](/cimnotebook/vscode) and [IntelliJ](/cimnotebook/intellij) — install and settings.
-- [Configuration](/cimvocabcheck/configuration) — the `opencgmes.json` format.
+- [Configuration](/cimvocabcheck/configuration) — the `opencgmes.jsonc` format.
 - [Validation checks](/cimvocabcheck/validation-checks) — what each diagnostic code means.

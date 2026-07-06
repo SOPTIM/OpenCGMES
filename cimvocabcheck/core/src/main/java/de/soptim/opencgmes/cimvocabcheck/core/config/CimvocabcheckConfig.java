@@ -23,14 +23,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Deserialized form of the {@code "cimvocabcheck"} section of {@code opencgmes.json}, shared by the
- * CLI, the LSP server and any other OpenCGMES tooling.
+ * Deserialized form of the {@code "cimvocabcheck"} section of {@code opencgmes.jsonc}, shared by
+ * the CLI, the LSP server and any other OpenCGMES tooling.
  *
  * <p>All fields are optional. When neither {@code schemas} nor {@code schemasDirectory} is given,
  * no schema is loaded and inputs are checked syntax-only — there is no bundled default schema (the
  * LSP additionally honours a {@code # [endpoint=...]} directive in a document).
  *
- * <p>Example {@code opencgmes.json}:
+ * <p>Example {@code opencgmes.jsonc}:
  *
  * <pre>{@code
  * {

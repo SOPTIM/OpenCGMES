@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  *
  * <ol>
  *   <li>{@code initialize} — declare capabilities, start async schema load
- *   <li>{@code initialized} — register a file watcher for {@code opencgmes.json}
+ *   <li>{@code initialized} — register a file watcher for {@code opencgmes.jsonc}
  *   <li>Normal operation — text-document events drive validation via {@link
  *       SparqlTextDocumentService}
  *   <li>{@code shutdown} / {@code exit} — clean up threads
@@ -110,13 +110,13 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
     if (client != null) {
       try {
         FileSystemWatcher watcher = new FileSystemWatcher();
-        watcher.setGlobPattern(Either.forLeft("**/opencgmes.json"));
+        watcher.setGlobPattern(Either.forLeft("**/opencgmes.jsonc"));
 
         var regOptions = new DidChangeWatchedFilesRegistrationOptions(List.of(watcher));
         var reg =
             new Registration("cgmes-config-watcher", "workspace/didChangeWatchedFiles", regOptions);
         client.registerCapability(new RegistrationParams(List.of(reg)));
-        LOG.info("Registered file watcher for opencgmes.json");
+        LOG.info("Registered file watcher for opencgmes.jsonc");
       } catch (Exception e) {
         LOG.warn("Could not register file watcher: {}", e.getMessage());
       }

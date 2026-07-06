@@ -35,7 +35,7 @@ import org.apache.jena.graph.Node;
  * means the endpoint genuinely exposed no schema-like graphs, non-empty (with {@link
  * #unresolvedReason()} set) means schema graphs were found but none resolved to a registered CIM
  * profile — most likely an unrecognized {@code cim} namespace that needs registering (see {@code
- * cimNamespaces} in {@code opencgmes.json}).
+ * cimNamespaces} in {@code opencgmes.jsonc}).
  *
  * @param index the schema index built from the endpoint's schema graphs, or {@code null} when no
  *     schema could be resolved

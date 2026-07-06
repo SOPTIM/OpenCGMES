@@ -75,7 +75,7 @@ final class SchemaManager {
    * Separate pool for remote endpoint fetches. A remote load is a SELECT plus a CONSTRUCT per
    * profile graph, each with a {@link #REMOTE_TIMEOUT} timeout, so a slow or unreachable endpoint
    * can take a long time. Keeping it off the single {@link #executor} ensures a config reload
-   * (opencgmes.json edit) and other endpoint loads stay responsive instead of queueing behind it.
+   * (opencgmes.jsonc edit) and other endpoint loads stay responsive instead of queueing behind it.
    */
   private final ExecutorService endpointExecutor =
       Executors.newFixedThreadPool(
@@ -109,7 +109,7 @@ final class SchemaManager {
 
   /**
    * Per-config-source schema cache for git-style nearest-config resolution: a document is validated
-   * against the nearest {@code opencgmes.json} above it. Keyed by resolved config-file path. When
+   * against the nearest {@code opencgmes.jsonc} above it. Keyed by resolved config-file path. When
    * no config is found, or a config declares no schemas, there is no workspace schema and the
    * document is validated syntax-only (there is no bundled default schema). The primary config's
    * entry is served from the {@code *Ref} fields above rather than this map; only <em>other</em>
@@ -194,7 +194,7 @@ final class SchemaManager {
    * Resolves the schema a document should be validated against.
    *
    * <p>When {@code endpoint} is {@code null}/blank, the document's workspace schema is used: the
-   * nearest {@code opencgmes.json} above the document. When none is found (or it declares no
+   * nearest {@code opencgmes.jsonc} above the document. When none is found (or it declares no
    * schemas) the result is empty and the caller validates syntax-only. Otherwise the schema is
    * loaded from the endpoint — a local {@code .ttl}/{@code .rdf}/{@code .owl} file or a remote
    * SPARQL endpoint — and cached by resolved source.
@@ -213,7 +213,7 @@ final class SchemaManager {
 
   /**
    * Resolves the {@link WorkspaceSchema} for a document directory using git-style nearest-config
-   * discovery: the nearest {@code opencgmes.json} at or above {@code docDir} wins. Returns empty
+   * discovery: the nearest {@code opencgmes.jsonc} at or above {@code docDir} wins. Returns empty
    * when no config is found, the config declares no schemas, or the schema has not loaded / failed
    * to load — in all of which cases the caller validates syntax-only. The primary (workspace-root)
    * config is served from the cached primary schema; other configs are built lazily and cached.
@@ -433,7 +433,7 @@ final class SchemaManager {
    * Describes why an endpoint yielded no schema, distinguishing "no schema-like graphs at all" from
    * "schema graphs were found but none resolved to a registered CIM profile" (most commonly an
    * unrecognized {@code cim} namespace — see the {@code cimNamespaces} setting in {@code
-   * opencgmes.json}).
+   * opencgmes.jsonc}).
    */
   private static String describeNoSchema(EndpointSchema es) {
     if (es.schemaGraphNames().isEmpty()) {
@@ -554,7 +554,7 @@ final class SchemaManager {
         notify(
             MessageType.Info,
             "CIMVocabCheck: no schema configured — checking SPARQL/SHACL syntax "
-                + "only. Add \"schemas\" to opencgmes.json, or a \"# [endpoint=...]\" directive, "
+                + "only. Add \"schemas\" to opencgmes.jsonc, or a \"# [endpoint=...]\" directive, "
                 + "for schema-based validation.");
       } else {
         LOG.info(

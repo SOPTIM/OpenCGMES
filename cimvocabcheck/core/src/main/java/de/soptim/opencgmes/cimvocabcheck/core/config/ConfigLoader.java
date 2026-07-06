@@ -30,11 +30,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Locates and parses the project config file {@code opencgmes.json}, shared by the CLI and LSP
+ * Locates and parses the project config file {@code opencgmes.jsonc}, shared by the CLI and LSP
  * modules so the discovery rules and parsing behaviour cannot drift apart.
  *
  * <p>All CIMVocabCheck settings live under a top-level {@code "cimvocabcheck"} object so {@code
- * opencgmes.json} can host configuration for other OpenCGMES tools alongside it:
+ * opencgmes.jsonc} can host configuration for other OpenCGMES tools alongside it:
  *
  * <pre>{@code
  * {
@@ -46,14 +46,14 @@ import java.util.Optional;
  * }</pre>
  *
  * <p>Auto-discovery walks the directory tree upward from a start directory looking for {@code
- * opencgmes.json}; an explicit path can also be provided. The file is optional — when none is found
- * (or it declares no {@code schemas}/{@code schemasDirectory}), validation is syntax-only; there is
- * no bundled default schema. Java-style comments and trailing commas are tolerated.
+ * opencgmes.jsonc}; an explicit path can also be provided. The file is optional — when none is
+ * found (or it declares no {@code schemas}/{@code schemasDirectory}), validation is syntax-only;
+ * there is no bundled default schema. Java-style comments and trailing commas are tolerated.
  */
 public final class ConfigLoader {
 
   /** The config file name, looked for in each directory while walking up the tree. */
-  public static final String CONFIG_FILENAME = "opencgmes.json";
+  public static final String CONFIG_FILENAME = "opencgmes.jsonc";
 
   /** Top-level key under which all CIMVocabCheck settings live. */
   private static final String SECTION = "cimvocabcheck";
@@ -67,8 +67,8 @@ public final class ConfigLoader {
   private ConfigLoader() {}
 
   /**
-   * Loads the {@code cimvocabcheck} section from an explicit {@code opencgmes.json} path. A missing
-   * section yields an empty config (no schemas → syntax-only validation).
+   * Loads the {@code cimvocabcheck} section from an explicit {@code opencgmes.jsonc} path. A
+   * missing section yields an empty config (no schemas → syntax-only validation).
    *
    * <p>As a side effect, any {@code cimNamespaces} entries are registered with {@link
    * CimNamespaceFactoryRegistry} so subsequent schema loads (from files or a SPARQL endpoint) can
@@ -118,7 +118,7 @@ public final class ConfigLoader {
   }
 
   /**
-   * Walks upward from {@code startDir} looking for {@code opencgmes.json}.
+   * Walks upward from {@code startDir} looking for {@code opencgmes.jsonc}.
    *
    * @return the parsed {@code cimvocabcheck} section, or empty if no file was found in the
    *     hierarchy
@@ -130,8 +130,8 @@ public final class ConfigLoader {
   }
 
   /**
-   * Walks upward from {@code startDir} returning the path of the nearest {@code opencgmes.json}, or
-   * empty if none exists anywhere in the hierarchy. The file is not parsed.
+   * Walks upward from {@code startDir} returning the path of the nearest {@code opencgmes.jsonc},
+   * or empty if none exists anywhere in the hierarchy. The file is not parsed.
    */
   public static Optional<Path> discoverFile(Path startDir) {
     if (startDir == null) {

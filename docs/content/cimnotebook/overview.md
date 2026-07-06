@@ -76,7 +76,7 @@ only. Each editor page documents what that editor actually does today.
 ## Schema configuration
 
 CIMNotebook has **no bundled default schema** — point it at your CGMES profiles with an
-`opencgmes.json` file (settings nest under a `"cimvocabcheck"` section, discovered by walking up
+`opencgmes.jsonc` file (settings nest under a `"cimvocabcheck"` section, discovered by walking up
 from each file). Without a schema, validation is syntax-only. The full format is documented once,
 canonically, on the [Configuration](/cimvocabcheck/configuration) page.
 

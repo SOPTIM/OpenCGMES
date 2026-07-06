@@ -105,7 +105,7 @@ public class ValidateCommand implements Callable<Integer> {
   @Option(
       names = {"-c", "--config"},
       paramLabel = "<file>",
-      description = "Config file (default: auto-discovers opencgmes.json upward from CWD).")
+      description = "Config file (default: auto-discovers opencgmes.jsonc upward from CWD).")
   private Path configFile;
 
   @Option(
@@ -161,7 +161,7 @@ public class ValidateCommand implements Callable<Integer> {
       paramLabel = "<level>",
       description =
           "Validation strictness: permissive, default, strict, or pedantic. "
-              + "Overrides the 'strictness' field in opencgmes.json. "
+              + "Overrides the 'strictness' field in opencgmes.jsonc. "
               + "strict promotes WARN to ERROR; pedantic also promotes INFO to ERROR; "
               + "permissive suppresses everything except unknown-term and syntax errors.")
   private String strictnessValue;
@@ -281,7 +281,7 @@ public class ValidateCommand implements Callable<Integer> {
    * Describes why an endpoint yielded no schema, distinguishing "no schema-like graphs at all" from
    * "schema graphs were found but none resolved to a registered CIM profile" (most commonly an
    * unrecognized {@code cim} namespace — see the {@code cimNamespaces} setting in {@code
-   * opencgmes.json}).
+   * opencgmes.jsonc}).
    */
   private static String describeNoSchema(String endpoint, EndpointSchema es) {
     if (es.schemaGraphNames().isEmpty()) {
@@ -300,7 +300,7 @@ public class ValidateCommand implements Callable<Integer> {
       if (!schemaFiles.isEmpty()) {
         return new SchemaContext(SchemaLoader.load(schemaFiles), null, null, false);
       }
-      // Explicit --config, else an auto-discovered opencgmes.json. There is no bundled default
+      // Explicit --config, else an auto-discovered opencgmes.jsonc. There is no bundled default
       // schema: a config without schemas (or no config at all) means syntax-only.
       CimvocabcheckConfig config;
       Path base;

@@ -57,19 +57,19 @@ docker build -f cimvocabcheck/Dockerfile -t cimvocabcheck-cli .
 
 | Option | Argument | Description |
 | --- | --- | --- |
-| `-c`, `--config` | `<file>` | Config file. Default: auto-discovers `opencgmes.json` upward from the CWD |
+| `-c`, `--config` | `<file>` | Config file. Default: auto-discovers `opencgmes.jsonc` upward from the CWD |
 | `-s`, `--schema` | `<path>` | Schema RDFS file(s), or a directory of them (`.rdf`/`.ttl`/`.owl`). Repeatable. Alternative to `--config` |
 | `-e`, `--endpoint` | `<url>` | SPARQL 1.1 endpoint hosting the CGMES schema; schema is loaded and graphs auto-mapped to profiles. See [Endpoints](/cimvocabcheck/endpoints) |
 | `--strict-endpoint` | | Fail (exit 2) when an `--endpoint` exposes no CIM schema graphs, instead of falling back to syntax-only |
 | `-p`, `--profile` | `<iri>` | Restrict to this profile IRI. Repeatable. Ignored when the config has `namedGraphs` |
 | `-f`, `--format` | `text` \| `json` \| `codequality` | Output format (default `text`). `json` matches the [API result shape](/cimvocabcheck/api#result-types); `codequality` emits a [Code Quality report](#code-quality-report) (alias: `gitlab`) |
 | `-v`, `--verbose` | | Also report `WARN` and `INFO` annotations (default: `ERROR` only) |
-| `--strictness` | `<level>` | `permissive` \| `default` \| `strict` \| `pedantic`. Overrides `opencgmes.json` |
+| `--strictness` | `<level>` | `permissive` \| `default` \| `strict` \| `pedantic`. Overrides `opencgmes.jsonc` |
 | `-h`, `--help` | | Show help |
 | `-V`, `--version` | | Show version |
 
 Schema resolution mirrors the editors: `--config`/`--schema`/`--endpoint`, else the nearest
-`opencgmes.json`, else **syntax-only** (there is no bundled default schema). See
+`opencgmes.jsonc`, else **syntax-only** (there is no bundled default schema). See
 [Configuration](/cimvocabcheck/configuration).
 
 ## Exit codes
@@ -95,13 +95,13 @@ java -jar cimvocabcheck-cli.jar --strictness strict queries/*.rq
 java -jar cimvocabcheck-cli.jar init
 ```
 
-Writes a commented `opencgmes.json` starter (the same template the editors' **Create Config File**
+Writes a commented `opencgmes.jsonc` starter (the same template the editors' **Create Config File**
 command produces) into the current directory. See [Configuration](/cimvocabcheck/configuration).
 
 | Option | Argument | Description |
 | --- | --- | --- |
-| `-d`, `--dir` | `<dir>` | Directory to write `opencgmes.json` into (default: current directory) |
-| `-f`, `--force` | | Overwrite an existing `opencgmes.json` |
+| `-d`, `--dir` | `<dir>` | Directory to write `opencgmes.jsonc` into (default: current directory) |
+| `-f`, `--force` | | Overwrite an existing `opencgmes.jsonc` |
 
 Without `--force`, `init` refuses to overwrite an existing file and exits `2`.
 

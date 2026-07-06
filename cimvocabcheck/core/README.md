@@ -16,7 +16,7 @@ Full documentation lives at **<https://opencgmes.soptim.de/cimvocabcheck/overvie
 
 - [Overview](https://opencgmes.soptim.de/cimvocabcheck/overview) ·
   [Getting started](https://opencgmes.soptim.de/cimvocabcheck/getting-started)
-- [Configuration (`opencgmes.json`)](https://opencgmes.soptim.de/cimvocabcheck/configuration) ·
+- [Configuration (`opencgmes.jsonc`)](https://opencgmes.soptim.de/cimvocabcheck/configuration) ·
   [Validation checks](https://opencgmes.soptim.de/cimvocabcheck/validation-checks)
 - [Library & tests (Java/JUnit)](https://opencgmes.soptim.de/cimvocabcheck/library-and-tests) ·
   [API reference](https://opencgmes.soptim.de/cimvocabcheck/api)

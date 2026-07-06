@@ -5,7 +5,7 @@ Real-time SPARQL and SHACL validation against CIM/CGMES schema profiles, directl
 Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes and properties are underlined, syntax errors are highlighted, and semantic issues like domain/range mismatches are flagged as you type — all resolved against your actual RDFS profile files.
 
 > 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/vscode> — including the
-> [`opencgmes.json` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
+> [`opencgmes.jsonc` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
 > the [validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks),
 > [SPARQL Notebook support](https://opencgmes.soptim.de/cimnotebook/sparql-notebooks), and
 > [troubleshooting](https://opencgmes.soptim.de/cimnotebook/troubleshooting).
@@ -61,7 +61,7 @@ The endpoint can be a **local schema file** (`.ttl`, `.rdf`, `.owl` — resolved
 
 1. **Open a SPARQL or SHACL file.** Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file — the extension activates and syntax errors are flagged immediately.
 
-2. **Point CIMNotebook at your CGMES profiles.** There is no bundled default schema, so without one validation is syntax-only. Run **CIMNotebook: Create Config File** from the Command Palette (or write the file yourself) to create an `opencgmes.json`:
+2. **Point CIMNotebook at your CGMES profiles.** There is no bundled default schema, so without one validation is syntax-only. Run **CIMNotebook: Create Config File** from the Command Palette (or write the file yourself) to create an `opencgmes.jsonc`:
 
     ```json
     {
@@ -73,14 +73,14 @@ The endpoint can be a **local schema file** (`.ttl`, `.rdf`, `.owl` — resolved
 
     All settings live under the `"cimvocabcheck"` section; the file is discovered by walking up from each open file (nearest one wins), and comments are allowed. Alternatively, a query can name its own schema with a `# [endpoint=...]` directive (see above).
 
-3. **Edit.** The schema loads in the background — a notification confirms when it is ready — and diagnostics, hover, completion, and navigation light up. The extension watches `opencgmes.json` and reloads the schema automatically whenever it changes.
+3. **Edit.** The schema loads in the background — a notification confirms when it is ready — and diagnostics, hover, completion, and navigation light up. The extension watches `opencgmes.jsonc` and reloads the schema automatically whenever it changes.
 
-The `opencgmes.json` format (`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`) is documented canonically at
+The `opencgmes.jsonc` format (`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`) is documented canonically at
 **<https://opencgmes.soptim.de/cimvocabcheck/configuration>**.
 
 ## Extension settings
 
-These editor-specific settings live in VS Code's settings. Schema configuration itself lives in `opencgmes.json`, not here.
+These editor-specific settings live in VS Code's settings. Schema configuration itself lives in `opencgmes.jsonc`, not here.
 
 | Setting                      | Default     | Description                                                                                      |
 | ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
@@ -91,15 +91,15 @@ These editor-specific settings live in VS Code's settings. Schema configuration 
 
 ## Commands
 
-| Command                                              | Description                                                                                    |
-| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **CIMNotebook: Show Output**                         | Opens the CIMNotebook output channel, useful for diagnosing startup and schema loading issues. |
-| **CIMNotebook: Explain Query (Algebra Plan)**        | Shows the static SPARQL algebra plan for the current query.                                    |
-| **CIMNotebook: Create Config File (opencgmes.json)** | Scaffolds an `opencgmes.json` configuration file.                                              |
+| Command                                               | Description                                                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **CIMNotebook: Show Output**                          | Opens the CIMNotebook output channel, useful for diagnosing startup and schema loading issues. |
+| **CIMNotebook: Explain Query (Algebra Plan)**         | Shows the static SPARQL algebra plan for the current query.                                    |
+| **CIMNotebook: Create Config File (opencgmes.jsonc)** | Scaffolds an `opencgmes.jsonc` configuration file.                                             |
 
 ## Troubleshooting
 
-**No diagnostics at all** — with no schema configured, CIMNotebook reports only syntax errors; add an `opencgmes.json` or a `# [endpoint=...]` directive for full validation. If even syntax errors are missing, the server likely did not start: open **CIMNotebook: Show Output** and confirm Java 21+ is available (set `cimnotebook.javaExecutable` to a Java 21+ path if needed).
+**No diagnostics at all** — with no schema configured, CIMNotebook reports only syntax errors; add an `opencgmes.jsonc` or a `# [endpoint=...]` directive for full validation. If even syntax errors are missing, the server likely did not start: open **CIMNotebook: Show Output** and confirm Java 21+ is available (set `cimnotebook.javaExecutable` to a Java 21+ path if needed).
 
 **"Schema load failed"** — open **CIMNotebook: Show Output** to see the full error. Common causes: an incorrect path in `schemasDirectory`/`schemas`, or a malformed RDF file.
 

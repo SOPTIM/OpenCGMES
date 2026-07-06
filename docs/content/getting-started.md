@@ -54,7 +54,7 @@ see [Library & tests](/cimvocabcheck/library-and-tests).
 ## I want validation in my editor
 
 Install the editor integration and point it at your schema with an
-[`opencgmes.json`](/cimvocabcheck/configuration) file:
+[`opencgmes.jsonc`](/cimvocabcheck/configuration) file:
 
 - **VS Code** — install the [CIMNotebook extension](/cimnotebook/vscode), open a `.rq`/`.sparql`/`.ttl`
   file, and run **CIMNotebook: Create Config File**.

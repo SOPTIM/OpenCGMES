@@ -38,7 +38,7 @@ import org.apache.jena.graph.Node;
  * to repeat them in every file.
  *
  * <p>The built-in set covers the standard RDF vocabularies and the main CIM 100 namespace. Users
- * can override via {@code "prefixes"} in {@code opencgmes.json}: an explicit object replaces the
+ * can override via {@code "prefixes"} in {@code opencgmes.jsonc}: an explicit object replaces the
  * built-in set entirely; use {@code {}} to disable all defaults.
  */
 public final class DefaultPrefixes {

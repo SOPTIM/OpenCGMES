@@ -32,7 +32,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * "Create Config File (opencgmes.json)" action. Scaffolds an `opencgmes.json` in the project root.
+ * "Create Config File (opencgmes.jsonc)" action. Scaffolds an `opencgmes.jsonc` in the project root.
  *
  * The generated file points CIMVocabCheck at the CGMES profiles to validate against (without a schema —
  * or a `# [endpoint=...]` directive — validation is syntax-only). The template text is fetched from
@@ -110,7 +110,7 @@ class CreateConfigAction : AnAction() {
     companion object {
         private const val SERVER_ID = "cimvocabcheck-lsp"
         private const val CMD_CREATE_CONFIG = "cimvocabcheck.createConfig"
-        private const val FILE_NAME = "opencgmes.json"
+        private const val FILE_NAME = "opencgmes.jsonc"
         private val FALLBACK =
             """
             {

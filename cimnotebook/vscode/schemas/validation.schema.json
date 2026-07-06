@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "OpenCGMES Configuration (opencgmes.json)",
+    "title": "OpenCGMES Configuration (opencgmes.jsonc)",
     "description": "Configuration for OpenCGMES tools. CIMVocabCheck reads the \"cimvocabcheck\" section. Place this file at the root of your project (or any parent directory of your queries); CIMVocabCheck discovers the nearest one walking up the tree. The file is optional — without it, validation uses the bundled CGMES 3.0 schemas.",
     "type": "object",
     "additionalProperties": true,

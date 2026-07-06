@@ -42,7 +42,7 @@ cases:
 - **Remote SPARQL endpoint** (`http(s)://…`) — CIMNotebook loads the schema from the endpoint
   itself, enumerating the named graphs that hold the CGMES profiles and reading them into the schema
   index. The schema is fetched in the background; diagnostics appear once it has loaded.
-- **No directive** — the cell falls back to the workspace schema (the nearest `opencgmes.json`),
+- **No directive** — the cell falls back to the workspace schema (the nearest `opencgmes.jsonc`),
   exactly like a `.rq` file; with no schema configured, it is checked syntax-only.
 
 A remote endpoint is typically an Apache Jena Fuseki server with the RDFS profiles loaded in
@@ -57,7 +57,7 @@ flowchart TD
     A["SPARQL cell edited"] --> B{"# [endpoint=...]<br/>present?"}
     B -- "local file path<br/>(.ttl / .rdf / .owl)" --> C["Load file as schema<br/>relative to notebook dir"]
     B -- "remote http(s):// URL" --> D["Fetch per-profile named<br/>graphs in background"]
-    B -- "no directive" --> E["Fall back to nearest<br/>opencgmes.json"]
+    B -- "no directive" --> E["Fall back to nearest<br/>opencgmes.jsonc"]
     C --> F["Validate cell against schema"]
     D --> F
     E --> G{"schema<br/>configured?"}
@@ -75,7 +75,7 @@ instance data in one graph, are not supported.
 :::
 
 :::note Session caching
-A schema loaded from an endpoint is cached for the session. To re-fetch it, edit `opencgmes.json`
+A schema loaded from an endpoint is cached for the session. To re-fetch it, edit `opencgmes.jsonc`
 (which triggers a reload) or reload the window. Diagnostics, hover, auto-completion, and
 go-to-definition are all endpoint-aware; because there is no local file, go-to-definition on an
 endpoint term opens a generated read-only Turtle "peek" of the term fetched from the endpoint.

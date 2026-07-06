@@ -30,7 +30,7 @@ VSIX…**, and pick the file. Reload the window if prompted.
 :::tip First run
 There is no bundled default schema. Open a `.rq`, `.sparql`, `.ttl`, or `.shacl` file to activate
 the extension, then point it at your profiles with an
-[`opencgmes.json`](/cimvocabcheck/configuration) — run **CIMNotebook: Create Config File** from the
+[`opencgmes.jsonc`](/cimvocabcheck/configuration) — run **CIMNotebook: Create Config File** from the
 Command Palette to scaffold one. Without a schema, validation is syntax-only.
 :::
 
@@ -90,7 +90,7 @@ declare its own schema with a `# [endpoint=...]` directive. See
 ## Settings
 
 These editor-specific settings live in VS Code's settings (`settings.json` or the Settings UI).
-Schema configuration itself lives in [`opencgmes.json`](/cimvocabcheck/configuration), not here.
+Schema configuration itself lives in [`opencgmes.jsonc`](/cimvocabcheck/configuration), not here.
 
 | Setting                      | Default     | Description                                                                                      |
 | ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |

@@ -26,7 +26,7 @@ import java.util.Map;
 import org.apache.jena.graph.Node;
 
 /**
- * The fully-resolved validation context for one {@code opencgmes.json} config source (or the
+ * The fully-resolved validation context for one {@code opencgmes.jsonc} config source (or the
  * bundled default). One of these is built per discovered config and reused for every document whose
  * nearest config is that file.
  *

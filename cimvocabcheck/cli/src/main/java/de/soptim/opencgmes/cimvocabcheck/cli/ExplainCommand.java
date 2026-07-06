@@ -43,7 +43,7 @@ import picocli.CommandLine.Parameters;
  * executed.
  *
  * <p>A schema is optional. When one is available (via {@code --config}/{@code --schema} or an
- * auto-discovered {@code opencgmes.json}) its detected {@code cim:} prefix is injected so
+ * auto-discovered {@code opencgmes.jsonc}) its detected {@code cim:} prefix is injected so
  * prefix-free queries parse; otherwise the built-in default prefixes are used. The algebra plan
  * itself does not depend on the schema.
  *
@@ -76,7 +76,7 @@ public class ExplainCommand implements Callable<Integer> {
   @Option(
       names = {"-c", "--config"},
       paramLabel = "<file>",
-      description = "Config file (default: auto-discovers opencgmes.json upward from CWD).")
+      description = "Config file (default: auto-discovers opencgmes.jsonc upward from CWD).")
   private Path configFile;
 
   @Option(

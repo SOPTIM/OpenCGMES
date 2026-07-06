@@ -28,7 +28,7 @@ public enum SchemaLoadCode {
    * One or more sources declared a {@code cim} namespace that has no {@link
    * de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry} entry — the profile shape is
    * unknown, so the source could not be parsed. Register the namespace (e.g. via the {@code
-   * cimNamespaces} setting in {@code opencgmes.json}) to resolve this.
+   * cimNamespaces} setting in {@code opencgmes.jsonc}) to resolve this.
    */
   UNRECOGNIZED_CIM_NAMESPACE,
   /**

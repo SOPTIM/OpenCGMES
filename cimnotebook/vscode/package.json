@@ -78,7 +78,7 @@
         ],
         "jsonValidation": [
             {
-                "fileMatch": "**/opencgmes.json",
+                "fileMatch": "**/opencgmes.jsonc",
                 "url": "./schemas/validation.schema.json"
             }
         ],
@@ -95,7 +95,7 @@
             },
             {
                 "command": "cimnotebook.createConfig",
-                "title": "Create Config File (opencgmes.json)",
+                "title": "Create Config File (opencgmes.jsonc)",
                 "category": "CIMNotebook"
             }
         ],

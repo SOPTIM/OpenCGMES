@@ -34,7 +34,7 @@
             📖 <b>Full documentation:</b>
             <a href="https://opencgmes.soptim.de/cimnotebook/intellij">opencgmes.soptim.de/cimnotebook/intellij</a>
             — including the
-            <a href="https://opencgmes.soptim.de/cimvocabcheck/configuration"><code>opencgmes.json</code> configuration reference</a>,
+            <a href="https://opencgmes.soptim.de/cimvocabcheck/configuration"><code>opencgmes.jsonc</code> configuration reference</a>,
             the <a href="https://opencgmes.soptim.de/cimvocabcheck/validation-checks">validation check catalogue</a>, and
             <a href="https://opencgmes.soptim.de/cimnotebook/troubleshooting">troubleshooting</a>.
         </p>
@@ -60,8 +60,8 @@
         <h3>Getting started</h3>
         <ol>
             <li><b>Install LSP4IJ</b> if prompted — it is a required dependency and provides the LSP client.</li>
-            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> Point CIMNotebook at your CGMES profiles via an <code>opencgmes.json</code> (see below) or a <code># [endpoint=...]</code> directive in the query; without either, CIMNotebook checks syntax only. The server starts, loads the schema in the background, and begins validating.</li>
-            <li><b>(Optional) Customise</b> via <b>Tools → CIMNotebook: Create Config File</b>, which scaffolds an <code>opencgmes.json</code>. All settings live under a <code>"cimvocabcheck"</code> section; the nearest file (walking up from each query) wins. To use your own RDFS profiles:
+            <li><b>Open a <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code> or <code>.shacl</code> file.</b> Point CIMNotebook at your CGMES profiles via an <code>opencgmes.jsonc</code> (see below) or a <code># [endpoint=...]</code> directive in the query; without either, CIMNotebook checks syntax only. The server starts, loads the schema in the background, and begins validating.</li>
+            <li><b>(Optional) Customise</b> via <b>Tools → CIMNotebook: Create Config File</b>, which scaffolds an <code>opencgmes.jsonc</code>. All settings live under a <code>"cimvocabcheck"</code> section; the nearest file (walking up from each query) wins. To use your own RDFS profiles:
                 <pre>{
   "cimvocabcheck": {
     "schemasDirectory": "schemas/cgmes-3.0"
@@ -81,7 +81,7 @@
 
         <h3>Validation configuration</h3>
         <p>
-            <code>opencgmes.json</code> (the <code>"cimvocabcheck"</code> section) also supports <code>strictness</code>
+            <code>opencgmes.jsonc</code> (the <code>"cimvocabcheck"</code> section) also supports <code>strictness</code>
             (<code>permissive</code> / <code>default</code> / <code>strict</code> /
             <code>pedantic</code>), <code>namedGraphs</code> (map graph IRIs to profile
             versions), <code>prefixes</code> (default PREFIX declarations injected into
@@ -92,7 +92,7 @@
         <h3>Troubleshooting</h3>
         <ul>
             <li><b>No syntax highlighting / file not recognised</b> — confirm the file extension is one of <code>.rq</code>, <code>.sparql</code>, <code>.ttl</code>, <code>.shacl</code>. If a previously installed plugin already claimed <code>.ttl</code>, add the association under <b>Settings → Editor → File Types → SHACL</b>.</li>
-            <li><b>No diagnostics appearing</b> — with no schema configured CIMNotebook reports only syntax errors; for full validation add an <code>opencgmes.json</code> with <code>schemas</code> or a <code># [endpoint=...]</code> directive. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMLangServer's status and logs.</li>
+            <li><b>No diagnostics appearing</b> — with no schema configured CIMNotebook reports only syntax errors; for full validation add an <code>opencgmes.jsonc</code> with <code>schemas</code> or a <code># [endpoint=...]</code> directive. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMLangServer's status and logs.</li>
             <li><b>Server fails to start</b> — usually a Java version problem. Set <b>Settings → Tools → CIMNotebook → Java executable</b> to a Java 21+ path.</li>
         </ul>
         <p>
@@ -163,11 +163,11 @@
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
 
-        <!-- ── Create Config File (opencgmes.json) ───────────────────────── -->
+        <!-- ── Create Config File (opencgmes.jsonc) ───────────────────────── -->
         <action id="de.soptim.opencgmes.cimnotebook.createConfig"
                 class="de.soptim.opencgmes.cimnotebook.intellij.CreateConfigAction"
                 text="CIMNotebook: Create Config File"
-                description="Scaffold an opencgmes.json config file in the project root.">
+                description="Scaffold an opencgmes.jsonc config file in the project root.">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
     </actions>
