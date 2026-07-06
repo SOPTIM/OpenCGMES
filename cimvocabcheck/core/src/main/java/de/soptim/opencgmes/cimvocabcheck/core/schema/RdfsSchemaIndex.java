@@ -489,7 +489,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
       if (profile.isHeaderProfile()) {
         continue; // header profiles are not addressable by version IRI
       }
-      Set<Node> versionIris = profile.getOwlVersionIRIs();
+      Set<Node> versionIris = profile.getOwlVersionIris();
       Map<Node, CimProfileRegistry.PropertyInfo> infos =
           registry.getPropertiesAndDatatypes(versionIris);
       for (Node iriNode : versionIris) {

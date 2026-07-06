@@ -202,7 +202,7 @@ public class TestCimProfile16 {
             </rdf:RDF>
             """;
 
-        var graph = new GraphMemRoaring();
+        var graph = GraphFactory.createGraphMem();
         RDFParser.create()
                 .source(new StringReader(rdfxml))
                 .lang(org.apache.jena.riot.Lang.RDFXML)
@@ -212,10 +212,10 @@ public class TestCimProfile16 {
         var profile = CimProfile.wrap(graph);
 
         assertFalse(profile.isHeaderProfile());
-        assertEquals(CimVersion.CIM_16, profile.getCIMVersion());
+        assertEquals(CimProfile16.CIM_NAMESPACE, profile.getCimNamespace());
         assertEquals("TST", profile.getDcatKeyword());
-        assertEquals(1, profile.getOwlVersionIRIs().size());
+        assertEquals(1, profile.getOwlVersionIris().size());
         assertEquals("http://example.org/TestProfile/1",
-                profile.getOwlVersionIRIs().iterator().next().getURI());
+                profile.getOwlVersionIris().iterator().next().getURI());
     }
 }

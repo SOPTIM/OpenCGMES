@@ -304,7 +304,7 @@ public final class CgmesSchemaLoader {
         try {
           registry.register(profile);
           if (!profile.isHeaderProfile()) {
-            for (Node iriNode : profile.getOwlVersionIRIs()) {
+            for (Node iriNode : profile.getOwlVersionIris()) {
               sourcePaths.put(new VersionIri(iriNode), f);
             }
           }
