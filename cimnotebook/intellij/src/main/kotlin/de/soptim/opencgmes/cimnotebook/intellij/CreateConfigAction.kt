@@ -32,7 +32,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * "Create Config File (opencgmes.jsonc)" action. Scaffolds an `opencgmes.jsonc` in the project root.
+ * "Create Config File (opencgmes.jsonc)" action. Scaffolds an `opencgmes.jsonc` in the project root,
+ * or reuses an existing plain `opencgmes.json` (also recognised by CIMVocabCheck) instead of creating
+ * a second, competing config file.
  *
  * The generated file points CIMVocabCheck at the CGMES profiles to validate against (without a schema —
  * or a `# [endpoint=...]` directive — validation is syntax-only). The template text is fetched from
@@ -49,13 +51,17 @@ class CreateConfigAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val basePath = project.basePath ?: return
-        val target = Path.of(basePath, FILE_NAME)
+
+        // Prefer an existing plain opencgmes.json over creating a second, competing opencgmes.jsonc.
+        val jsoncPath = Path.of(basePath, FILE_NAME)
+        val jsonPath = Path.of(basePath, LEGACY_FILE_NAME)
+        val target = if (!Files.exists(jsoncPath) && Files.exists(jsonPath)) jsonPath else jsoncPath
 
         if (Files.exists(target)) {
             val choice =
                 Messages.showYesNoDialog(
                     project,
-                    "$FILE_NAME already exists. Overwrite it?",
+                    "${target.fileName} already exists. Overwrite it?",
                     "CIMNotebook",
                     "Overwrite",
                     "Cancel",
@@ -95,7 +101,11 @@ class CreateConfigAction : AnAction() {
             }
             openInEditor(project, target)
         } catch (ex: Exception) {
-            Messages.showErrorDialog(project, "Could not create $FILE_NAME: ${ex.message}", "CIMNotebook")
+            Messages.showErrorDialog(
+                project,
+                "Could not create ${target.fileName}: ${ex.message}",
+                "CIMNotebook",
+            )
         }
     }
 
@@ -111,6 +121,7 @@ class CreateConfigAction : AnAction() {
         private const val SERVER_ID = "cimvocabcheck-lsp"
         private const val CMD_CREATE_CONFIG = "cimvocabcheck.createConfig"
         private const val FILE_NAME = "opencgmes.jsonc"
+        private const val LEGACY_FILE_NAME = "opencgmes.json"
         private val FALLBACK =
             """
             {

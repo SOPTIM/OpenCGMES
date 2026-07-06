@@ -78,7 +78,10 @@
         ],
         "jsonValidation": [
             {
-                "fileMatch": "**/opencgmes.jsonc",
+                "fileMatch": [
+                    "**/opencgmes.jsonc",
+                    "**/opencgmes.json"
+                ],
                 "url": "./schemas/validation.schema.json"
             }
         ],

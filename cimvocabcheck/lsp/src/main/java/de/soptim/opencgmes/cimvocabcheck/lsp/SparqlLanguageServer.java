@@ -18,10 +18,12 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
+import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import org.eclipse.lsp4j.CompletionOptions;
 import org.eclipse.lsp4j.DidChangeWatchedFilesRegistrationOptions;
 import org.eclipse.lsp4j.FileSystemWatcher;
@@ -50,7 +52,8 @@ import org.slf4j.LoggerFactory;
  *
  * <ol>
  *   <li>{@code initialize} — declare capabilities, start async schema load
- *   <li>{@code initialized} — register a file watcher for {@code opencgmes.jsonc}
+ *   <li>{@code initialized} — register a file watcher for {@code opencgmes.jsonc}/{@code
+ *       opencgmes.json}
  *   <li>Normal operation — text-document events drive validation via {@link
  *       SparqlTextDocumentService}
  *   <li>{@code shutdown} / {@code exit} — clean up threads
@@ -109,14 +112,21 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
     // Register a file-system watcher so we reload schema when the config file changes.
     if (client != null) {
       try {
-        FileSystemWatcher watcher = new FileSystemWatcher();
-        watcher.setGlobPattern(Either.forLeft("**/opencgmes.jsonc"));
+        List<FileSystemWatcher> watchers =
+            ConfigLoader.CONFIG_FILENAMES.stream()
+                .map(
+                    fileName -> {
+                      FileSystemWatcher watcher = new FileSystemWatcher();
+                      watcher.setGlobPattern(Either.forLeft("**/" + fileName));
+                      return watcher;
+                    })
+                .collect(Collectors.toList());
 
-        var regOptions = new DidChangeWatchedFilesRegistrationOptions(List.of(watcher));
+        var regOptions = new DidChangeWatchedFilesRegistrationOptions(watchers);
         var reg =
             new Registration("cgmes-config-watcher", "workspace/didChangeWatchedFiles", regOptions);
         client.registerCapability(new RegistrationParams(List.of(reg)));
-        LOG.info("Registered file watcher for opencgmes.jsonc");
+        LOG.info("Registered file watcher for {}", ConfigLoader.CONFIG_FILENAMES);
       } catch (Exception e) {
         LOG.warn("Could not register file watcher: {}", e.getMessage());
       }

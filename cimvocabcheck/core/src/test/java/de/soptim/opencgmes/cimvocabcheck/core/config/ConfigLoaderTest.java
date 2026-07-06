@@ -42,8 +42,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * Verifies {@code opencgmes.jsonc} discovery, the {@code cimvocabcheck} section, and comment
- * tolerance.
+ * Verifies {@code opencgmes.jsonc}/{@code opencgmes.json} discovery, the {@code cimvocabcheck}
+ * section, and comment tolerance.
  */
 public class ConfigLoaderTest {
 
@@ -102,6 +102,26 @@ public class ConfigLoaderTest {
     write(root, "{ \"cimvocabcheck\": { \"strictness\": \"pedantic\" } }");
     Path deep = Files.createDirectories(root.resolve("a/b/c"));
     Optional<Path> found = ConfigLoader.discoverFile(deep);
+    assertTrue(found.isPresent());
+    assertEquals(root.resolve("opencgmes.jsonc").toRealPath(), found.get().toRealPath());
+  }
+
+  @Test
+  public void discoverFallsBackToPlainJsonExtension() throws Exception {
+    Path root = tmp.getRoot().toPath();
+    writeNamed(root, "opencgmes.json", "{ \"cimvocabcheck\": { \"strictness\": \"pedantic\" } }");
+    Path deep = Files.createDirectories(root.resolve("a/b/c"));
+    Optional<Path> found = ConfigLoader.discoverFile(deep);
+    assertTrue(found.isPresent());
+    assertEquals(root.resolve("opencgmes.json").toRealPath(), found.get().toRealPath());
+  }
+
+  @Test
+  public void discoverPrefersJsoncOverJsonInTheSameDirectory() throws Exception {
+    Path root = tmp.getRoot().toPath();
+    write(root, "{ \"cimvocabcheck\": { \"strictness\": \"strict\" } }");
+    writeNamed(root, "opencgmes.json", "{ \"cimvocabcheck\": { \"strictness\": \"pedantic\" } }");
+    Optional<Path> found = ConfigLoader.discoverFile(root);
     assertTrue(found.isPresent());
     assertEquals(root.resolve("opencgmes.jsonc").toRealPath(), found.get().toRealPath());
   }
@@ -181,7 +201,11 @@ public class ConfigLoaderTest {
   }
 
   private static Path write(Path dir, String content) throws IOException {
-    Path file = dir.resolve("opencgmes.jsonc");
+    return writeNamed(dir, "opencgmes.jsonc", content);
+  }
+
+  private static Path writeNamed(Path dir, String fileName, String content) throws IOException {
+    Path file = dir.resolve(fileName);
     Files.writeString(file, content, StandardCharsets.UTF_8);
     return file;
   }

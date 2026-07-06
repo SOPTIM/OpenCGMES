@@ -115,19 +115,31 @@ export function deactivate(): Thenable<void> | undefined {
  * Scaffolds an `opencgmes.jsonc` in the workspace root. CIMNotebook works without it (validating against
  * the bundled CGMES 3.0 schemas); the generated file is fully commented and exists for customisation.
  * The template text comes from the language server's `cimvocabcheck.createConfig` command so the CLI and
- * editors stay in sync.
+ * editors stay in sync. A plain `opencgmes.json` (no comments) is also recognised by CIMNotebook — if one
+ * already exists, it is treated as the existing config instead of creating a second `opencgmes.jsonc`
+ * alongside it.
  */
 async function createConfig(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-        vscode.window.showWarningMessage("CIMNotebook: open a folder to create opencgmes.jsonc in.");
+        vscode.window.showWarningMessage(
+            "CIMNotebook: open a folder to create opencgmes.jsonc in.",
+        );
         return;
     }
-    const target = vscode.Uri.joinPath(folder.uri, "opencgmes.jsonc");
-    try {
-        await vscode.workspace.fs.stat(target);
+    // Prefer an existing plain opencgmes.json over creating a second, competing opencgmes.jsonc.
+    let target = vscode.Uri.joinPath(folder.uri, "opencgmes.jsonc");
+    let exists = await fileExists(target);
+    if (!exists) {
+        const jsonTarget = vscode.Uri.joinPath(folder.uri, "opencgmes.json");
+        if (await fileExists(jsonTarget)) {
+            target = jsonTarget;
+            exists = true;
+        }
+    }
+    if (exists) {
         const choice = await vscode.window.showWarningMessage(
-            "CIMNotebook: opencgmes.jsonc already exists.",
+            `CIMNotebook: ${vscode.workspace.asRelativePath(target)} already exists.`,
             "Open",
             "Overwrite",
         );
@@ -138,8 +150,6 @@ async function createConfig(): Promise<void> {
         if (choice !== "Overwrite") {
             return;
         }
-    } catch {
-        // Does not exist yet — fall through and create it.
     }
     try {
         let content: string | undefined;
@@ -158,6 +168,15 @@ async function createConfig(): Promise<void> {
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`Create Config failed: ${msg}`);
         vscode.window.showErrorMessage(`CIMNotebook: Create Config failed: ${msg}`);
+    }
+}
+
+async function fileExists(uri: vscode.Uri): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(uri);
+        return true;
+    } catch {
+        return false;
     }
 }
 
@@ -270,7 +289,7 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher("**/opencgmes.jsonc"),
+            fileEvents: vscode.workspace.createFileSystemWatcher("**/opencgmes.{jsonc,json}"),
         },
         traceOutputChannel: traceChannel,
     };

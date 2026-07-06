@@ -26,6 +26,7 @@ import de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -46,14 +47,21 @@ import java.util.Optional;
  * }</pre>
  *
  * <p>Auto-discovery walks the directory tree upward from a start directory looking for {@code
- * opencgmes.jsonc}; an explicit path can also be provided. The file is optional — when none is
- * found (or it declares no {@code schemas}/{@code schemasDirectory}), validation is syntax-only;
- * there is no bundled default schema. Java-style comments and trailing commas are tolerated.
+ * opencgmes.jsonc} (falling back to plain {@code opencgmes.json} in the same directory); an
+ * explicit path can also be provided. The file is optional — when none is found (or it declares no
+ * {@code schemas}/{@code schemasDirectory}), validation is syntax-only; there is no bundled default
+ * schema. Java-style comments and trailing commas are tolerated regardless of extension.
  */
 public final class ConfigLoader {
 
-  /** The config file name, looked for in each directory while walking up the tree. */
+  /** The canonical config file name, used when generating a new scaffold. */
   public static final String CONFIG_FILENAME = "opencgmes.jsonc";
+
+  /**
+   * Config file names recognised during discovery, in preference order: {@link #CONFIG_FILENAME}
+   * wins when both exist in the same directory.
+   */
+  public static final List<String> CONFIG_FILENAMES = List.of("opencgmes.jsonc", "opencgmes.json");
 
   /** Top-level key under which all CIMVocabCheck settings live. */
   private static final String SECTION = "cimvocabcheck";
@@ -118,7 +126,8 @@ public final class ConfigLoader {
   }
 
   /**
-   * Walks upward from {@code startDir} looking for {@code opencgmes.jsonc}.
+   * Walks upward from {@code startDir} looking for {@code opencgmes.jsonc} (or {@code
+   * opencgmes.json}).
    *
    * @return the parsed {@code cimvocabcheck} section, or empty if no file was found in the
    *     hierarchy
@@ -130,8 +139,8 @@ public final class ConfigLoader {
   }
 
   /**
-   * Walks upward from {@code startDir} returning the path of the nearest {@code opencgmes.jsonc},
-   * or empty if none exists anywhere in the hierarchy. The file is not parsed.
+   * Walks upward from {@code startDir} returning the path of the nearest {@link #CONFIG_FILENAMES}
+   * match, or empty if none exists anywhere in the hierarchy. The file is not parsed.
    */
   public static Optional<Path> discoverFile(Path startDir) {
     if (startDir == null) {
@@ -139,9 +148,11 @@ public final class ConfigLoader {
     }
     Path dir = startDir.toAbsolutePath().normalize();
     while (dir != null) {
-      Path candidate = dir.resolve(CONFIG_FILENAME);
-      if (Files.isRegularFile(candidate)) {
-        return Optional.of(candidate);
+      for (String fileName : CONFIG_FILENAMES) {
+        Path candidate = dir.resolve(fileName);
+        if (Files.isRegularFile(candidate)) {
+          return Optional.of(candidate);
+        }
       }
       dir = dir.getParent();
     }

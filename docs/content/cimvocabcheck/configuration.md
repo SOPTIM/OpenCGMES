@@ -15,6 +15,9 @@ the [CLI](/cimvocabcheck/cli), the [CIMLangServer](/cimvocabcheck/language-serve
 CIMVocabCheck is configured by an `opencgmes.jsonc` file. All settings live under a top-level
 `"cimvocabcheck"` section, so the same file can host configuration for other OpenCGMES tools:
 
+A plain `opencgmes.json` (no comments) is also recognised, for tooling that generates config files
+without JSONC support. If both exist in the same directory, `opencgmes.jsonc` wins.
+
 ```json
 {
   "cimvocabcheck": {

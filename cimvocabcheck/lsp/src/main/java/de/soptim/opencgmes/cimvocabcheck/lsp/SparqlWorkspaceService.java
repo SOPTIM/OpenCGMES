@@ -22,6 +22,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 import de.soptim.opencgmes.cimvocabcheck.core.ConfigTemplate;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
+import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryExplanation;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -149,9 +150,13 @@ final class SparqlWorkspaceService implements WorkspaceService {
       return;
     }
     boolean configChanged =
-        params.getChanges().stream().anyMatch(e -> e.getUri().endsWith("opencgmes.jsonc"));
+        params.getChanges().stream()
+            .anyMatch(
+                e ->
+                    ConfigLoader.CONFIG_FILENAMES.stream()
+                        .anyMatch(name -> e.getUri().endsWith(name)));
     if (configChanged) {
-      LOG.info("opencgmes.jsonc changed — reloading schema");
+      LOG.info("opencgmes config file changed — reloading schema");
       schemaManager.reloadAsync();
     }
   }
