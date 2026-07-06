@@ -147,6 +147,53 @@ public class ValidateCommandTest {
     assertEquals(2, exit);
   }
 
+  /**
+   * A schema directory with one parseable profile and one that isn't must still validate (using
+   * the good profile), and must print a visible warning naming the skipped file — previously this
+   * was only logged via SLF4J and invisible on the CLI.
+   */
+  @Test
+  public void mixedGoodAndBadSchemaFiles_printsVisibleSkipWarning() throws Exception {
+    Path schemaDir = tmp.newFolder("schemas").toPath();
+    Files.writeString(schemaDir.resolve("good.rdf"), MINIMAL_GOOD_CIM16_RDF);
+    Files.writeString(schemaDir.resolve("bad.rdf"), MINIMAL_BAD_CIM16_RDF);
+    Path query = write("q.rq", "SELECT * WHERE { ?s ?p ?o }");
+
+    String err = runCapturingStderr("--schema", schemaDir.toString(), query.toString());
+
+    assertTrue(
+        "stderr must warn about the skipped file: " + err,
+        err.contains("schema loaded with warnings") && err.contains("bad.rdf"));
+  }
+
+  private static final String MINIMAL_GOOD_CIM16_RDF =
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+               xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+               xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#">
+        <rdf:Description rdf:about="http://entsoe.eu/TestExt#TestVersion.shortName">
+          <rdfs:domain rdf:resource="http://entsoe.eu/TestExt#TestVersion"/>
+          <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">TST</cims:isFixed>
+        </rdf:Description>
+        <rdf:Description rdf:about="http://entsoe.eu/TestExt#TestVersion.entsoeURI">
+          <rdfs:domain rdf:resource="http://entsoe.eu/TestExt#TestVersion"/>
+          <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">http://example.org/TestProfile/1</cims:isFixed>
+        </rdf:Description>
+      </rdf:RDF>
+      """;
+
+  private static final String MINIMAL_BAD_CIM16_RDF =
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+               xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#">
+        <rdfs:Class rdf:about="http://iec.ch/TC57/2013/CIM-schema-cim16#Foo"/>
+      </rdf:RDF>
+      """;
+
   // ---- helpers ----------------------------------------------------------------------------
 
   private Path write(String name, String content) throws Exception {
@@ -165,6 +212,22 @@ public class ValidateCommandTest {
       System.setOut(originalOut);
     }
     return buffer.toString(StandardCharsets.UTF_8);
+  }
+
+  private static String runCapturingStderr(String... args) {
+    PrintStream originalOut = System.out;
+    PrintStream originalErr = System.err;
+    var outSink = new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8);
+    var errBuffer = new ByteArrayOutputStream();
+    System.setOut(outSink);
+    System.setErr(new PrintStream(errBuffer, true, StandardCharsets.UTF_8));
+    try {
+      new CommandLine(new ValidateCommand()).execute(args);
+    } finally {
+      System.setOut(originalOut);
+      System.setErr(originalErr);
+    }
+    return errBuffer.toString(StandardCharsets.UTF_8);
   }
 
   private static int exitOf(String... args) {

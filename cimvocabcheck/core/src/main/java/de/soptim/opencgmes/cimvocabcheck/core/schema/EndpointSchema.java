@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimvocabcheck.core.schema;
 
+import de.soptim.opencgmes.cimvocabcheck.core.SchemaLoadCode;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import java.util.Collection;
 import java.util.List;
@@ -30,7 +31,11 @@ import org.apache.jena.graph.Node;
  * <p>When the endpoint exposes no CIM schema graphs (or none of them is a recognisable CIM
  * profile), {@link #hasSchema()} is {@code false} and {@link #index()} is {@code null} — callers
  * should warn the user and fall back to schema-independent syntax checking rather than silently
- * validating against nothing.
+ * validating against nothing. {@link #schemaGraphNames()} still distinguishes the two cases: empty
+ * means the endpoint genuinely exposed no schema-like graphs, non-empty (with {@link
+ * #unresolvedReason()} set) means schema graphs were found but none resolved to a registered CIM
+ * profile — most likely an unrecognized {@code cim} namespace that needs registering (see {@code
+ * cimNamespaces} in {@code opencgmes.json}).
  *
  * @param index the schema index built from the endpoint's schema graphs, or {@code null} when no
  *     schema could be resolved
@@ -41,12 +46,18 @@ import org.apache.jena.graph.Node;
  *     {@code GRAPH_NOT_CONFIGURED})
  * @param schemaGraphNames the named graphs identified as holding the schema
  * @param unmatchedGraphs instance graphs whose terms matched no known profile
+ * @param unresolvedReason when {@link #hasSchema()} is {@code false} and {@code schemaGraphNames}
+ *     is non-empty, the reason none of them resolved to a CIM profile; {@code null} otherwise
+ * @param unresolvedCode the {@link SchemaLoadCode} classifying {@link #unresolvedReason()}, or
+ *     {@code null} when there is no unresolved reason
  */
 public record EndpointSchema(
     RdfsSchemaIndex index,
     Map<Node, Collection<VersionIri>> namedGraphScope,
     List<String> schemaGraphNames,
-    List<Node> unmatchedGraphs) {
+    List<Node> unmatchedGraphs,
+    String unresolvedReason,
+    SchemaLoadCode unresolvedCode) {
 
   /** Canonical constructor; defensively copies the scope map and graph lists. */
   public EndpointSchema {
@@ -69,8 +80,18 @@ public record EndpointSchema(
     return namedGraphScope.size() - schemaGraphNames.size();
   }
 
-  /** An {@link EndpointSchema} carrying no schema (endpoint exposed no CIM profiles). */
+  /**
+   * An {@link EndpointSchema} carrying no schema, either because the endpoint exposed no
+   * schema-like graphs at all ({@code schemaGraphNames} empty), or because it exposed some but none
+   * resolved to a registered CIM profile (in which case {@code reason}/{@code code} explain why).
+   */
+  public static EndpointSchema noSchema(
+      List<String> schemaGraphNames, String reason, SchemaLoadCode code) {
+    return new EndpointSchema(null, Map.of(), schemaGraphNames, List.of(), reason, code);
+  }
+
+  /** An {@link EndpointSchema} carrying no schema, with no specific reason recorded. */
   public static EndpointSchema noSchema(List<String> schemaGraphNames) {
-    return new EndpointSchema(null, Map.of(), schemaGraphNames, List.of());
+    return noSchema(schemaGraphNames, null, null);
   }
 }

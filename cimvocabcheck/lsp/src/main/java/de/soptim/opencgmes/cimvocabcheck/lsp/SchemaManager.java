@@ -379,9 +379,8 @@ final class SchemaManager {
         markFailed(endpoint);
         notify(
             MessageType.Warning,
-            "CIMVocabCheck: endpoint "
-                + endpoint
-                + " exposes no CIM schema graphs — validating SPARQL syntax only.");
+            "CIMVocabCheck: endpoint " + endpoint + " " + describeNoSchema(es)
+                + " — validating SPARQL syntax only.");
         return;
       }
       ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope(), null);
@@ -425,6 +424,22 @@ final class SchemaManager {
     } finally {
       inFlightEndpoints.remove(endpoint);
     }
+  }
+
+  /**
+   * Describes why an endpoint yielded no schema, distinguishing "no schema-like graphs at all" from
+   * "schema graphs were found but none resolved to a registered CIM profile" (most commonly an
+   * unrecognized {@code cim} namespace — see the {@code cimNamespaces} setting in {@code
+   * opencgmes.json}).
+   */
+  private static String describeNoSchema(EndpointSchema es) {
+    if (es.schemaGraphNames().isEmpty()) {
+      return "exposes no CIM schema graphs";
+    }
+    return "exposes "
+        + es.schemaGraphNames().size()
+        + " schema graph(s), but none resolved to a registered CIM profile"
+        + (es.unresolvedReason() != null ? " — " + es.unresolvedReason() : "");
   }
 
   /** Renders up to a few graph names for a warning message, eliding the rest. */

@@ -19,15 +19,24 @@
 package de.soptim.opencgmes.cimvocabcheck.core.config;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import de.soptim.opencgmes.cimvocabcheck.core.ConfigTemplate;
+import de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry;
+import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFParser;
+import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -38,7 +47,18 @@ import org.junit.rules.TemporaryFolder;
  */
 public class ConfigLoaderTest {
 
+  private static final String TEST_CUSTOM_NAMESPACE = "https://vendor.example.org/custom-cim#";
+
   @Rule public TemporaryFolder tmp = new TemporaryFolder();
+
+  /**
+   * {@link CimNamespaceFactoryRegistry} is process-global; undo test registrations so they don't
+   * leak into other tests running in the same JVM.
+   */
+  @After
+  public void unregisterTestNamespaces() {
+    CimNamespaceFactoryRegistry.unregisterProfileFactory(TEST_CUSTOM_NAMESPACE);
+  }
 
   @Test
   public void generatedTemplateParsesWithNoSchemasConfigured() throws Exception {
@@ -84,6 +104,80 @@ public class ConfigLoaderTest {
     Optional<Path> found = ConfigLoader.discoverFile(deep);
     assertTrue(found.isPresent());
     assertEquals(root.resolve("opencgmes.json").toRealPath(), found.get().toRealPath());
+  }
+
+  @Test
+  public void cimNamespacesEntryRegistersACustomProfileShape() throws Exception {
+    String customNs = TEST_CUSTOM_NAMESPACE;
+    String json =
+        """
+        {
+          "cimvocabcheck": {
+            "cimNamespaces": { "%s": "cim17" }
+          }
+        }
+        """
+            .formatted(customNs);
+    Path file = write(tmp.getRoot().toPath(), json);
+
+    ConfigLoader.load(file);
+
+    assertTrue(
+        "custom namespace should now have a registered CimProfile factory",
+        CimNamespaceFactoryRegistry.hasProfileFactory(customNs));
+
+    // The registered factory should actually parse a CIM17-shaped ontology using the custom
+    // namespace, proving the shape (not just the namespace URI) was wired up correctly.
+    String ttl =
+        """
+        @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+        @prefix dcat: <http://www.w3.org/ns/dcat#> .
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix cim:  <%s> .
+
+        <http://example.org/profiles/Custom> a owl:Ontology ;
+            owl:versionIRI <http://example.org/profiles/Custom/1.0> ;
+            dcat:keyword "CUSTOM" .
+
+        cim:Widget a rdfs:Class .
+        """
+            .formatted(customNs);
+    Model m = ModelFactory.createDefaultModel();
+    RDFParser.fromString(ttl, Lang.TURTLE).parse(m);
+
+    CimProfile profile = CimProfile.wrap(m.getGraph());
+    assertEquals(customNs, profile.getCimNamespace());
+    assertTrue(profile.getOwlVersionIris().stream()
+        .anyMatch(n -> n.getURI().equals("http://example.org/profiles/Custom/1.0")));
+  }
+
+  @Test
+  public void unknownCimNamespaceShapeFailsWithAClearError() throws Exception {
+    String json =
+        """
+        {
+          "cimvocabcheck": {
+            "cimNamespaces": { "https://vendor.example.org/other-cim#": "cim99" }
+          }
+        }
+        """;
+    Path file = write(tmp.getRoot().toPath(), json);
+
+    try {
+      ConfigLoader.load(file);
+      fail("expected ConfigException for an unknown profile shape");
+    } catch (ConfigLoader.ConfigException expected) {
+      assertTrue(
+          "message should name the bad shape",
+          expected.getMessage().contains("cim99"));
+    }
+  }
+
+  @Test
+  public void noCimNamespacesEntryLeavesRegistryUntouched() throws Exception {
+    Path file = write(tmp.getRoot().toPath(), "{ \"cimvocabcheck\": { \"strictness\": \"strict\" } }");
+    CimvocabcheckConfig cfg = ConfigLoader.load(file);
+    assertFalse(cfg.hasCimNamespaces());
   }
 
   private static Path write(Path dir, String content) throws IOException {

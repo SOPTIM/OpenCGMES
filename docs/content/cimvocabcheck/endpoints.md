@@ -106,6 +106,18 @@ if (!es.hasSchema()) {
 A Fuseki `…/update` URL is tolerated (its `…/query` sibling is used automatically). For in-process
 datasets or tests, pass a `SparqlGraphSource` to `EndpointSchemaLoader.load(...)` instead.
 
+`!es.hasSchema()` covers two different situations, both distinguishable via `es.schemaGraphNames()`
+and `es.unresolvedReason()`:
+
+- **No schema-like graphs at all** (`schemaGraphNames()` empty) — the endpoint genuinely hosts no
+  `rdfs:Class`/`owl:Ontology` graph.
+- **Schema graphs found, but none resolved to a CIM profile** (`schemaGraphNames()` non-empty,
+  `unresolvedReason()` set) — almost always an unrecognized `cim` namespace. Register it with
+  [`cimNamespaces`](/cimvocabcheck/configuration#cimnamespaces) in `opencgmes.json` and reload.
+
+The CLI and language server print distinct warnings for each case rather than a single generic
+"no schema" message.
+
 ## From the CLI
 
 ```bash
@@ -135,5 +147,9 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
   instance data in one graph, is not discovered.
 - A profile graph that declares **neither** an `rdfs:Class` nor an `owl:Ontology` (rare — e.g. some
   header/boundary profiles) is not picked up by the enumeration filter.
+- Graphs fetched over SPARQL usually carry **no prefix declarations**, so a custom `cim` namespace
+  can only be recognized once it's registered — via [`cimNamespaces`](/cimvocabcheck/configuration#cimnamespaces)
+  — *before* the endpoint load runs; there's no way to auto-detect an unregistered custom namespace
+  from namespace-less graph content alone.
 
 See [Known limitations](/cimvocabcheck/limitations) for the broader picture.

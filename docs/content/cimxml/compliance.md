@@ -21,17 +21,32 @@ features, the recognized CIM versions, and the standards background.
 
 ## CIM versions
 
-The CIM version is detected from the CIM namespace declared in the document. The recognized
-namespaces are:
+The CIM version is determined by the `cim` namespace URI declared in the document. CIMXML does not
+hard-code a fixed set of recognized namespaces — parsing accepts any `cim` namespace URI, and the
+namespace is mapped to a `CimProfile` implementation via `CimNamespaceFactoryRegistry`
+(`de.soptim.opencgmes.cimxml.graph`), a static registry keyed by namespace URI. Three namespaces are
+registered as built-ins:
 
-| Version | Namespace URI                               | CGMES        | Status      |
-| ------- | ------------------------------------------- | ------------ | ----------- |
-| CIM 16  | `http://iec.ch/TC57/2013/CIM-schema-cim16#` | CGMES 2.4.15 | Supported   |
-| CIM 17  | `http://iec.ch/TC57/CIM100#`                | CGMES 3.0    | Supported   |
-| CIM 18  | `https://cim.ucaiug.io/ns#`                 | (no matching CGMES yet) | Supported |
+| Version | Namespace URI                               | CGMES        | `CimProfile` implementation |
+| ------- | ------------------------------------------- | ------------ | ---------------------------- |
+| CIM 16  | `http://iec.ch/TC57/2013/CIM-schema-cim16#` | CGMES 2.4.15 | `CimProfile16`                |
+| CIM 17  | `http://iec.ch/TC57/CIM100#`                | CGMES 3.0    | `CimProfile17`                |
+| CIM 18  | `https://cim.ucaiug.io/ns#`                 | (no matching CGMES yet) | `CimProfile18`     |
 
-A document whose CIM namespace is none of the above is treated as having no CIM version
-(`NO_CIM`).
+Call `CimNamespaceFactoryRegistry.registerProfileFactory(namespace, factory)` to map any other
+namespace URI to a custom `CimProfile` implementation, e.g. for a vendor extension namespace or a
+future CIM version. Parsing a document whose `cim` namespace has no registered factory still
+succeeds — the parser only logs a warning — but resolving that namespace's profile ontology via
+`CimProfile.wrap` throws `IllegalArgumentException` until a factory is registered for it.
+
+:::tip Registering a custom namespace without writing Java
+`CimProfile16`/`CimProfile17`/`CimProfile18` are parsing *shapes*, not namespace-specific code — they
+work on whatever `cim` namespace the graph declares. If your vendor namespace's ontology follows the
+same conventions (`cims:isFixed` vs. `owl:versionIRI`/`dcat:keyword`), you don't need a custom
+`CimProfile` implementation at all: CIMVocabCheck's `cimNamespaces` config setting maps a namespace
+URI straight to one of these built-in shapes from `opencgmes.json`. See
+[Configuration → `cimNamespaces`](/cimvocabcheck/configuration#cimnamespaces).
+:::
 
 :::note New to CIM and CGMES?
 For background on the Common Information Model, CGMES profiles, and how the versions relate, see the

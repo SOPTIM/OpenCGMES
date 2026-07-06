@@ -57,6 +57,7 @@ syntax-only mode.
 | `namedGraphs` | object | — | Map graph IRIs / short names to profile IRIs |
 | `prefixes` | object | *(built-in set)* | PREFIX declarations injected into queries |
 | `standardVocabulary` | enum | `check` | Whether to typo-check `rdf`/`rdfs`/`owl`/`sh` terms |
+| `cimNamespaces` | object | — | Map custom `cim` namespace URIs to a built-in profile shape |
 
 All fields are optional. Paths are resolved **relative to `opencgmes.json`**.
 
@@ -193,6 +194,47 @@ Controls typo-checking of terms in the **closed** standard vocabularies (`rdf`, 
 Open annotation/datatype namespaces (`xsd`, `dcterms`, `dc`, `skos`, `dcat`, and the IEC extension
 namespaces) are always accepted regardless of this setting. The vendored W3C vocabulary documents
 are redistributed under the W3C Software and Document License.
+
+### `cimNamespaces`
+
+Schema files and endpoint graphs are only parsed if their `cim` namespace is known to CIMXML's
+[`CimNamespaceFactoryRegistry`](/cimxml/compliance#cim-versions) — out of the box that's just the
+three well-known CIM 16/17/18 namespaces. If your schema uses a **custom `cim` namespace** (a vendor
+extension, an internal profile, a not-yet-standard CIM version), declare it here, mapping the
+namespace URI to whichever built-in **profile shape** matches its ontology's conventions:
+
+```json
+{
+  "cimvocabcheck": {
+    "cimNamespaces": {
+      "https://example.com/my-vendor-cim#": "cim17"
+    },
+    "schemasDirectory": "schemas/my-vendor-profiles"
+  }
+}
+```
+
+| Shape | Ontology convention | As used by |
+| --- | --- | --- |
+| `cim16` | `cims:isFixed` version IRIs, `{Profile}Version.shortName` keywords | CGMES 2.4.15 |
+| `cim17` | `owl:versionIRI`, `dcat:keyword` | CGMES 3.0+ |
+| `cim18` | Like `cim17`, plus CIM18's `DocumentHeader`-based header-profile detection | CIM 18 |
+
+`CimProfile16`/`CimProfile17`/`CimProfile18` are parsing strategies, not code tied to their specific
+namespace — reusing one of them for a custom namespace works as long as your ontology follows the
+same convention. Most new vendor/extension profiles follow the modern `owl:versionIRI`/`dcat:keyword`
+convention, so `cim17` is the right choice unless you know otherwise.
+
+Registration happens as a side effect of loading the config, so it takes effect for schema files,
+`--endpoint`/`# [endpoint=...]` loads, and any other schema source in the same process — you don't
+need to declare it more than once. An unknown shape name (anything other than `cim16`/`cim17`/`cim18`)
+fails config loading with a clear error naming the bad value.
+
+:::note Writing your own `CimProfile`
+If your ontology doesn't follow either built-in convention, `cimNamespaces` can't help — implement
+`CimProfile` yourself and call `CimNamespaceFactoryRegistry.registerProfileFactory` from your own code
+before CIMVocabCheck loads. See [CIMXML → Compliance](/cimxml/compliance#cim-versions).
+:::
 
 ## Full example
 

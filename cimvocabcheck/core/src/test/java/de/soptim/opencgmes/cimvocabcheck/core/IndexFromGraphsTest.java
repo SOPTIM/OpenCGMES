@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimvocabcheck.core;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -116,6 +117,42 @@ public class IndexFromGraphsTest {
       fail("expected SchemaLoadException for empty graph list");
     } catch (CgmesSchemaLoader.SchemaLoadException expected) {
       // success
+    }
+  }
+
+  /**
+   * A graph that already declares a {@code cim} prefix pointing at a namespace with no registered
+   * {@link de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry} entry — the situation this
+   * loader cannot recover from without the namespace being registered (e.g. via the
+   * {@code cimNamespaces} config setting), unlike a prefix-less graph using one of the well-known
+   * namespaces.
+   */
+  private static Graph graphWithUnregisteredCimPrefix() {
+    Graph g = instanceDataGraph();
+    g.getPrefixMapping().setNsPrefix("cim", "https://vendor.example.org/unregistered-cim#");
+    return g;
+  }
+
+  @Test
+  public void reportsUnrecognizedNamespaceDistinctlyFromNoCimData() {
+    try {
+      CgmesSchemaLoader.indexFromGraphs(List.of(graphWithUnregisteredCimPrefix()));
+      fail("expected SchemaLoadException when the only cim namespace is unregistered");
+    } catch (CgmesSchemaLoader.SchemaLoadException e) {
+      assertTrue(
+          "message should name the unregistered namespace",
+          e.getMessage().contains("https://vendor.example.org/unregistered-cim#"));
+      assertEquals(SchemaLoadCode.UNRECOGNIZED_CIM_NAMESPACE, e.code().orElseThrow());
+    }
+  }
+
+  @Test
+  public void plainNonCimDataYieldsNoCimProfilesFoundCode() {
+    try {
+      CgmesSchemaLoader.indexFromGraphs(List.of(instanceDataGraph()));
+      fail("expected SchemaLoadException when no graph is a profile");
+    } catch (CgmesSchemaLoader.SchemaLoadException e) {
+      assertEquals(SchemaLoadCode.NO_CIM_PROFILES_FOUND, e.code().orElseThrow());
     }
   }
 }

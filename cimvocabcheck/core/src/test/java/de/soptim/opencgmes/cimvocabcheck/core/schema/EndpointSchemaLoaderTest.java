@@ -23,6 +23,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import de.soptim.opencgmes.cimvocabcheck.core.SchemaLoadCode;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.Dataset;
@@ -139,5 +140,42 @@ public class EndpointSchemaLoaderTest {
     assertFalse("no schema graphs means no schema", es.hasSchema());
     assertNull(es.index());
     assertTrue(es.namedGraphScope().isEmpty());
+    assertTrue("no schema-like graphs at all", es.schemaGraphNames().isEmpty());
+  }
+
+  /**
+   * A schema-shaped graph (declares an {@code owl:Ontology}) under a {@code cim} namespace with no
+   * registered {@link de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry} entry. This must
+   * be distinguishable from {@link #reportsNoSchemaWhenEndpointHasNoProfileGraphs()}: the endpoint
+   * did expose a schema-like graph, it just couldn't be resolved to a profile.
+   */
+  @Test
+  public void reportsUnrecognizedNamespaceDistinctlyFromNoSchemaGraphs() {
+    Dataset ds = DatasetFactory.createGeneral();
+    String customNs = "https://vendor.example.org/endpoint-custom-cim#";
+    String ttl =
+        """
+        @prefix owl:  <http://www.w3.org/2002/07/owl#> .
+        @prefix dcat: <http://www.w3.org/ns/dcat#> .
+        @prefix cim:  <%s> .
+
+        <http://example.org/CustomProfile> a owl:Ontology ;
+            owl:versionIRI <http://example.org/CustomProfile/1.0> ;
+            dcat:keyword "CUSTOM" .
+
+        cim:Widget a <http://www.w3.org/2000/01/rdf-schema#Class> .
+        """
+            .formatted(customNs);
+    ds.addNamedModel("http://ex.org/schema/custom", parse(ttl));
+
+    EndpointSchema es = EndpointSchemaLoader.load(new DatasetSparqlGraphSource(ds));
+
+    assertFalse("no registered profile for the custom namespace", es.hasSchema());
+    assertFalse(
+        "the endpoint did expose a schema-like graph", es.schemaGraphNames().isEmpty());
+    assertEquals(SchemaLoadCode.UNRECOGNIZED_CIM_NAMESPACE, es.unresolvedCode());
+    assertTrue(
+        "reason should name the unrecognized namespace",
+        es.unresolvedReason() != null && es.unresolvedReason().contains(customNs));
   }
 }

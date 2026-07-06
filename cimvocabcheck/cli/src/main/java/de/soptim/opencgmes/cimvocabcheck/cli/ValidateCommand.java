@@ -255,7 +255,7 @@ public class ValidateCommand implements Callable<Integer> {
       throw abortUsage("failed to load schema from endpoint " + endpoint + " — " + e.getMessage());
     }
     if (!es.hasSchema()) {
-      String msg = "endpoint " + endpoint + " exposes no CIM schema graphs";
+      String msg = describeNoSchema(endpoint, es);
       if (strictEndpoint) {
         throw abortUsage(msg + " (--strict-endpoint).");
       }
@@ -275,6 +275,24 @@ public class ValidateCommand implements Callable<Integer> {
               + " named graph(s); their terms will be reported as unknown.");
     }
     return new SchemaContext(es.index(), null, es.namedGraphScope(), false);
+  }
+
+  /**
+   * Describes why an endpoint yielded no schema, distinguishing "no schema-like graphs at all" from
+   * "schema graphs were found but none resolved to a registered CIM profile" (most commonly an
+   * unrecognized {@code cim} namespace — see the {@code cimNamespaces} setting in {@code
+   * opencgmes.json}).
+   */
+  private static String describeNoSchema(String endpoint, EndpointSchema es) {
+    if (es.schemaGraphNames().isEmpty()) {
+      return "endpoint " + endpoint + " exposes no CIM schema graphs";
+    }
+    return "endpoint "
+        + endpoint
+        + " exposes "
+        + es.schemaGraphNames().size()
+        + " schema graph(s), but none resolved to a registered CIM profile"
+        + (es.unresolvedReason() != null ? " — " + es.unresolvedReason() : "");
   }
 
   private SchemaContext resolveSchemaFromFilesOrConfig() {

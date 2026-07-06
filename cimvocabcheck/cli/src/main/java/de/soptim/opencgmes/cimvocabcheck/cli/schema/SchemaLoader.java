@@ -142,7 +142,14 @@ public final class SchemaLoader {
   private static RdfsSchemaIndex buildIndex(List<Path> files) throws SchemaLoadException {
     try {
       var loaded = CgmesSchemaLoader.fromFiles(files).loadIndexWithSources();
-      loaded.skippedFiles().forEach(f -> LOG.warn("Skipped unparseable schema file: {}", f));
+      if (!loaded.skippedFiles().isEmpty()) {
+        LOG.warn("Skipped {} unparseable schema file(s)", loaded.skippedFiles().size());
+        System.err.println(
+            "Warning: schema loaded with warnings — "
+                + loaded.skippedFiles().size()
+                + " file(s) could not be parsed and were skipped:");
+        loaded.skippedFiles().forEach(f -> System.err.println("  " + f));
+      }
       return loaded.index();
     } catch (CgmesSchemaLoader.SchemaLoadException e) {
       throw new SchemaLoadException(e.getMessage(), e.getCause());

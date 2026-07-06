@@ -100,7 +100,7 @@ public final class EndpointSchemaLoader {
       index = CgmesSchemaLoader.indexFromGraphs(graphs);
     } catch (SchemaLoadException e) {
       LOG.warn("No CIM schema could be built from the endpoint's graphs: {}", e.getMessage());
-      return EndpointSchema.noSchema(schemaGraphNames);
+      return EndpointSchema.noSchema(schemaGraphNames, e.getMessage(), e.code().orElse(null));
     }
 
     NamedGraphProfileResolver.Result detected =
@@ -118,6 +118,6 @@ public final class EndpointSchemaLoader {
         detected.scope().size(),
         detected.unmatched().size(),
         schemaGraphNames.size());
-    return new EndpointSchema(index, scope, schemaGraphNames, detected.unmatched());
+    return new EndpointSchema(index, scope, schemaGraphNames, detected.unmatched(), null, null);
   }
 }

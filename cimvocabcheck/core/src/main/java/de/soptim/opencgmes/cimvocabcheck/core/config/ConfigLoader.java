@@ -22,9 +22,11 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -68,18 +70,50 @@ public final class ConfigLoader {
    * Loads the {@code cimvocabcheck} section from an explicit {@code opencgmes.json} path. A missing
    * section yields an empty config (no schemas → syntax-only validation).
    *
-   * @throws ConfigException if the file cannot be read or parsed
+   * <p>As a side effect, any {@code cimNamespaces} entries are registered with {@link
+   * CimNamespaceFactoryRegistry} so subsequent schema loads (from files or a SPARQL endpoint) can
+   * resolve those namespaces. This registry is process-global — in a multi-root workspace, the last
+   * config loaded for a given namespace wins.
+   *
+   * @throws ConfigException if the file cannot be read or parsed, or a {@code cimNamespaces} entry
+   *     names an unknown profile shape
    */
   public static CimvocabcheckConfig load(Path configFile) throws ConfigException {
     try {
       JsonNode root = MAPPER.readTree(configFile.toFile());
       JsonNode section = root == null ? null : root.get(SECTION);
-      if (section == null || section.isNull()) {
-        return CimvocabcheckConfig.empty();
-      }
-      return MAPPER.treeToValue(section, CimvocabcheckConfig.class);
+      CimvocabcheckConfig config =
+          (section == null || section.isNull())
+              ? CimvocabcheckConfig.empty()
+              : MAPPER.treeToValue(section, CimvocabcheckConfig.class);
+      registerCimNamespaces(config, configFile);
+      return config;
     } catch (IOException e) {
       throw new ConfigException("Cannot read config file " + configFile + ": " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Registers the config's {@code cimNamespaces} (namespace URI → profile shape) with {@link
+   * CimNamespaceFactoryRegistry}.
+   */
+  private static void registerCimNamespaces(CimvocabcheckConfig config, Path configFile)
+      throws ConfigException {
+    for (Map.Entry<String, String> entry : config.cimNamespaces().entrySet()) {
+      String namespace = entry.getKey();
+      String shape = entry.getValue();
+      try {
+        CimNamespaceFactoryRegistry.registerProfileFactory(
+            namespace, CimProfileShapes.resolve(shape));
+      } catch (IllegalArgumentException e) {
+        throw new ConfigException(
+            "Invalid 'cimNamespaces' entry in "
+                + configFile
+                + " for namespace '"
+                + namespace
+                + "': "
+                + e.getMessage());
+      }
     }
   }
 

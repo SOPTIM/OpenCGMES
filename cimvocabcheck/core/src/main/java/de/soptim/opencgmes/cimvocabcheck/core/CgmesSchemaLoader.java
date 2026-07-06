@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.core;
 
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry;
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
@@ -28,10 +29,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.jena.graph.Graph;
@@ -65,6 +69,13 @@ import org.slf4j.LoggerFactory;
 public final class CgmesSchemaLoader {
 
   private static final Logger LOG = LoggerFactory.getLogger(CgmesSchemaLoader.class);
+
+  /**
+   * Substring of {@code CimProfile.wrap}'s message when a graph declares a {@code cim} namespace
+   * that has no {@link CimNamespaceFactoryRegistry} entry — used to classify an all-failed file
+   * load as {@link SchemaLoadCode#UNRECOGNIZED_CIM_NAMESPACE} rather than a generic parse failure.
+   */
+  private static final String UNREGISTERED_NAMESPACE_MARKER = "No profile factory registered for";
 
   private final Path directory; // non-null when constructed via fromDirectory
   private final List<Path> files; // non-null when constructed via fromFiles
@@ -158,13 +169,6 @@ public final class CgmesSchemaLoader {
 
   // ---- Loading from in-memory graphs -----------------------------------------------------
 
-  /** The CIM schema namespaces this loader recognises (see {@code CimVersion.fromCimNamespace}). */
-  private static final List<String> CIM_NAMESPACES =
-      List.of(
-          "http://iec.ch/TC57/2013/CIM-schema-cim16#", // CIM 16 / CGMES 2.4
-          "http://iec.ch/TC57/CIM100#", // CIM 17 / CGMES 3.0
-          "https://cim.ucaiug.io/ns#"); // CIM 18
-
   /**
    * Builds an {@link RdfsSchemaIndex} from in-memory profile graphs, e.g. one graph per named graph
    * fetched from a SPARQL endpoint where the CGMES schema is hosted.
@@ -175,18 +179,21 @@ public final class CgmesSchemaLoader {
    *
    * <p>Profile identification keys off the {@code cim} namespace prefix, which a graph fetched over
    * SPARQL frequently lacks. This method therefore re-asserts the {@code cim} prefix by detecting a
-   * known CIM namespace among the graph's IRIs before wrapping.
+   * namespace registered in {@link CimNamespaceFactoryRegistry} among the graph's IRIs before
+   * wrapping — this covers the CIM 16/17/18 built-ins as well as any custom namespace registered
+   * via the {@code cimNamespaces} config setting.
    *
    * @throws SchemaLoadException if no CIM profile could be registered from any graph
    */
   public static RdfsSchemaIndex indexFromGraphs(Iterable<Graph> graphs) throws SchemaLoadException {
     var registry = new CimProfileRegistryStd();
+    var unrecognizedNamespaces = new LinkedHashSet<String>();
     int total = 0;
     int skipped = 0;
     for (Graph graph : graphs) {
       total++;
+      String cimNs = ensureCimPrefix(graph);
       try {
-        ensureCimPrefix(graph);
         CimProfile profile = CimProfile.wrap(graph);
         try {
           registry.register(profile);
@@ -195,14 +202,14 @@ public final class CgmesSchemaLoader {
         }
       } catch (Exception e) {
         skipped++;
+        if (cimNs != null && !CimNamespaceFactoryRegistry.hasProfileFactory(cimNs)) {
+          unrecognizedNamespaces.add(cimNs);
+        }
         LOG.debug("Graph is not a CIM profile, skipping: {}", e.getMessage());
       }
     }
     if (registry.getRegisteredProfiles().isEmpty()) {
-      throw new SchemaLoadException(
-          "No CIM profiles could be loaded from the supplied graphs ("
-              + total
-              + " graph(s) examined).");
+      throw noProfilesFoundException(total, unrecognizedNamespaces);
     }
     LOG.info(
         "Loaded {} profile(s) from {} graph(s) ({} non-profile graph(s) skipped).",
@@ -212,23 +219,53 @@ public final class CgmesSchemaLoader {
     return RdfsSchemaIndex.fromCimRegistry(registry);
   }
 
+  private static SchemaLoadException noProfilesFoundException(
+      int total, Set<String> unrecognizedNamespaces) {
+    if (!unrecognizedNamespaces.isEmpty()) {
+      return new SchemaLoadException(
+          "No CIM profiles could be loaded from the supplied graphs ("
+              + total
+              + " graph(s) examined) — found unrecognized 'cim' namespace(s) with no registered"
+              + " CimProfile factory: "
+              + String.join(", ", unrecognizedNamespaces)
+              + ". Register a factory via CimNamespaceFactoryRegistry, or declare the namespace"
+              + " in the 'cimNamespaces' setting of opencgmes.json.",
+          SchemaLoadCode.UNRECOGNIZED_CIM_NAMESPACE);
+    }
+    return new SchemaLoadException(
+        "No CIM profiles could be loaded from the supplied graphs ("
+            + total
+            + " graph(s) examined).",
+        SchemaLoadCode.NO_CIM_PROFILES_FOUND);
+  }
+
   /**
    * Ensures the graph carries a {@code cim} namespace prefix, which {@code CimProfile.wrap} relies
    * on to detect the CIM version. A no-op when the prefix is already present (e.g. graphs parsed
    * from RDF/XML files).
+   *
+   * @return the (possibly newly-asserted) {@code cim} namespace, or {@code null} if none could be
+   *     found among the graph's IRIs
    */
-  private static void ensureCimPrefix(Graph graph) {
-    if (graph.getPrefixMapping().getNsPrefixURI("cim") != null) {
-      return;
+  private static String ensureCimPrefix(Graph graph) {
+    String existing = graph.getPrefixMapping().getNsPrefixURI("cim");
+    if (existing != null) {
+      return existing;
     }
     String ns = detectCimNamespace(graph);
     if (ns != null) {
       graph.getPrefixMapping().setNsPrefix("cim", ns);
     }
+    return ns;
   }
 
-  /** Returns the first known CIM namespace found among the graph's IRIs, or {@code null}. */
+  /**
+   * Returns the first namespace registered in {@link CimNamespaceFactoryRegistry} found among the
+   * graph's IRIs, or {@code null}. Covers the CIM 16/17/18 built-ins plus any custom namespace
+   * registered via config.
+   */
   private static String detectCimNamespace(Graph graph) {
+    Set<String> knownNamespaces = CimNamespaceFactoryRegistry.registeredNamespaces();
     var it = graph.find();
     try {
       while (it.hasNext()) {
@@ -236,7 +273,7 @@ public final class CgmesSchemaLoader {
         for (Node n : new Node[] {t.getSubject(), t.getPredicate(), t.getObject()}) {
           if (n.isURI()) {
             String uri = n.getURI();
-            for (String ns : CIM_NAMESPACES) {
+            for (String ns : knownNamespaces) {
               if (uri.startsWith(ns)) {
                 return ns;
               }
@@ -321,11 +358,17 @@ public final class CgmesSchemaLoader {
     }
 
     if (registry.getRegisteredProfiles().isEmpty()) {
-      String detail =
-          failed.isEmpty()
-              ? "No CIM profiles were registered — check your schema files."
-              : "Failed to parse schema file(s):\n  " + String.join("\n  ", failed);
-      throw new SchemaLoadException(detail);
+      if (failed.isEmpty()) {
+        throw new SchemaLoadException(
+            "No CIM profiles were registered — check your schema files.",
+            SchemaLoadCode.NO_CIM_PROFILES_FOUND);
+      }
+      String detail = "Failed to parse schema file(s):\n  " + String.join("\n  ", failed);
+      SchemaLoadCode code =
+          failed.stream().anyMatch(f -> f.contains(UNREGISTERED_NAMESPACE_MARKER))
+              ? SchemaLoadCode.UNRECOGNIZED_CIM_NAMESPACE
+              : SchemaLoadCode.NO_CIM_PROFILES_FOUND;
+      throw new SchemaLoadException(detail, code);
     }
     if (!failed.isEmpty()) {
       LOG.warn(
@@ -346,14 +389,36 @@ public final class CgmesSchemaLoader {
    * Thrown when schema loading fails due to a missing directory, unreadable file, or parse error.
    */
   public static final class SchemaLoadException extends Exception {
-    /** Creates an exception with the given message. */
+    private final SchemaLoadCode code;
+
+    /** Creates an exception with the given message and no {@link SchemaLoadCode}. */
     public SchemaLoadException(String message) {
-      super(message);
+      this(message, (Throwable) null, null);
     }
 
-    /** Creates an exception with the given message and underlying cause. */
+    /** Creates an exception with the given message and cause, no {@link SchemaLoadCode}. */
     public SchemaLoadException(String message, Throwable cause) {
+      this(message, cause, null);
+    }
+
+    /** Creates an exception with the given message and {@link SchemaLoadCode}. */
+    public SchemaLoadException(String message, SchemaLoadCode code) {
+      this(message, (Throwable) null, code);
+    }
+
+    private SchemaLoadException(String message, Throwable cause, SchemaLoadCode code) {
       super(message, cause);
+      this.code = code;
+    }
+
+    /**
+     * The stable classification of this failure, if known — e.g. {@link
+     * SchemaLoadCode#UNRECOGNIZED_CIM_NAMESPACE} when a source declared a {@code cim} namespace
+     * with no registered {@link de.soptim.opencgmes.cimxml.graph.CimProfile} factory. Empty for
+     * failures unrelated to profile resolution (missing directory, unreadable file, etc.).
+     */
+    public Optional<SchemaLoadCode> code() {
+      return Optional.ofNullable(code);
     }
   }
 }

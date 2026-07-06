@@ -30,8 +30,8 @@ import de.soptim.opencgmes.cimxml.graph.CimProfile;
 // Wrap a loaded profile graph
 CimProfile profile = CimProfile.wrap(profileGraph);
 
-CimVersion version       = profile.getCIMVersion();
-Set<Node> versionIris    = profile.getOwlVersionIRIs();
+String cimNamespace      = profile.getCimNamespace();
+Set<Node> versionIris    = profile.getOwlVersionIris();
 String keyword           = profile.getDcatKeyword();
 String versionInfo       = profile.getOwlVersionInfo();
 boolean isHeaderProfile  = profile.isHeaderProfile();
@@ -40,7 +40,7 @@ boolean isHeaderProfile  = profile.isHeaderProfile();
 A **model profile** describes the structure and properties of model data (Equipment, Topology,
 state variables, and so on); a **header profile** describes the structure of a model header
 (`FullModel`/`DifferenceModel` metadata). Header profiles are not referenced by the model itself, so
-the registry selects them by CIM version rather than by version IRI.
+the registry selects them by CIM namespace rather than by version IRI.
 
 ## CimProfileRegistry
 
@@ -94,12 +94,21 @@ import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry.PropertyInfo;
 // Look up properties + datatypes for a set of profile version IRIs
 Map<Node, PropertyInfo> properties = registry.getPropertiesAndDatatypes(profileVersionIris);
 
-// Header properties are looked up per CIM version
+// Header properties are looked up per CIM namespace
 Map<Node, PropertyInfo> headerProps =
-        registry.getHeaderPropertiesAndDatatypes(CimVersion.CIM_17);
+        registry.getHeaderPropertiesAndDatatypes(cimNamespace);
 ```
 
 The returned maps are thread-safe for reading.
+
+### Resolving properties with an `rdfs:range` instead of a CIM datatype
+
+Some properties carry no `cims:dataType` at all, only an `rdfs:range`. In that case the registry
+asks Jena's `TypeMapper` whether the range IRI is a registered `RDFDatatype`. If it is, the property
+is resolved as a datatype property using that type; if not, the range is treated as a reference type
+(the domain class of an object property) as before. This is what allows user-defined, non-XSD
+datatypes to work without a `cims:dataType` annotation, as long as the datatype IRI is registered with
+`TypeMapper` beforehand.
 
 ## Registering custom primitive types
 
@@ -114,7 +123,7 @@ registry.registerPrimitiveType("Voltage", XSDDatatype.XSDdouble);
 registry.registerPrimitiveType("Current", XSDDatatype.XSDdouble);
 
 // Inspect the full primitive-type mapping
-Map<String, RDFDatatype> mapping = registry.getPrimitiveToRDFDatatypeMapping();
+Map<String, RDFDatatype> mapping = registry.getPrimitiveToRdfDatatypeMapping();
 ```
 
 :::tip Validate queries against these profiles
