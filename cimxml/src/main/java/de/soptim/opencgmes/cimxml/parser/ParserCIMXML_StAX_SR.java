@@ -1500,7 +1500,7 @@ public class ParserCIMXML_StAX_SR {
                 // Determine CIM version.
                 versionOfCIMXML = prefixURI;
                 if (!CimNamespaceFactoryRegistry.hasProfileFactory(prefixURI)) {
-                    RDFXMLparseWarning("The provided 'cim' namespace: " + prefixURI + " is not registered in CimNamespaceMapper.", location());
+                    RDFXMLparseWarning("The provided 'cim' namespace: " + prefixURI + " is not registered in " + CimNamespaceFactoryRegistry.class.getSimpleName() +  ".", location());
                 }
                 if (ReaderCIMXML_StAX_SR.TRACE) {
                     trace.printf("CIM version of CIMXML: %s\n", versionOfCIMXML);
