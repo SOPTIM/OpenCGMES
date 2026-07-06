@@ -147,8 +147,9 @@ public class ConfigLoaderTest {
 
     CimProfile profile = CimProfile.wrap(m.getGraph());
     assertEquals(customNs, profile.getCimNamespace());
-    assertTrue(profile.getOwlVersionIris().stream()
-        .anyMatch(n -> n.getURI().equals("http://example.org/profiles/Custom/1.0")));
+    assertTrue(
+        profile.getOwlVersionIris().stream()
+            .anyMatch(n -> n.getURI().equals("http://example.org/profiles/Custom/1.0")));
   }
 
   @Test
@@ -167,15 +168,14 @@ public class ConfigLoaderTest {
       ConfigLoader.load(file);
       fail("expected ConfigException for an unknown profile shape");
     } catch (ConfigLoader.ConfigException expected) {
-      assertTrue(
-          "message should name the bad shape",
-          expected.getMessage().contains("cim99"));
+      assertTrue("message should name the bad shape", expected.getMessage().contains("cim99"));
     }
   }
 
   @Test
   public void noCimNamespacesEntryLeavesRegistryUntouched() throws Exception {
-    Path file = write(tmp.getRoot().toPath(), "{ \"cimvocabcheck\": { \"strictness\": \"strict\" } }");
+    Path file =
+        write(tmp.getRoot().toPath(), "{ \"cimvocabcheck\": { \"strictness\": \"strict\" } }");
     CimvocabcheckConfig cfg = ConfigLoader.load(file);
     assertFalse(cfg.hasCimNamespaces());
   }

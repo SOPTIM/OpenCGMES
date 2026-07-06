@@ -91,10 +91,10 @@ These editor-specific settings live in VS Code's settings. Schema configuration 
 
 ## Commands
 
-| Command                                             | Description                                                                                    |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **CIMNotebook: Show Output**                        | Opens the CIMNotebook output channel, useful for diagnosing startup and schema loading issues. |
-| **CIMNotebook: Explain Query (Algebra Plan)**       | Shows the static SPARQL algebra plan for the current query.                                    |
+| Command                                              | Description                                                                                    |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **CIMNotebook: Show Output**                         | Opens the CIMNotebook output channel, useful for diagnosing startup and schema loading issues. |
+| **CIMNotebook: Explain Query (Algebra Plan)**        | Shows the static SPARQL algebra plan for the current query.                                    |
 | **CIMNotebook: Create Config File (opencgmes.json)** | Scaffolds an `opencgmes.json` configuration file.                                              |
 
 ## Troubleshooting

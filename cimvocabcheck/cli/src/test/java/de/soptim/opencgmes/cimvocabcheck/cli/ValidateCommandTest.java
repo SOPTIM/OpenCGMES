@@ -148,9 +148,9 @@ public class ValidateCommandTest {
   }
 
   /**
-   * A schema directory with one parseable profile and one that isn't must still validate (using
-   * the good profile), and must print a visible warning naming the skipped file — previously this
-   * was only logged via SLF4J and invisible on the CLI.
+   * A schema directory with one parseable profile and one that isn't must still validate (using the
+   * good profile), and must print a visible warning naming the skipped file — previously this was
+   * only logged via SLF4J and invisible on the CLI.
    */
   @Test
   public void mixedGoodAndBadSchemaFiles_printsVisibleSkipWarning() throws Exception {

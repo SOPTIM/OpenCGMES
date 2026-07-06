@@ -145,9 +145,9 @@ public class EndpointSchemaLoaderTest {
 
   /**
    * A schema-shaped graph (declares an {@code owl:Ontology}) under a {@code cim} namespace with no
-   * registered {@link de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry} entry. This must
-   * be distinguishable from {@link #reportsNoSchemaWhenEndpointHasNoProfileGraphs()}: the endpoint
-   * did expose a schema-like graph, it just couldn't be resolved to a profile.
+   * registered {@link de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry} entry. This
+   * must be distinguishable from {@link #reportsNoSchemaWhenEndpointHasNoProfileGraphs()}: the
+   * endpoint did expose a schema-like graph, it just couldn't be resolved to a profile.
    */
   @Test
   public void reportsUnrecognizedNamespaceDistinctlyFromNoSchemaGraphs() {
@@ -171,8 +171,7 @@ public class EndpointSchemaLoaderTest {
     EndpointSchema es = EndpointSchemaLoader.load(new DatasetSparqlGraphSource(ds));
 
     assertFalse("no registered profile for the custom namespace", es.hasSchema());
-    assertFalse(
-        "the endpoint did expose a schema-like graph", es.schemaGraphNames().isEmpty());
+    assertFalse("the endpoint did expose a schema-like graph", es.schemaGraphNames().isEmpty());
     assertEquals(SchemaLoadCode.UNRECOGNIZED_CIM_NAMESPACE, es.unresolvedCode());
     assertTrue(
         "reason should name the unrecognized namespace",

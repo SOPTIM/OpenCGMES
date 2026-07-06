@@ -123,8 +123,8 @@ public class IndexFromGraphsTest {
   /**
    * A graph that already declares a {@code cim} prefix pointing at a namespace with no registered
    * {@link de.soptim.opencgmes.cimxml.graph.CimNamespaceFactoryRegistry} entry — the situation this
-   * loader cannot recover from without the namespace being registered (e.g. via the
-   * {@code cimNamespaces} config setting), unlike a prefix-less graph using one of the well-known
+   * loader cannot recover from without the namespace being registered (e.g. via the {@code
+   * cimNamespaces} config setting), unlike a prefix-less graph using one of the well-known
    * namespaces.
    */
   private static Graph graphWithUnregisteredCimPrefix() {

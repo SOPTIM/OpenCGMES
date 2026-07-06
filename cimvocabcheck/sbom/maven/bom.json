@@ -1253,7 +1253,7 @@
       "purl" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-reactor@0.0.0-SNAPSHOT?type=pom"
     },
     {
-      "type" : "library",
+      "type" : "application",
       "bom-ref" : "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
       "publisher" : "SOPTIM",
       "group" : "de.soptim.opencgmes",

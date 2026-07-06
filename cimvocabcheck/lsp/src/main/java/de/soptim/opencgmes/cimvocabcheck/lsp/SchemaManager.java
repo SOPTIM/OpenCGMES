@@ -379,7 +379,10 @@ final class SchemaManager {
         markFailed(endpoint);
         notify(
             MessageType.Warning,
-            "CIMVocabCheck: endpoint " + endpoint + " " + describeNoSchema(es)
+            "CIMVocabCheck: endpoint "
+                + endpoint
+                + " "
+                + describeNoSchema(es)
                 + " — validating SPARQL syntax only.");
         return;
       }
