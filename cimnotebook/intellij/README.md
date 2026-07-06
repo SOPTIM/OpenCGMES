@@ -23,84 +23,31 @@ Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes 
 
 The plugin is a thin client around the CIMLangServer (`cimvocabcheck-lsp`), wired into the IDE through the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) LSP client.
 
-> 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/intellij> — features, the
+> 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/intellij> — including the
 > [`opencgmes.json` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
-> and the [validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks).
-
-## Requirements
-
-- **IntelliJ IDEA (or any IntelliJ-platform IDE) 2024.2 or later.** The plugin launches the language server on the IDE's bundled Java runtime, which is Java 21+ from 2024.2 onward.
-- **[LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij)** — a required dependency, installed automatically from the Marketplace.
-- **Java 21 or later.** By default the IDE's own runtime is used; you can override this in settings.
-
-## Getting started
-
-### 1. Install the plugin (and LSP4IJ)
-
-Install **CIMNotebook** from the Marketplace (Settings → Plugins → Marketplace). LSP4IJ is a required dependency and IntelliJ installs it automatically as part of a Marketplace install.
-
-> If you install CIMNotebook from a downloaded `.zip` instead (Install Plugin from Disk), IntelliJ does **not** resolve Marketplace dependencies — install **LSP4IJ** manually first (Settings → Plugins → Marketplace → search "LSP4IJ").
-
-### 2. Configure a schema
-
-For schema-based validation, point CIMNotebook at your CGMES profiles — via an `opencgmes.json`
-or a `# [endpoint=...]` directive in the query. There is no bundled default schema, so without
-one of those CIMNotebook checks syntax only. Run **Tools → CIMNotebook: Create Config File** to
-scaffold an `opencgmes.json`, or create it by hand.
-
-All settings live under a `"cimvocabcheck"` section. CIMNotebook discovers the nearest `opencgmes.json`
-by walking up from each file, and JSON comments are allowed. To use your own RDFS profiles:
-
-```json
-{
-  "cimvocabcheck": {
-    "schemasDirectory": "schemas/cgmes-3.0"
-  }
-}
-```
-
-The file is watched and the schema reloads automatically whenever it changes.
-
-### 3. Open a SPARQL or SHACL file
-
-Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file. The server starts, loads the schema in the background, and begins validating.
+> the [validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks), and
+> [troubleshooting](https://opencgmes.soptim.de/cimnotebook/troubleshooting).
 
 ## Features
 
 ### Syntax highlighting
 
-Lexer-based highlighting for:
-
-- **SPARQL** — `.rq`, `.sparql`
-- **SHACL / Turtle** — `.ttl`, `.shacl`
+Lexer-based highlighting for **SPARQL** (`.rq`, `.sparql`) and **SHACL / Turtle** (`.ttl`, `.shacl`).
 
 > The SHACL file type deliberately claims the generic `.ttl` extension, since ENTSO-E and most tooling ship SHACL shapes as plain Turtle. If another installed plugin already owns `.ttl`, add the association under **Settings → Editor → File Types → SHACL**.
 
 ### Real-time diagnostics
 
-Every open document is validated against the loaded CIM schema; findings appear as inline underlines:
-
-| Code | Severity | Description |
-|------|----------|-------------|
-| `SYNTAX_ERROR` | Error | The document is not syntactically valid SPARQL or Turtle |
-| `UNKNOWN_CLASS` | Error | Class IRI not found in the configured schema profiles |
-| `UNKNOWN_PROPERTY` | Error | Property IRI not found in the configured schema profiles |
-| `TERM_EXISTS_IN_OTHER_PROFILE` | Hint | Term exists, but in a profile not selected for this graph |
-| `GRAPH_NOT_CONFIGURED` | Info | A named graph is used but has no profile mapping configured |
-| `UNSUPPORTED_DYNAMIC_PROPERTY` | Warning | Variable predicate — cannot be validated statically |
-| `QUERY_IMPLIED_TYPE` | Hint | Subject type is implied by property domain, not stated explicitly |
-| `DATATYPE_MISMATCH` | Warning | Literal datatype conflicts with the property's `rdfs:range` |
-| `PROPERTY_NOT_ALLOWED_FOR_CLASS` | Warning | Property used on a class that is not in its `rdfs:domain` |
-| `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | Warning | SHACL `sh:nodeKind` conflicts with the property's `rdfs:range` |
-| `INVALID_CARDINALITY` | Warning | SHACL `sh:minCount` exceeds `sh:maxCount` |
+Every open document is validated against the loaded CIM schema; findings appear as inline underlines: unknown classes and properties, typos in the standard vocabularies (`rdf`, `rdfs`, `owl`, `sh`), domain/range mismatches, datatype conflicts, invalid enumeration values, and contradictory SHACL constraints (cardinality, value ranges, node kinds). The complete list of diagnostic codes and severities is in the
+[validation check catalogue](https://opencgmes.soptim.de/cimvocabcheck/validation-checks).
 
 ### Hover documentation
 
-Hover over any CIM term (e.g. `cim:ACLineSegment`) to see its full IRI and the schema profile it belongs to.
+Hover over any CIM term (e.g. `cim:ACLineSegment`) to see its full IRI, its `rdfs:label` and `rdfs:comment`, its `rdfs:domain` / `rdfs:range`, and the schema profile(s) it belongs to — read straight from the loaded schema.
 
 ### Auto-completion
 
-Typing `:` after a prefix (e.g. `cim:`) triggers completion suggestions for all classes and properties in the loaded schema.
+Typing `:` after a prefix (e.g. `cim:`) triggers completion suggestions for all classes and properties in the loaded schema. In object position after an enumeration-ranged property, the enumeration's members are suggested (e.g. `cim:WindGenUnitKind.offshore`). Typing after a standard-vocabulary prefix (`rdf:`, `rdfs:`, `owl:`, `sh:`) suggests that vocabulary's terms (e.g. `sh:minCount`, `sh:NodeShape`, `rdf:type`).
 
 ### Go to definition
 
@@ -108,11 +55,47 @@ Typing `:` after a prefix (e.g. `cim:`) triggers completion suggestions for all 
 
 ### Workspace symbol search
 
-Use **Go to Symbol** (`Ctrl+Alt+Shift+N` on Windows/Linux, `Cmd+Option+O` on macOS) and type a CIM class or property name to navigate to any schema term. Supports partial, case-insensitive matching (e.g. `aclineseg` matches `ACLineSegment`).
+Use **Go to Symbol** (`Ctrl+Alt+Shift+N` on Windows/Linux, `Cmd+Option+O` on macOS) and type a CIM class or property name to navigate to any schema term. Matching is partial and case-insensitive — `aclineseg` matches `ACLineSegment`.
+
+### Explain Query
+
+Right-click a SPARQL query and choose **Explain Query (Algebra Plan)** to see its Jena-style static algebra plan — original and optimized. Nothing is executed; the plan is computed from the query text alone. See [Explain Query](https://opencgmes.soptim.de/cimvocabcheck/explain-query).
+
+> SPARQL Notebook cell validation is currently a VS Code-only feature — see the
+> [feature overview](https://opencgmes.soptim.de/cimnotebook/overview) for per-editor parity.
+
+## Requirements
+
+- **IntelliJ IDEA (or any IntelliJ-platform IDE) 2024.2 or later.** The plugin launches the language server on the IDE's bundled Java runtime, which is Java 21+ from 2024.2 onward.
+- **[LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij)** — a required dependency, installed automatically from the Marketplace.
+- **Java 21 or later.** By default the IDE's own runtime is used; you can override this in settings.
+
+## Quick start
+
+1. **Install the plugin.** Install **CIMNotebook** from the Marketplace (Settings → Plugins → Marketplace). LSP4IJ is a required dependency and IntelliJ installs it automatically as part of a Marketplace install.
+
+    > If you install CIMNotebook from a downloaded `.zip` instead (Install Plugin from Disk), IntelliJ does **not** resolve Marketplace dependencies — install **LSP4IJ** manually first (Settings → Plugins → Marketplace → search "LSP4IJ").
+
+2. **Point CIMNotebook at your CGMES profiles.** There is no bundled default schema, so without one validation is syntax-only. Run **Tools → CIMNotebook: Create Config File** (or write the file yourself) to create an `opencgmes.json`:
+
+    ```json
+    {
+      "cimvocabcheck": {
+        "schemasDirectory": "schemas/cgmes-3.0"
+      }
+    }
+    ```
+
+    All settings live under the `"cimvocabcheck"` section; the file is discovered by walking up from each open file (nearest one wins), and comments are allowed. Alternatively, a query can name its own schema with a `# [endpoint=...]` directive.
+
+3. **Open a SPARQL or SHACL file.** Open any `.rq`, `.sparql`, `.ttl`, or `.shacl` file: the server starts, loads the schema in the background, and begins validating. The file is watched and the schema reloads automatically whenever `opencgmes.json` changes.
+
+The `opencgmes.json` format (`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`) is documented canonically at
+**<https://opencgmes.soptim.de/cimvocabcheck/configuration>**.
 
 ## Settings
 
-Under **Settings / Preferences → Tools → CIMNotebook**:
+Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in `opencgmes.json`, not here.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -120,45 +103,15 @@ Under **Settings / Preferences → Tools → CIMNotebook**:
 | **Java executable** | _(IDE runtime)_ | Java executable used to launch the language server. Must be Java 21+. Leave empty to use the IDE's own runtime. |
 | **JVM arguments** | _(none)_ | Extra JVM arguments passed before `-jar`, e.g. `-Xmx512m`. |
 
-## Validation configuration reference
-
-All validation settings live in an `opencgmes.json` file under a `"cimvocabcheck"` section
-(`schemas`/`schemasDirectory`, `strictness`, `namedGraphs`, `prefixes`, `standardVocabulary`). The
-file is discovered by walking up from each open file; with no schema configured, validation is
-syntax-only.
-
-```json
-{
-  "cimvocabcheck": {
-    "schemasDirectory": "schemas/cgmes-3.0",
-    "strictness": "default"
-  }
-}
-```
-
-See the full, canonical reference at
-**<https://opencgmes.soptim.de/cimvocabcheck/configuration>**.
-
 ## Troubleshooting
 
-**No syntax highlighting / file not recognised**
-Confirm the file extension is one of `.rq`, `.sparql`, `.ttl`, `.shacl`. If another plugin already claimed `.ttl`, add the association under **Settings → Editor → File Types → SHACL**.
+**No syntax highlighting / file not recognised** — confirm the file extension is one of `.rq`, `.sparql`, `.ttl`, `.shacl`. If another plugin already claimed `.ttl`, add the association under **Settings → Editor → File Types → SHACL**.
 
-**No diagnostics appearing**
-With no schema configured, CIMNotebook reports only syntax errors — add an `opencgmes.json` with `schemas`, or a `# [endpoint=...]` directive, for full validation. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled. Open the **Language Servers** tool window (provided by LSP4IJ) to see CIMLangServer's status and message log — this is the IntelliJ equivalent of an LSP output channel and the best place to diagnose startup and schema-loading issues.
+**No diagnostics appearing** — with no schema configured, CIMNotebook reports only syntax errors; add an `opencgmes.json` or a `# [endpoint=...]` directive for full validation. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the **Language Servers** tool window (provided by LSP4IJ) to see CIMLangServer's status and message log.
 
-**Server fails to start, or "Schema load failed"**
-Usually a Java problem. Set **Settings → Tools → CIMNotebook → Java executable** to the full path of a Java 21+ executable, e.g. `/usr/lib/jvm/java-21/bin/java`. The LSP4IJ **Language Servers** console shows the full error.
+**Server fails to start, or "Schema load failed"** — usually a Java problem. Set **Settings → Tools → CIMNotebook → Java executable** to the full path of a Java 21+ executable. The LSP4IJ **Language Servers** console shows the full error.
 
-## Known limitations
-
-**Open vocabularies are not term-checked.** Terms in the *closed* standard vocabularies (`rdf`,
-`rdfs`, `owl`, `sh`) **are** validated against the official W3C vocabularies — a typo like
-`rdfs:Classs` or `sh:minCountt` is flagged as `UNKNOWN_VOCABULARY_TERM` (set
-`"standardVocabulary": "ignore"` in `opencgmes.json` to turn this off). Terms in *open*
-annotation/datatype namespaces (`xsd`, `dcterms`, `dc`, `skos`, `dcat`, and the IEC extension
-namespaces) are always accepted without inspection, since these are open vocabularies the schema
-index has no closed list for.
+More symptoms and fixes: <https://opencgmes.soptim.de/cimnotebook/troubleshooting>.
 
 ## Building from source
 

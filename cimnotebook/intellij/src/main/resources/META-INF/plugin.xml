@@ -30,14 +30,24 @@
             actual RDFS profile files.
         </p>
 
+        <p>
+            📖 <b>Full documentation:</b>
+            <a href="https://opencgmes.soptim.de/cimnotebook/intellij">opencgmes.soptim.de/cimnotebook/intellij</a>
+            — including the
+            <a href="https://opencgmes.soptim.de/cimvocabcheck/configuration"><code>opencgmes.json</code> configuration reference</a>,
+            the <a href="https://opencgmes.soptim.de/cimvocabcheck/validation-checks">validation check catalogue</a>, and
+            <a href="https://opencgmes.soptim.de/cimnotebook/troubleshooting">troubleshooting</a>.
+        </p>
+
         <h3>Features</h3>
         <ul>
             <li><b>Syntax highlighting</b> for SPARQL (<code>.rq</code>, <code>.sparql</code>) and SHACL / Turtle (<code>.ttl</code>, <code>.shacl</code>).</li>
-            <li><b>Real-time diagnostics</b> — unknown terms, datatype mismatches, properties not allowed for a class, cardinality errors and more.</li>
-            <li><b>Hover documentation</b> — the full IRI and source profile for any CIM term (e.g. <code>cim:ACLineSegment</code>).</li>
-            <li><b>Auto-completion</b> — type <code>:</code> after a prefix such as <code>cim:</code> for class and property suggestions.</li>
+            <li><b>Real-time diagnostics</b> — unknown classes and properties, typos in the standard vocabularies (<code>rdf</code>/<code>rdfs</code>/<code>owl</code>/<code>sh</code>), domain/range mismatches, datatype conflicts, invalid enumeration values, and contradictory SHACL constraints. Full catalogue: <a href="https://opencgmes.soptim.de/cimvocabcheck/validation-checks">validation checks</a>.</li>
+            <li><b>Hover documentation</b> — the full IRI, <code>rdfs:label</code> / <code>rdfs:comment</code>, domain/range, and source profile for any CIM term (e.g. <code>cim:ACLineSegment</code>).</li>
+            <li><b>Auto-completion</b> — type <code>:</code> after a prefix such as <code>cim:</code> for class and property suggestions; enumeration members are suggested in object position, and standard-vocabulary prefixes (<code>rdf:</code>, <code>rdfs:</code>, <code>owl:</code>, <code>sh:</code>) complete too.</li>
             <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file.</li>
             <li><b>Workspace symbol search</b> — press Ctrl+Alt+Shift+N (Go to Symbol) and type a term name to find any schema term.</li>
+            <li><b>Explain Query</b> — right-click a SPARQL query for its Jena-style static algebra plan (original and optimized), computed without executing anything.</li>
         </ul>
 
         <h3>Requirements</h3>
@@ -74,8 +84,9 @@
             <code>opencgmes.json</code> (the <code>"cimvocabcheck"</code> section) also supports <code>strictness</code>
             (<code>permissive</code> / <code>default</code> / <code>strict</code> /
             <code>pedantic</code>), <code>namedGraphs</code> (map graph IRIs to profile
-            versions) and <code>prefixes</code> (default PREFIX declarations injected into
-            queries). See the project README for the full reference.
+            versions), <code>prefixes</code> (default PREFIX declarations injected into
+            queries) and <code>standardVocabulary</code>. See the full reference at
+            <a href="https://opencgmes.soptim.de/cimvocabcheck/configuration">opencgmes.soptim.de/cimvocabcheck/configuration</a>.
         </p>
 
         <h3>Troubleshooting</h3>
@@ -84,6 +95,10 @@
             <li><b>No diagnostics appearing</b> — with no schema configured CIMNotebook reports only syntax errors; for full validation add an <code>opencgmes.json</code> with <code>schemas</code> or a <code># [endpoint=...]</code> directive. If even syntax errors are missing, the server likely did not start — make sure LSP4IJ is enabled and open the <b>Language Servers</b> tool window (from LSP4IJ) to see CIMLangServer's status and logs.</li>
             <li><b>Server fails to start</b> — usually a Java version problem. Set <b>Settings → Tools → CIMNotebook → Java executable</b> to a Java 21+ path.</li>
         </ul>
+        <p>
+            More symptoms and fixes:
+            <a href="https://opencgmes.soptim.de/cimnotebook/troubleshooting">opencgmes.soptim.de/cimnotebook/troubleshooting</a>.
+        </p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
