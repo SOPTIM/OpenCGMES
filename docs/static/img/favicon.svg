@@ -1,21 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenCGMES">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_1" data-name="Ebene 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104.91 111.19">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#009EE0"/>
-      <stop offset="1" stop-color="#14162B"/>
-    </linearGradient>
+    <style>
+      :root {
+        --ocg-stroke: #171d2d;
+        --ocg-fill: #fff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ocg-stroke: #fff;
+          --ocg-fill: #171d2d;
+        }
+      }
+
+      .cls-1 {
+        fill: none;
+        stroke: var(--ocg-stroke);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 10.5px;
+      }
+
+      .cls-2 {
+        fill: var(--ocg-fill);
+        stroke: var(--ocg-stroke);
+        stroke-width: 4.67px;
+      }
+    </style>
   </defs>
-  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)"/>
-  <!-- Graph edges -->
-  <g stroke="#FFFFFF" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M18 45 L32 18 L46 38"/>
-    <path d="M32 18 L32 45"/>
+  <g>
+    <path class="cls-1" d="M16.8,17.69l46.94-1.37,23.62,50.21"/>
+    <path class="cls-1" d="M63.75,16.32l-22.96,75.38"/>
   </g>
-  <!-- Graph nodes -->
-  <g fill="#E74890" stroke="#14162B" stroke-width="2">
-    <circle cx="18" cy="45" r="6"/>
-    <circle cx="32" cy="18" r="6"/>
-    <circle cx="46" cy="38" r="6"/>
-    <circle cx="32" cy="45" r="6"/>
+  <g>
+    <circle class="cls-2" cx="16.32" cy="19.45" r="13.99"/>
+    <circle class="cls-2" cx="63.75" cy="16.32" r="13.99"/>
+    <circle class="cls-2" cx="88.59" cy="66.89" r="13.99"/>
+    <circle class="cls-2" cx="39.45" cy="94.87" r="13.99"/>
   </g>
 </svg>

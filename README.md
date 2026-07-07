@@ -1,4 +1,9 @@
-# OpenCGMES
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./docs/static/img/logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="./docs/static/img/logo.svg">
+  <img alt="OpenCGMES" src="./docs/static/img/logo.svg" width="500">
+</picture>
+
 Suite of tools for CGMES / CIM (IEC 61970) RDF - RDFS, SHACL and CIMXML
 
 📖 **Full documentation: <https://opencgmes.soptim.de>** — guides, API reference, and examples for

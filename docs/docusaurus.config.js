@@ -109,7 +109,6 @@ const config = {
         theme: { light: 'neutral', dark: 'dark' },
       },
       navbar: {
-        title: 'OpenCGMES',
         logo: {
           alt: 'OpenCGMES',
           src: 'img/logo.svg',
