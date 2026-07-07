@@ -45,6 +45,12 @@ want() {
 # files and break the CI drift check:
 #
 #   * metadata.timestamp     — stamped even in reproducible mode.
+#   * build-system ref       — the CycloneDX Gradle plugin stamps the *own* component's
+#                              externalReferences with a `build-system` entry pointing at
+#                              the current CI run (…/actions/runs/<run-id>) when GitHub CI
+#                              env vars are present, so it is absent locally and differs
+#                              per run in CI. Dropped only from metadata.component (the
+#                              dependency components' stable `build-system` refs are kept).
 #   * git remote URL form    — the Gradle plugin reads the local `origin` remote, so
 #                              an ssh checkout yields ssh://git@github.com:… while CI's
 #                              https checkout yields https://github.com/… .
@@ -94,6 +100,13 @@ walk(data)
 
 meta = data.get("metadata", {})
 meta.pop("timestamp", None)
+own = meta.get("component")
+if isinstance(own, dict) and isinstance(own.get("externalReferences"), list):
+    own["externalReferences"] = [
+        r for r in own["externalReferences"] if r.get("type") != "build-system"
+    ]
+    if not own["externalReferences"]:
+        own.pop("externalReferences")
 for tool in (meta.get("tools", {}).get("components") or []):
     if tool.get("name") == "npm":
         tool.pop("version", None)
@@ -126,7 +139,13 @@ if want maven; then
     ( cd "${REPO_ROOT}" && "${MVN}" -B -ntp org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom )
 
     echo ">> [maven] Generating THIRD-PARTY attribution + enforcing license allow-list ..."
-    ( cd "${REPO_ROOT}" && "${MVN}" -B -ntp org.codehaus.mojo:license-maven-plugin:aggregate-add-third-party )
+    # -Dlicense.force=true: aggregate-add-third-party will NOT overwrite an existing
+    # THIRD-PARTY.txt when it considers the build up to date, so a dependency bump can
+    # silently leave the committed attribution stale (bom.json updates, THIRD-PARTY.txt
+    # does not) — which then trips the CI drift gate. Forcing a rewrite makes the output
+    # deterministic and independent of prior local state.
+    ( cd "${REPO_ROOT}" && "${MVN}" -B -ntp -Dlicense.force=true \
+        org.codehaus.mojo:license-maven-plugin:aggregate-add-third-party )
 
     canonicalize_bom "${VOCAB_SBOM_DIR}/maven/bom.json"
 fi
