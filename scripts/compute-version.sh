@@ -12,8 +12,10 @@
 #     appends -SNAPSHOT.  Falls back to 0.0.0-SNAPSHOT if no tag exists.
 #
 # --released mode (for documentation / "latest version users can depend on"):
-#   prints the newest released <component>-v* tag reachable from HEAD, as-is (X.Y.Z, no bump,
-#   no -SNAPSHOT).  Falls back to 0.0.0-SNAPSHOT if no tag exists.
+#   prints the newest released <component>-v* tag that exists in the repo, as-is (X.Y.Z, no bump,
+#   no -SNAPSHOT).  This is the version published to Maven Central — a global fact, so it is NOT
+#   filtered by reachability from HEAD (a docs/release build off a branch behind the latest release
+#   tag still reports the true latest).  Falls back to 0.0.0-SNAPSHOT if no tag exists.
 
 set -euo pipefail
 
@@ -37,7 +39,13 @@ if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
     fi
 fi
 
-LAST_TAG="$(git tag --merged HEAD --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
+# --released reports the global latest published version (no reachability filter); the default
+# SNAPSHOT mode bumps from this branch's own history, so there it is filtered to --merged HEAD.
+if [[ "${RELEASED}" -eq 1 ]]; then
+    LAST_TAG="$(git tag --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
+else
+    LAST_TAG="$(git tag --merged HEAD --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
+fi
 if [[ -z "${LAST_TAG}" ]]; then
     echo "0.0.0-SNAPSHOT"
     exit 0

@@ -2,8 +2,8 @@
 //
 // Used by docusaurus.config.js to (a) inject the latest released version of each component into
 // install snippets via the remark-versions plugin, and (b) show which commit/date the docs were
-// built from. Because the docs are built from `main`, the "latest version" is the newest release
-// tag (`<component>-vX.Y.Z`) reachable from HEAD.
+// built from. The "latest version" is the newest release tag (`<component>-vX.Y.Z`) in the repo —
+// the version published to Maven Central, resolved independently of which commit built the docs.
 //
 // Everything degrades gracefully: if git is unavailable or no tags exist, component versions fall
 // back to `0.0.0-SNAPSHOT` (matching the in-repo placeholder) and build info to a local default.

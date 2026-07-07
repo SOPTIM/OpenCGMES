@@ -43,9 +43,9 @@ jobs:
           fi
           RELEASE_VERSION="${TAG#cimnotebook-v}"
 
-          # Bundle the LSP at the LATEST released cimvocabcheck version reachable from HEAD.
-          # compute-version.sh filters tags with --merged HEAD and returns 0.0.0-SNAPSHOT as a
-          # fallback until the first cimvocabcheck-vX.Y.Z tag exists.
+          # Bundle the LSP at the LATEST released cimvocabcheck version (newest tag in the repo,
+          # matching how cimxml is resolved below). compute-version.sh --released returns
+          # 0.0.0-SNAPSHOT as a fallback until the first cimvocabcheck-vX.Y.Z tag exists.
           CIMVOCABCHECK_VERSION="$(bash scripts/compute-version.sh cimvocabcheck --released)"
           if [[ "${CIMVOCABCHECK_VERSION}" == "0.0.0-SNAPSHOT" ]]; then
             echo "::warning::No cimvocabcheck release tag found; bundling the in-repo 0.0.0-SNAPSHOT LSP." >&2
