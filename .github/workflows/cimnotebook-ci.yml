@@ -1,0 +1,237 @@
+name: cimnotebook-ci
+
+# The CIMNotebook editor plugins (VS Code + IntelliJ) bundle the CIMVocabCheck language
+# server fat JAR, so this CI also rebuilds it from in-repo source. On normal builds every
+# component uses the version computed from this repo's own git state (compute-version.sh).
+on:
+  pull_request:
+    paths:
+      - "cimnotebook/**"
+      - "cimvocabcheck/**"
+      - "cimxml/**"
+      - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/check-sbom-licenses.py"
+      - "scripts/sbom-license-overrides.json"
+      - "scripts/compute-version.sh"
+      - "scripts/set-versions.sh"
+      - ".github/workflows/cimnotebook-ci.yml"
+      - ".github/workflows/cimnotebook-release.yml"
+  push:
+    paths:
+      - "cimnotebook/**"
+      - "cimvocabcheck/**"
+      - "cimxml/**"
+      - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/check-sbom-licenses.py"
+      - "scripts/sbom-license-overrides.json"
+      - "scripts/compute-version.sh"
+      - "scripts/set-versions.sh"
+      - ".github/workflows/cimnotebook-ci.yml"
+      - ".github/workflows/cimnotebook-release.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cimnotebook-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---- TypeScript type-check -----------------------------------------------
+  typecheck-vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cimnotebook/vscode/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: cimnotebook/vscode
+
+      - name: ESLint
+        run: npm run lint
+        working-directory: cimnotebook/vscode
+
+      - name: Prettier format check
+        run: npm run format:check
+        working-directory: cimnotebook/vscode
+
+      - name: TypeScript type-check
+        run: npm run compile
+        working-directory: cimnotebook/vscode
+
+  # ---- VS Code extension build + artifact upload ---------------------------
+  build-vsix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-tags: true
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cimnotebook/vscode/package-lock.json
+
+      # Normal build: every component uses its own in-repo (snapshot) version.
+      - name: Apply snapshot versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          CIMXML_VERSION="$(bash scripts/compute-version.sh cimxml)"
+          CIMVOCABCHECK_VERSION="$(bash scripts/compute-version.sh cimvocabcheck)"
+          CIMNOTEBOOK_VERSION="$(bash scripts/compute-version.sh cimnotebook)"
+          bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}" "${CIMNOTEBOOK_VERSION}"
+
+      # Build the CIMVocabCheck LSP fat JAR (in-repo source) without running tests.
+      - name: Build LSP fat JAR
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/lsp -am -DskipTests clean package
+
+      - name: Install VS Code extension dependencies
+        run: npm ci
+        working-directory: cimnotebook/vscode
+
+      - name: Copy LSP JAR into extension
+        run: |
+          mkdir -p cimnotebook/vscode/server
+          cp cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar cimnotebook/vscode/server/cimvocabcheck-lsp.jar
+
+      - name: Build and package VS Code extension
+        run: |
+          npm run bundle
+          npx @vscode/vsce package --out "cimnotebook-vscode-$(node -p "require('./package.json').version").vsix"
+        working-directory: cimnotebook/vscode
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cimnotebook-vscode-${{ github.sha }}
+          path: cimnotebook/vscode/cimnotebook-vscode-*.vsix
+          retention-days: 30
+
+  # ---- IntelliJ plugin build + artifact upload ----------------------------
+  build-intellij-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-tags: true
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          gradle-version: "9.5.0"
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # Normal build: every component uses its own in-repo (snapshot) version.
+      - name: Apply snapshot versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          CIMXML_VERSION="$(bash scripts/compute-version.sh cimxml)"
+          CIMVOCABCHECK_VERSION="$(bash scripts/compute-version.sh cimvocabcheck)"
+          CIMNOTEBOOK_VERSION="$(bash scripts/compute-version.sh cimnotebook)"
+          bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}" "${CIMNOTEBOOK_VERSION}"
+
+      # Build the CIMVocabCheck LSP fat JAR (in-repo source) without running tests.
+      - name: Build LSP fat JAR
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/lsp -am -DskipTests clean package
+
+      # Kotlin formatting + lint gate (Spotless + ktlint). Fails the build on any
+      # unformatted/lint-violating Kotlin, mirroring the Maven Spotless gate.
+      - name: Lint — Kotlin (Spotless + ktlint)
+        run: gradle spotlessCheck
+        working-directory: cimnotebook/intellij
+
+      - name: Build IntelliJ plugin
+        run: gradle buildPlugin
+        working-directory: cimnotebook/intellij
+
+      - name: Upload IntelliJ plugin artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cimnotebook-intellij-${{ github.sha }}
+          path: cimnotebook/intellij/build/distributions/cimnotebook-intellij-*.zip
+          retention-days: 30
+
+  # ---- SBOM (vscode + intellij) + license compliance -----------------------
+  # Covers the VS Code extension's shipped npm deps and the IntelliJ plugin's
+  # compile-time IntelliJ Platform libraries. The Maven SBOM is owned by cimvocabcheck-ci.
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cimnotebook/vscode/package-lock.json
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          gradle-version: "9.5.0"
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      # Regenerates cimnotebook/sbom/{vscode,intellij}/{bom.json,THIRD-PARTY.txt}. FAILS here
+      # if any dependency uses a license that is not on the reviewed open-source allow-list.
+      - name: Generate plugin SBOMs + enforce license allow-list
+        env:
+          GRADLE: gradle
+        run: bash scripts/generate-sbom.sh vscode intellij
+
+      # FAILS if the committed SBOMs / attribution no longer match the current
+      # dependency set (i.e. someone changed deps without regenerating).
+      - name: Verify committed SBOMs are up to date
+        run: |
+          if ! git diff --exit-code -- cimnotebook/sbom; then
+            echo "::error::cimnotebook/sbom is out of date. Run 'scripts/generate-sbom.sh vscode intellij' and commit the result."
+            exit 1
+          fi

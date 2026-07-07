@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimxml.graph;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.apache.jena.graph.Graph;
@@ -89,5 +90,15 @@ public class CimNamespaceFactoryRegistry {
   public static boolean hasProfileFactory(String namespace) {
     Objects.requireNonNull(namespace, NAMESPACE);
     return map.containsKey(namespace);
+  }
+
+  /**
+   * Returns the set of CIM namespaces that currently have a registered factory, i.e. the built-ins
+   * (CIM 16/17/18) plus any namespace registered via {@link #registerProfileFactory}.
+   *
+   * @return an immutable snapshot of the registered namespaces
+   */
+  public static Set<String> registeredNamespaces() {
+    return Set.copyOf(map.keySet());
   }
 }

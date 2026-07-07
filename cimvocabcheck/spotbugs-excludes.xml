@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<!--
+  SpotBugs exclusion filter shared by the cimvocabcheck Java modules
+  (core, cli, lsp). Each module's pom references this file via
+  ${project.basedir}/../spotbugs-excludes.xml.
+
+  Keep suppressions narrow and justified. Broad EI_EXPOSE_REP /
+  CT_CONSTRUCTOR_THROW exclusions mirror the cimxml module's policy.
+-->
+<FindBugsFilter>
+  <Match>
+    <!-- While it usually makes sense to not do work in constructors and
+         thus not have exceptions thrown from constructors, there are
+         enough cases where simple checks, like nullity checks, do make
+         sense. -->
+    <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+  </Match>
+  <Match>
+    <!-- While it usually makes sense to not expose internal representation,
+         there are enough cases where this is intentional and does not cause
+         any issues. -->
+    <Bug pattern="EI_EXPOSE_REP"/>
+  </Match>
+  <Match>
+    <!-- See EI_EXPOSE_REP above. -->
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+  <Match>
+    <!-- Static getters return shared *immutable* Set.copyOf(...) views of the closed
+         standard vocabularies; exposing them is intentional and safe. -->
+    <Bug pattern="MS_EXPOSE_REP"/>
+  </Match>
+  <Match>
+    <!-- Background schema loads are deliberately fire-and-forget: the returned Future is
+         not awaited because completion is signalled through the LSP client callbacks, not
+         the caller. File read-only flag toggling on generated cache files is best-effort. -->
+    <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE"/>
+  </Match>
+  <Match>
+    <!-- Several int[]/array helpers return null as a deliberate "no position found"
+         sentinel that every caller null-checks; a zero-length array would be less clear. -->
+    <Bug pattern="PZLA_PREFER_ZERO_LENGTH_ARRAYS"/>
+  </Match>
+  <Match>
+    <!-- RDF traversal helpers intentionally swallow malformed-node exceptions and continue
+         with best-effort partial results rather than failing a whole validation run. -->
+    <Bug pattern="DE_MIGHT_IGNORE"/>
+  </Match>
+  <Match>
+    <!-- The example `main` methods and a few top-level entry points declare/catch broad
+         Exception on purpose: they are demonstration drivers, not library API. -->
+    <Or>
+      <Bug pattern="REC_CATCH_EXCEPTION"/>
+      <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION"/>
+      <Bug pattern="THROWS_METHOD_THROWS_RUNTIMEEXCEPTION"/>
+    </Or>
+  </Match>
+</FindBugsFilter>

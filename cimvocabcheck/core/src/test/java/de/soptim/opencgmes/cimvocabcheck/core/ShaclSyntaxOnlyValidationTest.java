@@ -1,0 +1,171 @@
+/*
+ *    Copyright (c) 2026 SOPTIM AG
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ *
+ *    SPDX-License-Identifier: Apache-2.0
+ */
+
+package de.soptim.opencgmes.cimvocabcheck.core;
+
+import static org.junit.Assert.*;
+
+import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
+import org.apache.jena.graph.Graph;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFParser;
+import org.apache.jena.sparql.graph.GraphFactory;
+import org.junit.Test;
+
+/**
+ * Tests for {@link SparqlValidationApi#checkShaclSyntaxOnly(Graph)} — the schema-independent
+ * fallback that syntax-checks SPARQL fragments embedded in a SHACL shapes graph when no schema can
+ * be resolved (e.g. an unreachable {@code # [endpoint=...]}). The SHACL counterpart of {@link
+ * SyntaxOnlyValidationTest}.
+ */
+public class ShaclSyntaxOnlyValidationTest {
+
+  private static final String PREAMBLE =
+      """
+      @prefix sh:  <http://www.w3.org/ns/shacl#> .
+      @prefix cim: <http://iec.ch/TC57/CIM100#> .
+      @prefix ex:  <http://example.org/> .
+      """;
+
+  private static Graph parse(String turtle) {
+    Graph g = GraphFactory.createDefaultGraph();
+    RDFParser.fromString(turtle, Lang.TURTLE).parse(g);
+    return g;
+  }
+
+  @Test
+  public void validEmbeddedSelectHasNoAnnotations() {
+    Graph g =
+        parse(
+            PREAMBLE
+                + """
+                ex:Shape a sh:NodeShape ;
+                  sh:sparql [ sh:select "SELECT $this WHERE { $this a cim:ACLineSegment }" ] .
+                """);
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertEquals(1, result.embeddedResults().size());
+    assertTrue(result.embeddedResults().get(0).result().annotations().isEmpty());
+  }
+
+  @Test
+  public void brokenEmbeddedSelectYieldsSingleSyntaxError() {
+    Graph g =
+        parse(
+            PREAMBLE
+                + """
+                ex:Shape a sh:NodeShape ;
+                  sh:sparql [ sh:select "SELEECT $this WHERE { $this a cim:ACLineSegment }" ] .
+                """);
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertEquals(1, result.embeddedResults().size());
+    var annotations = result.embeddedResults().get(0).result().annotations();
+    assertEquals(1, annotations.size());
+    assertEquals(SparqlValidationCode.SYNTAX_ERROR, annotations.get(0).code());
+  }
+
+  @Test
+  public void shapeAnnotationsAreEmptyBecauseNoSchemaIsConsulted() {
+    // cim:Bogus is not a real class, but with no schema there is nothing to check it against,
+    // so the fallback must not emit any shape-structure annotations.
+    Graph g =
+        parse(
+            PREAMBLE
+                + """
+                ex:Shape a sh:NodeShape ;
+                  sh:targetClass cim:Bogus ;
+                  sh:sparql [ sh:select "SELECT $this WHERE { $this a cim:Bogus }" ] .
+                """);
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertTrue(result.shapeAnnotations().isEmpty());
+    assertTrue(result.embeddedResults().get(0).result().annotations().isEmpty());
+  }
+
+  @Test
+  public void shPrefixesAreNotMisreportedAsSyntaxErrors() {
+    // A fragment that relies on sh:prefixes must render with those prefixes prepended so the
+    // use of cim: does not parse as a syntax error.
+    Graph g =
+        parse(
+            PREAMBLE
+                + """
+                ex:Shape a sh:NodeShape ;
+                  sh:sparql [
+                    sh:prefixes ex:prefixes ;
+                    sh:select "SELECT $this WHERE { $this a cim:ACLineSegment }"
+                  ] .
+                ex:prefixes sh:declare [ sh:prefix "cim" ; sh:namespace "http://iec.ch/TC57/CIM100#" ] .
+                """);
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertEquals(1, result.embeddedResults().size());
+    assertTrue(result.embeddedResults().get(0).result().annotations().isEmpty());
+  }
+
+  @Test
+  public void graphWithoutEmbeddedSparqlYieldsNoResults() {
+    Graph g =
+        parse(
+            PREAMBLE
+                + """
+                ex:Shape a sh:NodeShape ;
+                  sh:targetClass cim:ACLineSegment .
+                """);
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertTrue(result.shapeAnnotations().isEmpty());
+    assertTrue(result.embeddedResults().isEmpty());
+  }
+
+  @Test
+  public void vocabularyTypoIsReportedByDefault() {
+    Graph g = parse(PREAMBLE + "ex:Shape a sh:NodeShape ; sh:taaargetClass cim:ACLineSegment .");
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertTrue(
+        "a misspelt SHACL term must be reported in syntax-only mode by default",
+        result.shapeAnnotations().stream()
+            .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
+  }
+
+  @Test
+  public void vocabularyTypoIsSuppressedWhenStandardVocabularyDisabled() {
+    Graph g = parse(PREAMBLE + "ex:Shape a sh:NodeShape ; sh:taaargetClass cim:ACLineSegment .");
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g, false);
+    assertFalse(
+        "checkStandardVocabulary=false must suppress the vocabulary typo in syntax-only mode",
+        result.shapeAnnotations().stream()
+            .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
+  }
+
+  @Test
+  public void targetedPositionTypoIsReportedInSyntaxOnly() {
+    // In syntax-only mode the targeted shape checks don't run, so the graph-wide vocabulary scan
+    // must still catch a typo in sh:targetClass object position (rdf:Lst, not rdf:List).
+    Graph g =
+        parse(
+            PREAMBLE
+                + "ex:Shape a sh:NodeShape ;"
+                + " sh:targetClass <http://www.w3.org/1999/02/22-rdf-syntax-ns#Lst> .");
+    ShaclValidationResult result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    assertTrue(
+        "sh:targetClass typo must be reported in syntax-only mode",
+        result.shapeAnnotations().stream()
+            .anyMatch(
+                a ->
+                    a.code() == SparqlValidationCode.UNKNOWN_VOCABULARY_TERM
+                        && a.term() != null
+                        && a.term().getURI().endsWith("#Lst")));
+  }
+}

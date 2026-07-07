@@ -1,0 +1,34 @@
+<!--
+    Custom mycila license-maven-plugin header styles for OpenCGMES.
+
+    These reproduce the project's canonical license header exactly:
+      * Java/Kotlin (soptim_java):  " *    " line prefix, blank lines rendered as " *".
+      * XML/pom     (soptim_xml):   "    " line prefix, header placed AFTER the
+                                    "<?xml ... ?>" prolog (via <skipLine>).
+
+    Referenced from each module's license-maven-plugin <headerDefinitions>.
+    The header TEXT lives in license-header.txt.
+-->
+<additionalHeaders>
+    <soptim_java>
+        <firstLine>/*</firstLine>
+        <beforeEachLine> *    </beforeEachLine>
+        <endLine> */</endLine>
+        <firstLineDetectionPattern>(\s|\t)*/\*.*$</firstLineDetectionPattern>
+        <lastLineDetectionPattern>.*\*/(\s|\t)*$</lastLineDetectionPattern>
+        <allowBlankLines>false</allowBlankLines>
+        <isMultiline>true</isMultiline>
+        <padLines>false</padLines>
+    </soptim_java>
+    <soptim_xml>
+        <firstLine>&lt;!--</firstLine>
+        <beforeEachLine>    </beforeEachLine>
+        <endLine>--&gt;</endLine>
+        <skipLine>^&lt;\?xml.*&gt;$</skipLine>
+        <firstLineDetectionPattern>(\s|\t)*&lt;!--.*$</firstLineDetectionPattern>
+        <lastLineDetectionPattern>.*--&gt;(\s|\t)*$</lastLineDetectionPattern>
+        <allowBlankLines>false</allowBlankLines>
+        <isMultiline>true</isMultiline>
+        <padLines>false</padLines>
+    </soptim_xml>
+</additionalHeaders>

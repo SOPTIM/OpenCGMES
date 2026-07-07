@@ -196,7 +196,7 @@ public class FastDeltaGraph extends GraphBase {
   }
 
   @Override
-  public int graphBaseSize() {
+  protected int graphBaseSize() {
     return base.size() + additions.size() - deletions.size();
   }
 }

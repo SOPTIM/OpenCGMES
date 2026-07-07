@@ -1,0 +1,90 @@
+name: docker-publish
+
+# Reusable workflow that builds and pushes the schema-less cimvocabcheck-cli image to GHCR.
+# Called by cimvocabcheck-ci (edge image on main) and cimvocabcheck-release (versioned + latest).
+
+on:
+  workflow_call:
+    inputs:
+      tag-suffixes:
+        description: "Newline-separated image tag suffixes (e.g. 'edge' or '1.2.3\\nlatest')."
+        required: true
+        type: string
+      apply-versions:
+        description: "Run scripts/set-versions.sh before building (release builds)."
+        required: false
+        default: false
+        type: boolean
+      cimxml-version:
+        description: "cimxml version passed to set-versions.sh when apply-versions is true."
+        required: false
+        default: ""
+        type: string
+      release-version:
+        description: "Release version for set-versions.sh and the image version label."
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Apply release versions
+        if: ${{ inputs.apply-versions }}
+        run: bash scripts/set-versions.sh "${{ inputs.cimxml-version }}" "${{ inputs.release-version }}"
+
+      - name: Compose image tags and labels
+        id: meta
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/cimvocabcheck-cli"
+          {
+            echo "tags<<EOF"
+            while IFS= read -r suffix; do
+              [ -z "${suffix}" ] && continue
+              echo "${image}:${suffix}"
+            done <<< "${{ inputs.tag-suffixes }}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+          {
+            echo "labels<<EOF"
+            if [ -n "${{ inputs.release-version }}" ]; then
+              echo "org.opencontainers.image.version=${{ inputs.release-version }}"
+            fi
+            echo "org.opencontainers.image.revision=${GITHUB_SHA}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: cimvocabcheck/Dockerfile
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

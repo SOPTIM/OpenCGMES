@@ -1,0 +1,215 @@
+name: cimvocabcheck-ci
+
+on:
+  pull_request:
+    paths:
+      - "cimvocabcheck/**"
+      - "cimxml/**"
+      - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/check-sbom-licenses.py"
+      - "scripts/sbom-license-overrides.json"
+      - "scripts/compute-version.sh"
+      - "scripts/set-versions.sh"
+      - ".github/workflows/cimvocabcheck-ci.yml"
+      - ".github/workflows/cimvocabcheck-release.yml"
+      - ".github/workflows/docker-publish.yml"
+  push:
+    paths:
+      - "cimvocabcheck/**"
+      - "cimxml/**"
+      - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/check-sbom-licenses.py"
+      - "scripts/sbom-license-overrides.json"
+      - "scripts/compute-version.sh"
+      - "scripts/set-versions.sh"
+      - ".github/workflows/cimvocabcheck-ci.yml"
+      - ".github/workflows/cimvocabcheck-release.yml"
+      - ".github/workflows/docker-publish.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cimvocabcheck-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---- Java lint -----------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      # Treat any javac warning as a build error: unused imports, raw types,
+      # deprecation, missing @Override, etc.
+      - name: Lint — compiler warnings as errors
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am \
+            clean compile test-compile \
+            -Dmaven.compiler.failOnWarning=true \
+            -Dmaven.compiler.showWarnings=true \
+            -Dmaven.compiler.showDeprecation=true
+
+      # Static analysis + formatting gates (Spotless/google-java-format, Checkstyle,
+      # SpotBugs, PMD/CPD). Tests and JaCoCo are skipped here for fast feedback — the
+      # build-test job runs the full `verify` (including coverage gates) authoritatively.
+      - name: Lint — static analysis (Spotless, Checkstyle, SpotBugs, PMD)
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am \
+            verify -DskipTests -Djacoco.skip=true
+
+      # License-header gate for the whole Maven tree (root + cimvocabcheck aggregator
+      # + core/cli/lsp poms). Java sources are covered by the Spotless step above;
+      # this recursive mycila run additionally enforces the pom.xml headers, including
+      # the aggregator poms that the -pl build above does not visit. cimxml is skipped
+      # (its migration is staged). Autofix: scripts/license-headers.sh format
+      - name: Lint — license headers (Maven)
+        run: mvn -B -ntp com.mycila:license-maven-plugin:5.0.0:check
+
+  # ---- Java build + tests --------------------------------------------------
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      # -pl with all three modules + -am also builds cimxml in dependency order.
+      - name: Build and test all cimvocabcheck modules
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am clean verify
+
+  # ---- SBOM (maven) + license compliance -----------------------------------
+  # Covers the Java library/CLI/LSP and their shipped Maven dependencies. The
+  # CIMNotebook plugin SBOMs are generated/checked in cimnotebook-ci.
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      # Regenerates cimvocabcheck/sbom/maven/{bom.json,THIRD-PARTY.txt}. FAILS here if any
+      # dependency uses a license that is not on the reviewed open-source allow-list.
+      - name: Generate maven SBOM + enforce license allow-list
+        run: bash scripts/generate-sbom.sh maven
+
+      # FAILS if the committed SBOMs / attribution no longer match the current
+      # dependency set (i.e. someone changed deps without regenerating).
+      - name: Verify committed SBOMs are up to date
+        run: |
+          if ! git diff --exit-code -- cimvocabcheck/sbom; then
+            echo "::error::cimvocabcheck/sbom is out of date. Run 'scripts/generate-sbom.sh maven' and commit the result."
+            exit 1
+          fi
+
+  # ---- Snapshot publish (main branch only) ---------------------------------
+  publish-snapshot:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - lint
+      - build-test
+      - sbom
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 21 for GitHub Packages
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Compute and apply snapshot versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          CIMXML_VERSION="$(bash scripts/compute-version.sh cimxml)"
+          CIMVOCABCHECK_VERSION="$(bash scripts/compute-version.sh cimvocabcheck)"
+          echo "cimxml: ${CIMXML_VERSION}, cimvocabcheck: ${CIMVOCABCHECK_VERSION}"
+          bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}"
+
+      # cimxml must be installed locally before cimvocabcheck-core can resolve it.
+      - name: Install cimxml SNAPSHOT into local repo
+        run: mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+
+      # Only cimvocabcheck-core is a library artifact published to package registries.
+      # cimvocabcheck-cli and cimvocabcheck-lsp are fat-JAR tools and are not deployed here.
+      - name: Deploy cimvocabcheck-core snapshot to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn -B -ntp -f cimvocabcheck/core/pom.xml clean deploy \
+            -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }}
+
+  # ---- Edge Docker image (main only) ---------------------------------------
+  # Publishes ghcr.io/<owner>/cimvocabcheck-cli:edge on every merge to main, so there is always a
+  # fresh schema-less CLI image to test against. Remove this job if it adds too much main CI time;
+  # the authoritative versioned images come from the release workflow.
+  publish-edge-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - lint
+      - build-test
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      tag-suffixes: edge

@@ -1,0 +1,202 @@
+name: cimnotebook-release
+
+# Releasing the CIMNotebook editor plugins (VS Code + IntelliJ). Unlike the CI build —
+# which bundles the in-repo (snapshot) CIMVocabCheck LSP — a release bundles the LSP at the
+# **latest released cimvocabcheck version** (resolved from the newest cimvocabcheck-v* tag),
+# mirroring how releases pin their cimxml dependency to a release rather than a SNAPSHOT.
+on:
+  push:
+    tags:
+      - "cimnotebook-v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cimnotebook-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---- Validate tag and resolve dependency versions ------------------------
+  validate-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      release_version: ${{ steps.validate.outputs.release_version }}
+      cimvocabcheck_version: ${{ steps.validate.outputs.cimvocabcheck_version }}
+      cimxml_version: ${{ steps.validate.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag and resolve cimvocabcheck / cimxml versions
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "${TAG}" =~ ^cimnotebook-v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Invalid tag format '${TAG}'. Expected cimnotebook-vX.Y.Z" >&2
+            exit 1
+          fi
+          RELEASE_VERSION="${TAG#cimnotebook-v}"
+
+          # Bundle the LSP at the LATEST released cimvocabcheck version (newest tag in the repo,
+          # matching how cimxml is resolved below). compute-version.sh --released returns
+          # 0.0.0-SNAPSHOT as a fallback until the first cimvocabcheck-vX.Y.Z tag exists.
+          CIMVOCABCHECK_VERSION="$(bash scripts/compute-version.sh cimvocabcheck --released)"
+          if [[ "${CIMVOCABCHECK_VERSION}" == "0.0.0-SNAPSHOT" ]]; then
+            echo "::warning::No cimvocabcheck release tag found; bundling the in-repo 0.0.0-SNAPSHOT LSP." >&2
+          fi
+
+          # cimxml is a transitive dependency of the LSP (lsp -> core -> cimxml).
+          CIMXML_TAG="$(git tag --sort=-version:refname --list 'cimxml-v*' | head -1)"
+          if [[ -z "${CIMXML_TAG}" ]]; then
+            echo "No cimxml release tag found. At least one cimxml-vX.Y.Z tag is required." >&2
+            exit 1
+          fi
+          CIMXML_VERSION="${CIMXML_TAG#cimxml-v}"
+
+          echo "release_version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "cimvocabcheck_version=${CIMVOCABCHECK_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "cimxml_version=${CIMXML_VERSION}" >> "${GITHUB_OUTPUT}"
+
+  # ---- GitHub Release with binary artifacts (VSIX + IntelliJ zip) ----------
+  publish-release-assets:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMVOCABCHECK_VERSION: ${{ needs.validate-tag.outputs.cimvocabcheck_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cimnotebook/vscode/package-lock.json
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          gradle-version: "9.5.0"
+
+      # Plugins -> RELEASE_VERSION; bundled LSP -> latest released cimvocabcheck version.
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml and cimvocabcheck-core into local repo
+        # Note: cimvocabcheck-core and the LSP are built from THIS checkout (the cimnotebook tag's
+        # commit) and merely stamped with CIMVOCABCHECK_VERSION. The bundled jar's content reflects
+        # the current commit, not the released cimvocabcheck-v<version> commit.
+        run: |
+          mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+          mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean install
+
+      - name: Build LSP fat JAR
+        run: mvn -B -ntp -f cimvocabcheck/lsp/pom.xml -DskipTests clean package
+
+      - name: Install VS Code extension dependencies
+        run: npm ci
+        working-directory: cimnotebook/vscode
+
+      - name: Copy LSP JAR into VS Code extension
+        run: |
+          mkdir -p cimnotebook/vscode/server
+          cp cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar cimnotebook/vscode/server/cimvocabcheck-lsp.jar
+
+      - name: Build and package VS Code extension
+        run: |
+          npm run bundle
+          npx @vscode/vsce package --out "cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix"
+        working-directory: cimnotebook/vscode
+
+      - name: Build IntelliJ plugin
+        run: gradle buildPlugin
+        working-directory: cimnotebook/intellij
+
+      - name: Create draft GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "CIMNotebook ${{ env.RELEASE_VERSION }}" \
+            --generate-notes \
+            --draft \
+            "cimnotebook/vscode/cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix" \
+            cimnotebook/intellij/build/distributions/cimnotebook-intellij-*.zip
+
+  # ---- JetBrains Marketplace -----------------------------------------------
+  publish-jetbrains-marketplace:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    environment: JetBrains Marketplace Deployment
+    env:
+      PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMVOCABCHECK_VERSION: ${{ needs.validate-tag.outputs.cimvocabcheck_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/lsp/pom.xml
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Validate required secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${PUBLISH_TOKEN}" ]] || (echo "JETBRAINS_MARKETPLACE_TOKEN secret is missing" >&2; exit 1)
+
+      - name: Apply release versions
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${CIMVOCABCHECK_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Install cimxml and cimvocabcheck-core into local repo
+        # Note: cimvocabcheck-core and the LSP are built from THIS checkout (the cimnotebook tag's
+        # commit) and merely stamped with CIMVOCABCHECK_VERSION. The bundled jar's content reflects
+        # the current commit, not the released cimvocabcheck-v<version> commit.
+        run: |
+          mvn -B -ntp -f cimxml/pom.xml -DskipTests clean install
+          mvn -B -ntp -f cimvocabcheck/core/pom.xml -DskipTests clean install
+
+      - name: Build LSP fat JAR
+        run: mvn -B -ntp -f cimvocabcheck/lsp/pom.xml -DskipTests clean package
+
+      - name: Publish plugin to JetBrains Marketplace
+        run: gradle publishPlugin
+        working-directory: cimnotebook/intellij

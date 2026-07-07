@@ -1,0 +1,31 @@
+PREFIX cim: <http://iec.ch/TC57/CIM100#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+
+# SPARQL Update example — multiple operations separated by ";",
+# validated against CGMES 3.0 RDFS profiles.
+#
+# Deliberate mistakes for the validator to catch:
+#   1. cim:DoesNotExist.property is not in any profile  (UNKNOWN_PROPERTY)
+#   2. cim:ACLineSegment.r applied to cim:Terminal      (PROPERTY_NOT_ALLOWED_FOR_CLASS)
+
+INSERT DATA {
+    <urn:line1> a cim:ACLineSegment ;
+                cim:IdentifiedObject.name "Line 1" ;
+                cim:ACLineSegment.r "0.01"^^xsd:float .
+} ;
+
+DELETE WHERE {
+    ?line a cim:ACLineSegment ;
+          cim:DoesNotExist.property ?staleValue .
+} ;
+
+INSERT {
+    ?term cim:ACLineSegment.r ?wrongDomain
+}
+WHERE {
+    ?term a cim:Terminal ;
+          cim:Terminal.ConnectivityNode ?cn .
+    BIND(0.1 AS ?wrongDomain)
+} ;
+
+CREATE GRAPH <urn:example:result>

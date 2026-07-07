@@ -25,3 +25,11 @@ replay_pid*
 
 /cimxml/target/
 target/
+
+# IntelliJ IDEA: ignore per-user project files, but commit the shared Google-style
+# code-style scheme under .idea/codeStyles/ so every contributor formats identically,
+# and the shared Apache-2.0 copyright profile under .idea/copyright/ so IntelliJ
+# inserts the same SOPTIM license header the CI header checks enforce.
+.idea/*
+!.idea/codeStyles/
+!.idea/copyright/

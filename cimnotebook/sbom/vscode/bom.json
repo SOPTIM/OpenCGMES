@@ -1,0 +1,484 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "npm"
+        },
+        {
+          "type": "library",
+          "name": "cyclonedx-library",
+          "group": "@cyclonedx",
+          "version": "10.1.0",
+          "author": "Jan Kowalleck",
+          "description": "Core functionality of CycloneDX for JavaScript (Node.js or WebBrowser).",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "externalReferences": [
+            {
+              "url": "https://github.com/CycloneDX/cyclonedx-javascript-library/issues",
+              "type": "issue-tracker",
+              "comment": "as detected from PackageJson property \"bugs.url\""
+            },
+            {
+              "url": "git+https://github.com/CycloneDX/cyclonedx-javascript-library.git",
+              "type": "vcs",
+              "comment": "as detected from PackageJson property \"repository.url\""
+            },
+            {
+              "url": "https://github.com/CycloneDX/cyclonedx-javascript-library#readme",
+              "type": "website",
+              "comment": "as detected from PackageJson property \"homepage\""
+            }
+          ]
+        },
+        {
+          "type": "application",
+          "name": "cyclonedx-npm",
+          "group": "@cyclonedx",
+          "version": "4.2.1",
+          "author": "Jan Kowalleck",
+          "description": "Create CycloneDX Software Bill of Materials (SBOM) from NPM projects.",
+          "licenses": [
+            {
+              "license": {
+                "id": "Apache-2.0"
+              }
+            }
+          ],
+          "externalReferences": [
+            {
+              "url": "https://github.com/CycloneDX/cyclonedx-node-npm/issues",
+              "type": "issue-tracker",
+              "comment": "as detected from PackageJson property \"bugs.url\""
+            },
+            {
+              "url": "git+https://github.com/CycloneDX/cyclonedx-node-npm.git",
+              "type": "vcs",
+              "comment": "as detected from PackageJson property \"repository.url\""
+            },
+            {
+              "url": "https://github.com/CycloneDX/cyclonedx-node-npm#readme",
+              "type": "website",
+              "comment": "as detected from PackageJson property \"homepage\""
+            }
+          ]
+        }
+      ]
+    },
+    "component": {
+      "type": "application",
+      "name": "cimnotebook",
+      "version": "0.0.0",
+      "bom-ref": "cimnotebook@0.0.0",
+      "description": "Validates SPARQL queries and SHACL shapes against CIM/CGMES schema profiles using the CIMLangServer language server.",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/cimnotebook@0.0.0?vcs_url=git%2Bhttps%3A%2F%2Fgithub.com%2FSOPTIM%2FOpenCGMES.git",
+      "externalReferences": [
+        {
+          "url": "https://github.com/SOPTIM/OpenCGMES/issues",
+          "type": "issue-tracker",
+          "comment": "as detected from PackageJson property \"bugs.url\""
+        },
+        {
+          "url": "git+https://github.com/SOPTIM/OpenCGMES.git",
+          "type": "vcs",
+          "comment": "as detected from PackageJson property \"repository.url\""
+        },
+        {
+          "url": "https://github.com/SOPTIM/OpenCGMES#readme",
+          "type": "website",
+          "comment": "as detected from PackageJson property \"homepage\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": ""
+        }
+      ]
+    },
+    "properties": [
+      {
+        "name": "cdx:reproducible",
+        "value": "true"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "balanced-match",
+      "version": "4.0.4",
+      "bom-ref": "cimnotebook@0.0.0|balanced-match@4.0.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/balanced-match@4.0.4",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/balanced-match/-/balanced-match-4.0.4.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "04bae011c453c17da8ea01b118e08dc8cbc64a9df96287ee633c3d87520c4d198aaadb40659554ebb6dd6fd3ebdaf50703cfa3de2dad25f8cee82ebee26c864c"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/balanced-match"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "brace-expansion",
+      "version": "5.0.7",
+      "bom-ref": "cimnotebook@0.0.0|brace-expansion@5.0.7",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/brace-expansion@5.0.7",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.7.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "ee8172ef4dddc5f637fcd2f10b57e1d925024341fdae6018fb91290d57d78d44d3b3e1c4c11da761aa8bbfe196713b2e9b0c4f7e2cfa0b308d9305f0054c2a08"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/brace-expansion"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "minimatch",
+      "version": "10.2.5",
+      "bom-ref": "cimnotebook@0.0.0|minimatch@10.2.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "BlueOak-1.0.0",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/minimatch@10.2.5",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/minimatch/-/minimatch-10.2.5.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "3142e454b7ca1980c561e8cfd3b40ebab0cb2d0a5c8e4ec5c3eee35d2d91d9ccd1433479eb21d1bde5393432443af887fa111364a4a4224e5cf93db71a315432"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/minimatch"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "semver",
+      "version": "7.8.1",
+      "bom-ref": "cimnotebook@0.0.0|semver@7.8.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "ISC",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/semver@7.8.1",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/semver/-/semver-7.8.1.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "ae456adc85e1fb814319c87e2b0cd7dda57d5b790ee781b2120a6f0734b272d0c0e97b5ded1250575c665db790a79bfbf95ccb39f56a8aeb5213a1880a03c5be"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/semver"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vscode-jsonrpc",
+      "version": "9.0.1",
+      "bom-ref": "cimnotebook@0.0.0|vscode-jsonrpc@9.0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/vscode-jsonrpc@9.0.1",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/vscode-jsonrpc/-/vscode-jsonrpc-9.0.1.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "adfb80e93ef91fa9b91246e1b443f3adef694f41cf70323630ccb8fa73c520192ce49f090405070f8b5161281a04e8a32040bb491902d642b25d32ea6e687d8f"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/vscode-jsonrpc"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vscode-languageclient",
+      "version": "10.1.0",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageclient@10.1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/vscode-languageclient@10.1.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/vscode-languageclient/-/vscode-languageclient-10.1.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "5d7471ea5a958ad432fe838bafd31f358446f8c6d09215e40dac5b40c88ac449bccd935f85e44550a35bf1460d876b2d9fd6ed976c10339c191498c9be873e8c"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/vscode-languageclient"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vscode-languageserver-protocol",
+      "version": "3.18.2",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-protocol@3.18.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/vscode-languageserver-protocol@3.18.2",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.18.2.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "5d1c836d3d0fa77b1236d8b7266c551143324960928b586133efca5250b2d61575ce6aeaa4cd4ec0ed76100922f1b96198bb88329689ad86e8d0ecc655f2b642"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/vscode-languageserver-protocol"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vscode-languageserver-textdocument",
+      "version": "1.0.13",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-textdocument@1.0.13",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/vscode-languageserver-textdocument@1.0.13",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.13.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "9f1d191f030622c564cc51b7fd52de25804b4da14146e35d183bdebef8eea1ac94e44392d9f1186b33a1b423373c8f4294c320e6281cd2ec17b40ab8b498fe0f"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/vscode-languageserver-textdocument"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "vscode-languageserver-types",
+      "version": "3.18.0",
+      "bom-ref": "cimnotebook@0.0.0|vscode-languageserver-types@3.18.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/vscode-languageserver-types@3.18.0",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.18.0.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "f13b063cd3083228817643918114af2e3ba210888016d3be2acb26616c50fae495be57fb4632bc60a08e8cfcd9f98034e235c457bfbb2ef912987921a4d4bdf6"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/vscode-languageserver-types"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "cimnotebook@0.0.0",
+      "dependsOn": [
+        "cimnotebook@0.0.0|vscode-languageclient@10.1.0"
+      ]
+    },
+    {
+      "ref": "cimnotebook@0.0.0|balanced-match@4.0.4"
+    },
+    {
+      "ref": "cimnotebook@0.0.0|brace-expansion@5.0.7",
+      "dependsOn": [
+        "cimnotebook@0.0.0|balanced-match@4.0.4"
+      ]
+    },
+    {
+      "ref": "cimnotebook@0.0.0|minimatch@10.2.5",
+      "dependsOn": [
+        "cimnotebook@0.0.0|brace-expansion@5.0.7"
+      ]
+    },
+    {
+      "ref": "cimnotebook@0.0.0|semver@7.8.1"
+    },
+    {
+      "ref": "cimnotebook@0.0.0|vscode-jsonrpc@9.0.1"
+    },
+    {
+      "ref": "cimnotebook@0.0.0|vscode-languageclient@10.1.0",
+      "dependsOn": [
+        "cimnotebook@0.0.0|minimatch@10.2.5",
+        "cimnotebook@0.0.0|semver@7.8.1",
+        "cimnotebook@0.0.0|vscode-languageserver-protocol@3.18.2",
+        "cimnotebook@0.0.0|vscode-languageserver-textdocument@1.0.13"
+      ]
+    },
+    {
+      "ref": "cimnotebook@0.0.0|vscode-languageserver-protocol@3.18.2",
+      "dependsOn": [
+        "cimnotebook@0.0.0|vscode-jsonrpc@9.0.1",
+        "cimnotebook@0.0.0|vscode-languageserver-types@3.18.0"
+      ]
+    },
+    {
+      "ref": "cimnotebook@0.0.0|vscode-languageserver-textdocument@1.0.13"
+    },
+    {
+      "ref": "cimnotebook@0.0.0|vscode-languageserver-types@3.18.0"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_1" data-name="Ebene 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 244.52 48.11">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 3.7px;
+      }
+
+      .cls-1, .cls-2 {
+        stroke: #fff;
+      }
+
+      .cls-3 {
+        fill: #14162b;
+      }
+
+      .cls-3, .cls-4, .cls-5 {
+        isolation: isolate;
+      }
+
+      .cls-3, .cls-5 {
+        font-family: Arial-BoldMT, Arial;
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: -.02em;
+      }
+
+      .cls-2 {
+        fill: #e74890;
+        stroke-width: 1.64px;
+      }
+
+      .cls-6 {
+        fill: #009ee0;
+      }
+
+      .cls-5 {
+        fill: #009ee0;
+      }
+    </style>
+  </defs>
+  <g class="cls-4">
+    <text class="cls-3" transform="translate(61.76 34.11)"><tspan x="0" y="0">Open</tspan></text>
+    <text class="cls-5" transform="translate(136.43 34.11)"><tspan x="0" y="0">CGMES</tspan></text>
+  </g>
+  <rect class="cls-6" width="47.52" height="48.11" rx="8" ry="8"/>
+  <g>
+    <path class="cls-1" d="M10.54,10.84l16.43-.49,8.27,17.8"/>
+    <path class="cls-1" d="M26.98,10.35l-8.04,26.71"/>
+  </g>
+  <g>
+    <ellipse class="cls-2" cx="10.37" cy="11.46" rx="4.9" ry="4.96"/>
+    <ellipse class="cls-2" cx="26.98" cy="10.35" rx="4.9" ry="4.96"/>
+    <ellipse class="cls-2" cx="35.67" cy="28.27" rx="4.9" ry="4.96"/>
+    <ellipse class="cls-2" cx="18.47" cy="38.19" rx="4.9" ry="4.96"/>
+  </g>
+</svg>

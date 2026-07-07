@@ -1,0 +1,185 @@
+/*
+ *    Copyright (c) 2026 SOPTIM AG
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ *
+ *    SPDX-License-Identifier: Apache-2.0
+ */
+
+package de.soptim.opencgmes.cimvocabcheck.core.schema;
+
+import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import org.apache.jena.graph.Node;
+
+/**
+ * Look-up structure used by the validator to decide whether a class or property IRI exists in a
+ * given subset of profiles, and to compute "exists elsewhere" hints.
+ *
+ * <p>Semantic lookups ({@link #domainsOf}, {@link #rangesOf}, {@link #superClassesOf}, {@link
+ * #isSubClassOf}) have default implementations that return empty results, so callers that only need
+ * existence checks keep working without any extra wiring.
+ *
+ * <p>Implementations are expected to be immutable and safe for concurrent reads.
+ */
+public interface SchemaIndex {
+
+  /** Returns whether {@code classUri} is declared in at least one of {@code profiles}. */
+  boolean classExists(Node classUri, Collection<VersionIri> profiles);
+
+  /** Returns whether {@code propertyUri} is declared in at least one of {@code profiles}. */
+  boolean propertyExists(Node propertyUri, Collection<VersionIri> profiles);
+
+  /** Returns all known profiles declaring {@code classUri} (possibly empty). */
+  List<VersionIri> findClass(Node classUri);
+
+  /** Returns all known profiles declaring {@code propertyUri} (possibly empty). */
+  List<VersionIri> findProperty(Node propertyUri);
+
+  /** Returns every profile registered in this index. */
+  List<VersionIri> getAllProfiles();
+
+  // ---- Semantic lookups ------------------------------------------------------------------
+
+  /**
+   * Union of {@code rdfs:domain} classes declared for {@code propertyUri} across the scope. Empty
+   * result means "no domain known" — which the validator interprets as <em>permissive</em> (the
+   * property is allowed on any class).
+   */
+  default Set<Node> domainsOf(Node propertyUri, Collection<VersionIri> profiles) {
+    return Set.of();
+  }
+
+  /**
+   * Union of {@code rdfs:range} class/datatype URIs declared for {@code propertyUri} across the
+   * scope. Empty result means "no range known".
+   */
+  default Set<Node> rangesOf(Node propertyUri, Collection<VersionIri> profiles) {
+    return Set.of();
+  }
+
+  /**
+   * The CIM {@code cims:multiplicity} declared for {@code propertyUri} across the scope, when all
+   * declaring profiles in scope agree on a single value; empty otherwise (unknown or conflicting).
+   * Used to cross-check SHACL {@code sh:minCount}/{@code sh:maxCount} against the schema
+   * cardinality.
+   */
+  default Optional<Multiplicity> multiplicityOf(Node propertyUri, Collection<VersionIri> profiles) {
+    return Optional.empty();
+  }
+
+  /**
+   * Transitive {@code rdfs:subClassOf} closure of {@code classUri} within the scope, inclusive of
+   * {@code classUri} itself. Cycles are handled with a visited set.
+   */
+  default Set<Node> superClassesOf(Node classUri, Collection<VersionIri> profiles) {
+    return Set.of(classUri);
+  }
+
+  /** Returns whether {@code sub} ⊑ {@code sup} in the {@code rdfs:subClassOf} closure. */
+  default boolean isSubClassOf(Node sub, Node sup, Collection<VersionIri> profiles) {
+    if (sub == null || sup == null) {
+      return false;
+    }
+    if (sub.equals(sup)) {
+      return true;
+    }
+    return superClassesOf(sub, profiles).contains(sup);
+  }
+
+  // ---- Documentation lookups (populated from rdfs:label / rdfs:comment) -----------------
+
+  /**
+   * Returns the first {@code rdfs:label} found for {@code term} across the given scope, or empty if
+   * none is recorded.
+   */
+  default Optional<String> labelOf(Node term, Collection<VersionIri> scope) {
+    return Optional.empty();
+  }
+
+  /**
+   * Returns the first {@code rdfs:comment} found for {@code term} across the given scope, or empty
+   * if none is recorded.
+   */
+  default Optional<String> commentOf(Node term, Collection<VersionIri> scope) {
+    return Optional.empty();
+  }
+
+  // ---- Enumeration (used for completion) -------------------------------------------------
+
+  /** All class nodes registered across every profile in this index. */
+  default Set<Node> allClasses() {
+    return Set.of();
+  }
+
+  /** All property nodes registered across every profile in this index. */
+  default Set<Node> allProperties() {
+    return Set.of();
+  }
+
+  // ---- Enumeration members (CIM enum individuals) ----------------------------------------
+
+  /**
+   * Returns the member (individual) URIs of the enumeration class {@code enumClassUri} across the
+   * given {@code profiles} — e.g. {@code cim:WindGenUnitKind} → its {@code .offshore} / {@code
+   * .onshore} values. Empty when the class is not an enumeration, has no members in scope, or the
+   * index was built without enum indexing.
+   */
+  default Set<Node> enumMembersOf(Node enumClassUri, Collection<VersionIri> profiles) {
+    return Set.of();
+  }
+
+  /**
+   * Returns whether {@code term} is a known enumeration member in at least one of {@code profiles}.
+   */
+  default boolean enumMemberExists(Node term, Collection<VersionIri> profiles) {
+    return false;
+  }
+
+  /**
+   * Returns the union of enumeration members when <em>every</em> range in {@code ranges} is an
+   * enumeration with known members in the given scope; an empty set otherwise (no ranges, or at
+   * least one non-enumeration/out-of-scope range — treat as "not a definite enumeration context"
+   * and be permissive). A non-empty result is always a genuine all-enumeration case, so callers can
+   * validate a value against it. Shared by the SHACL {@code sh:in}/{@code sh:hasValue} checks and
+   * the SPARQL expression-constant check so their "must be an enumeration" semantics stay aligned.
+   */
+  default Set<Node> enumMembersIfAllEnumerated(Set<Node> ranges, Collection<VersionIri> profiles) {
+    if (ranges == null || ranges.isEmpty()) {
+      return Set.of();
+    }
+    var members = new LinkedHashSet<Node>();
+    for (Node r : ranges) {
+      Set<Node> m = enumMembersOf(r, profiles);
+      if (m.isEmpty()) {
+        return Set.of();
+      }
+      members.addAll(m);
+    }
+    return members;
+  }
+
+  /** All enumeration-member nodes registered across every profile in this index. */
+  default Set<Node> allEnumMembers() {
+    return Set.of();
+  }
+
+  /** Returns all known profiles declaring enumeration member {@code term} (possibly empty). */
+  default List<VersionIri> findEnumMember(Node term) {
+    return List.of();
+  }
+}

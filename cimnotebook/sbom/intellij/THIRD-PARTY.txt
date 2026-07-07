@@ -1,0 +1,5 @@
+Third-party dependencies for CIMNotebook IntelliJ plugin (2 component(s)).
+Generated from the committed CycloneDX SBOM by scripts/check-sbom-licenses.py — do not edit by hand.
+
+     (EPL-2.0 (asserted)) com.redhat.devtools.lsp4ij:0.7.0 (pkg:maven/com.jetbrains.plugins/com.redhat.devtools.lsp4ij@0.7.0?type=jar)
+     (Apache-2.0 (asserted)) ideaIC:2024.2 (pkg:maven/idea/ideaIC@2024.2?type=jar)

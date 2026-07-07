@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Logging config for the CLI fat JAR.
+    Jena and other libraries can be chatty at INFO level.
+    We suppress everything below WARN and route to stderr so stdout stays clean.
+-->
+<Configuration status="OFF">
+    <Appenders>
+        <Console name="Stderr" target="SYSTEM_ERR">
+            <PatternLayout pattern="%d{HH:mm:ss} [%level] %logger{1} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Silence Jena, Guava, and other library noise below WARN -->
+        <Logger name="org.apache.jena" level="WARN"/>
+        <Logger name="com.github.jsonldjava" level="WARN"/>
+        <!-- CLI's own logger at INFO so startup/config messages come through -->
+        <Logger name="de.soptim.opencgmes.cimvocabcheck.cli" level="INFO"/>
+        <Root level="WARN">
+            <AppenderRef ref="Stderr"/>
+        </Root>
+    </Loggers>
+</Configuration>

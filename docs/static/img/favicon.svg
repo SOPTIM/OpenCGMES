@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_1" data-name="Ebene 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104.91 111.19">
+  <defs>
+    <style>
+      :root {
+        --ocg-stroke: #171d2d;
+        --ocg-fill: #fff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ocg-stroke: #fff;
+          --ocg-fill: #171d2d;
+        }
+      }
+
+      .cls-1 {
+        fill: none;
+        stroke: var(--ocg-stroke);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 10.5px;
+      }
+
+      .cls-2 {
+        fill: var(--ocg-fill);
+        stroke: var(--ocg-stroke);
+        stroke-width: 4.67px;
+      }
+    </style>
+  </defs>
+  <g>
+    <path class="cls-1" d="M16.8,17.69l46.94-1.37,23.62,50.21"/>
+    <path class="cls-1" d="M63.75,16.32l-22.96,75.38"/>
+  </g>
+  <g>
+    <circle class="cls-2" cx="16.32" cy="19.45" r="13.99"/>
+    <circle class="cls-2" cx="63.75" cy="16.32" r="13.99"/>
+    <circle class="cls-2" cx="88.59" cy="66.89" r="13.99"/>
+    <circle class="cls-2" cx="39.45" cy="94.87" r="13.99"/>
+  </g>
+</svg>
