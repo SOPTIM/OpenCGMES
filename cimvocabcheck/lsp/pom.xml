@@ -48,7 +48,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
-        <ver.cimvocabcheck-core>0.0.0-SNAPSHOT</ver.cimvocabcheck-core>
+        <ver.cimvocabcheck-core>1.0.0</ver.cimvocabcheck-core>
         <ver.lsp4j>1.0.0</ver.lsp4j>
         <ver.jackson>2.22.0</ver.jackson>
         <ver.slf4j>2.0.18</ver.slf4j>
