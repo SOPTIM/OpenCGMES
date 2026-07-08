@@ -306,6 +306,22 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return buildCompletionItems(text, line, col, indexOpt.get());
   }
 
+  /**
+   * Full IRI of the schema term at the given position in an open document, or {@code null} when the
+   * document is not open or no term is under the cursor. Uses the same term extraction and prefix
+   * resolution as hover and go-to-definition. Backs the {@code cimvocabcheck.termInfo} workspace
+   * command, which editor integrations use to link a term to external tools (e.g. "Open in
+   * RDFArchitect").
+   */
+  String termIriAt(String uri, int line, int character) {
+    String text = documents.get(uri);
+    if (text == null) {
+      return null;
+    }
+    Node term = termAtPosition(text, line, character, extractPrefixes(text));
+    return term != null && term.isURI() ? term.getURI() : null;
+  }
+
   private Hover computeHover(HoverParams params) {
     String uri = params.getTextDocument().getUri();
     String text = documents.get(uri);

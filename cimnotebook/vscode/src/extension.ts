@@ -77,13 +77,15 @@ export function activate(context: vscode.ExtensionContext): void {
     registerConfigTreeViews(context, connectionStore);
 
     // Commands: "CIMNotebook: Open RDFArchitect" — embed the configured RDFArchitect instance in a
-    // webview panel, or open it in the external browser.
+    // webview panel, or open it in the external browser. "Open in RDFArchitect" deep-links the
+    // schema term under the cursor.
     context.subscriptions.push(
         vscode.commands.registerCommand("cimnotebook.openRdfArchitect", openRdfArchitect),
         vscode.commands.registerCommand(
             "cimnotebook.openRdfArchitectExternal",
             openRdfArchitectExternal,
         ),
+        vscode.commands.registerCommand("cimnotebook.openInRdfArchitect", openInRdfArchitect),
     );
 
     try {
@@ -269,10 +271,69 @@ async function explainQuery(): Promise<void> {
  */
 async function openRdfArchitect(): Promise<void> {
     const url = await resolveRdfArchitectUrl();
-    if (!url) {
+    if (url) {
+        showRdfArchitectPanel(url, false);
+    }
+}
+
+/**
+ * "Open in RDFArchitect" editor action: asks the language server for the schema term under the
+ * cursor (`cimvocabcheck.termInfo`) and opens RDFArchitect's class deep link
+ * (`/mainpage?class=<iri>`) in the webview panel. RDFArchitect locates the class across the
+ * schemas loaded in its session.
+ */
+async function openInRdfArchitect(): Promise<void> {
+    if (!client) {
+        vscode.window.showWarningMessage("CIMNotebook: language server is not running.");
         return;
     }
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showWarningMessage("CIMNotebook: open a SPARQL or SHACL document first.");
+        return;
+    }
+    const base = await resolveRdfArchitectUrl();
+    if (!base) {
+        return;
+    }
+    const pos = editor.selection.active;
+    try {
+        const info = await client.sendRequest<{ iri?: string } | null>("workspace/executeCommand", {
+            command: "cimvocabcheck.termInfo",
+            arguments: [editor.document.uri.toString(), pos.line, pos.character],
+        });
+        const iri = info?.iri;
+        if (!iri) {
+            vscode.window.showInformationMessage(
+                "CIMNotebook: no schema term at the cursor position.",
+            );
+            return;
+        }
+        showRdfArchitectPanel(classDeepLink(base, iri), true);
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        out.appendLine(`Open in RDFArchitect failed: ${msg}`);
+        vscode.window.showErrorMessage(`CIMNotebook: Open in RDFArchitect failed: ${msg}`);
+    }
+}
+
+/** RDFArchitect's class deep link: {@code <base>/mainpage?class=<iri>}. */
+function classDeepLink(base: string, iri: string): string {
+    const url = new URL(base);
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/mainpage`;
+    url.searchParams.set("class", iri);
+    return url.toString();
+}
+
+/**
+ * Reveals the singleton RDFArchitect panel. With {@code navigate}, the embedded app is (re)loaded
+ * at {@code url}; otherwise an already-open panel keeps its current page and session.
+ */
+function showRdfArchitectPanel(url: string, navigate: boolean): void {
     if (rdfArchitectPanel) {
+        if (navigate) {
+            rdfArchitectPanel.webview.html = rdfArchitectHtml(url);
+        }
         rdfArchitectPanel.reveal();
         return;
     }
@@ -287,9 +348,9 @@ async function openRdfArchitect(): Promise<void> {
         },
     );
     panel.webview.html = rdfArchitectHtml(url);
-    panel.webview.onDidReceiveMessage((msg: { command?: string }) => {
-        if (msg.command === "openExternal") {
-            void vscode.env.openExternal(vscode.Uri.parse(url));
+    panel.webview.onDidReceiveMessage((msg: { command?: string; url?: string }) => {
+        if (msg.command === "openExternal" && msg.url) {
+            void vscode.env.openExternal(vscode.Uri.parse(msg.url));
         }
     });
     panel.onDidDispose(() => {
@@ -381,7 +442,7 @@ function rdfArchitectHtml(url: string): string {
             frame.src = frame.src;
         });
         document.getElementById("external").addEventListener("click", () => {
-            vscodeApi.postMessage({ command: "openExternal" });
+            vscodeApi.postMessage({ command: "openExternal", url: ${JSON.stringify(url)} });
         });
     </script>
 </body>
