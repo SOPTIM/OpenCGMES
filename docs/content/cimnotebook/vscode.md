@@ -3,6 +3,8 @@ title: VS Code
 sidebar_position: 2
 ---
 
+import VSCodeInstall from '@site/src/components/MarketplaceInstall/VSCodeInstall';
+
 # CIMNotebook for VS Code
 
 The VS Code extension gives you real-time SPARQL and SHACL validation against CIM / CGMES schema
@@ -17,6 +19,8 @@ settings, and the server provides every diagnostic, hover, completion, and defin
 - **VS Code 1.75** or later.
 
 ## Install
+
+<VSCodeInstall />
 
 Install from the
 [**Visual Studio Marketplace**](https://marketplace.visualstudio.com/items?itemName=soptim-ag.cimnotebook):

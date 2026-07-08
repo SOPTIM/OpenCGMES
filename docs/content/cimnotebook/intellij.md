@@ -3,6 +3,8 @@ title: IntelliJ
 sidebar_position: 3
 ---
 
+import JetBrainsInstall from '@site/src/components/MarketplaceInstall/JetBrainsInstall';
+
 # CIMNotebook for IntelliJ
 
 The IntelliJ plugin gives you real-time SPARQL and SHACL validation against CIM / CGMES schema
@@ -24,6 +26,8 @@ Install **CIMNotebook** from the
 [**JetBrains Marketplace**](https://plugins.jetbrains.com/plugin/32789-cimnotebook) — inside the IDE
 open **Settings → Plugins → Marketplace**, search for **CIMNotebook**, and click **Install**. LSP4IJ
 is a required dependency, and IntelliJ installs it automatically as part of a Marketplace install.
+
+<JetBrainsInstall pluginId={32789} />
 
 :::warning Installing from disk
 If you install CIMNotebook from a downloaded `.zip` (**Install Plugin from Disk**), IntelliJ does
