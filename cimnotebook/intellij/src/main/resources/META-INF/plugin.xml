@@ -136,6 +136,12 @@
         <lang.parserDefinition language="SHACL"
             implementationClass="de.soptim.opencgmes.cimnotebook.intellij.ShaclParserDefinition"/>
 
+        <!-- ── Ctrl+hover quick-navigate tooltip ─────────────────────────── -->
+        <lang.documentationProvider language="SPARQL"
+            implementationClass="de.soptim.opencgmes.cimnotebook.intellij.CimnotebookDocumentationProvider"/>
+        <lang.documentationProvider language="SHACL"
+            implementationClass="de.soptim.opencgmes.cimnotebook.intellij.CimnotebookDocumentationProvider"/>
+
         <!-- ── Syntax highlighting ───────────────────────────────────────── -->
         <lang.syntaxHighlighterFactory
             language="SPARQL"
