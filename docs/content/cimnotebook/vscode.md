@@ -120,6 +120,26 @@ Config File** prompt instead. The sections follow the active document's _nearest
 the same discovery validation uses — the **Connections** section header shows which
 config file that is.
 
+### RDFArchitect view
+
+[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) is SOPTIM's open-source web editor for RDFS
+schemas with CIM extensions. The **CIMNotebook: Open RDFArchitect** command embeds a running
+RDFArchitect instance in an editor panel, so you can browse and edit the schema diagrams without
+leaving VS Code; **CIMNotebook: Open RDFArchitect in Browser** opens the same instance in your
+system browser instead.
+
+RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting at a local
+[docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g.
+`http://localhost:3000`) or a hosted deployment. The first invocation prompts for the URL and saves
+it.
+
+:::note Embedded sessions
+VS Code webviews embed the app in a third-party browsing context, so an RDFArchitect deployment
+whose session cookie is restricted to same-site use may lose its session state inside the panel.
+If the embedded view misbehaves, use **Open RDFArchitect in Browser** (also available from the
+panel's toolbar).
+:::
+
 ### SPARQL Notebook support
 
 CIMNotebook validates SPARQL **cells** inside notebook documents — its own CIM Notebooks as well
@@ -140,6 +160,7 @@ Schema configuration itself lives in [`opencgmes.jsonc`](/cimvocabcheck/configur
 | `cimnotebook.javaExecutable` | `java`      | Java executable used to launch the language server. Must be Java 21 or later.                    |
 | `cimnotebook.javaArgs`       | `[]`        | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`.                                   |
 | `cimnotebook.trace.server`   | `off`       | LSP message tracing. Set to `messages` or `verbose` to debug communication with the server.      |
+| `cimnotebook.rdfArchitectUrl` | _(unset)_  | URL of a running RDFArchitect instance for the **Open RDFArchitect** commands.                   |
 
 :::note Applying changes
 Changing a server-launch setting (`serverJar`, `javaExecutable`, `javaArgs`) requires a window

@@ -33,6 +33,7 @@ class CimnotebookSettingsConfigurable : Configurable {
     private val serverJarField = TextFieldWithBrowseButton()
     private val javaExeField = JBTextField()
     private val javaArgsField = JBTextField()
+    private val rdfArchitectUrlField = JBTextField()
 
     override fun getDisplayName() = "CIMNotebook"
 
@@ -61,6 +62,7 @@ class CimnotebookSettingsConfigurable : Configurable {
                 .addLabeledComponent(JBLabel("Server JAR:"), serverJarField, 1, false)
                 .addLabeledComponent(JBLabel("Java executable:"), javaExeField, 1, false)
                 .addLabeledComponent(JBLabel("JVM arguments:"), javaArgsField, 1, false)
+                .addLabeledComponent(JBLabel("RDFArchitect URL:"), rdfArchitectUrlField, 1, false)
                 .addComponentFillVertically(JPanel(), 0)
                 .panel
 
@@ -72,7 +74,8 @@ class CimnotebookSettingsConfigurable : Configurable {
         val s = CimnotebookSettings.getInstance()
         return serverJarField.text.trim() != s.serverJar ||
             javaExeField.text.trim() != s.javaExecutable ||
-            javaArgsField.text.trim() != s.javaArgs
+            javaArgsField.text.trim() != s.javaArgs ||
+            rdfArchitectUrlField.text.trim() != s.rdfArchitectUrl
     }
 
     override fun apply() {
@@ -80,6 +83,7 @@ class CimnotebookSettingsConfigurable : Configurable {
         s.serverJar = serverJarField.text.trim()
         s.javaExecutable = javaExeField.text.trim()
         s.javaArgs = javaArgsField.text.trim()
+        s.rdfArchitectUrl = rdfArchitectUrlField.text.trim()
     }
 
     override fun reset() {
@@ -87,6 +91,7 @@ class CimnotebookSettingsConfigurable : Configurable {
         serverJarField.text = s.serverJar
         javaExeField.text = s.javaExecutable
         javaArgsField.text = s.javaArgs
+        rdfArchitectUrlField.text = s.rdfArchitectUrl
     }
 
     override fun disposeUIResources() {

@@ -275,6 +275,16 @@
                 "command": "cimnotebook.config.editMaxRows",
                 "title": "Edit Max Rows",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.openRdfArchitect",
+                "title": "Open RDFArchitect",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.openRdfArchitectExternal",
+                "title": "Open RDFArchitect in Browser",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -358,6 +368,12 @@
                 {
                     "command": "cimnotebook.config.editMaxRows",
                     "when": "false"
+                },
+                {
+                    "command": "cimnotebook.openRdfArchitect"
+                },
+                {
+                    "command": "cimnotebook.openRdfArchitectExternal"
                 }
             ],
             "view/title": [
@@ -447,6 +463,11 @@
                     },
                     "default": [],
                     "markdownDescription": "Additional JVM arguments passed before `-jar`, e.g. `[\"-Xmx512m\"]`."
+                },
+                "cimnotebook.rdfArchitectUrl": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "URL of a running [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance (e.g. `http://localhost:3000`), shown by the **CIMNotebook: Open RDFArchitect** command. RDFArchitect is not bundled — point this at a local or hosted deployment."
                 },
                 "cimnotebook.trace.server": {
                     "type": "string",

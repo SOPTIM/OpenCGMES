@@ -45,6 +45,10 @@ Press `Ctrl+T` (`Cmd+T` on macOS) and type a CIM class or property name to find 
 
 Right-click a SPARQL query (or run **CIMNotebook: Explain Query (Algebra Plan)** from the Command Palette) to see its Jena-style static algebra plan — original and optimized — in a read-only document beside the query. Nothing is executed; the plan is computed from the query text alone. See [Explain Query](https://opencgmes.soptim.de/cimvocabcheck/explain-query).
 
+### RDFArchitect view
+
+[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) is SOPTIM's open-source web editor for RDFS schemas with CIM extensions. Run **CIMNotebook: Open RDFArchitect** to embed a running RDFArchitect instance in an editor panel and browse or edit schema diagrams without leaving VS Code, or **CIMNotebook: Open RDFArchitect in Browser** to open it in the system browser. RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting at a local or hosted instance (e.g. `http://localhost:3000`).
+
 ### SPARQL Notebook support
 
 CIMNotebook validates SPARQL **cells** inside [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook) documents, not just `.rq`/`.sparql` files. Each cell is validated independently, and a cell can declare its own schema with the SPARQL Notebook endpoint directive:
@@ -86,12 +90,13 @@ The `opencgmes.jsonc` format (`schemas`/`schemasDirectory`, `strictness`, `named
 
 These editor-specific settings live in VS Code's settings. Schema configuration itself lives in `opencgmes.jsonc`, not here.
 
-| Setting                      | Default     | Description                                                                                      |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| `cimnotebook.serverJar`      | _(bundled)_ | Absolute path to `cimvocabcheck-lsp.jar`. Leave empty to use the JAR bundled with the extension. |
-| `cimnotebook.javaExecutable` | `java`      | Java executable used to launch the language server. Must be Java 21 or later.                    |
-| `cimnotebook.javaArgs`       | `[]`        | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`.                                   |
-| `cimnotebook.trace.server`   | `off`       | LSP message tracing. Set to `messages` or `verbose` to debug communication with the server.      |
+| Setting                       | Default     | Description                                                                                      |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| `cimnotebook.serverJar`       | _(bundled)_ | Absolute path to `cimvocabcheck-lsp.jar`. Leave empty to use the JAR bundled with the extension. |
+| `cimnotebook.javaExecutable`  | `java`      | Java executable used to launch the language server. Must be Java 21 or later.                    |
+| `cimnotebook.javaArgs`        | `[]`        | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`.                                   |
+| `cimnotebook.trace.server`    | `off`       | LSP message tracing. Set to `messages` or `verbose` to debug communication with the server.      |
+| `cimnotebook.rdfArchitectUrl` | _(unset)_   | URL of a running RDFArchitect instance for the **Open RDFArchitect** commands.                   |
 
 ## Commands
 
@@ -100,6 +105,8 @@ These editor-specific settings live in VS Code's settings. Schema configuration 
 | **CIMNotebook: Show Output**                          | Opens the CIMNotebook output channel, useful for diagnosing startup and schema loading issues. |
 | **CIMNotebook: Explain Query (Algebra Plan)**         | Shows the static SPARQL algebra plan for the current query.                                    |
 | **CIMNotebook: Create Config File (opencgmes.jsonc)** | Scaffolds an `opencgmes.jsonc` configuration file.                                             |
+| **CIMNotebook: Open RDFArchitect**                    | Embeds the configured RDFArchitect instance in an editor panel.                                |
+| **CIMNotebook: Open RDFArchitect in Browser**         | Opens the configured RDFArchitect instance in the system browser.                              |
 
 ## Troubleshooting
 
