@@ -62,6 +62,11 @@ afterEvaluate {
     }
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        // Inherit JVM default methods from platform Kotlin interfaces (e.g. ToolWindowFactory)
+        // instead of generating DefaultImpls-delegating bridge overrides in implementing classes.
+        // Without this, the bridges override @ApiStatus.Internal default members (getAnchor,
+        // getIcon, manage, ...), which the Plugin Verifier fails as INTERNAL_API_USAGES.
+        compilerOptions.jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY)
     }
 }
 

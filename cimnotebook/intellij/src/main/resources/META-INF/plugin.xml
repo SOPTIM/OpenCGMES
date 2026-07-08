@@ -48,6 +48,7 @@
             <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file.</li>
             <li><b>Workspace symbol search</b> — press Ctrl+Alt+Shift+N (Go to Symbol) and type a term name to find any schema term.</li>
             <li><b>Explain Query</b> — right-click a SPARQL query for its Jena-style static algebra plan (original and optimized), computed without executing anything.</li>
+            <li><b>RDFArchitect tool window</b> — embed a running <a href="https://github.com/SOPTIM/RDFArchitect">RDFArchitect</a> instance (SOPTIM's open-source RDFS/CIM schema editor) in the IDE to browse and edit schema diagrams next to your queries. Configure the instance URL under <b>Settings → Tools → CIMNotebook</b>.</li>
         </ul>
 
         <h3>Requirements</h3>
@@ -77,6 +78,7 @@
             <li><b>Server JAR</b> — leave empty to use the JAR bundled with the plugin, or point to your own <code>cimvocabcheck-lsp.jar</code>.</li>
             <li><b>Java executable</b> — leave empty to use the IDE's runtime, or set a path to a Java 21+ executable.</li>
             <li><b>JVM arguments</b> — extra arguments passed before <code>-jar</code>, e.g. <code>-Xmx512m</code>.</li>
+            <li><b>RDFArchitect URL</b> — URL of a running RDFArchitect instance (local or hosted; not bundled) shown in the RDFArchitect tool window.</li>
         </ul>
 
         <h3>Validation configuration</h3>
@@ -151,6 +153,12 @@
             language="SHACL"
             implementationClass="de.soptim.opencgmes.cimnotebook.intellij.CimnotebookSyntaxHighlighterFactory"/>
 
+        <!-- ── RDFArchitect tool window (JCEF-embedded external instance) ── -->
+        <toolWindow id="RDFArchitect"
+                    anchor="right"
+                    icon="AllIcons.Toolwindows.WebToolWindow"
+                    factoryClass="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectToolWindowFactory"/>
+
         <!-- ── Settings page under Settings > Tools > CIMNotebook ───────────── -->
         <applicationConfigurable
             parentId="tools"
@@ -167,6 +175,14 @@
                 text="Explain Query (Algebra Plan)"
                 description="Show the static SPARQL algebra plan for the current query, like arq --explain.">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- ── Open RDFArchitect (tool window) ────────────────────────────── -->
+        <action id="de.soptim.opencgmes.cimnotebook.openRdfArchitect"
+                class="de.soptim.opencgmes.cimnotebook.intellij.OpenRdfArchitectAction"
+                text="CIMNotebook: Open RDFArchitect"
+                description="Open the RDFArchitect schema editor tool window (requires a configured RDFArchitect instance URL).">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
 
         <!-- ── Create Config File (opencgmes.jsonc) ───────────────────────── -->

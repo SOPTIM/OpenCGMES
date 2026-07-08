@@ -88,6 +88,19 @@ Use **Go to Symbol** (`Ctrl+Alt+Shift+N` on Windows/Linux, `Cmd+Option+O` on mac
 class or property name to navigate to any schema term. Matching is partial and case-insensitive —
 `aclineseg` matches `ACLineSegment`.
 
+### RDFArchitect tool window
+
+[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) is SOPTIM's open-source web editor for RDFS
+schemas with CIM extensions. The **RDFArchitect** tool window (also reachable via **Tools →
+CIMNotebook: Open RDFArchitect**) embeds a running RDFArchitect instance in the IDE's built-in
+browser (JCEF), so you can browse and edit the schema diagrams next to your queries. The tool
+window's title bar has **Reload** and **Open in Browser** actions; if the IDE runtime does not
+support JCEF, the tool window offers the system browser instead.
+
+RDFArchitect is not bundled — point the **RDFArchitect URL** setting at a local
+[docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g.
+`http://localhost:3000`) or a hosted deployment.
+
 ## Settings
 
 Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in
@@ -98,6 +111,7 @@ Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration
 | **Server JAR**      | _(bundled)_     | Absolute path to `cimvocabcheck-lsp.jar`. Leave empty to use the JAR bundled with the plugin.                 |
 | **Java executable** | _(IDE runtime)_ | Java executable used to launch the language server. Must be Java 21+. Leave empty to use the IDE's own runtime. |
 | **JVM arguments**   | _(none)_        | Extra JVM arguments passed before `-jar`, e.g. `-Xmx512m`.                                                     |
+| **RDFArchitect URL** | _(unset)_      | URL of a running RDFArchitect instance shown in the RDFArchitect tool window.                                  |
 
 ## Building from source
 

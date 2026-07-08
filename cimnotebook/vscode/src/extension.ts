@@ -39,6 +39,8 @@ const CHANNEL = "CIMNotebook";
 let client: LanguageClient | undefined;
 // Created at the very start of activate() so it always appears in the Output dropdown.
 let out: vscode.LogOutputChannel;
+// Singleton RDFArchitect panel — reopening the command reveals it instead of stacking panels.
+let rdfArchitectPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     out = vscode.window.createOutputChannel(CHANNEL, { log: true });
@@ -73,6 +75,16 @@ export function activate(context: vscode.ExtensionContext): void {
     registerEndpointCommands(context, connectionStore);
     registerCellStatusBar(context, connectionStore);
     registerConfigTreeViews(context, connectionStore);
+
+    // Commands: "CIMNotebook: Open RDFArchitect" — embed the configured RDFArchitect instance in a
+    // webview panel, or open it in the external browser.
+    context.subscriptions.push(
+        vscode.commands.registerCommand("cimnotebook.openRdfArchitect", openRdfArchitect),
+        vscode.commands.registerCommand(
+            "cimnotebook.openRdfArchitectExternal",
+            openRdfArchitectExternal,
+        ),
+    );
 
     try {
         doActivate(context, connectionStore);
@@ -244,6 +256,136 @@ async function explainQuery(): Promise<void> {
         out.appendLine(`Explain Query failed: ${msg}`);
         vscode.window.showErrorMessage(`CIMNotebook: Explain Query failed: ${msg}`);
     }
+}
+
+// ---- RDFArchitect --------------------------------------------------------------------------
+
+/**
+ * Opens the configured RDFArchitect instance (an external deployment — RDFArchitect is not bundled)
+ * inside a webview panel. The app is loaded in an iframe; because VS Code webviews are a third-party
+ * browsing context, the instance's session cookie must allow cross-site use for the embedded app to
+ * keep its state — the toolbar's "Open in Browser" button is the escape hatch when embedding does
+ * not work against a given deployment.
+ */
+async function openRdfArchitect(): Promise<void> {
+    const url = await resolveRdfArchitectUrl();
+    if (!url) {
+        return;
+    }
+    if (rdfArchitectPanel) {
+        rdfArchitectPanel.reveal();
+        return;
+    }
+    const panel = vscode.window.createWebviewPanel(
+        "cimnotebook.rdfArchitect",
+        "RDFArchitect",
+        vscode.ViewColumn.Beside,
+        {
+            enableScripts: true,
+            // Keep the embedded app (and its in-memory session) alive while the tab is hidden.
+            retainContextWhenHidden: true,
+        },
+    );
+    panel.webview.html = rdfArchitectHtml(url);
+    panel.webview.onDidReceiveMessage((msg: { command?: string }) => {
+        if (msg.command === "openExternal") {
+            void vscode.env.openExternal(vscode.Uri.parse(url));
+        }
+    });
+    panel.onDidDispose(() => {
+        rdfArchitectPanel = undefined;
+    });
+    rdfArchitectPanel = panel;
+}
+
+/** Opens the configured RDFArchitect instance in the system browser. */
+async function openRdfArchitectExternal(): Promise<void> {
+    const url = await resolveRdfArchitectUrl();
+    if (url) {
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+    }
+}
+
+/**
+ * Returns the RDFArchitect base URL from settings, prompting for one (and persisting the answer)
+ * when unset. Returns undefined when the user cancels or the URL is invalid.
+ */
+async function resolveRdfArchitectUrl(): Promise<string | undefined> {
+    const config = vscode.workspace.getConfiguration("cimnotebook");
+    let url = config.get<string>("rdfArchitectUrl", "").trim();
+    if (!url) {
+        const entered = await vscode.window.showInputBox({
+            title: "RDFArchitect instance URL",
+            prompt: "URL of a running RDFArchitect instance (saved to the cimnotebook.rdfArchitectUrl setting).",
+            placeHolder: "http://localhost:3000",
+            ignoreFocusOut: true,
+        });
+        if (!entered || !entered.trim()) {
+            return undefined;
+        }
+        url = entered.trim();
+        await config.update("rdfArchitectUrl", url, vscode.ConfigurationTarget.Global);
+    }
+    try {
+        // Validates the URL and normalises away surprises like missing schemes.
+        return new URL(url).toString();
+    } catch {
+        vscode.window.showErrorMessage(
+            `CIMNotebook: invalid RDFArchitect URL "${url}" — fix the cimnotebook.rdfArchitectUrl setting.`,
+        );
+        return undefined;
+    }
+}
+
+/** Webview page: a slim toolbar (reload / open in browser) above an iframe hosting the app. */
+function rdfArchitectHtml(url: string): string {
+    const origin = new URL(url).origin;
+    const nonce = Array.from({ length: 32 }, () =>
+        "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36)),
+    ).join("");
+    return /* html */ `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'none'; frame-src ${origin}; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body { display: flex; flex-direction: column; }
+        #toolbar {
+            display: flex; gap: 0.5em; align-items: center; padding: 2px 6px;
+            font-family: var(--vscode-font-family); font-size: 0.85em;
+            color: var(--vscode-descriptionForeground);
+            background: var(--vscode-editorWidget-background);
+            border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+        }
+        #toolbar button {
+            background: none; border: none; cursor: pointer; padding: 2px 6px;
+            color: var(--vscode-textLink-foreground); font-size: inherit;
+        }
+        #toolbar button:hover { text-decoration: underline; }
+        #app { flex: 1; border: none; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <span>${origin}</span>
+        <button id="reload">Reload</button>
+        <button id="external">Open in Browser</button>
+    </div>
+    <iframe id="app" src="${url}" allow="clipboard-read; clipboard-write"></iframe>
+    <script nonce="${nonce}">
+        const vscodeApi = acquireVsCodeApi();
+        document.getElementById("reload").addEventListener("click", () => {
+            const frame = document.getElementById("app");
+            frame.src = frame.src;
+        });
+        document.getElementById("external").addEventListener("click", () => {
+            vscodeApi.postMessage({ command: "openExternal" });
+        });
+    </script>
+</body>
+</html>`;
 }
 
 // ---- Helpers -------------------------------------------------------------------------------
