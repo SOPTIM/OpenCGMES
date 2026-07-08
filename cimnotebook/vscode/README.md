@@ -1,8 +1,12 @@
 # CIMNotebook
 
+[![Visual Studio Marketplace](https://vsmarketplacebadges.dev/version-short/soptim-ag.cimnotebook.svg)](https://marketplace.visualstudio.com/items?itemName=soptim-ag.cimnotebook)
+
 Real-time SPARQL and SHACL validation against CIM/CGMES schema profiles, directly in VS Code.
 
 Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes and properties are underlined, syntax errors are highlighted, and semantic issues like domain/range mismatches are flagged as you type — all resolved against your actual RDFS profile files.
+
+**Install** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=soptim-ag.cimnotebook) — search for **CIMNotebook** in the Extensions view, or run `code --install-extension soptim-ag.cimnotebook`.
 
 > 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/vscode> — including the
 > [`opencgmes.jsonc` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),

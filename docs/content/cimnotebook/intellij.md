@@ -20,8 +20,10 @@ profiles directly in IntelliJ-platform IDEs. It is a thin client around
 
 ## Install
 
-Install **CIMNotebook** from the Marketplace (**Settings → Plugins → Marketplace**). LSP4IJ is a
-required dependency, and IntelliJ installs it automatically as part of a Marketplace install.
+Install **CIMNotebook** from the
+[**JetBrains Marketplace**](https://plugins.jetbrains.com/plugin/32789-cimnotebook) — inside the IDE
+open **Settings → Plugins → Marketplace**, search for **CIMNotebook**, and click **Install**. LSP4IJ
+is a required dependency, and IntelliJ installs it automatically as part of a Marketplace install.
 
 :::warning Installing from disk
 If you install CIMNotebook from a downloaded `.zip` (**Install Plugin from Disk**), IntelliJ does

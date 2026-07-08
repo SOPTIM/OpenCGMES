@@ -18,7 +18,16 @@ settings, and the server provides every diagnostic, hover, completion, and defin
 
 ## Install
 
-Install from a packaged `.vsix`:
+Install from the
+[**Visual Studio Marketplace**](https://marketplace.visualstudio.com/items?itemName=soptim-ag.cimnotebook):
+open the **Extensions** view, search for **CIMNotebook**, and click **Install** — or from the
+command line:
+
+```bash
+code --install-extension soptim-ag.cimnotebook
+```
+
+Alternatively, install from a packaged `.vsix`:
 
 ```bash
 code --install-extension cimnotebook-<version>.vsix

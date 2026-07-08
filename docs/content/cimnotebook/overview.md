@@ -82,9 +82,12 @@ canonically, on the [Configuration](/cimvocabcheck/configuration) page.
 
 ## Pick your editor
 
-- **[VS Code](/cimnotebook/vscode)** — install the VSIX, configure a schema, and validate `.rq`,
-  `.sparql`, `.ttl`, `.shacl` files plus [SPARQL Notebook cells](/cimnotebook/sparql-notebooks).
-- **[IntelliJ](/cimnotebook/intellij)** — install the plugin (and LSP4IJ) and validate the same
-  file types inside any IntelliJ-platform IDE.
+- **[VS Code](/cimnotebook/vscode)** — install from the
+  [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=soptim-ag.cimnotebook),
+  configure a schema, and validate `.rq`, `.sparql`, `.ttl`, `.shacl` files plus
+  [SPARQL Notebook cells](/cimnotebook/sparql-notebooks).
+- **[IntelliJ](/cimnotebook/intellij)** — install from the
+  [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32789-cimnotebook) (LSP4IJ is pulled
+  in automatically) and validate the same file types inside any IntelliJ-platform IDE.
 
 Hitting a problem? See [Troubleshooting](/cimnotebook/troubleshooting).

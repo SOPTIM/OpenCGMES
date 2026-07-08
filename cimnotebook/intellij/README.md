@@ -17,11 +17,15 @@
 -->
 # CIMNotebook for IntelliJ
 
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/32789?label=JetBrains%20Marketplace&logo=intellijidea)](https://plugins.jetbrains.com/plugin/32789-cimnotebook)
+
 Real-time SPARQL and SHACL validation against CIM/CGMES schema profiles, directly in IntelliJ-based IDEs.
 
 Write a SPARQL query or SHACL shape and get immediate feedback: unknown classes and properties are underlined, syntax errors are highlighted, and semantic issues like domain/range mismatches are flagged as you type — all resolved against your actual RDFS profile files.
 
 The plugin is a thin client around the CIMLangServer (`cimvocabcheck-lsp`), wired into the IDE through the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) LSP client.
+
+**Install** from the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32789-cimnotebook) — search for **CIMNotebook** under **Settings → Plugins → Marketplace**. LSP4IJ is pulled in automatically.
 
 > 📖 **Full documentation:** <https://opencgmes.soptim.de/cimnotebook/intellij> — including the
 > [`opencgmes.jsonc` configuration reference](https://opencgmes.soptim.de/cimvocabcheck/configuration),
