@@ -67,7 +67,7 @@
         <!-- Main dependencies -->
         <ver.jena>6.1.0</ver.jena>
         <ver.cimxml>0.0.0-SNAPSHOT</ver.cimxml>
-        <ver.jackson>2.22.0</ver.jackson>
+        <ver.jackson>2.22.1</ver.jackson>
 
         <!-- Logging -->
         <ver.slf4j>2.0.18</ver.slf4j>
