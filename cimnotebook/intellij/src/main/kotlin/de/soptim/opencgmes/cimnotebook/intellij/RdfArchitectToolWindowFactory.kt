@@ -134,6 +134,20 @@ class RdfArchitectPanel(
         browser?.cefBrowser?.reload()
     }
 
+    /**
+     * Navigates the embedded browser to [url] (e.g. a class deep link), falling back to the
+     * system browser when JCEF is unavailable or no instance is configured.
+     */
+    fun openUrl(url: String) {
+        refresh()
+        val embedded = browser
+        if (embedded != null) {
+            embedded.loadURL(url)
+        } else {
+            BrowserUtil.browse(url)
+        }
+    }
+
     private fun browserComponent(url: String): javax.swing.JComponent {
         val existing = browser
         if (existing != null) {
