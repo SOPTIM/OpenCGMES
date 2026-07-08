@@ -26,6 +26,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryExplanation;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.DidChangeConfigurationParams;
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams;
@@ -65,15 +66,26 @@ final class SparqlWorkspaceService implements WorkspaceService {
    */
   static final String CMD_SET_DEFAULT_ENDPOINT = "cimvocabcheck.notebook.setDefaultEndpoint";
 
+  /**
+   * Command id for resolving the schema term under a cursor position. Arguments: {@code [uri, line,
+   * character]} (zero-based LSP position in an open document). Returns {@code {"iri": ...}} or
+   * {@code null} when no term is at the position. Editor integrations use this to link terms to
+   * external tools (e.g. "Open in RDFArchitect").
+   */
+  static final String CMD_TERM_INFO = "cimvocabcheck.termInfo";
+
   private final SchemaManager schemaManager;
+  private final SparqlTextDocumentService documentService;
   private final NotebookCommandHandler notebookCommandHandler;
   private final NotebookDefaults notebookDefaults;
 
   SparqlWorkspaceService(
       SchemaManager schemaManager,
+      SparqlTextDocumentService documentService,
       NotebookCommandHandler notebookCommandHandler,
       NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
+    this.documentService = documentService;
     this.notebookCommandHandler = notebookCommandHandler;
     this.notebookDefaults = notebookDefaults;
   }
@@ -117,6 +129,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
       notebookDefaults.apply(params.getArguments());
       return CompletableFuture.completedFuture(null);
     }
+    if (CMD_TERM_INFO.equals(params.getCommand())) {
+      return termInfo(params.getArguments());
+    }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());
       return CompletableFuture.completedFuture(null);
@@ -142,25 +157,67 @@ final class SparqlWorkspaceService implements WorkspaceService {
     }
   }
 
+  /** Resolves the term under a cursor position (see {@link #CMD_TERM_INFO}). */
+  private CompletableFuture<Object> termInfo(List<Object> args) {
+    try {
+      String uri = stringArg(args, 0);
+      Integer line = intArg(args, 1);
+      Integer character = intArg(args, 2);
+      if (uri == null || line == null || character == null) {
+        return CompletableFuture.completedFuture(null);
+      }
+      String iri = documentService.termIriAt(uri, line, character);
+      return CompletableFuture.completedFuture(iri == null ? null : Map.of("iri", iri));
+    } catch (Exception e) {
+      LOG.error("termInfo failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
   /**
    * Extracts the first command argument as a String. Over JSON-RPC, lsp4j delivers arguments as
    * Gson {@link JsonElement}s; a direct in-process call may pass a plain {@link String}.
    */
   private static String firstStringArg(List<Object> args) {
-    if (args == null || args.isEmpty()) {
-      return null;
-    }
-    Object first = args.get(0);
-    if (first instanceof String s) {
+    return stringArg(args, 0);
+  }
+
+  /** Command argument at {@code index} as a String, tolerating Gson and in-process forms. */
+  private static String stringArg(List<Object> args, int index) {
+    Object arg = argAt(args, index);
+    if (arg instanceof String s) {
       return s;
     }
-    if (first instanceof JsonPrimitive p) {
+    if (arg instanceof JsonPrimitive p) {
       return p.getAsString();
     }
-    if (first instanceof JsonElement el && el.isJsonPrimitive()) {
+    if (arg instanceof JsonElement el && el.isJsonPrimitive()) {
       return el.getAsString();
     }
-    return first == null ? null : first.toString();
+    return arg == null ? null : arg.toString();
+  }
+
+  /** Command argument at {@code index} as an Integer, tolerating Gson and in-process forms. */
+  private static Integer intArg(List<Object> args, int index) {
+    Object arg = argAt(args, index);
+    if (arg instanceof Number n) {
+      return n.intValue();
+    }
+    if (arg instanceof JsonPrimitive p && p.isNumber()) {
+      return p.getAsInt();
+    }
+    if (arg instanceof JsonElement el && el.isJsonPrimitive()) {
+      try {
+        return el.getAsInt();
+      } catch (NumberFormatException e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  private static Object argAt(List<Object> args, int index) {
+    return args == null || args.size() <= index ? null : args.get(index);
   }
 
   @Override

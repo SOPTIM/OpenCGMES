@@ -285,6 +285,11 @@
                 "command": "cimnotebook.openRdfArchitectExternal",
                 "title": "Open RDFArchitect in Browser",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.openInRdfArchitect",
+                "title": "Open in RDFArchitect",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -293,12 +298,21 @@
                     "command": "cimnotebook.explainQuery",
                     "when": "editorLangId == sparql",
                     "group": "cimnotebook@1"
+                },
+                {
+                    "command": "cimnotebook.openInRdfArchitect",
+                    "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle",
+                    "group": "cimnotebook@2"
                 }
             ],
             "commandPalette": [
                 {
                     "command": "cimnotebook.explainQuery",
                     "when": "editorLangId == sparql"
+                },
+                {
+                    "command": "cimnotebook.openInRdfArchitect",
+                    "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle"
                 },
                 {
                     "command": "cimnotebook.createConfig"

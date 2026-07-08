@@ -133,6 +133,13 @@ RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting 
 `http://localhost:3000`) or a hosted deployment. The first invocation prompts for the URL and saves
 it.
 
+Right-click a CIM term in a SPARQL query or SHACL shape and choose **Open in RDFArchitect** to jump
+straight to that class: the term under the cursor is resolved to its full IRI by the language
+server, and RDFArchitect opens the class and its package diagram
+(`/mainpage?class=<iri>`). The class is looked up across the schemas loaded in the RDFArchitect
+session, so import your profiles there once (or load a shared snapshot) and the jump works from
+then on.
+
 :::note Embedded sessions
 VS Code webviews embed the app in a third-party browsing context, so an RDFArchitect deployment
 whose session cookie is restricted to same-site use may lose its session state inside the panel.

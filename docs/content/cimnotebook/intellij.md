@@ -101,6 +101,13 @@ RDFArchitect is not bundled — point the **RDFArchitect URL** setting at a loca
 [docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g.
 `http://localhost:3000`) or a hosted deployment.
 
+Right-click a CIM term in a SPARQL query or SHACL shape and choose **Open in RDFArchitect** to jump
+straight to that class: the term under the caret is resolved to its full IRI by the language
+server, and RDFArchitect opens the class and its package diagram
+(`/mainpage?class=<iri>`). The class is looked up across the schemas loaded in the RDFArchitect
+session, so import your profiles there once (or load a shared snapshot) and the jump works from
+then on.
+
 ## Settings
 
 Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in

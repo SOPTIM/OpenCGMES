@@ -40,8 +40,10 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   and enumeration members).
 - **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
   case-insensitive) name.
-- **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)) and
-  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)).
+- **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)),
+  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)), and
+  `cimvocabcheck.termInfo` (`[uri, line, character]` → the full IRI of the schema term at a
+  position in an open document; backs the editors' **Open in RDFArchitect** action).
 
 ## Configuration discovery
 
@@ -71,7 +73,7 @@ Launch it directly only for integration testing — normally an editor client st
 ## Integrating another editor
 
 Any LSP client can drive CIMLangServer. Point it at the launch command above, associate the
-SPARQL/SHACL file types, and (optionally) wire the two `executeCommand` ids. For a worked example of
+SPARQL/SHACL file types, and (optionally) wire the `executeCommand` ids. For a worked example of
 a client, see how [CIMNotebook](/cimnotebook/overview) does it for VS Code and IntelliJ.
 
 :::note Command id vs. UI id
