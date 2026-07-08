@@ -78,5 +78,17 @@ public enum SparqlValidationCode {
    * CIM {@code cims:multiplicity} — e.g. requiring more values than the schema's upper bound
    * allows, so the constraint can never be satisfied against conformant data.
    */
-  CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY
+  CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY,
+  /**
+   * A variable in the result surface (explicit {@code SELECT} list, {@code CONSTRUCT} template,
+   * {@code DESCRIBE} list) that appears nowhere in the query body ({@code WHERE}/{@code
+   * BIND}/{@code VALUES}) — it is unbound in every result, almost always a typo (e.g. {@code ?nmae}
+   * vs {@code ?name}).
+   */
+  PROJECTED_VARIABLE_UNBOUND,
+  /**
+   * A variable bound in a triple pattern, {@code BIND} or {@code VALUES} that is never projected,
+   * filtered on, ordered/grouped by, or otherwise reused — a typo or a leftover from a query edit.
+   */
+  UNUSED_VARIABLE
 }

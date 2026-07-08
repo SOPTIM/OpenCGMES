@@ -35,6 +35,8 @@ map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#st
 | `INVALID_CARDINALITY` | ERROR | SHACL | `sh:minCount` exceeds `sh:maxCount` on the same property shape |
 | `INVALID_VALUE_RANGE` | ERROR | SHACL | A value-range constraint is self-contradictory — a lower bound (`sh:minInclusive`/`sh:minExclusive`) exceeds an upper bound (`sh:maxInclusive`/`sh:maxExclusive`) |
 | `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` | WARN | SHACL | `sh:minCount`/`sh:maxCount` cannot be satisfied given the property's declared CIM `cims:multiplicity` |
+| `PROJECTED_VARIABLE_UNBOUND` | WARN | Variables | A `SELECT`/`DESCRIBE`/`CONSTRUCT`-template variable appears nowhere in the query body |
+| `UNUSED_VARIABLE` | WARN | Variables | A variable bound in a triple pattern, `BIND`, or `VALUES` is never used anywhere else |
 
 :::note The "exists in another profile" hint
 When a class or property does not exist in the *selected* profiles but **does** exist in another
@@ -99,6 +101,35 @@ real CGMES RDFS files), these additional checks run:
   `VALUES` row, when the variable's property context is a known enumeration.
 
 `rdfs:subClassOf` traversal is transitive and cycle-safe across the union of all profiles in scope.
+
+## Unused-variable checks
+
+Two schema-independent warnings catch variables that are declared but never meaningfully used —
+typically a typo (`?nmae` vs `?name`) or a leftover from a query edit. Because they need no schema,
+they also fire in the syntax-only fallback (no config, unreachable endpoint):
+
+- `PROJECTED_VARIABLE_UNBOUND` — a variable in the result surface (an explicit `SELECT` list, a
+  `CONSTRUCT` template, a `DESCRIBE` list) that does not appear anywhere in the query body
+  (`WHERE` / `BIND` / `VALUES`). It is unbound in every result row.
+- `UNUSED_VARIABLE` — a variable bound in a triple pattern, `BIND`, or `VALUES` that occurs exactly
+  once in its scope: never projected, filtered on, ordered/grouped by, or otherwise reused. A
+  deliberately unused pattern variable is idiomatically written as a blank node (`[]`).
+
+The check stays quiet on idiomatic SPARQL — no warning is raised for:
+
+- variables under `SELECT *` / `DESCRIBE *` (everything is projected), or anywhere in an `ASK`
+  body (a pure existence test);
+- single-use variables inside `EXISTS` / `NOT EXISTS` / `MINUS` bodies (existence tests too),
+  although occurrences there do count as *uses* of outer variables;
+- variable predicates (`?s ?p ?o`), `GRAPH ?g` / `SERVICE ?s` names, and sub-`SELECT` projections
+  joined into the outer scope — none of which can be replaced by a blank node;
+- SHACL pre-bound variables in embedded constraint SPARQL (`$this`, `?value`, `$PATH`,
+  `$shapesGraph`, `$currentShape`), which the SHACL engine binds before evaluation.
+
+Each `SELECT` scope is analyzed independently, mirroring SPARQL's sub-query semantics. SPARQL
+Update requests are not checked. Both findings are `WARN`, so
+[`strictness`](/cimvocabcheck/configuration#strictness) `permissive` suppresses them and `strict`
+turns them into errors.
 
 :::tip Lenience policy — silent when the schema is silent
 A semantic check is **skipped** when the schema doesn't carry the information it needs: no

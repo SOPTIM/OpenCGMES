@@ -156,7 +156,8 @@ public final class SparqlValidationApi {
   }
 
   /**
-   * Performs a schema-independent syntax check, returning only {@code SYNTAX_ERROR} annotations.
+   * Performs a schema-independent check: syntax, plus — for inputs that parse as a query — the
+   * (equally schema-independent) unused-variable analysis of {@link UnusedVariableCheck}.
    *
    * <p>Used as a fallback when no schema can be resolved (for example a {@code # [endpoint=...]} is
    * briefly unreachable) so that a cell containing broken SPARQL still gets squiggles rather than
@@ -165,8 +166,9 @@ public final class SparqlValidationApi {
    * {@code cim:} and friends without an explicit {@code PREFIX} line is not mis-reported as a
    * syntax error.
    *
-   * @return a result whose annotations are empty when the input parses as either a query or an
-   *     update, or hold a single {@code SYNTAX_ERROR} when neither parser accepts it
+   * @return a result whose annotations are empty when the input parses cleanly, hold {@code
+   *     PROJECTED_VARIABLE_UNBOUND}/{@code UNUSED_VARIABLE} warnings for a query with unused
+   *     variables, or hold a single {@code SYNTAX_ERROR} when neither parser accepts the input
    */
   public static SparqlValidationResult checkSyntaxOnly(String input) {
     Objects.requireNonNull(input, "input");
@@ -174,8 +176,15 @@ public final class SparqlValidationApi {
     SparqlQueryAnalyzer analyzer = new SparqlQueryAnalyzer();
     InvalidQueryException queryError;
     try {
-      analyzer.parse(inj.text());
-      return new SparqlValidationResult(input, null, List.of());
+      Query query = analyzer.parse(inj.text());
+      var warnings = UnusedVariableCheck.check(query, inj.text());
+      if (warnings.isEmpty()) {
+        return new SparqlValidationResult(input, null, List.of());
+      }
+      SparqlValidationResult raw = new SparqlValidationResult(inj.text(), null, warnings);
+      return inj.injectedLineCount() > 0
+          ? adjustLineNumbers(raw, input, inj.injectedLineCount())
+          : new SparqlValidationResult(input, null, warnings);
     } catch (InvalidQueryException e) {
       queryError = e; // remember the query error; it is more informative than the update one
     }
@@ -240,7 +249,7 @@ public final class SparqlValidationApi {
     var extractor = new ShaclSparqlExtractor();
     var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
     for (EmbeddedSparql q : extractor.extract(shapesGraph)) {
-      SparqlValidationResult r = checkSyntaxOnly(q.renderedQuery());
+      SparqlValidationResult r = suppressShaclPreboundVariables(checkSyntaxOnly(q.renderedQuery()));
       embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
     }
     // The vocabulary-typo check is schema-independent (it consults only the bundled W3C
@@ -776,11 +785,42 @@ public final class SparqlValidationApi {
               ? Map.of()
               : Map.of(org.apache.jena.sparql.core.Var.alloc("this"), q.targetClasses());
       var r = validator.validate(renderedQueryWithPath(q), scope, hints);
-      r = suppressImpliedType(r);
+      r = suppressShaclPreboundVariables(suppressImpliedType(r));
       embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
     }
 
     return new ShaclValidationResult(shapeAnnotations, embeddedResults);
+  }
+
+  /**
+   * Variables the SHACL engine pre-binds in embedded SPARQL constraints and validators ({@code
+   * $this}, {@code ?value}, …), plus the {@code $PATH} placeholder. They are legitimately projected
+   * or referenced without being bound in the query body, so the unused-variable warnings must not
+   * fire for them.
+   */
+  private static final Set<String> SHACL_PREBOUND_VARIABLES =
+      Set.of("this", "value", "PATH", "shapesGraph", "currentShape");
+
+  /**
+   * Removes {@link SparqlValidationCode#PROJECTED_VARIABLE_UNBOUND} / {@link
+   * SparqlValidationCode#UNUSED_VARIABLE} annotations about SHACL pre-bound variables from an
+   * embedded-SPARQL result — e.g. {@code SELECT $this WHERE { FILTER NOT EXISTS { ... } }} is a
+   * perfectly valid constraint because the engine binds {@code $this} before evaluation.
+   */
+  private static SparqlValidationResult suppressShaclPreboundVariables(SparqlValidationResult r) {
+    var filtered =
+        r.annotations().stream()
+            .filter(
+                a ->
+                    !((a.code() == SparqlValidationCode.PROJECTED_VARIABLE_UNBOUND
+                            || a.code() == SparqlValidationCode.UNUSED_VARIABLE)
+                        && a.term() != null
+                        && a.term().isVariable()
+                        && SHACL_PREBOUND_VARIABLES.contains(a.term().getName())))
+            .toList();
+    return filtered.size() == r.annotations().size()
+        ? r
+        : new SparqlValidationResult(r.query(), r.queryPlan(), filtered);
   }
 
   /**
