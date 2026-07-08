@@ -10,6 +10,11 @@
     {
       "matchDatasources": ["npm"],
       "minimumReleaseAge": "12 hours"
+    },
+    {
+      "description": "In-repo modules are pinned to the 0.0.0-SNAPSHOT placeholder (versions come from git tags at release time) — never update them",
+      "matchPackageNames": ["de.soptim.opencgmes:*"],
+      "enabled": false
     }
   ],
   "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com"]
