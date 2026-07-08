@@ -417,45 +417,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.1?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.jackson.core",
       "name" : "jackson-core",
-      "version" : "2.22.0",
+      "version" : "2.22.1",
       "description" : "Core Jackson processing abstractions (aka Streaming API), implementation for JSON",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "b1d6835b410ec5d9c7ead9e280d36b44"
+          "content" : "09e866bcd73613665ef49f5086704fb1"
         },
         {
           "alg" : "SHA-1",
-          "content" : "f25b20bdff54546bcaf9d1ac4701447f2d3968f7"
+          "content" : "da7ffb60088d7e8f37ecdd3b617520971cc7b9bf"
         },
         {
           "alg" : "SHA-256",
-          "content" : "d2e8dd4df1e0f61b786ea06792f5bf4235d8278f158f3be6e997e955931c0c98"
+          "content" : "941ff029bcdb93e83d209ce516c1a7fb8bbac07d0a2fa122f5bf194b2cd7b4f4"
         },
         {
           "alg" : "SHA-512",
-          "content" : "7fc88518eaeec11dbefc865d58486a00ffdf5a9572bb66f927a73eb3236a38ab363b4535142b2ccf78d38e8b038c325927379a368fbe25dae0127daea261072e"
+          "content" : "d4485af4465f561034df86686d672835b0272b6200efb0af55ea71e62d3faf09e9f90e42df4da64650795cf00519fc553f892bf6179330a3e74750110a785efb"
         },
         {
           "alg" : "SHA-384",
-          "content" : "98466110e7194180e0340bf94b25bcf18b5fd60b06cc6416777e07564469d9e22abe2c45f9d91b7a55f4aa441a432a9d"
+          "content" : "faaf92de6e93475fdbb7d56221fd35d8435ac4f87dddfd334ed05c4318b8b72220010effd08bf8dd156420771b294eb4"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "1b13ec4f7a66212c214427bfc318773634167e6eaf3d6d7218227aab7705f6a87e6fe1c851ca6376f9de4bc211201c39"
+          "content" : "5c432f1a2f3369485c4ed7d3c3c4499342c23efd0d7a574b73421345df9762bd27643cc469b01632400691f3c09b5d8b"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "dff778559469615c6d35c96a0eff5fd2702846115c854a9c0737a4b0a8c005ee"
+          "content" : "48fc6e17c36e14b8bae387b92248a43da12293b68a61dd2517c708dbb24ed010"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "e44401f19cd712e487f0d19b5ca6cab48cee192669fe69fa3b7337e7afd9c6190c13234bbdc226f0ae376dd611fb464ef2b697f611f9e03db64b02dfd9acb73b"
+          "content" : "f72ef2d2a1012be8b1c972323527a396bbaea0b543bd79fac6d380f8e4855c6d98190b067ccec92ece9ed8e1ece1e6046b1d93f9c85944fcb7133fe0b4dc60e4"
         }
       ],
       "licenses" : [
@@ -465,7 +465,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -487,45 +487,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.1?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.jackson.core",
       "name" : "jackson-databind",
-      "version" : "2.22.0",
+      "version" : "2.22.1",
       "description" : "General data-binding functionality for Jackson: works on core streaming API",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "b3f464be073a99e61bef476e03f001c3"
+          "content" : "df2dcf8d581836d48aae7387311cba93"
         },
         {
           "alg" : "SHA-1",
-          "content" : "7aa54fc3755a9285eec2e73053bde1b9b845a9b2"
+          "content" : "9e2fb91831cce9cb9262909cd76647508949f232"
         },
         {
           "alg" : "SHA-256",
-          "content" : "3520a0351f294699e3e1b7a37c7a726afd81e1a89ae702ac7d47ff347fd2ecbf"
+          "content" : "7dcd7e53bec1f56c7ad278bd1ca0840bebcc595d61ce44d6a8439abb75b965b2"
         },
         {
           "alg" : "SHA-512",
-          "content" : "fb1dfb9a878f1e14ff250374bd94dfe5cbe921ce3390897f3917abdd21ba9dc0df0397139a77ebdf3e86bdf9cd76ac19808aaf56bc782556b271803c9377bd18"
+          "content" : "d8a905e80e6d7dd2026b16b075dde2d409425b61417120980ea07b261c6bf98d5c065053f1c063b60da30b4324157778ec4eb859945fb8543176e55a2d3b8db8"
         },
         {
           "alg" : "SHA-384",
-          "content" : "e2565619db943b43edca40225bb5aeda52410edc119f566e0e6fc91c0fbcfce3a6e97d657e77be46558dba89f0e9ddc4"
+          "content" : "b45efa1187b756bdfa7e0c6bc2eda85fcf13d879b4bf370f06ef95325c13b629f763a8027dbc34dab7c6a549bb33e945"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "bf8a4f24b9690886f9d5ebd8583beaaa8b84af2c1dee63f2972f9466f3c3cc9b1a1c280cec00f4b2d5e62a0c2be17355"
+          "content" : "7eeb7d7ea5434fdede4b0d256955d0ebf93a11ad89efcc2a3551d649bf197f6aa6c3dd60247805a13270fd8ed0a98ae8"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "b1e94814a254c350b854860794f060a77b40030859664ba57c2bf55b0ee989c7"
+          "content" : "ab1df340c8e99a3ea6f485b9e3bf0e1cb7b57810b09e9161c8eee38eb8db3e47"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "98c04d0894aa4d9cc2d8731f1d6550e99f16e1d11d3d6c027ccf114ad37ad5134ef5498abeb6d7af933023885407526c0bbaf2c0eae92103522437d23f5de791"
+          "content" : "dc3f3df098898dc6bf71fcef0ca232a592f59fb465161b95b03a28eebc9539bede1db83bacaf14dc57328feffc7a4637b911a09356fa4330d93f52131ac7254e"
         }
       ],
       "licenses" : [
@@ -535,7 +535,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2933,14 +2933,14 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.1?type=jar",
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.1?type=jar",
       "dependsOn" : [
         "pkg:maven/com.fasterxml.jackson.core/jackson-annotations@2.22?type=jar",
-        "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.0?type=jar"
+        "pkg:maven/com.fasterxml.jackson.core/jackson-core@2.22.1?type=jar"
       ]
     },
     {
@@ -2990,7 +2990,7 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-cli@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.1?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
         "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
@@ -3001,7 +3001,7 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.1?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.1.0?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
@@ -3010,7 +3010,7 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-lsp@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.0?type=jar",
+        "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.1?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
