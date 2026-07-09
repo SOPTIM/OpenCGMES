@@ -290,6 +290,11 @@
                 "command": "cimnotebook.openInRdfArchitect",
                 "title": "Open in RDFArchitect",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.sendSchemaToRdfArchitect",
+                "title": "Send Schema to RDFArchitect",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -388,6 +393,9 @@
                 },
                 {
                     "command": "cimnotebook.openRdfArchitectExternal"
+                },
+                {
+                    "command": "cimnotebook.sendSchemaToRdfArchitect"
                 }
             ],
             "view/title": [

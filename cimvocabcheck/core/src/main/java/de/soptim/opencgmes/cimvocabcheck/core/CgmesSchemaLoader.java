@@ -167,6 +167,16 @@ public final class CgmesSchemaLoader {
     return new SparqlValidationApi(loadIndex());
   }
 
+  /**
+   * Resolves the schema files this loader would parse, without parsing them: the explicit file
+   * list, or the {@code .rdf}/{@code .ttl}/{@code .owl} files found in the configured directory.
+   *
+   * @throws SchemaLoadException if the directory does not exist or contains no schema files
+   */
+  public List<Path> resolveSchemaFiles() throws SchemaLoadException {
+    return resolveFiles();
+  }
+
   // ---- Loading from in-memory graphs -----------------------------------------------------
 
   /**

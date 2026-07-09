@@ -27,6 +27,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBPanelWithEmptyText
@@ -97,6 +98,31 @@ class RdfArchitectToolWindowFactory :
                 .rdfArchitectUrl
                 .trim()
                 .ifEmpty { null }
+
+        /**
+         * Opens [url] in the RDFArchitect tool window, falling back to the system browser when
+         * the tool window (or JCEF) is unavailable.
+         */
+        fun openUrl(
+            project: Project,
+            url: String,
+        ) {
+            val toolWindow =
+                ToolWindowManager
+                    .getInstance(project)
+                    .getToolWindow(OpenRdfArchitectAction.TOOL_WINDOW_ID)
+            if (toolWindow == null) {
+                BrowserUtil.browse(url)
+                return
+            }
+            toolWindow.activate {
+                val panel =
+                    toolWindow.contentManager.contents
+                        .firstOrNull()
+                        ?.component as? RdfArchitectPanel
+                panel?.openUrl(url) ?: BrowserUtil.browse(url)
+            }
+        }
     }
 }
 
