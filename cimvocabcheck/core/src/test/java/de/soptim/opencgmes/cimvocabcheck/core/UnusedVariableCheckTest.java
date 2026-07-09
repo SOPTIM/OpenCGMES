@@ -328,4 +328,36 @@ public class UnusedVariableCheckTest {
     assertEquals(SparqlValidationCode.UNUSED_VARIABLE, all.get(0).code());
     assertTrue(all.get(0).message().contains("?leftover"));
   }
+
+  @Test
+  public void customConstraintComponentParameterIsExempt() {
+    // ex:myList is a custom sh:ConstraintComponent parameter (sh:parameter [ sh:path ex:myList ]),
+    // so $myList is pre-bound by the SHACL engine — same as $this — even though it appears exactly
+    // once in the query body, as the subject of a property-path pattern that unpacks the list.
+    var g =
+        turtle(
+            """
+            @prefix sh:  <http://www.w3.org/ns/shacl#> .
+            @prefix ex:  <http://example.org/ns#> .
+            @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+            ex:ListContainsComponent
+              a sh:ConstraintComponent ;
+              sh:parameter [ sh:path ex:myList ] ;
+              sh:validator [
+                a sh:SPARQLSelectValidator ;
+                sh:select ""\"
+                  SELECT $this ?path WHERE {
+                    $myList (rdf:rest*)/rdf:first ?path .
+                    FILTER (?path = $this)
+                  }
+                ""\" ;
+              ] .
+            """);
+    var result = SparqlValidationApi.checkShaclSyntaxOnly(g);
+    var all =
+        result.embeddedResults().stream()
+            .flatMap(er -> er.result().annotations().stream())
+            .toList();
+    assertTrue(all.isEmpty());
+  }
 }

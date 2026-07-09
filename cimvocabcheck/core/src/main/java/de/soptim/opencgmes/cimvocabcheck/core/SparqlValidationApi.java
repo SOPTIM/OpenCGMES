@@ -247,9 +247,11 @@ public final class SparqlValidationApi {
       Graph shapesGraph, boolean checkStandardVocabulary) {
     Objects.requireNonNull(shapesGraph, "shapesGraph");
     var extractor = new ShaclSparqlExtractor();
+    Set<String> exemptVars = shaclExemptVariableNames(shapesGraph);
     var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
     for (EmbeddedSparql q : extractor.extract(shapesGraph)) {
-      SparqlValidationResult r = suppressShaclPreboundVariables(checkSyntaxOnly(q.renderedQuery()));
+      SparqlValidationResult r =
+          suppressShaclPreboundVariables(checkSyntaxOnly(q.renderedQuery()), exemptVars);
       embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
     }
     // The vocabulary-typo check is schema-independent (it consults only the bundled W3C
@@ -778,6 +780,7 @@ public final class SparqlValidationApi {
     // Embedded-SPARQL analysis: sh:select, sh:ask, sh:construct.
     // For each query, pass $this → sh:targetClass as a subject-type hint so that
     // domain/range checks fire correctly even when $this has no explicit rdf:type in the query.
+    Set<String> exemptVars = shaclExemptVariableNames(shapesGraph);
     var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
     for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
       Map<Node, Set<Node>> hints =
@@ -785,7 +788,7 @@ public final class SparqlValidationApi {
               ? Map.of()
               : Map.of(org.apache.jena.sparql.core.Var.alloc("this"), q.targetClasses());
       var r = validator.validate(renderedQueryWithPath(q), scope, hints);
-      r = suppressShaclPreboundVariables(suppressImpliedType(r));
+      r = suppressShaclPreboundVariables(suppressImpliedType(r), exemptVars);
       embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
     }
 
@@ -802,12 +805,30 @@ public final class SparqlValidationApi {
       Set.of("this", "value", "PATH", "shapesGraph", "currentShape");
 
   /**
+   * Returns the full set of variable names the unused-variable check must treat as pre-bound for
+   * {@code shapesGraph}: the fixed {@link #SHACL_PREBOUND_VARIABLES} plus every custom {@code
+   * sh:ConstraintComponent} parameter name declared in the graph itself (see {@link
+   * ShaclSparqlExtractor#collectConstraintParameterNames(Graph)}). Custom parameters are just as
+   * pre-bound as {@code $this} — a component declaring {@code sh:parameter [ sh:path ex:myList ]}
+   * legitimately references {@code $myList} in its SPARQL body without binding it there.
+   */
+  private static Set<String> shaclExemptVariableNames(Graph shapesGraph) {
+    var names = new LinkedHashSet<>(SHACL_PREBOUND_VARIABLES);
+    names.addAll(ShaclSparqlExtractor.collectConstraintParameterNames(shapesGraph));
+    return names;
+  }
+
+  /**
    * Removes {@link SparqlValidationCode#PROJECTED_VARIABLE_UNBOUND} / {@link
    * SparqlValidationCode#UNUSED_VARIABLE} annotations about SHACL pre-bound variables from an
    * embedded-SPARQL result — e.g. {@code SELECT $this WHERE { FILTER NOT EXISTS { ... } }} is a
    * perfectly valid constraint because the engine binds {@code $this} before evaluation.
+   *
+   * @param exemptNames the pre-bound variable names for the enclosing shapes graph, from {@link
+   *     #shaclExemptVariableNames(Graph)}
    */
-  private static SparqlValidationResult suppressShaclPreboundVariables(SparqlValidationResult r) {
+  private static SparqlValidationResult suppressShaclPreboundVariables(
+      SparqlValidationResult r, Set<String> exemptNames) {
     var filtered =
         r.annotations().stream()
             .filter(
@@ -816,7 +837,7 @@ public final class SparqlValidationApi {
                             || a.code() == SparqlValidationCode.UNUSED_VARIABLE)
                         && a.term() != null
                         && a.term().isVariable()
-                        && SHACL_PREBOUND_VARIABLES.contains(a.term().getName())))
+                        && exemptNames.contains(a.term().getName())))
             .toList();
     return filtered.size() == r.annotations().size()
         ? r
