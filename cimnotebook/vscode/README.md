@@ -47,7 +47,7 @@ Right-click a SPARQL query (or run **CIMNotebook: Explain Query (Algebra Plan)**
 
 ### RDFArchitect view
 
-[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) is SOPTIM's open-source web editor for RDFS schemas with CIM extensions. Run **CIMNotebook: Open RDFArchitect** to embed a running RDFArchitect instance in an editor panel and browse or edit schema diagrams without leaving VS Code, or **CIMNotebook: Open RDFArchitect in Browser** to open it in the system browser. Right-click a CIM term in a query or shape and choose **Open in RDFArchitect** to jump straight to that class and its package diagram (the class is looked up across the schemas loaded in the RDFArchitect session). RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting at a local or hosted instance (e.g. `http://localhost:3000`).
+[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) is SOPTIM's open-source web editor for RDFS schemas with CIM extensions. Run **CIMNotebook: Open RDFArchitect** to embed a running RDFArchitect instance in an editor panel and browse or edit schema diagrams without leaving VS Code, or **CIMNotebook: Open RDFArchitect in Browser** to open it in the system browser. Right-click a CIM term in a query or shape and choose **Open in RDFArchitect** to jump straight to that class and its package diagram (the class is looked up across the schemas loaded in the RDFArchitect session). Run **CIMNotebook: Send Schema to RDFArchitect** to import the workspace's configured schema files (from `opencgmes.jsonc`) into RDFArchitect as a read-only dataset and open it — no manual import needed; after that, **Open in RDFArchitect** finds every class of your profiles. RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting at a local or hosted instance (e.g. `http://localhost:3000`).
 
 ### SPARQL Notebook support
 
@@ -108,6 +108,7 @@ These editor-specific settings live in VS Code's settings. Schema configuration 
 | **CIMNotebook: Open RDFArchitect**                    | Embeds the configured RDFArchitect instance in an editor panel.                                |
 | **CIMNotebook: Open RDFArchitect in Browser**         | Opens the configured RDFArchitect instance in the system browser.                              |
 | **Open in RDFArchitect** _(editor context menu)_      | Opens the schema class under the cursor in RDFArchitect.                                       |
+| **CIMNotebook: Send Schema to RDFArchitect**          | Imports the workspace schema into RDFArchitect as a read-only dataset and opens it.            |
 
 ## Troubleshooting
 

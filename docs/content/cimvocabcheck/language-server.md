@@ -41,9 +41,11 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
 - **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
   case-insensitive) name.
 - **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)),
-  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)), and
+  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)),
   `cimvocabcheck.termInfo` (`[uri, line, character]` → the full IRI of the schema term at a
-  position in an open document; backs the editors' **Open in RDFArchitect** action).
+  position in an open document; backs the editors' **Open in RDFArchitect** action), and
+  `cimvocabcheck.schemaInfo` (`[uri?]` → the discovered config file and the schema files it
+  declares, as absolute paths; backs the editors' **Send Schema to RDFArchitect** action).
 
 ## Configuration discovery
 

@@ -74,6 +74,15 @@ final class SparqlWorkspaceService implements WorkspaceService {
    */
   static final String CMD_TERM_INFO = "cimvocabcheck.termInfo";
 
+  /**
+   * Command id for resolving the workspace schema files that apply to a document. Arguments: {@code
+   * [uri]} (optional document URI; without it the workspace-root config is used). Returns {@code
+   * {"configFile": ..., "schemaFiles": [...]}} with absolute paths, or {@code null} when no config
+   * with schemas applies. Editor integrations use this to hand the schema to external tools (e.g.
+   * "Send Schema to RDFArchitect").
+   */
+  static final String CMD_SCHEMA_INFO = "cimvocabcheck.schemaInfo";
+
   private final SchemaManager schemaManager;
   private final SparqlTextDocumentService documentService;
   private final NotebookCommandHandler notebookCommandHandler;
@@ -132,6 +141,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
     if (CMD_TERM_INFO.equals(params.getCommand())) {
       return termInfo(params.getArguments());
     }
+    if (CMD_SCHEMA_INFO.equals(params.getCommand())) {
+      return schemaInfo(params.getArguments());
+    }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());
       return CompletableFuture.completedFuture(null);
@@ -170,6 +182,28 @@ final class SparqlWorkspaceService implements WorkspaceService {
       return CompletableFuture.completedFuture(iri == null ? null : Map.of("iri", iri));
     } catch (Exception e) {
       LOG.error("termInfo failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
+  /** Resolves the workspace schema files for a document (see {@link #CMD_SCHEMA_INFO}). */
+  private CompletableFuture<Object> schemaInfo(List<Object> args) {
+    try {
+      String uri = stringArg(args, 0);
+      var docDir = uri == null ? null : SparqlTextDocumentService.documentDir(uri);
+      return CompletableFuture.completedFuture(
+          schemaManager
+              .schemaFilesFor(docDir)
+              .<Object>map(
+                  sf ->
+                      Map.of(
+                          "configFile",
+                          sf.configFile().toAbsolutePath().toString(),
+                          "schemaFiles",
+                          sf.files().stream().map(p -> p.toAbsolutePath().toString()).toList()))
+              .orElse(null));
+    } catch (Exception e) {
+      LOG.error("schemaInfo failed: {}", e.getMessage(), e);
       return CompletableFuture.completedFuture(null);
     }
   }

@@ -48,7 +48,7 @@
             <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file.</li>
             <li><b>Workspace symbol search</b> — press Ctrl+Alt+Shift+N (Go to Symbol) and type a term name to find any schema term.</li>
             <li><b>Explain Query</b> — right-click a SPARQL query for its Jena-style static algebra plan (original and optimized), computed without executing anything.</li>
-            <li><b>RDFArchitect tool window</b> — embed a running <a href="https://github.com/SOPTIM/RDFArchitect">RDFArchitect</a> instance (SOPTIM's open-source RDFS/CIM schema editor) in the IDE to browse and edit schema diagrams next to your queries. Right-click a CIM term and choose <b>Open in RDFArchitect</b> to jump straight to that class. Configure the instance URL under <b>Settings → Tools → CIMNotebook</b>.</li>
+            <li><b>RDFArchitect tool window</b> — embed a running <a href="https://github.com/SOPTIM/RDFArchitect">RDFArchitect</a> instance (SOPTIM's open-source RDFS/CIM schema editor) in the IDE to browse and edit schema diagrams next to your queries. Right-click a CIM term and choose <b>Open in RDFArchitect</b> to jump straight to that class, or run <b>Tools → CIMNotebook: Send Schema to RDFArchitect</b> to import the workspace schema as a read-only dataset — no manual import needed. Configure the instance URL under <b>Settings → Tools → CIMNotebook</b>.</li>
         </ul>
 
         <h3>Requirements</h3>
@@ -190,6 +190,14 @@
                 class="de.soptim.opencgmes.cimnotebook.intellij.OpenRdfArchitectAction"
                 text="CIMNotebook: Open RDFArchitect"
                 description="Open the RDFArchitect schema editor tool window (requires a configured RDFArchitect instance URL).">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+
+        <!-- ── Send Schema to RDFArchitect (import + snapshot handoff) ────── -->
+        <action id="de.soptim.opencgmes.cimnotebook.sendSchemaToRdfArchitect"
+                class="de.soptim.opencgmes.cimnotebook.intellij.SendSchemaToRdfArchitectAction"
+                text="CIMNotebook: Send Schema to RDFArchitect"
+                description="Import the workspace schema files into RDFArchitect as a read-only dataset and open it.">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
 
