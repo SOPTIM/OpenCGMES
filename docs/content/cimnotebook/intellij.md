@@ -108,6 +108,13 @@ server, and RDFArchitect opens the class and its package diagram
 session, so import your profiles there once (or load a shared snapshot) and the jump works from
 then on.
 
+The import itself can be automated too: **Tools → CIMNotebook: Send Schema to RDFArchitect** asks
+the language server for the workspace's configured schema files (the `opencgmes.jsonc`
+`schemas`/`schemasDirectory`), imports them into RDFArchitect as a **read-only** dataset, and
+opens the result as a snapshot in the tool window. The dataset is named after the config file's
+directory. After that, **Open in RDFArchitect** finds every class of your profiles without any
+manual import.
+
 ## Settings
 
 Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in

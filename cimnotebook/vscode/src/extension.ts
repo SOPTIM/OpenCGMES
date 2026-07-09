@@ -86,6 +86,10 @@ export function activate(context: vscode.ExtensionContext): void {
             openRdfArchitectExternal,
         ),
         vscode.commands.registerCommand("cimnotebook.openInRdfArchitect", openInRdfArchitect),
+        vscode.commands.registerCommand(
+            "cimnotebook.sendSchemaToRdfArchitect",
+            sendSchemaToRdfArchitect,
+        ),
     );
 
     try {
@@ -314,6 +318,147 @@ async function openInRdfArchitect(): Promise<void> {
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`Open in RDFArchitect failed: ${msg}`);
         vscode.window.showErrorMessage(`CIMNotebook: Open in RDFArchitect failed: ${msg}`);
+    }
+}
+
+/**
+ * "Send Schema to RDFArchitect": asks the language server for the workspace schema files
+ * (`cimvocabcheck.schemaInfo`), imports them into a fresh RDFArchitect session as a read-only
+ * dataset, snapshots that dataset, and opens the snapshot link in the webview panel — the
+ * embedded browser session loads the snapshot and selects the dataset, so the workspace schema is
+ * browsable without a manual import.
+ */
+async function sendSchemaToRdfArchitect(): Promise<void> {
+    if (!client) {
+        vscode.window.showWarningMessage("CIMNotebook: language server is not running.");
+        return;
+    }
+    const base = await resolveRdfArchitectUrl();
+    if (!base) {
+        return;
+    }
+    const docUri = vscode.window.activeTextEditor?.document.uri.toString();
+    try {
+        const info = await client.sendRequest<{
+            configFile?: string;
+            schemaFiles?: string[];
+        } | null>("workspace/executeCommand", {
+            command: "cimvocabcheck.schemaInfo",
+            arguments: docUri ? [docUri] : [],
+        });
+        if (!info?.configFile || !info.schemaFiles?.length) {
+            vscode.window.showWarningMessage(
+                "CIMNotebook: no schema configured — add schemas to opencgmes.jsonc first.",
+            );
+            return;
+        }
+        const url = await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: "CIMNotebook: sending schema to RDFArchitect…",
+            },
+            () => importSchemaAndSnapshot(base, info.configFile!, info.schemaFiles!),
+        );
+        showRdfArchitectPanel(url, true);
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        out.appendLine(`Send Schema to RDFArchitect failed: ${msg}`);
+        vscode.window.showErrorMessage(`CIMNotebook: Send Schema to RDFArchitect failed: ${msg}`);
+    }
+}
+
+/**
+ * Imports the schema files into RDFArchitect as a read-only dataset and returns the snapshot link
+ * to open. The REST calls run in their own (fresh, empty) backend session, held together by the
+ * session cookie; the snapshot is the cross-session bridge into the embedded browser's session.
+ */
+async function importSchemaAndSnapshot(
+    base: string,
+    configFile: string,
+    schemaFiles: string[],
+): Promise<string> {
+    const api = new RdfArchitectClient(base);
+    const dataset = datasetNameFor(configFile);
+    await api.importGraphs(dataset, schemaFiles);
+    await api.disableEditing(dataset);
+    const token = await api.createSnapshot(dataset);
+    const url = new URL(base);
+    url.searchParams.set("snapshot", token);
+    // RDFArchitect loads a snapshot under SNAPSHOT_<dataset>_<token>; preselect it.
+    url.searchParams.set("dataset", `SNAPSHOT_${dataset}_${token}`);
+    return url.toString();
+}
+
+/** Dataset name for the imported schema: the config file's directory name, sanitised. */
+function datasetNameFor(configFile: string): string {
+    const dir = path.basename(path.dirname(configFile)).replace(/[^A-Za-z0-9._-]/g, "_");
+    return dir || "cimnotebook";
+}
+
+/**
+ * Minimal client for the RDFArchitect REST API. RDFArchitect scopes datasets to the backend
+ * session (`RDFA_SESSION_ID` cookie), so the cookie returned by the first response is replayed on
+ * every subsequent request to keep all calls in one session.
+ */
+class RdfArchitectClient {
+    private readonly api: string;
+    private readonly cookies = new Map<string, string>();
+
+    constructor(base: string) {
+        this.api = `${new URL(base).toString().replace(/\/+$/, "")}/api`;
+    }
+
+    async importGraphs(dataset: string, files: string[]): Promise<void> {
+        const form = new FormData();
+        for (const file of files) {
+            const data = await fs.promises.readFile(file);
+            form.append("files", new Blob([data]), path.basename(file));
+        }
+        const res = await this.request(`/datasets/${encodeURIComponent(dataset)}/graphs/content`, {
+            method: "PUT",
+            body: form,
+        });
+        const result = (await res.json()) as { failedImports?: string[] };
+        if (result.failedImports?.length) {
+            throw new Error(`RDFArchitect could not parse: ${result.failedImports.join(", ")}`);
+        }
+    }
+
+    /** Marks the dataset read-only (DELETE on the readonly resource disables editing). */
+    async disableEditing(dataset: string): Promise<void> {
+        await this.request(`/datasets/${encodeURIComponent(dataset)}/readonly`, {
+            method: "DELETE",
+        });
+    }
+
+    async createSnapshot(dataset: string): Promise<string> {
+        const res = await this.request("/snapshots", { method: "POST", body: dataset });
+        return (await res.text()).trim();
+    }
+
+    private async request(pathname: string, init: RequestInit): Promise<Response> {
+        const headers = new Headers(init.headers);
+        if (this.cookies.size > 0) {
+            headers.set(
+                "Cookie",
+                [...this.cookies.entries()].map(([k, v]) => `${k}=${v}`).join("; "),
+            );
+        }
+        const res = await fetch(this.api + pathname, { ...init, headers });
+        for (const setCookie of res.headers.getSetCookie()) {
+            const [pair] = setCookie.split(";");
+            const eq = pair.indexOf("=");
+            if (eq > 0) {
+                this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+            }
+        }
+        if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            throw new Error(
+                `${init.method} ${pathname} → HTTP ${res.status}${body ? ` — ${body.slice(0, 200)}` : ""}`,
+            );
+        }
+        return res;
     }
 }
 

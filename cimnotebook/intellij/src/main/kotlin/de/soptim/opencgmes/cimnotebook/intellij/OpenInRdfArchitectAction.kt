@@ -18,7 +18,6 @@
 package de.soptim.opencgmes.cimnotebook.intellij
 
 import com.google.gson.JsonObject
-import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -26,7 +25,6 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.wm.ToolWindowManager
 import com.redhat.devtools.lsp4ij.LSPIJUtils
 import com.redhat.devtools.lsp4ij.LanguageServerManager
 import org.eclipse.lsp4j.ExecuteCommandParams
@@ -118,21 +116,7 @@ class OpenInRdfArchitectAction : AnAction() {
         val url =
             base.trimEnd('/') + "/mainpage?class=" +
                 URLEncoder.encode(iri, StandardCharsets.UTF_8)
-        val toolWindow =
-            ToolWindowManager
-                .getInstance(project)
-                .getToolWindow(OpenRdfArchitectAction.TOOL_WINDOW_ID)
-        if (toolWindow == null) {
-            BrowserUtil.browse(url)
-            return
-        }
-        toolWindow.activate {
-            val panel =
-                toolWindow.contentManager.contents
-                    .firstOrNull()
-                    ?.component as? RdfArchitectPanel
-            panel?.openUrl(url) ?: BrowserUtil.browse(url)
-        }
+        RdfArchitectToolWindowFactory.openUrl(project, url)
     }
 
     /** The `iri` field of a termInfo result, tolerating Gson and in-process shapes. */

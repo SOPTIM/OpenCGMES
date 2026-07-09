@@ -371,6 +371,41 @@ final class SchemaManager {
   }
 
   /**
+   * Result of {@link #schemaFilesFor(Path)}: the discovered config file and the schema files it
+   * declares.
+   */
+  record SchemaFiles(Path configFile, List<Path> files) {}
+
+  /**
+   * Resolves the schema files the nearest {@code opencgmes.jsonc} declares for {@code docDir}
+   * (falling back to the workspace root when {@code docDir} is {@code null}), without parsing them.
+   * Empty when no config is found, the config declares no schemas, or resolution fails. Editor
+   * integrations use this to hand the workspace schema to external tools (e.g. "Send Schema to
+   * RDFArchitect").
+   */
+  Optional<SchemaFiles> schemaFilesFor(Path docDir) {
+    Path start = docDir != null ? docDir : workspaceRoot;
+    if (start == null) {
+      return Optional.empty();
+    }
+    Optional<Path> configFile = ConfigLoader.discoverFile(start);
+    if (configFile.isEmpty()) {
+      return Optional.empty();
+    }
+    try {
+      List<Path> files =
+          SchemaLoader.resolveSchemaFiles(
+              ConfigLoader.load(configFile.get()), configFile.get().toAbsolutePath().getParent());
+      return files.isEmpty()
+          ? Optional.empty()
+          : Optional.of(new SchemaFiles(configFile.get(), files));
+    } catch (Exception e) {
+      LOG.warn("Could not resolve schema files for {}: {}", configFile.get(), e.getMessage());
+      return Optional.empty();
+    }
+  }
+
+  /**
    * Resolves the nearest config's {@code checkStandardVocabulary} flag for {@code docDir},
    * independent of whether a schema actually loaded. Used by the syntax-only fallback so a config's
    * {@code "standardVocabulary": "ignore"} is still honoured when no schema is available. Defaults
