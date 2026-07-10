@@ -78,7 +78,47 @@ back) and opens it. The source file is never modified. Zazuko per-cell metadata 
 
 ## Running cells
 
-Cell execution (running SPARQL queries and SHACL validation against endpoints or local
-files) ships in an upcoming CIMNotebook release; today CIM Notebooks are an authoring and
-validation surface. To *run* `.sparqlbook` notebooks you can meanwhile keep using the Zazuko
-SPARQL Notebook extension side by side — CIMNotebook validates its cells too.
+SPARQL cells have a **Run** button (the *CIM Notebook* kernel). Execution happens inside
+CIMLangServer — the same Java process that validates your queries — using Apache Jena's
+SPARQL 1.1 engine, so there is nothing extra to install.
+
+A cell names its target with the same `# [endpoint=...]` directive used for validation —
+one directive drives both *validate against* and *run against*:
+
+```sparql
+# [endpoint=http://localhost:3030/cgmes/query]
+SELECT ?class (COUNT(?s) AS ?n)
+WHERE { ?s a ?class }
+GROUP BY ?class ORDER BY DESC(?n)
+```
+
+What you get per query kind:
+
+| Query                               | Output                                                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `SELECT`                            | Result table (first 50 rows rendered; the full result travels alongside as `application/sparql-results+json`) |
+| `ASK`                               | ✅ **true** / ❌ **false**                                                                                                |
+| `CONSTRUCT` / `DESCRIBE`            | The result graph as Turtle                                                                                                |
+| `INSERT` / `DELETE` / other updates | A confirmation with the update endpoint used                                                                              |
+
+Each output ends with a small stats line — row count, duration, and the resolved endpoint.
+Results are capped server-side (10 000 rows/triples by default) and the output says so when
+the cap was hit. The raw payload of a result is one click away: the output's **⋯ → Change
+Presentation** menu switches between the rendered view and the plain-text payload (the
+SPARQL Results JSON, or the Turtle of a graph/report).
+
+**Updates** run against the endpoint's update service: for Fuseki-style URLs the client
+derives it from the query URL (`…/query` or `…/sparql` → `…/update`); any other URL is
+assumed to accept updates directly.
+
+**Cancel and timeout.** The notebook Stop button cancels the running request (the server
+stops waiting and aborts the query where the endpoint supports it). Requests time out
+after 30 seconds by default.
+
+**Current limitations:**
+
+- Only `http(s)://` endpoints can be executed. A directive pointing at a local file is
+  still used for *validation*, but running such a cell reports it as unsupported —
+  querying local RDF and CIMXML files is planned next.
+- SHACL cells are validated statically but cannot be *run* yet.
+- No authentication support yet — the endpoint must be reachable without credentials.
