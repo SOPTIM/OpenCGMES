@@ -82,24 +82,22 @@ export class CellExecutor {
             await replaceMarkdown(
                 execution,
                 "**No endpoint configured.** Add a directive to the cell, e.g.\n\n" +
-                    "```\n# [endpoint=http://localhost:3030/dataset/query]\n```",
-            );
-            return false;
-        }
-        if (target.type === "unsupported") {
-            await replaceMarkdown(
-                execution,
-                `**Unsupported endpoint \`${target.directive}\`.** Only \`http(s)://\` URLs can ` +
-                    "be executed in this version; local files are used for validation only.",
+                    "```\n# [endpoint=http://localhost:3030/dataset/query]\n```\n\n" +
+                    "or point it at a local RDF or CIMXML file:\n\n" +
+                    "```\n# [endpoint=./model.xml]\n```",
             );
             return false;
         }
 
         const request: ExecuteRequest = {
             cellUri: cell.document.uri.toString(),
+            notebookUri: cell.notebook.uri.toString(),
             languageId: cell.document.languageId,
             text,
-            target: { type: "http", url: target.url, updateUrl: target.updateUrl },
+            target:
+                target.type === "http"
+                    ? { type: "http", url: target.url, updateUrl: target.updateUrl }
+                    : { type: "files", files: target.files },
         };
         const response = await client.sendRequest<ExecuteResponse>(
             "workspace/executeCommand",

@@ -20,13 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
 import java.net.http.HttpTimeoutException;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import org.apache.jena.atlas.web.HttpException;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryExecution;
@@ -35,7 +29,6 @@ import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
 import org.apache.jena.sparql.exec.http.UpdateExecutionHTTP;
 import org.apache.jena.update.UpdateExecution;
 import org.apache.jena.update.UpdateRequest;
-import org.eclipse.lsp4j.jsonrpc.CancelChecker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,33 +41,15 @@ import org.slf4j.LoggerFactory;
  * UpdateExecution.abort()} does not: an in-flight {@code UpdateExecutionHTTP.execute()} call keeps
  * blocking until the request's own timeout elapses regardless of {@code abort()} being called from
  * another thread. Rather than rely on that asymmetric, version-specific behavior, the blocking Jena
- * call always runs on a background task ({@link #runCancellable}) raced against a {@link
- * CancellationWatchdog}-driven signal: whichever finishes first — the real result, or the
- * cancellation signal — determines the response. {@code abort()} is still called as a best-effort
- * courtesy (it does help for queries, and costs nothing when it does not), but correctness of the
- * client-visible CANCELLED outcome never depends on it. One consequence: a cancelled UPDATE's HTTP
- * request may continue running against the endpoint in the background until it completes or times
- * out; the notebook simply stops waiting for it.
+ * call is raced against the cancellation signal via {@link ExecSupport#runCancellable}. One
+ * consequence: a cancelled UPDATE's HTTP request may continue running against the endpoint in the
+ * background until it completes or times out; the notebook simply stops waiting for it.
  */
 final class HttpQueryExecutor {
 
   private static final Logger LOG = LoggerFactory.getLogger(HttpQueryExecutor.class);
 
-  /** Default request timeout, matching {@code SchemaManager}'s remote-fetch timeout. */
-  static final int DEFAULT_TIMEOUT_MS = 30_000;
-
-  /** Default cap on returned rows/triples before the result is marked truncated. */
-  static final int DEFAULT_MAX_ROWS = 10_000;
-
   private HttpQueryExecutor() {}
-
-  /**
-   * Resources a single execution needs for cancellation wiring, bundled to keep call sites short.
-   */
-  record ExecContext(
-      ExecutorService executionPool,
-      ScheduledExecutorService watchdogScheduler,
-      CancelChecker cancelChecker) {}
 
   /**
    * Executes a SELECT/ASK/CONSTRUCT/DESCRIBE query, returning a populated {@link ExecuteResponse}.
@@ -87,13 +62,13 @@ final class HttpQueryExecutor {
     }
 
     String url = target.url();
-    int maxRows = maxRows(options);
+    int maxRows = ExecSupport.maxRows(options);
     QueryExecution qe =
         QueryExecutionHTTP.service(url)
             .query(query)
-            .timeout(timeoutMs(options), TimeUnit.MILLISECONDS)
+            .timeout(ExecSupport.timeoutMs(options), TimeUnit.MILLISECONDS)
             .build();
-    return runCancellable(
+    return ExecSupport.runCancellable(
         ctx,
         qe::abort,
         () -> {
@@ -111,7 +86,7 @@ final class HttpQueryExecutor {
       return ExecuteResponse.failed(targetError);
     }
     String updateUrl = target.updateUrl();
-    if (isBlank(updateUrl)) {
+    if (ExecSupport.isBlank(updateUrl)) {
       return ExecuteResponse.failed(
           new ExecError(
               ErrorCode.UPDATE_NOT_ALLOWED,
@@ -124,42 +99,17 @@ final class HttpQueryExecutor {
     UpdateExecution ue =
         UpdateExecutionHTTP.service(updateUrl)
             .update(update)
-            .timeout(timeoutMs(options), TimeUnit.MILLISECONDS)
+            .timeout(ExecSupport.timeoutMs(options), TimeUnit.MILLISECONDS)
             .build();
-    return runCancellable(ctx, ue::abort, () -> runUpdate(ue, updateUrl));
+    return ExecSupport.runCancellable(ctx, ue::abort, () -> runUpdate(ue, updateUrl));
   }
 
   // ---- query/update execution (runs on ctx.executionPool()) -------------------------------
 
   private static ExecuteResponse runQuery(
       QueryExecution qe, QueryKind kind, String url, int maxRows) {
-    long start = System.currentTimeMillis();
     try {
-      return switch (kind) {
-        case SELECT -> {
-          ResultSerializer.Serialized s = ResultSerializer.selectToJson(qe.execSelect(), maxRows);
-          yield ExecuteResponse.successJson(
-              kind, s.payload(), stats(start, s.count(), s.truncated(), url));
-        }
-        case ASK -> {
-          String json = ResultSerializer.askToJson(qe.execAsk());
-          yield ExecuteResponse.successJson(kind, json, stats(start, null, false, url));
-        }
-        case CONSTRUCT -> {
-          ResultSerializer.Serialized s =
-              ResultSerializer.constructToTurtle(qe.execConstructTriples(), maxRows);
-          yield ExecuteResponse.successTurtle(
-              kind, s.payload(), stats(start, s.count(), s.truncated(), url));
-        }
-        case DESCRIBE -> {
-          ResultSerializer.Serialized s =
-              ResultSerializer.constructToTurtle(qe.execDescribeTriples(), maxRows);
-          yield ExecuteResponse.successTurtle(
-              kind, s.payload(), stats(start, s.count(), s.truncated(), url));
-        }
-        case UPDATE ->
-            throw new IllegalStateException("UPDATE must be routed through executeUpdate(...)");
-      };
+      return ExecSupport.successFor(qe, kind, url, maxRows);
     } catch (QueryExceptionHTTP e) {
       return ExecuteResponse.failed(classify(e.getStatusCode(), e.getMessage(), e));
     } catch (CancellationException e) {
@@ -179,7 +129,7 @@ final class HttpQueryExecutor {
     long start = System.currentTimeMillis();
     try {
       ue.execute();
-      return ExecuteResponse.successUpdate(stats(start, null, false, updateUrl));
+      return ExecuteResponse.successUpdate(ExecSupport.stats(start, null, false, updateUrl));
     } catch (HttpException e) {
       return ExecuteResponse.failed(classify(e.getStatusCode(), e.getMessage(), e));
     } catch (CancellationException e) {
@@ -191,40 +141,6 @@ final class HttpQueryExecutor {
       LOG.error("Unexpected error executing update: {}", e.getMessage(), e);
       return ExecuteResponse.failed(
           new ExecError(ErrorCode.INTERNAL, "Internal error: " + e.getMessage(), null, null, null));
-    }
-  }
-
-  // ---- cancellation racing -----------------------------------------------------------------
-
-  /**
-   * Runs {@code work} on {@code ctx.executionPool()} and races it against cancellation of {@code
-   * ctx.cancelChecker()}, returning whichever resolves first. {@code bestEffortAbort} is invoked
-   * (on the watchdog thread) the moment cancellation is observed, as a courtesy to unblock {@code
-   * work} sooner where the underlying Jena execution supports it — see the class-level note on why
-   * this is not relied upon for correctness.
-   */
-  private static ExecuteResponse runCancellable(
-      ExecContext ctx, Runnable bestEffortAbort, Supplier<ExecuteResponse> work) {
-    CompletableFuture<ExecuteResponse> workFuture =
-        CompletableFuture.supplyAsync(work, ctx.executionPool());
-    CompletableFuture<ExecuteResponse> cancelFuture = new CompletableFuture<>();
-
-    ScheduledFuture<?> watchdogTask =
-        CancellationWatchdog.watch(
-            ctx.watchdogScheduler(),
-            ctx.cancelChecker(),
-            () -> {
-              // Complete cancelFuture before aborting: aborting can itself unblock the blocked
-              // Jena call on ctx.executionPool(), which would otherwise race workFuture's own
-              // completion against cancelFuture below. Signalling cancellation first guarantees
-              // workFuture cannot win that race as a side effect of the abort it triggers.
-              cancelFuture.complete(ExecuteResponse.cancelled());
-              bestEffortAbort.run();
-            });
-    try {
-      return workFuture.applyToEither(cancelFuture, Function.identity()).join();
-    } finally {
-      watchdogTask.cancel(true);
     }
   }
 
@@ -257,7 +173,7 @@ final class HttpQueryExecutor {
   // ---- small helpers ------------------------------------------------------------------------
 
   private static ExecError checkTarget(ExecuteTarget target) {
-    if (target == null || isBlank(target.url())) {
+    if (target == null || ExecSupport.isBlank(target.url())) {
       return new ExecError(
           ErrorCode.NO_TARGET,
           "No endpoint configured. Add a `# [endpoint=<url>]` directive to the cell.",
@@ -266,24 +182,5 @@ final class HttpQueryExecutor {
           null);
     }
     return null;
-  }
-
-  private static ExecStats stats(
-      long startMs, Integer rowCount, boolean truncated, String resolvedTarget) {
-    return new ExecStats(System.currentTimeMillis() - startMs, rowCount, truncated, resolvedTarget);
-  }
-
-  private static long timeoutMs(ExecuteOptions options) {
-    return options != null && options.timeoutMs() != null
-        ? options.timeoutMs()
-        : DEFAULT_TIMEOUT_MS;
-  }
-
-  private static int maxRows(ExecuteOptions options) {
-    return options != null && options.maxRows() != null ? options.maxRows() : DEFAULT_MAX_ROWS;
-  }
-
-  private static boolean isBlank(String s) {
-    return s == null || s.isBlank();
   }
 }

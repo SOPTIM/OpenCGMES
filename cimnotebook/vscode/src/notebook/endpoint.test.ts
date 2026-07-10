@@ -58,14 +58,24 @@ describe("resolveTarget", () => {
         });
     });
 
-    it("reports non-URL directives as unsupported (files come later)", () => {
+    it("resolves a non-URL directive to a local-files target", () => {
         assert.deepEqual(resolveTarget("# [endpoint=./data.ttl]\nASK {}"), {
-            type: "unsupported",
-            directive: "./data.ttl",
+            type: "files",
+            files: ["./data.ttl"],
         });
     });
 
-    it("skips file directives when an http one is also present", () => {
+    it("collects every file directive into one union target, in order", () => {
+        assert.deepEqual(
+            resolveTarget("# [endpoint=./model.xml]\n# [endpoint=extra.ttl]\nASK {}"),
+            {
+                type: "files",
+                files: ["./model.xml", "extra.ttl"],
+            },
+        );
+    });
+
+    it("prefers the http directive when files are also present", () => {
         const target = resolveTarget(
             "# [endpoint=./a.ttl]\n# [endpoint=http://host/sparql]\nASK {}",
         );

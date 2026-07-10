@@ -36,13 +36,14 @@ export function parseEndpointDirectives(text: string): string[] {
 
 export type ResolvedTarget =
     | { type: "http"; url: string; updateUrl: string }
-    | { type: "unsupported"; directive: string }
+    | { type: "files"; files: string[] }
     | { type: "none" };
 
 /**
- * Resolves the target for a cell: the first `http(s)://` directive wins. Non-URL
- * directives (file paths, names) are recognised but not yet executable — they resolve to
- * `unsupported` so the cell can show a precise message instead of a parse error.
+ * Resolves the target for a cell: the first `http(s)://` directive wins; otherwise every
+ * directive is taken as a local file path and the cell queries their union. The server
+ * resolves relative paths against the notebook's directory — the same base validation
+ * uses — so one directive means one file for both.
  */
 export function resolveTarget(cellText: string): ResolvedTarget {
     const directives = parseEndpointDirectives(cellText);
@@ -51,7 +52,7 @@ export function resolveTarget(cellText: string): ResolvedTarget {
     }
     const url = directives.find((d) => /^https?:\/\//i.test(d));
     if (url === undefined) {
-        return { type: "unsupported", directive: directives[0] };
+        return { type: "files", files: directives };
     }
     return { type: "http", url, updateUrl: deriveUpdateUrl(url) };
 }
@@ -73,13 +74,16 @@ export function deriveUpdateUrl(url: string): string {
 export const EXECUTE_COMMAND = "cimvocabcheck.notebook.execute";
 
 export interface ExecuteTarget {
-    type: "http";
-    url: string;
+    type: "http" | "files";
+    url?: string;
     updateUrl?: string;
+    files?: string[];
 }
 
 export interface ExecuteRequest {
     cellUri: string;
+    /** Base for resolving relative file paths server-side; omitted for untitled notebooks. */
+    notebookUri?: string;
     languageId: string;
     text: string;
     target: ExecuteTarget;

@@ -421,12 +421,12 @@ public class HttpQueryExecutorTest {
 
   // ---- helpers ---------------------------------------------------------------------------------
 
-  private HttpQueryExecutor.ExecContext ctx(CancelChecker checker) {
-    return new HttpQueryExecutor.ExecContext(executionPool, watchdogScheduler, checker);
+  private ExecContext ctx(CancelChecker checker) {
+    return new ExecContext(executionPool, watchdogScheduler, checker);
   }
 
   private static ExecuteTarget target(String url, String updateUrl) {
-    return new ExecuteTarget(ExecuteTarget.TYPE_HTTP, url, updateUrl);
+    return new ExecuteTarget(ExecuteTarget.TYPE_HTTP, url, updateUrl, null);
   }
 
   private static String uniqueSubject() {
