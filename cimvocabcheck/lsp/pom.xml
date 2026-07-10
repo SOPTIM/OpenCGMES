@@ -54,6 +54,10 @@
         <ver.slf4j>2.0.18</ver.slf4j>
         <ver.log4j2>2.26.1</ver.log4j2>
         <ver.junit4>4.13.2</ver.junit4>
+        <!-- Test-only: in-process Fuseki server for notebook execution tests. Jena itself is
+             already on the classpath transitively via cimvocabcheck-core (${ver.jena} there);
+             kept in sync manually since this module has no direct compile-scope Jena dependency. -->
+        <ver.jena>6.1.0</ver.jena>
 
         <ver.plugin.compiler>3.15.0</ver.plugin.compiler>
         <ver.plugin.surefire>3.5.6</ver.plugin.surefire>
@@ -125,6 +129,14 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${ver.junit4}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- In-process HTTP endpoint for notebook execution tests -->
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-fuseki-main</artifactId>
+            <version>${ver.jena}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
