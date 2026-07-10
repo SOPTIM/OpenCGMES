@@ -12,6 +12,8 @@
         "src/notebook/cells.ts",
         "src/notebook/markdown.ts",
         "src/notebook/sparqlbook.ts",
+        "src/notebook/endpoint.ts",
+        "src/notebook/outputs.ts",
         "src/notebook/*.test.ts"
     ]
 }
