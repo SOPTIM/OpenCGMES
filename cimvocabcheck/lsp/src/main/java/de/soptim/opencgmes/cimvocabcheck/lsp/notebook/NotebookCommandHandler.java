@@ -38,7 +38,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Handles the {@value #CMD_EXECUTE} workspace command: runs a notebook cell's SPARQL query or
- * update against the endpoint resolved by the client, and returns an {@link ExecuteResponse}.
+ * update against the target resolved by the client — an HTTP endpoint ({@link HttpQueryExecutor})
+ * or local RDF/CIMXML files ({@link LocalQueryExecutor}) — and returns an {@link ExecuteResponse}.
  *
  * <p>Wired into {@code SparqlWorkspaceService#executeCommand} by {@code SparqlLanguageServer},
  * which also forwards {@link #shutdown()} from its own shutdown sequence.
@@ -52,16 +53,18 @@ public final class NotebookCommandHandler {
   public static final String CMD_EXECUTE = "cimvocabcheck.notebook.execute";
 
   /**
-   * Pool the blocking Jena HTTP call runs on. Must stay unbounded (cached, not fixed): {@link
-   * HttpQueryExecutor#executeQuery} submits its own nested task to this same pool and joins on it
-   * from the calling thread, so a fixed-size pool could deadlock once all threads are blocked
-   * waiting on a nested task that has no thread left to run on.
+   * Pool the blocking Jena call runs on. Must stay unbounded (cached, not fixed): the executors'
+   * {@link ExecSupport#runCancellable} racing submits its own nested task to this same pool and
+   * joins on it from the calling thread, so a fixed-size pool could deadlock once all threads are
+   * blocked waiting on a nested task that has no thread left to run on.
    */
   private final ExecutorService executionPool =
       Executors.newCachedThreadPool(threadFactory("cimvocabcheck-notebook-exec"));
 
   private final ScheduledExecutorService watchdogScheduler =
       Executors.newSingleThreadScheduledExecutor(threadFactory("cimvocabcheck-notebook-watchdog"));
+
+  private final LocalStoreManager localStores = new LocalStoreManager();
 
   /**
    * Handles one {@value #CMD_EXECUTE} invocation. {@code arguments} must have a single element that
@@ -105,12 +108,26 @@ public final class NotebookCommandHandler {
   private Object doExecute(ExecuteRequest request, CancelChecker cancelChecker) {
     LOG.debug("Executing {} cell {}", request.languageId(), request.cellUri());
     try {
-      var ctx = new HttpQueryExecutor.ExecContext(executionPool, watchdogScheduler, cancelChecker);
+      var ctx = new ExecContext(executionPool, watchdogScheduler, cancelChecker);
+      boolean filesTarget =
+          request.target() != null && ExecuteTarget.TYPE_FILES.equals(request.target().type());
       return switch (QueryKindDetector.detect(request.text())) {
         case QueryKindDetector.AsQuery(var kind, var query) ->
-            HttpQueryExecutor.executeQuery(query, kind, request.target(), request.options(), ctx);
+            filesTarget
+                ? LocalQueryExecutor.executeQuery(query, kind, request, localStores, ctx)
+                : HttpQueryExecutor.executeQuery(
+                    query, kind, request.target(), request.options(), ctx);
         case QueryKindDetector.AsUpdate(var update) ->
-            HttpQueryExecutor.executeUpdate(update, request.target(), request.options(), ctx);
+            filesTarget
+                ? ExecuteResponse.failed(
+                    new ExecError(
+                        ErrorCode.UPDATE_NOT_ALLOWED,
+                        "Local files are read-only — running a SPARQL Update needs an HTTP"
+                            + " endpoint.",
+                        null,
+                        null,
+                        null))
+                : HttpQueryExecutor.executeUpdate(update, request.target(), request.options(), ctx);
         case QueryKindDetector.ParseFailure(var message, var line, var column) ->
             ExecuteResponse.failed(
                 new ExecError(ErrorCode.PARSE_ERROR, message, null, line, column));

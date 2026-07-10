@@ -18,19 +18,29 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
-/**
- * The endpoint a cell is executed against, resolved client-side from the cell's {@code #
- * [endpoint=...]} directive (see {@code EndpointDirective} in the parent package).
- *
- * @param type {@code "http"} for a remote SPARQL endpoint; other target types (local file, SHACL)
- *     are added in later milestones.
- * @param url the SPARQL query endpoint URL.
- * @param updateUrl the SPARQL Update endpoint URL. {@code null}/blank means this target has no
- *     configured update endpoint, so a cell that parses as a SPARQL Update is rejected with {@link
- *     ErrorCode#UPDATE_NOT_ALLOWED} rather than silently reusing {@link #url()}.
- */
-record ExecuteTarget(String type, String url, String updateUrl) {
+import java.util.List;
 
-  /** The only target {@link #type()} understood in this milestone. */
+/**
+ * The endpoint or local files a cell is executed against, resolved client-side from the cell's
+ * {@code # [endpoint=...]} directives (see {@code EndpointDirective} in the parent package).
+ *
+ * @param type {@code "http"} for a remote SPARQL endpoint, {@code "files"} for local RDF/CIMXML
+ *     files queried in-process.
+ * @param url the SPARQL query endpoint URL ({@code "http"} targets only).
+ * @param updateUrl the SPARQL Update endpoint URL ({@code "http"} targets only). {@code null}/blank
+ *     means this target has no configured update endpoint, so a cell that parses as a SPARQL Update
+ *     is rejected with {@link ErrorCode#UPDATE_NOT_ALLOWED} rather than silently reusing {@link
+ *     #url()}.
+ * @param files the local files to query, exactly as written in the directives ({@code "files"}
+ *     targets only). Relative paths are resolved server-side against the directory of {@link
+ *     ExecuteRequest#notebookUri()}; multiple files are queried as one union store. Local files are
+ *     read-only — updates are rejected with {@link ErrorCode#UPDATE_NOT_ALLOWED}.
+ */
+record ExecuteTarget(String type, String url, String updateUrl, List<String> files) {
+
+  /** Target {@link #type()}: a remote SPARQL endpoint. */
   static final String TYPE_HTTP = "http";
+
+  /** Target {@link #type()}: local RDF/CIMXML files queried in-process. */
+  static final String TYPE_FILES = "files";
 }

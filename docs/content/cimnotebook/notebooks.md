@@ -6,7 +6,7 @@ sidebar_position: 3
 # CIM Notebooks
 
 CIM Notebooks are CIMNotebook's own notebook documents for VS Code: markdown files whose
-```` ```sparql ```` and ```` ```shacl ```` code blocks open as notebook cells. Because the
+` ```sparql ` and ` ```shacl ` code blocks open as notebook cells. Because the
 on-disk format **is** plain markdown, notebooks diff and merge cleanly in git, render on any
 git forge, and need no special tooling to read.
 
@@ -30,13 +30,13 @@ reads and writes Zazuko's `.sparqlbook` format for interoperability.
 
 ## File formats
 
-| Format | Opens as notebook | Notes |
-| --- | --- | --- |
-| `*.cimnb.md` | by default | The native format. A regular markdown file — the suffix just tells VS Code to open it as a notebook. |
-| any `*.md` / `*.markdown` | via **Open With… → CIM Notebook (Markdown)** | Turn any markdown document (a README, a runbook) into a notebook without renaming it. |
-| `*.sparqlbook` | via **Open With… → CIM Notebook (SPARQL Book)** | Zazuko SPARQL Notebook interop (JSON). |
+| Format                    | Opens as notebook                               | Notes                                                                                                |
+| ------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `*.cimnb.md`              | by default                                      | The native format. A regular markdown file — the suffix just tells VS Code to open it as a notebook. |
+| any `*.md` / `*.markdown` | via **Open With… → CIM Notebook (Markdown)**    | Turn any markdown document (a README, a runbook) into a notebook without renaming it.                |
+| `*.sparqlbook`            | via **Open With… → CIM Notebook (SPARQL Book)** | Zazuko SPARQL Notebook interop (JSON).                                                               |
 
-To use **Open With…**: right-click the file in the Explorer → *Open With…* → pick the CIM
+To use **Open With…**: right-click the file in the Explorer → _Open With…_ → pick the CIM
 Notebook editor. VS Code remembers the choice per file type if you set it as default.
 
 ## The markdown format
@@ -78,18 +78,24 @@ back) and opens it. The source file is never modified. Zazuko per-cell metadata 
 
 ## Running cells
 
-SPARQL cells have a **Run** button (the *CIM Notebook* kernel). Execution happens inside
+SPARQL cells have a **Run** button (the _CIM Notebook_ kernel). Execution happens inside
 CIMLangServer — the same Java process that validates your queries — using Apache Jena's
 SPARQL 1.1 engine, so there is nothing extra to install.
 
 A cell names its target with the same `# [endpoint=...]` directive used for validation —
-one directive drives both *validate against* and *run against*:
+one directive drives both _validate against_ and _run against_. The target can be a SPARQL
+endpoint or local data files:
 
 ```sparql
 # [endpoint=http://localhost:3030/cgmes/query]
 SELECT ?class (COUNT(?s) AS ?n)
 WHERE { ?s a ?class }
 GROUP BY ?class ORDER BY DESC(?n)
+```
+
+```sparql
+# [endpoint=./model.xml]
+SELECT ?name WHERE { ?s cim:IdentifiedObject.name ?name }
 ```
 
 What you get per query kind:
@@ -115,10 +121,36 @@ assumed to accept updates directly.
 stops waiting and aborts the query where the endpoint supports it). Requests time out
 after 30 seconds by default.
 
+### Querying local files — including CIMXML models
+
+When a directive is not an `http(s)://` URL it is taken as a file path, relative to the
+notebook's own directory. The file is parsed in-process and queried directly — no triple
+store, no import step:
+
+- **CIMXML models** (`*.xml`): parsed by OpenCGMES's IEC 61970-552 parser. The model body
+  and its `md:FullModel` header are both queryable.
+- **RDF files**: anything Jena reads by extension — `.ttl`, `.rdf`, `.owl`, `.nt`, `.nq`,
+  `.trig`, ….
+
+Several directives in one cell query the **union** of the files: named graphs stay
+addressable with `GRAPH`, and a bare `?s ?p ?o` sees everything.
+
+```sparql
+# [endpoint=./model.xml]
+# [endpoint=./boundary.ttl]
+SELECT (COUNT(*) AS ?triples) WHERE { ?s ?p ?o }
+```
+
+Parsed files are cached in the language server and re-parsed automatically when the file
+changes on disk, so _edit model → re-run cell_ just works. Local files are **read-only**:
+a SPARQL Update against a file target is rejected — updates need an HTTP endpoint.
+
+Note the dual meaning of the directive: for _validation_, a `.ttl`/`.rdf`/`.owl` file is
+loaded as the schema, while instance-data files (`.xml` models, `.nt`/`.nq`/`.trig` dumps)
+keep the workspace schema so diagnostics stay meaningful — and either way the file is what
+the cell _runs_ against.
+
 **Current limitations:**
 
-- Only `http(s)://` endpoints can be executed. A directive pointing at a local file is
-  still used for *validation*, but running such a cell reports it as unsupported —
-  querying local RDF and CIMXML files is planned next.
-- SHACL cells are validated statically but cannot be *run* yet.
-- No authentication support yet — the endpoint must be reachable without credentials.
+- SHACL cells are validated statically but cannot be _run_ yet.
+- No authentication support yet — HTTP endpoints must be reachable without credentials.

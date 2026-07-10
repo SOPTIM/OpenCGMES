@@ -24,8 +24,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -162,6 +165,45 @@ public class NotebookCommandHandlerTest {
     assertEquals(ErrorCode.NO_TARGET.name(), response.error().code());
   }
 
+  // ---- local-file targets ----------------------------------------------------------------------
+
+  @Test
+  public void executeCommandRoutesFilesTargetToTheLocalExecutor() throws Exception {
+    Path dir = Files.createTempDirectory("cimnb-handler");
+    try {
+      Files.writeString(
+          dir.resolve("data.ttl"), "<http://example.org/s> <http://example.org/p> \"v\" .");
+      JsonObject arg = filesRequestJson("ASK { ?s ?p ?o }", dir, "./data.ttl");
+
+      ExecuteResponse response = getResponse(handler.executeCommand(List.of(arg)));
+
+      assertEquals(ExecutionStatus.SUCCESS.name(), response.status());
+      assertEquals(QueryKind.ASK.name(), response.queryKind());
+      assertEquals("./data.ttl", response.stats().resolvedTarget());
+    } finally {
+      try (var paths = Files.walk(dir)) {
+        paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+      }
+    }
+  }
+
+  @Test
+  public void executeCommandRejectsUpdatesAgainstFilesTargets() throws Exception {
+    Path dir = Files.createTempDirectory("cimnb-handler");
+    try {
+      JsonObject arg =
+          filesRequestJson(
+              "INSERT DATA { <http://example.org/s> <http://example.org/p> 1 }", dir, "./data.ttl");
+
+      ExecuteResponse response = getResponse(handler.executeCommand(List.of(arg)));
+
+      assertEquals(ExecutionStatus.ERROR.name(), response.status());
+      assertEquals(ErrorCode.UPDATE_NOT_ALLOWED.name(), response.error().code());
+    } finally {
+      Files.delete(dir);
+    }
+  }
+
   // ---- wire shape ----------------------------------------------------------------------------
 
   /**
@@ -228,6 +270,23 @@ public class NotebookCommandHandlerTest {
   }
 
   // ---- helpers ------------------------------------------------------------------------------
+
+  private static JsonObject filesRequestJson(String text, Path notebookDir, String... files) {
+    JsonObject arg = new JsonObject();
+    arg.addProperty("cellUri", "file:///cell1.sparql");
+    arg.addProperty("notebookUri", notebookDir.resolve("demo.cimnb.md").toUri().toString());
+    arg.addProperty("languageId", "sparql");
+    arg.addProperty("text", text);
+    JsonObject target = new JsonObject();
+    target.addProperty("type", ExecuteTarget.TYPE_FILES);
+    JsonArray fileArray = new JsonArray();
+    for (String file : files) {
+      fileArray.add(file);
+    }
+    target.add("files", fileArray);
+    arg.add("target", target);
+    return arg;
+  }
 
   private static JsonObject requestJson(String text, String url, String updateUrl) {
     JsonObject arg = new JsonObject();

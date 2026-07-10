@@ -23,11 +23,20 @@ package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
  * notebook controller for each cell execution.
  *
  * @param cellUri URI of the executing cell; used only for logging/diagnostics.
+ * @param notebookUri URI of the notebook document the cell belongs to; relative paths in {@link
+ *     ExecuteTarget#files()} are resolved against its directory, matching how validation resolves
+ *     relative {@code # [endpoint=...]} directives. May be {@code null} (e.g. an untitled
+ *     notebook), in which case only absolute file paths can be executed.
  * @param languageId the cell's language id (e.g. {@code sparql}).
  * @param text the cell's source text.
- * @param target the endpoint to execute against, resolved client-side; {@code null} when the cell
- *     (and its notebook) has no {@code # [endpoint=...]} directive.
+ * @param target the endpoint or files to execute against, resolved client-side; {@code null} when
+ *     the cell (and its notebook) has no {@code # [endpoint=...]} directive.
  * @param options per-execution overrides; {@code null} to use all defaults.
  */
 record ExecuteRequest(
-    String cellUri, String languageId, String text, ExecuteTarget target, ExecuteOptions options) {}
+    String cellUri,
+    String notebookUri,
+    String languageId,
+    String text,
+    ExecuteTarget target,
+    ExecuteOptions options) {}

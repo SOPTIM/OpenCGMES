@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -126,6 +127,13 @@ final class SchemaManager {
   /** How long a failed endpoint load is negatively cached before a retry is allowed. */
   private static final Duration FAILURE_TTL = Duration.ofSeconds(30);
 
+  /**
+   * Extensions a local {@code # [endpoint=...]} directive must have to be loaded as a schema.
+   * Anything else (a CIMXML {@code .xml} model, {@code .nt}/{@code .nq}/{@code .trig} data) is
+   * instance data for notebook execution, not a schema — see {@link #resolveSchema}.
+   */
+  private static final Set<String> SCHEMA_FILE_EXTENSIONS = Set.of("ttl", "rdf", "owl");
+
   /** Schemas loaded from a {@code # [endpoint=...]} directive, keyed by resolved source. */
   private final Map<String, ResolvedSchema> endpointCache = new ConcurrentHashMap<>();
 
@@ -206,9 +214,27 @@ final class SchemaManager {
     if (endpoint == null || endpoint.isBlank()) {
       return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
     }
-    return isRemote(endpoint)
-        ? resolveRemote(endpoint)
-        : resolveLocal(resolveLocalEndpoint(endpoint, docDir));
+    if (isRemote(endpoint)) {
+      return resolveRemote(endpoint);
+    }
+    Path file = resolveLocalEndpoint(endpoint, docDir);
+    if (!isSchemaFile(file)) {
+      // The same # [endpoint=...] directive is also the notebook execution target, which may be
+      // instance data (a CIMXML model, an .nt/.nq/.trig dump). Loading that as a schema would
+      // produce misleading diagnostics, so validation quietly keeps the workspace schema instead.
+      LOG.debug("Endpoint directive {} is not a schema file; using the workspace schema", file);
+      return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
+    }
+    return resolveLocal(file);
+  }
+
+  /** Whether a local endpoint directive names a schema file (vs instance data — see above). */
+  private static boolean isSchemaFile(Path file) {
+    Path fileName = file.getFileName();
+    String name = fileName != null ? fileName.toString() : "";
+    int dot = name.lastIndexOf('.');
+    String extension = dot >= 0 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+    return SCHEMA_FILE_EXTENSIONS.contains(extension);
   }
 
   /**

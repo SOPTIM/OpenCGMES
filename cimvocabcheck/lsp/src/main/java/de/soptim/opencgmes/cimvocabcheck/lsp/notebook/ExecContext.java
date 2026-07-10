@@ -18,12 +18,16 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import org.eclipse.lsp4j.jsonrpc.CancelChecker;
+
 /**
- * Per-execution overrides for the server-side defaults (see {@link ExecSupport#DEFAULT_TIMEOUT_MS}
- * / {@link ExecSupport#DEFAULT_MAX_ROWS}).
- *
- * @param timeoutMs request timeout in milliseconds, or {@code null} to use the default.
- * @param maxRows maximum number of solutions/triples to include in the result before truncating, or
- *     {@code null} to use the default.
+ * Resources a single cell execution needs for cancellation wiring, bundled to keep the executor
+ * call sites short. Shared by {@link HttpQueryExecutor} and {@link LocalQueryExecutor} via {@link
+ * ExecSupport#runCancellable}.
  */
-record ExecuteOptions(Integer timeoutMs, Integer maxRows) {}
+record ExecContext(
+    ExecutorService executionPool,
+    ScheduledExecutorService watchdogScheduler,
+    CancelChecker cancelChecker) {}

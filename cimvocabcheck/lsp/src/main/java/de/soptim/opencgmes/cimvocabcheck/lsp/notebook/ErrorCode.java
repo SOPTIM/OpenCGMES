@@ -18,12 +18,7 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
-/**
- * Machine-readable failure reason reported in {@link ExecError#code()}.
- *
- * <p>Local-file targets (and their file-specific failure modes) are added once local-file execution
- * is implemented; every code needed for HTTP-endpoint execution is declared here.
- */
+/** Machine-readable failure reason reported in {@link ExecError#code()}. */
 enum ErrorCode {
   /** The command argument could not be parsed as an {@link ExecuteRequest} at all. */
   INVALID_REQUEST,
@@ -35,10 +30,17 @@ enum ErrorCode {
   PARSE_ERROR,
 
   /**
-   * The cell parsed as a SPARQL Update, but its target has no update endpoint configured (see
-   * {@link ExecuteTarget#updateUrl()}).
+   * The cell parsed as a SPARQL Update, but its target cannot execute updates: an HTTP target
+   * without an update endpoint (see {@link ExecuteTarget#updateUrl()}), or a read-only local-file
+   * target.
    */
   UPDATE_NOT_ALLOWED,
+
+  /** A file named in {@link ExecuteTarget#files()} does not exist (or is not a regular file). */
+  FILE_NOT_FOUND,
+
+  /** A file named in {@link ExecuteTarget#files()} could not be parsed as RDF/CIMXML. */
+  FILE_PARSE_ERROR,
 
   /** The endpoint answered with an HTTP error, or the connection otherwise failed. */
   HTTP_ERROR,
