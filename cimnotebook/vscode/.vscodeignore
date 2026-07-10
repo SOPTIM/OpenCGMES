@@ -7,3 +7,5 @@ esbuild.js
 .vscode/**
 **/*.ts
 **/*.map
+out-test/
+tsconfig.test.json

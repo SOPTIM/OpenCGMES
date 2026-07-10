@@ -92,11 +92,20 @@ Press `Ctrl+T` (`Cmd+T` on macOS) and type a CIM class or property name to navig
 term across the workspace. Matching is partial and case-insensitive — `aclineseg` matches
 `ACLineSegment`.
 
+### CIM Notebooks
+
+CIMNotebook opens git-friendly **markdown notebooks** (`*.cimnb.md`, or any `*.md` via
+*Open With…*) whose ```` ```sparql ```` / ```` ```shacl ```` code blocks become notebook cells,
+and reads/writes Zazuko's `.sparqlbook` format for interop. The command
+**CIMNotebook: Convert Notebook** switches a notebook between the two formats. See
+[CIM Notebooks](/cimnotebook/notebooks).
+
 ### SPARQL Notebook support
 
-CIMNotebook validates SPARQL **cells** inside
+CIMNotebook validates SPARQL **cells** inside notebook documents — its own CIM Notebooks as well
+as third-party
 [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook)
-documents, not just `.rq` / `.sparql` files. Each cell is validated independently, and a cell can
+documents — not just `.rq` / `.sparql` files. Each cell is validated independently, and a cell can
 declare its own schema with a `# [endpoint=...]` directive. See
 [SPARQL Notebooks](/cimnotebook/sparql-notebooks) for the full behaviour.
 

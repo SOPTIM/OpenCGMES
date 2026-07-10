@@ -5,11 +5,12 @@ sidebar_position: 4
 
 # SPARQL Notebooks
 
-In VS Code, CIMNotebook validates SPARQL **cells** inside
+In VS Code, CIMNotebook validates SPARQL **cells** inside notebook documents, not just
+`.rq` / `.sparql` files — both in CIMNotebook's own [CIM Notebooks](/cimnotebook/notebooks)
+and in third-party
 [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook)
-documents, not just `.rq` / `.sparql` files. Each cell is validated independently as you edit it,
-and a cell can name the schema it should be checked against with the SPARQL Notebook endpoint
-directive.
+documents. Each cell is validated independently as you edit it, and a cell can name the schema it
+should be checked against with the endpoint directive described below.
 
 :::note VS Code only
 SPARQL Notebook cell validation is a VS Code feature. The [IntelliJ plugin](/cimnotebook/intellij)
