@@ -31,7 +31,9 @@
         "onLanguage:turtle",
         "workspaceContains:**/*.ttl",
         "workspaceContains:**/*.shacl",
-        "onNotebook:sparql-notebook"
+        "onNotebook:sparql-notebook",
+        "onNotebook:cimnotebook",
+        "onNotebook:cimnotebook-markdown"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -74,6 +76,30 @@
                 "embeddedLanguages": {
                     "meta.embedded.block.sparql": "sparql"
                 }
+            }
+        ],
+        "notebooks": [
+            {
+                "type": "cimnotebook",
+                "displayName": "CIM Notebook",
+                "selector": [
+                    {
+                        "filenamePattern": "*.cimnb.md"
+                    }
+                ]
+            },
+            {
+                "type": "cimnotebook-markdown",
+                "displayName": "CIM Notebook (Markdown)",
+                "priority": "option",
+                "selector": [
+                    {
+                        "filenamePattern": "*.md"
+                    },
+                    {
+                        "filenamePattern": "*.markdown"
+                    }
+                ]
             }
         ],
         "jsonValidation": [
@@ -180,6 +206,7 @@
         "vscode:prepublish": "node esbuild.js --production",
         "bundle": "node esbuild.js",
         "compile": "tsc --noEmit",
+        "test": "tsc -p tsconfig.test.json && node --test \"out-test/**/*.test.js\"",
         "watch": "node esbuild.js --watch",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",

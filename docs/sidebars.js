@@ -38,6 +38,7 @@ const sidebars = {
   cimnotebookSidebar: [
     'cimnotebook/overview',
     'cimnotebook/vscode',
+    'cimnotebook/notebooks',
     'cimnotebook/intellij',
     'cimnotebook/sparql-notebooks',
     'cimnotebook/troubleshooting',

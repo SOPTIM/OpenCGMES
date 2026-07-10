@@ -26,6 +26,8 @@ import {
     TransportKind,
 } from "vscode-languageclient/node";
 
+import { registerNotebookSerializers } from "./notebook/serializers";
+
 const CHANNEL = "CIMNotebook";
 
 let client: LanguageClient | undefined;
@@ -54,6 +56,10 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand("cimnotebook.createConfig", createConfig),
     );
+
+    // Native CIM Notebooks (markdown format; cells are validated through the
+    // vscode-notebook-cell entries of the LSP documentSelector below).
+    registerNotebookSerializers(context);
 
     try {
         doActivate(context);

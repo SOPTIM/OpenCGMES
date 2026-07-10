@@ -69,8 +69,9 @@ Both editors share this feature set:
 
 :::note Per-editor feature parity
 Endpoint-aware hover and go-to-definition are handled by CIMLangServer itself, so both editors get
-them equally. The one remaining gap is **SPARQL Notebook cell validation**, which today is VS Code
-only. Each editor page documents what that editor actually does today.
+them equally. The remaining gap is notebooks: **[CIM Notebooks](/cimnotebook/notebooks)** and
+**SPARQL Notebook cell validation** are today VS Code only. Each editor page documents what that
+editor actually does today.
 :::
 
 ## Schema configuration
@@ -85,6 +86,7 @@ canonically, on the [Configuration](/cimvocabcheck/configuration) page.
 - **[VS Code](/cimnotebook/vscode)** — install from the
   [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=soptim-ag.cimnotebook),
   configure a schema, and validate `.rq`, `.sparql`, `.ttl`, `.shacl` files plus
+  [CIM Notebooks](/cimnotebook/notebooks) and
   [SPARQL Notebook cells](/cimnotebook/sparql-notebooks).
 - **[IntelliJ](/cimnotebook/intellij)** — install from the
   [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/32789-cimnotebook) (LSP4IJ is pulled
