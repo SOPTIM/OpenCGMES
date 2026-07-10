@@ -17,9 +17,9 @@
  */
 
 /**
- * Editor-independent notebook cell model used by the markdown serializer. Deliberately
- * free of any `vscode` import so the format logic can be unit-tested with plain
- * `node --test`.
+ * Editor-independent notebook cell model shared by the markdown and .sparqlbook
+ * serializers. Deliberately free of any `vscode` import so the format logic can be
+ * unit-tested with plain `node --test`.
  */
 
 /** Cell languages that CIMNotebook treats as executable code cells. */
@@ -30,7 +30,7 @@ export interface RawCell {
     /** Language id for code cells (usually "sparql" or "shacl"); absent for markdown. */
     language?: string;
     value: string;
-    /** Opaque per-cell metadata, passed through untouched by the serializers. */
+    /** Opaque per-cell metadata (only round-tripped by the .sparqlbook format). */
     metadata?: Record<string, unknown>;
 }
 

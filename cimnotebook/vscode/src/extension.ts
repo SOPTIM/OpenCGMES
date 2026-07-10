@@ -27,6 +27,7 @@ import {
 } from "vscode-languageclient/node";
 
 import { registerNotebookSerializers } from "./notebook/serializers";
+import { registerConvertCommand } from "./notebook/convert";
 
 const CHANNEL = "CIMNotebook";
 
@@ -57,9 +58,10 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand("cimnotebook.createConfig", createConfig),
     );
 
-    // Native CIM Notebooks (markdown format; cells are validated through the
-    // vscode-notebook-cell entries of the LSP documentSelector below).
+    // Native CIM Notebooks (markdown + .sparqlbook formats; cells are validated through
+    // the vscode-notebook-cell entries of the LSP documentSelector below).
     registerNotebookSerializers(context);
+    registerConvertCommand(context);
 
     try {
         doActivate(context);
