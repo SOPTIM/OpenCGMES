@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
@@ -66,6 +67,7 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
   private final SchemaManager schemaManager;
   private final SparqlTextDocumentService textDocumentService;
   private final SparqlWorkspaceService workspaceService;
+  private final NotebookCommandHandler notebookCommandHandler;
 
   private LanguageClient client;
 
@@ -73,7 +75,8 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
   public SparqlLanguageServer() {
     schemaManager = new SchemaManager();
     textDocumentService = new SparqlTextDocumentService(schemaManager);
-    workspaceService = new SparqlWorkspaceService(schemaManager);
+    notebookCommandHandler = new NotebookCommandHandler();
+    workspaceService = new SparqlWorkspaceService(schemaManager, notebookCommandHandler);
     // After each successful schema load, revalidate all open documents.
     schemaManager.addOnLoadedCallback(textDocumentService::revalidateAll);
   }
@@ -143,6 +146,7 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
   public CompletableFuture<Object> shutdown() {
     schemaManager.shutdown();
     textDocumentService.shutdown();
+    notebookCommandHandler.shutdown();
     return CompletableFuture.completedFuture(null);
   }
 

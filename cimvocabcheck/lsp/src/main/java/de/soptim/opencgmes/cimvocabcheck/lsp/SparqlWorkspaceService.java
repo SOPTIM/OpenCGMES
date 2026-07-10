@@ -24,6 +24,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.ConfigTemplate;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryExplanation;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.DidChangeConfigurationParams;
@@ -58,9 +59,12 @@ final class SparqlWorkspaceService implements WorkspaceService {
   static final String CMD_CREATE_CONFIG = "cimvocabcheck.createConfig";
 
   private final SchemaManager schemaManager;
+  private final NotebookCommandHandler notebookCommandHandler;
 
-  SparqlWorkspaceService(SchemaManager schemaManager) {
+  SparqlWorkspaceService(
+      SchemaManager schemaManager, NotebookCommandHandler notebookCommandHandler) {
     this.schemaManager = schemaManager;
+    this.notebookCommandHandler = notebookCommandHandler;
   }
 
   @Override
@@ -91,6 +95,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
   public CompletableFuture<Object> executeCommand(ExecuteCommandParams params) {
     if (CMD_CREATE_CONFIG.equals(params.getCommand())) {
       return CompletableFuture.completedFuture(ConfigTemplate.defaultJson());
+    }
+    if (NotebookCommandHandler.CMD_EXECUTE.equals(params.getCommand())) {
+      return notebookCommandHandler.executeCommand(params.getArguments());
     }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());
