@@ -24,7 +24,8 @@ CIM Notebooks are a VS Code feature. The [IntelliJ plugin](/cimnotebook/intellij
 :::info Attribution
 The notebook feature is inspired by the
 [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook)
-extension by Zazuko (MIT-licensed) — CIM Notebooks are an independent implementation.
+extension by Zazuko (MIT-licensed) — CIM Notebooks are an independent implementation that
+reads and writes Zazuko's `.sparqlbook` format for interoperability.
 :::
 
 ## File formats
@@ -33,6 +34,7 @@ extension by Zazuko (MIT-licensed) — CIM Notebooks are an independent implemen
 | --- | --- | --- |
 | `*.cimnb.md` | by default | The native format. A regular markdown file — the suffix just tells VS Code to open it as a notebook. |
 | any `*.md` / `*.markdown` | via **Open With… → CIM Notebook (Markdown)** | Turn any markdown document (a README, a runbook) into a notebook without renaming it. |
+| `*.sparqlbook` | via **Open With… → CIM Notebook (SPARQL Book)** | Zazuko SPARQL Notebook interop (JSON). |
 
 To use **Open With…**: right-click the file in the Explorer → *Open With…* → pick the CIM
 Notebook editor. VS Code remembers the choice per file type if you set it as default.
@@ -66,6 +68,13 @@ Saving a notebook normalizes the file deterministically: cells are separated by 
 blank line, trailing blank lines inside cells are dropped, and the file ends with a single
 newline. Line endings (LF/CRLF) are preserved. Cell **outputs are never written to disk** —
 notebook files stay pure source.
+
+## Converting between formats
+
+The command **CIMNotebook: Convert Notebook (Markdown ⇔ SPARQL Book)** writes the active
+notebook in the other format as a sibling file (`report.sparqlbook` → `report.cimnb.md` and
+back) and opens it. The source file is never modified. Zazuko per-cell metadata survives a
+`.sparqlbook` round trip but is dropped when converting to markdown.
 
 ## Running cells
 

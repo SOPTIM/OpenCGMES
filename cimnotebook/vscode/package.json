@@ -33,7 +33,8 @@
         "workspaceContains:**/*.shacl",
         "onNotebook:sparql-notebook",
         "onNotebook:cimnotebook",
-        "onNotebook:cimnotebook-markdown"
+        "onNotebook:cimnotebook-markdown",
+        "onNotebook:cimnotebook-sparqlbook"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -100,6 +101,16 @@
                         "filenamePattern": "*.markdown"
                     }
                 ]
+            },
+            {
+                "type": "cimnotebook-sparqlbook",
+                "displayName": "CIM Notebook (SPARQL Book)",
+                "priority": "option",
+                "selector": [
+                    {
+                        "filenamePattern": "*.sparqlbook"
+                    }
+                ]
             }
         ],
         "jsonValidation": [
@@ -126,6 +137,11 @@
                 "command": "cimnotebook.createConfig",
                 "title": "Create Config File (opencgmes.jsonc)",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.notebook.convert",
+                "title": "Convert Notebook (Markdown ⇔ SPARQL Book)",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -143,6 +159,10 @@
                 },
                 {
                     "command": "cimnotebook.createConfig"
+                },
+                {
+                    "command": "cimnotebook.notebook.convert",
+                    "when": "activeNotebookType =~ /^cimnotebook/"
                 }
             ]
         },

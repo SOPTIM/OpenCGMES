@@ -17,11 +17,12 @@
  */
 
 /**
- * VS Code adapters around the pure notebook format modules. The contributed
+ * VS Code adapters around the pure notebook format modules. The three contributed
  * notebook types (see package.json `contributes.notebooks`) share these serializers:
  *
  * - `cimnotebook`            — `*.cimnb.md`, opens as a notebook by default
  * - `cimnotebook-markdown`   — any `*.md`/`*.markdown` via "Open With…"
+ * - `cimnotebook-sparqlbook` — `*.sparqlbook` (Zazuko interop) via "Open With…"
  *
  * Outputs are always transient: notebook files on disk stay pure source.
  */
@@ -31,24 +32,47 @@ import { TextDecoder, TextEncoder } from "util";
 
 import { RawCell, RawNotebook } from "./cells";
 import { parseMarkdownNotebook, serializeMarkdownNotebook } from "./markdown";
+import { parseSparqlBook, serializeSparqlBook } from "./sparqlbook";
 
 export const NOTEBOOK_TYPE_DEFAULT = "cimnotebook";
 export const NOTEBOOK_TYPE_MARKDOWN = "cimnotebook-markdown";
+export const NOTEBOOK_TYPE_SPARQLBOOK = "cimnotebook-sparqlbook";
 
 /** All notebook types owned by this extension. */
-export const NOTEBOOK_TYPES = [NOTEBOOK_TYPE_DEFAULT, NOTEBOOK_TYPE_MARKDOWN] as const;
+export const NOTEBOOK_TYPES = [
+    NOTEBOOK_TYPE_DEFAULT,
+    NOTEBOOK_TYPE_MARKDOWN,
+    NOTEBOOK_TYPE_SPARQLBOOK,
+] as const;
 
 /** Notebook-level metadata key carrying the source file's line ending. */
 const METADATA_EOL = "cimnotebookEol";
 
 export function registerNotebookSerializers(context: vscode.ExtensionContext): void {
     const markdown = new FormatSerializer(parseMarkdownNotebook, serializeMarkdownNotebook);
+    const sparqlbook = new FormatSerializer(parseSparqlBook, serializeSparqlBook);
     const options: vscode.NotebookDocumentContentOptions = { transientOutputs: true };
 
     context.subscriptions.push(
         vscode.workspace.registerNotebookSerializer(NOTEBOOK_TYPE_DEFAULT, markdown, options),
         vscode.workspace.registerNotebookSerializer(NOTEBOOK_TYPE_MARKDOWN, markdown, options),
+        vscode.workspace.registerNotebookSerializer(NOTEBOOK_TYPE_SPARQLBOOK, sparqlbook, options),
     );
+}
+
+/** Snapshot of an open notebook document as raw cells, for the convert command. */
+export function notebookDocumentToRaw(notebook: vscode.NotebookDocument): RawNotebook {
+    return {
+        cells: notebook.getCells().map((cell) => {
+            const data = new vscode.NotebookCellData(
+                cell.kind,
+                cell.document.getText(),
+                cell.document.languageId,
+            );
+            return cellDataToRaw(data, cell.metadata as Record<string, unknown>);
+        }),
+        eol: readEol(notebook.metadata),
+    };
 }
 
 class FormatSerializer implements vscode.NotebookSerializer {
