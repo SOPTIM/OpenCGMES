@@ -426,7 +426,7 @@ public class HttpQueryExecutorTest {
   }
 
   private static ExecuteTarget target(String url, String updateUrl) {
-    return new ExecuteTarget(ExecuteTarget.TYPE_HTTP, url, updateUrl, null);
+    return new ExecuteTarget(ExecuteTarget.TYPE_HTTP, url, updateUrl, null, null);
   }
 
   private static String uniqueSubject() {

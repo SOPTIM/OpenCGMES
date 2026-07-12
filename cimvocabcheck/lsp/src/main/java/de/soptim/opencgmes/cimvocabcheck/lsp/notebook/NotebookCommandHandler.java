@@ -37,9 +37,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Handles the {@value #CMD_EXECUTE} workspace command: runs a notebook cell's SPARQL query or
- * update against the target resolved by the client — an HTTP endpoint ({@link HttpQueryExecutor})
- * or local RDF/CIMXML files ({@link LocalQueryExecutor}) — and returns an {@link ExecuteResponse}.
+ * Handles the {@value #CMD_EXECUTE} workspace command: runs a notebook cell — a SPARQL query or
+ * update, or a SHACL shapes cell ({@link ShaclExecutor}) — against the target resolved by the
+ * client, an HTTP endpoint ({@link HttpQueryExecutor}) or local RDF/CIMXML files ({@link
+ * LocalQueryExecutor}), and returns an {@link ExecuteResponse}.
  *
  * <p>Wired into {@code SparqlWorkspaceService#executeCommand} by {@code SparqlLanguageServer},
  * which also forwards {@link #shutdown()} from its own shutdown sequence.
@@ -109,6 +110,10 @@ public final class NotebookCommandHandler {
     LOG.debug("Executing {} cell {}", request.languageId(), request.cellUri());
     try {
       var ctx = new ExecContext(executionPool, watchdogScheduler, cancelChecker);
+      if ("shacl".equalsIgnoreCase(request.languageId())) {
+        // SHACL cells are Turtle shapes, not SPARQL — never route them through the query parser.
+        return ShaclExecutor.execute(request, localStores, ctx);
+      }
       boolean filesTarget =
           request.target() != null && ExecuteTarget.TYPE_FILES.equals(request.target().type());
       return switch (QueryKindDetector.detect(request.text())) {

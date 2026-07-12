@@ -18,11 +18,7 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
@@ -76,10 +72,9 @@ final class LocalQueryExecutor {
               null));
     }
 
-    List<Path> paths;
     DatasetGraph data;
     try {
-      paths = resolvePaths(target.files(), notebookDir(request.notebookUri()));
+      List<Path> paths = NotebookPaths.resolvePaths(target.files(), request.notebookUri());
       data = stores.unionFor(paths);
     } catch (LocalStoreManager.StoreException e) {
       return ExecuteResponse.failed(new ExecError(e.code(), e.getMessage(), null, null, null));
@@ -126,57 +121,6 @@ final class LocalQueryExecutor {
       LOG.error("Unexpected error executing local {} query: {}", kind, e.getMessage(), e);
       return ExecuteResponse.failed(
           new ExecError(ErrorCode.INTERNAL, "Internal error: " + e.getMessage(), null, null, null));
-    }
-  }
-
-  // ---- path resolution -----------------------------------------------------------------------
-
-  private static List<Path> resolvePaths(List<String> files, Path notebookDir)
-      throws LocalStoreManager.StoreException {
-    List<Path> paths = new ArrayList<>(files.size());
-    for (String file : files) {
-      paths.add(resolvePath(file, notebookDir));
-    }
-    return paths;
-  }
-
-  private static Path resolvePath(String file, Path notebookDir)
-      throws LocalStoreManager.StoreException {
-    Path path;
-    try {
-      path = Path.of(file);
-    } catch (InvalidPathException e) {
-      throw new LocalStoreManager.StoreException(
-          ErrorCode.FILE_NOT_FOUND, "Not a valid file path: " + file, e);
-    }
-    if (path.isAbsolute()) {
-      return path.normalize();
-    }
-    if (notebookDir == null) {
-      throw new LocalStoreManager.StoreException(
-          ErrorCode.FILE_NOT_FOUND,
-          "Cannot resolve the relative path "
-              + file
-              + " — save the notebook first so relative paths have a base directory.",
-          null);
-    }
-    return notebookDir.resolve(path).normalize();
-  }
-
-  /** The notebook's directory, or {@code null} when the notebook has no on-disk location. */
-  private static Path notebookDir(String notebookUri) {
-    if (notebookUri == null || notebookUri.isBlank()) {
-      return null;
-    }
-    try {
-      URI uri = new URI(notebookUri);
-      if (!"file".equalsIgnoreCase(uri.getScheme())) {
-        return null;
-      }
-      return Path.of(uri).getParent();
-    } catch (URISyntaxException | IllegalArgumentException e) {
-      LOG.debug("Ignoring unusable notebook URI {}: {}", notebookUri, e.getMessage());
-      return null;
     }
   }
 }

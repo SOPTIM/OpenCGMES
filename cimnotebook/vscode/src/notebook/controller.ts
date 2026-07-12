@@ -42,10 +42,9 @@ export function registerNotebookControllers(
             notebookType,
             "CIM Notebook",
         );
-        // SPARQL only until SHACL execution lands; the LSP still validates shacl cells.
-        controller.supportedLanguages = ["sparql"];
+        controller.supportedLanguages = ["sparql", "shacl"];
         controller.supportsExecutionOrder = true;
-        controller.description = "Runs SPARQL cells via CIMLangServer";
+        controller.description = "Runs SPARQL and SHACL cells via CIMLangServer";
         controller.executeHandler = async (cells) => {
             for (const cell of cells) {
                 const execution = controller.createNotebookCellExecution(cell);

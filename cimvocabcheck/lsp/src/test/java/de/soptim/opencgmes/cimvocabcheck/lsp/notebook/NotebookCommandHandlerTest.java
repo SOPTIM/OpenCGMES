@@ -204,6 +204,47 @@ public class NotebookCommandHandlerTest {
     }
   }
 
+  // ---- SHACL cells -----------------------------------------------------------------------------
+
+  @Test
+  public void executeCommandRoutesShaclCellsByLanguageIdAndPinsTheSummaryWireShape()
+      throws Exception {
+    Path dir = Files.createTempDirectory("cimnb-shacl");
+    try {
+      Files.writeString(
+          dir.resolve("data.ttl"), "@prefix ex: <http://example.org/> . ex:bob a ex:Person .");
+      String shapes =
+          """
+          PREFIX sh: <http://www.w3.org/ns/shacl#>
+          PREFIX ex: <http://example.org/>
+          ex:PersonShape a sh:NodeShape ;
+            sh:targetClass ex:Person ;
+            sh:property [ sh:path ex:name ; sh:minCount 1 ] .
+          """;
+      JsonObject arg = filesRequestJson(shapes, dir, "./data.ttl");
+      arg.addProperty("languageId", "shacl");
+
+      ExecuteResponse response = getResponse(handler.executeCommand(List.of(arg)));
+      assertEquals(ExecutionStatus.SUCCESS.name(), response.status());
+      assertEquals(QueryKind.SHACL.name(), response.queryKind());
+
+      // Wire shape of the summary, as the TS client parses it (see endpoint.ts).
+      Gson wireGson = new MessageJsonHandler(Map.of()).getGson();
+      JsonObject json = wireGson.toJsonTree(response).getAsJsonObject();
+      assertEquals("SHACL", json.get("queryKind").getAsString());
+      JsonObject summary = json.getAsJsonObject("shaclSummary");
+      assertFalse(summary.get("conforms").getAsBoolean());
+      assertEquals(1, summary.get("violations").getAsInt());
+      assertEquals(0, summary.get("warnings").getAsInt());
+      assertEquals(0, summary.get("infos").getAsInt());
+      assertFalse(json.get("turtle").getAsString().isEmpty());
+    } finally {
+      try (var paths = Files.walk(dir)) {
+        paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+      }
+    }
+  }
+
   // ---- wire shape ----------------------------------------------------------------------------
 
   /**

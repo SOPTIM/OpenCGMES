@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.jena.query.QueryExecution;
@@ -57,6 +58,18 @@ final class ExecSupport {
    */
   static ExecuteResponse runCancellable(
       ExecContext ctx, Runnable bestEffortAbort, Supplier<ExecuteResponse> work) {
+    return runCancellable(ctx, bestEffortAbort, work, 0);
+  }
+
+  /**
+   * Like {@link #runCancellable(ExecContext, Runnable, Supplier)}, but additionally resolves to a
+   * {@link ErrorCode#TIMEOUT} response after {@code timeoutMs} (when positive). For Jena query
+   * executions the engine's own {@code timeout(...)} is the better mechanism — this variant exists
+   * for blocking work without native timeout support, such as in-process SHACL validation; like a
+   * cancelled UPDATE, timed-out work keeps running in the background until it finishes on its own.
+   */
+  static ExecuteResponse runCancellable(
+      ExecContext ctx, Runnable bestEffortAbort, Supplier<ExecuteResponse> work, long timeoutMs) {
     CompletableFuture<ExecuteResponse> workFuture =
         CompletableFuture.supplyAsync(work, ctx.executionPool());
     CompletableFuture<ExecuteResponse> cancelFuture = new CompletableFuture<>();
@@ -73,10 +86,25 @@ final class ExecSupport {
               cancelFuture.complete(ExecuteResponse.cancelled());
               bestEffortAbort.run();
             });
+    ScheduledFuture<?> timeoutTask =
+        timeoutMs > 0
+            ? ctx.watchdogScheduler()
+                .schedule(
+                    () ->
+                        cancelFuture.complete(
+                            ExecuteResponse.failed(
+                                new ExecError(
+                                    ErrorCode.TIMEOUT, "Request timed out.", null, null, null))),
+                    timeoutMs,
+                    TimeUnit.MILLISECONDS)
+            : null;
     try {
       return workFuture.applyToEither(cancelFuture, Function.identity()).join();
     } finally {
       watchdogTask.cancel(true);
+      if (timeoutTask != null) {
+        timeoutTask.cancel(true);
+      }
     }
   }
 
@@ -113,6 +141,7 @@ final class ExecSupport {
       }
       case UPDATE ->
           throw new IllegalStateException("UPDATE must be routed through executeUpdate(...)");
+      case SHACL -> throw new IllegalStateException("SHACL must be routed through ShaclExecutor");
     };
   }
 

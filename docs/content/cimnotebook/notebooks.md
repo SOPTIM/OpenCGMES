@@ -78,9 +78,9 @@ back) and opens it. The source file is never modified. Zazuko per-cell metadata 
 
 ## Running cells
 
-SPARQL cells have a **Run** button (the _CIM Notebook_ kernel). Execution happens inside
-CIMLangServer — the same Java process that validates your queries — using Apache Jena's
-SPARQL 1.1 engine, so there is nothing extra to install.
+SPARQL and SHACL cells have a **Run** button (the _CIM Notebook_ kernel). Execution
+happens inside CIMLangServer — the same Java process that validates your queries — using
+Apache Jena's SPARQL 1.1 and SHACL engines, so there is nothing extra to install.
 
 A cell names its target with the same `# [endpoint=...]` directive used for validation —
 one directive drives both _validate against_ and _run against_. The target can be a SPARQL
@@ -106,6 +106,7 @@ What you get per query kind:
 | `ASK`                               | ✅ **true** / ❌ **false**                                                                                                |
 | `CONSTRUCT` / `DESCRIBE`            | The result graph as Turtle                                                                                                |
 | `INSERT` / `DELETE` / other updates | A confirmation with the update endpoint used                                                                              |
+| SHACL cell                          | A conforms / does-not-conform verdict with severity counts, plus the full validation report as Turtle                     |
 
 Each output ends with a small stats line — row count, duration, and the resolved endpoint.
 Results are capped server-side (10 000 rows/triples by default) and the output says so when
@@ -150,7 +151,32 @@ loaded as the schema, while instance-data files (`.xml` models, `.nt`/`.nq`/`.tr
 keep the workspace schema so diagnostics stay meaningful — and either way the file is what
 the cell _runs_ against.
 
+### Running SHACL cells
+
+A SHACL cell's text is the **shapes graph**; running the cell validates the target data
+against those shapes. The same `# [endpoint=...]` directives pick the data:
+
+- **Local files** — the shapes are checked in-process (Apache Jena SHACL) against the
+  union of the referenced files, CIMXML models included:
+
+  ```shacl
+  # [endpoint=./model.xml]
+  ex:SwitchNameShape a sh:NodeShape ;
+    sh:targetClass cim:Switch ;
+    sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCount 1 ] .
+  ```
+
+- **HTTP endpoints** — the shapes are POSTed as Turtle to the endpoint's SHACL service
+  (Fuseki's `shacl` operation and compatibles), which validates its own data. For
+  Fuseki-style URLs the service is derived from the query URL (`…/query` → `…/shacl`);
+  because Fuseki requires a graph selector, `?graph=default` (the default graph) is added
+  automatically — put an explicit `?graph=…` in the directive to validate a named graph.
+
+The output is a ✅ conforms / ❌ does-not-conform banner with counts per severity
+(violations, warnings, infos), followed by the full `sh:ValidationReport` as Turtle. A
+run that finds violations is still a _successful_ run — non-conformance is the result,
+not an error.
+
 **Current limitations:**
 
-- SHACL cells are validated statically but cannot be _run_ yet.
 - No authentication support yet — HTTP endpoints must be reachable without credentials.

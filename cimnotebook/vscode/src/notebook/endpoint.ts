@@ -35,7 +35,7 @@ export function parseEndpointDirectives(text: string): string[] {
 }
 
 export type ResolvedTarget =
-    | { type: "http"; url: string; updateUrl: string }
+    | { type: "http"; url: string; updateUrl: string; shaclUrl: string }
     | { type: "files"; files: string[] }
     | { type: "none" };
 
@@ -54,7 +54,7 @@ export function resolveTarget(cellText: string): ResolvedTarget {
     if (url === undefined) {
         return { type: "files", files: directives };
     }
-    return { type: "http", url, updateUrl: deriveUpdateUrl(url) };
+    return { type: "http", url, updateUrl: deriveUpdateUrl(url), shaclUrl: deriveShaclUrl(url) };
 }
 
 /**
@@ -69,6 +69,26 @@ export function deriveUpdateUrl(url: string): string {
     return sibling ? sibling[1] + "update" : url;
 }
 
+/**
+ * Best-effort SHACL service URL for a query endpoint URL: Fuseki-style `…/query` or
+ * `…/sparql` services get their `…/shacl` sibling, a URL already ending in `/shacl` is
+ * kept, and anything else gets `/shacl` appended. Fuseki's SHACL operation requires a
+ * `?graph=` selector, so an existing query string is preserved and `?graph=default`
+ * (the default graph) is added when there is none. As with updates, the server never
+ * derives this — an explicit `shaclUrl` is required there.
+ */
+export function deriveShaclUrl(url: string): string {
+    const query = /\?.*$/.exec(url)?.[0] ?? "";
+    const path = query ? url.slice(0, -query.length) : url;
+    const sibling = /^(.*\/)(?:query|sparql)$/i.exec(path);
+    const shaclPath = sibling
+        ? sibling[1] + "shacl"
+        : /\/shacl$/i.test(path)
+          ? path
+          : path.replace(/\/+$/, "") + "/shacl";
+    return shaclPath + (query || "?graph=default");
+}
+
 // ---- Wire types for cimvocabcheck.notebook.execute (mirror the server's records) ----
 
 export const EXECUTE_COMMAND = "cimvocabcheck.notebook.execute";
@@ -77,6 +97,7 @@ export interface ExecuteTarget {
     type: "http" | "files";
     url?: string;
     updateUrl?: string;
+    shaclUrl?: string;
     files?: string[];
 }
 
@@ -90,7 +111,14 @@ export interface ExecuteRequest {
     options?: { timeoutMs?: number; maxRows?: number };
 }
 
-export type QueryKind = "SELECT" | "ASK" | "CONSTRUCT" | "DESCRIBE" | "UPDATE";
+export type QueryKind = "SELECT" | "ASK" | "CONSTRUCT" | "DESCRIBE" | "UPDATE" | "SHACL";
+
+export interface ShaclSummary {
+    conforms: boolean;
+    violations: number;
+    warnings: number;
+    infos: number;
+}
 
 export interface ExecError {
     code: string;
@@ -112,6 +140,7 @@ export interface ExecuteResponse {
     queryKind?: QueryKind | null;
     resultsJson?: string | null;
     turtle?: string | null;
+    shaclSummary?: ShaclSummary | null;
     stats?: ExecStats | null;
     error?: ExecError | null;
 }

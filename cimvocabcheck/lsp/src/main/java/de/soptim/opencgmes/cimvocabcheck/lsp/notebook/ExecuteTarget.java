@@ -31,12 +31,16 @@ import java.util.List;
  *     means this target has no configured update endpoint, so a cell that parses as a SPARQL Update
  *     is rejected with {@link ErrorCode#UPDATE_NOT_ALLOWED} rather than silently reusing {@link
  *     #url()}.
+ * @param shaclUrl the SHACL validation service URL ({@code "http"} targets only), e.g. Fuseki's
+ *     {@code …/shacl} operation. {@code null}/blank means SHACL cells cannot run against this
+ *     target; like {@link #updateUrl()}, the server never derives it — the client does.
  * @param files the local files to query, exactly as written in the directives ({@code "files"}
  *     targets only). Relative paths are resolved server-side against the directory of {@link
  *     ExecuteRequest#notebookUri()}; multiple files are queried as one union store. Local files are
  *     read-only — updates are rejected with {@link ErrorCode#UPDATE_NOT_ALLOWED}.
  */
-record ExecuteTarget(String type, String url, String updateUrl, List<String> files) {
+record ExecuteTarget(
+    String type, String url, String updateUrl, String shaclUrl, List<String> files) {
 
   /** Target {@link #type()}: a remote SPARQL endpoint. */
   static final String TYPE_HTTP = "http";
