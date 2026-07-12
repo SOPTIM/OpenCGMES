@@ -113,6 +113,51 @@
                 ]
             }
         ],
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "cimnotebook",
+                    "title": "CIMNotebook",
+                    "icon": "media/activity-icon.svg"
+                }
+            ]
+        },
+        "views": {
+            "cimnotebook": [
+                {
+                    "id": "cimnotebook.connectionsView",
+                    "name": "Connections",
+                    "contextualTitle": "OpenCGMES Connections"
+                },
+                {
+                    "id": "cimnotebook.validationView",
+                    "name": "Validation",
+                    "contextualTitle": "OpenCGMES Validation"
+                },
+                {
+                    "id": "cimnotebook.executionView",
+                    "name": "Notebook Execution",
+                    "contextualTitle": "OpenCGMES Notebook Execution"
+                }
+            ]
+        },
+        "viewsWelcome": [
+            {
+                "view": "cimnotebook.connectionsView",
+                "contents": "No `opencgmes.jsonc` was found for this workspace.\n[Create Config File](command:cimnotebook.createConfig)",
+                "when": "!cimnotebook.hasConfig"
+            },
+            {
+                "view": "cimnotebook.validationView",
+                "contents": "Validation settings appear once an `opencgmes.jsonc` exists.\n[Create Config File](command:cimnotebook.createConfig)",
+                "when": "!cimnotebook.hasConfig"
+            },
+            {
+                "view": "cimnotebook.executionView",
+                "contents": "Notebook execution settings appear once an `opencgmes.jsonc` exists.\n[Create Config File](command:cimnotebook.createConfig)",
+                "when": "!cimnotebook.hasConfig"
+            }
+        ],
         "jsonValidation": [
             {
                 "fileMatch": [
@@ -157,6 +202,79 @@
                 "command": "cimnotebook.notebook.clearCredentials",
                 "title": "Clear Connection Credentials…",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.connections.add",
+                "title": "Add Connection",
+                "category": "CIMNotebook",
+                "icon": "$(add)"
+            },
+            {
+                "command": "cimnotebook.connections.edit",
+                "title": "Edit Connection",
+                "category": "CIMNotebook",
+                "icon": "$(edit)"
+            },
+            {
+                "command": "cimnotebook.connections.remove",
+                "title": "Remove Connection",
+                "category": "CIMNotebook",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "cimnotebook.connections.toggleDefault",
+                "title": "Set/Unset as Default Connection",
+                "category": "CIMNotebook",
+                "icon": "$(star)"
+            },
+            {
+                "command": "cimnotebook.connections.credentials",
+                "title": "Set/Clear Connection Credentials",
+                "category": "CIMNotebook",
+                "icon": "$(key)"
+            },
+            {
+                "command": "cimnotebook.config.openFile",
+                "title": "Open opencgmes.jsonc",
+                "category": "CIMNotebook",
+                "icon": "$(go-to-file)"
+            },
+            {
+                "command": "cimnotebook.config.editStrictness",
+                "title": "Edit Strictness",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.config.editStandardVocabulary",
+                "title": "Edit Standard Vocabulary Check",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.config.editSchemasDirectory",
+                "title": "Edit Schemas Directory",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.config.addSchemaFile",
+                "title": "Add Schema File",
+                "category": "CIMNotebook",
+                "icon": "$(add)"
+            },
+            {
+                "command": "cimnotebook.config.removeSchemaFile",
+                "title": "Remove Schema File",
+                "category": "CIMNotebook",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "cimnotebook.config.editQueryTimeout",
+                "title": "Edit Query Timeout",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.config.editMaxRows",
+                "title": "Edit Max Rows",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -188,6 +306,102 @@
                 },
                 {
                     "command": "cimnotebook.notebook.clearCredentials"
+                },
+                {
+                    "command": "cimnotebook.connections.add",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.connections.edit",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.connections.remove",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.connections.toggleDefault",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.connections.credentials",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.openFile",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.editStrictness",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.editStandardVocabulary",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.editSchemasDirectory",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.addSchemaFile",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.removeSchemaFile",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.editQueryTimeout",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.editMaxRows",
+                    "when": "false"
+                }
+            ],
+            "view/title": [
+                {
+                    "command": "cimnotebook.connections.add",
+                    "when": "view == cimnotebook.connectionsView && cimnotebook.hasConfig",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "cimnotebook.config.openFile",
+                    "when": "view == cimnotebook.connectionsView",
+                    "group": "navigation@2"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "cimnotebook.connections.edit",
+                    "when": "view == cimnotebook.connectionsView && viewItem =~ /^connection\\b/",
+                    "group": "inline@1"
+                },
+                {
+                    "command": "cimnotebook.connections.credentials",
+                    "when": "view == cimnotebook.connectionsView && viewItem =~ /\\bbasic\\b/",
+                    "group": "inline@2"
+                },
+                {
+                    "command": "cimnotebook.connections.toggleDefault",
+                    "when": "view == cimnotebook.connectionsView && viewItem =~ /^connection\\b/",
+                    "group": "inline@3"
+                },
+                {
+                    "command": "cimnotebook.connections.remove",
+                    "when": "view == cimnotebook.connectionsView && viewItem =~ /^connection\\b/",
+                    "group": "inline@4"
+                },
+                {
+                    "command": "cimnotebook.config.addSchemaFile",
+                    "when": "view == cimnotebook.validationView && viewItem == schemasParent",
+                    "group": "inline"
+                },
+                {
+                    "command": "cimnotebook.config.removeSchemaFile",
+                    "when": "view == cimnotebook.validationView && viewItem == schemaFile",
+                    "group": "inline"
                 }
             ]
         },
@@ -260,15 +474,16 @@
         "copy-jar": "cp ../../cimvocabcheck/lsp/target/cimvocabcheck-lsp-*.jar server/cimvocabcheck-lsp.jar"
     },
     "dependencies": {
+        "jsonc-parser": "^3.3.1",
         "vscode-languageclient": "^10.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@types/node": "^24.0.0",
         "@types/vscode": "^1.75.0",
+        "esbuild": "^0.28.0",
         "eslint": "^10.5.0",
         "eslint-config-prettier": "^10.1.8",
-        "esbuild": "^0.28.0",
         "prettier": "^3.8.4",
         "typescript": "^6.0.0",
         "typescript-eslint": "^8.61.1"

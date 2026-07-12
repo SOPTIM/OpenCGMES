@@ -217,6 +217,40 @@
     },
     {
       "type": "library",
+      "name": "jsonc-parser",
+      "version": "3.3.1",
+      "bom-ref": "cimnotebook@0.0.0|jsonc-parser@3.3.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT",
+            "acknowledgement": "declared"
+          }
+        }
+      ],
+      "purl": "pkg:npm/jsonc-parser@3.3.1",
+      "externalReferences": [
+        {
+          "url": "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-3.3.1.tgz",
+          "type": "distribution",
+          "hashes": [
+            {
+              "alg": "SHA-512",
+              "content": "1d4807eb92b27a3ad414fbc714f6ea398d2bb058a9dc1a39c1be2782f762d44a426165100c2e55f98ee6670b3e0cb92be0cfffcd02686a7bb548ffbcec3bf5a1"
+            }
+          ],
+          "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "cdx:npm:package:path",
+          "value": "node_modules/jsonc-parser"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "name": "minimatch",
       "version": "10.2.5",
       "bom-ref": "cimnotebook@0.0.0|minimatch@10.2.5",
@@ -458,6 +492,7 @@
     {
       "ref": "cimnotebook@0.0.0",
       "dependsOn": [
+        "cimnotebook@0.0.0|jsonc-parser@3.3.1",
         "cimnotebook@0.0.0|vscode-languageclient@10.1.0"
       ]
     },
@@ -469,6 +504,9 @@
       "dependsOn": [
         "cimnotebook@0.0.0|balanced-match@4.0.4"
       ]
+    },
+    {
+      "ref": "cimnotebook@0.0.0|jsonc-parser@3.3.1"
     },
     {
       "ref": "cimnotebook@0.0.0|minimatch@10.2.5",

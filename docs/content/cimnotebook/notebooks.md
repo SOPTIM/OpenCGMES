@@ -215,12 +215,18 @@ SELECT * WHERE { ?s ?p ?o } LIMIT 10
 
 A connection name has no slashes and no dots — that's how it is told apart from a file
 path. `updateUrl`/`shaclUrl` are optional and derived from `url` when omitted.
+Connections (and the rest of the config) can also be edited in the **CIMNotebook
+sidebar** — see [Configuration sidebar](/cimnotebook/vscode#configuration-sidebar).
 
 Every cell shows its resolved target in the **cell status bar** (`local-fuseki`, a URL,
 `model.xml (+1)`, or a _no endpoint_ warning); clicking it — or running **CIMNotebook:
-Set Cell Endpoint…** — picks a connection, URL, or file and either writes the
-`# [endpoint=…]` directive into the cell (the portable, versioned form) or remembers it
-as the notebook's default without touching the file.
+Set Cell Endpoint…** — picks a connection, a URL (with a small recent-URLs history above
+the input box), or one or more data files via fuzzy, search-as-you-type matching over the
+workspace (with **Browse…** for files outside it and **Enter path manually…** for a file
+that doesn't exist yet). Picking several files writes one `# [endpoint=...]` directive
+per file — the same union target described above. One constraint inherited from the
+directive syntax: a path containing spaces cannot be referenced (the directive value ends
+at the first whitespace character).
 
 ### Where a cell without a directive runs
 

@@ -184,29 +184,31 @@ function shortUrl(url: string): string {
 }
 
 /**
- * Returns the cell text with its endpoint directive set to `value` (replacing the first
- * existing directive line and dropping any further ones), or with all directive lines
- * removed when `value` is null. Used by the *Set Cell Endpoint* command — the directive
- * stays the portable source of truth inside the file.
+ * Returns the cell text with its endpoint directive(s) set to `value` (replacing the
+ * first existing directive line with one line per value and dropping any further ones),
+ * or with all directive lines removed when `value` is null. An array writes one line per
+ * entry, in order — the *Set Cell Endpoint* command uses this for a multi-file union
+ * target (M3). The directive stays the portable source of truth inside the file.
  */
-export function applyEndpointDirective(cellText: string, value: string | null): string {
+export function applyEndpointDirective(cellText: string, value: string | string[] | null): string {
+    const values = value === null ? [] : Array.isArray(value) ? value : [value];
     const directiveLine = /^\s*#\s*\[\s*endpoint\s*=\s*[^\]\s]+\s*\][^\n]*$/;
     const lines = cellText.split("\n");
     const kept: string[] = [];
-    let replaced = false;
+    let inserted = false;
     for (const line of lines) {
         if (!directiveLine.test(line)) {
             kept.push(line);
             continue;
         }
-        if (value !== null && !replaced) {
-            kept.push(`# [endpoint=${value}]`);
-            replaced = true;
+        if (values.length > 0 && !inserted) {
+            kept.push(...values.map((v) => `# [endpoint=${v}]`));
+            inserted = true;
         }
         // Further directive lines (and all of them when clearing) are dropped.
     }
-    if (value !== null && !replaced) {
-        kept.unshift(`# [endpoint=${value}]`);
+    if (values.length > 0 && !inserted) {
+        kept.unshift(...values.map((v) => `# [endpoint=${v}]`));
     }
     return kept.join("\n");
 }
