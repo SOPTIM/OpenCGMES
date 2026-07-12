@@ -95,9 +95,12 @@ term across the workspace. Matching is partial and case-insensitive — `aclines
 ### CIM Notebooks
 
 CIMNotebook opens git-friendly **markdown notebooks** (`*.cimnb.md`, or any `*.md` via
-*Open With…*) whose ```` ```sparql ```` / ```` ```shacl ```` code blocks become notebook cells,
+_Open With…_) whose ` ```sparql ` / ` ```shacl ` code blocks become notebook cells,
 and reads/writes Zazuko's `.sparqlbook` format for interop. The command
-**CIMNotebook: Convert Notebook** switches a notebook between the two formats. See
+**CIMNotebook: Convert Notebook** switches a notebook between the two formats. Cells run
+against SPARQL endpoints, local RDF/CIMXML files, or named connections — the cell's
+status-bar button and **CIMNotebook: Set Cell Endpoint…** pick the target, and
+**CIMNotebook: Set/Clear Connection Credentials…** manage basic-auth secrets. See
 [CIM Notebooks](/cimnotebook/notebooks).
 
 ### SPARQL Notebook support
@@ -115,7 +118,7 @@ These editor-specific settings live in VS Code's settings (`settings.json` or th
 Schema configuration itself lives in [`opencgmes.jsonc`](/cimvocabcheck/configuration), not here.
 
 | Setting                      | Default     | Description                                                                                      |
-| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
 | `cimnotebook.serverJar`      | _(bundled)_ | Absolute path to `cimvocabcheck-lsp.jar`. Leave empty to use the JAR bundled with the extension. |
 | `cimnotebook.javaExecutable` | `java`      | Java executable used to launch the language server. Must be Java 21 or later.                    |
 | `cimnotebook.javaArgs`       | `[]`        | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`.                                   |

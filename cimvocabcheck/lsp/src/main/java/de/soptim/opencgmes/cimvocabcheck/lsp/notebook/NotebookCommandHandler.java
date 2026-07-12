@@ -53,6 +53,9 @@ public final class NotebookCommandHandler {
   /** Command id for cell execution (see {@link #executeCommand}). */
   public static final String CMD_EXECUTE = "cimvocabcheck.notebook.execute";
 
+  /** Command id for listing a notebook's configured connections (see {@link #listConnections}). */
+  public static final String CMD_LIST_CONNECTIONS = "cimvocabcheck.notebook.listConnections";
+
   /**
    * Pool the blocking Jena call runs on. Must stay unbounded (cached, not fixed): the executors'
    * {@link ExecSupport#runCancellable} racing submits its own nested task to this same pool and
@@ -88,6 +91,36 @@ public final class NotebookCommandHandler {
         executionPool, cancelChecker -> doExecute(request, cancelChecker));
   }
 
+  /**
+   * Handles one {@value #CMD_LIST_CONNECTIONS} invocation: answers the {@code "cimnotebook"} config
+   * that applies to the notebook named by the single argument's {@code notebookUri} field
+   * (nearest-config discovery; empty result when none applies). Never returns secrets — the config
+   * only ever declares an {@code authType}.
+   */
+  public CompletableFuture<Object> listConnections(List<Object> arguments) {
+    String notebookUri = null;
+    if (arguments != null && !arguments.isEmpty() && arguments.get(0) != null) {
+      Object first = arguments.get(0);
+      JsonElement el =
+          first instanceof JsonElement je ? je : GSON.fromJson(first.toString(), JsonElement.class);
+      if (el != null && el.isJsonObject() && el.getAsJsonObject().has("notebookUri")) {
+        notebookUri = el.getAsJsonObject().get("notebookUri").getAsString();
+      }
+    }
+    final String uri = notebookUri;
+    return CompletableFuture.supplyAsync(
+        () -> {
+          NotebookConfigLoader.Located located = NotebookConfigLoader.forNotebook(uri);
+          NotebookConfig config = located.config();
+          return new ListConnectionsResponse(
+              located.configPath() != null ? located.configPath().toString() : null,
+              config.connections(),
+              config.queryTimeoutSeconds(),
+              config.maxRows());
+        },
+        executionPool);
+  }
+
   /** Releases the thread pools. Safe to call once during server shutdown. */
   public void shutdown() {
     executionPool.shutdown();
@@ -106,9 +139,10 @@ public final class NotebookCommandHandler {
     }
   }
 
-  private Object doExecute(ExecuteRequest request, CancelChecker cancelChecker) {
-    LOG.debug("Executing {} cell {}", request.languageId(), request.cellUri());
+  private Object doExecute(ExecuteRequest rawRequest, CancelChecker cancelChecker) {
+    LOG.debug("Executing {} cell {}", rawRequest.languageId(), rawRequest.cellUri());
     try {
+      ExecuteRequest request = withConfigDefaults(rawRequest);
       var ctx = new ExecContext(executionPool, watchdogScheduler, cancelChecker);
       if ("shacl".equalsIgnoreCase(request.languageId())) {
         // SHACL cells are Turtle shapes, not SPARQL — never route them through the query parser.
@@ -142,6 +176,36 @@ public final class NotebookCommandHandler {
       return ExecuteResponse.failed(
           new ExecError(ErrorCode.INTERNAL, "Internal error: " + e.getMessage(), null, null, null));
     }
+  }
+
+  /**
+   * Fills unset execution options from the notebook's {@code "cimnotebook"} config
+   * (queryTimeoutSeconds/maxRows), so workspace-wide defaults apply without the client having to
+   * read the config itself. Explicit per-request options always win.
+   */
+  private static ExecuteRequest withConfigDefaults(ExecuteRequest request) {
+    ExecuteOptions options = request.options();
+    boolean needsTimeout = options == null || options.timeoutMs() == null;
+    boolean needsMaxRows = options == null || options.maxRows() == null;
+    if (!needsTimeout && !needsMaxRows) {
+      return request;
+    }
+    NotebookConfig config = NotebookConfigLoader.forNotebook(request.notebookUri()).config();
+    if (config.queryTimeoutSeconds() == null && config.maxRows() == null) {
+      return request;
+    }
+    Integer timeoutMs =
+        !needsTimeout
+            ? options.timeoutMs()
+            : config.queryTimeoutSeconds() != null ? config.queryTimeoutSeconds() * 1_000 : null;
+    Integer maxRows = !needsMaxRows ? options.maxRows() : config.maxRows();
+    return new ExecuteRequest(
+        request.cellUri(),
+        request.notebookUri(),
+        request.languageId(),
+        request.text(),
+        request.target(),
+        new ExecuteOptions(timeoutMs, maxRows));
   }
 
   /**

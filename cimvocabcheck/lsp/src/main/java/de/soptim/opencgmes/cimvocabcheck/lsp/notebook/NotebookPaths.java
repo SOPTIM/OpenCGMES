@@ -73,7 +73,7 @@ final class NotebookPaths {
   }
 
   /** The notebook's directory, or {@code null} when the notebook has no on-disk location. */
-  private static Path notebookDir(String notebookUri) {
+  static Path notebookDir(String notebookUri) {
     if (notebookUri == null || notebookUri.isBlank()) {
       return null;
     }

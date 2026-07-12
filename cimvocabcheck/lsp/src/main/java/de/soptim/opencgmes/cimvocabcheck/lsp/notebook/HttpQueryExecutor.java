@@ -26,7 +26,9 @@ import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.sparql.engine.http.QueryExceptionHTTP;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
+import org.apache.jena.sparql.exec.http.QueryExecutionHTTPBuilder;
 import org.apache.jena.sparql.exec.http.UpdateExecutionHTTP;
+import org.apache.jena.sparql.exec.http.UpdateExecutionHTTPBuilder;
 import org.apache.jena.update.UpdateExecution;
 import org.apache.jena.update.UpdateRequest;
 import org.slf4j.Logger;
@@ -63,11 +65,15 @@ final class HttpQueryExecutor {
 
     String url = target.url();
     int maxRows = ExecSupport.maxRows(options);
-    QueryExecution qe =
+    QueryExecutionHTTPBuilder builder =
         QueryExecutionHTTP.service(url)
             .query(query)
-            .timeout(ExecSupport.timeoutMs(options), TimeUnit.MILLISECONDS)
-            .build();
+            .timeout(ExecSupport.timeoutMs(options), TimeUnit.MILLISECONDS);
+    String authHeader = ExecSupport.basicAuthHeader(target.auth());
+    if (authHeader != null) {
+      builder.httpHeader("Authorization", authHeader);
+    }
+    QueryExecution qe = builder.build();
     return ExecSupport.runCancellable(
         ctx,
         qe::abort,
@@ -96,11 +102,15 @@ final class HttpQueryExecutor {
               null));
     }
 
-    UpdateExecution ue =
+    UpdateExecutionHTTPBuilder builder =
         UpdateExecutionHTTP.service(updateUrl)
             .update(update)
-            .timeout(ExecSupport.timeoutMs(options), TimeUnit.MILLISECONDS)
-            .build();
+            .timeout(ExecSupport.timeoutMs(options), TimeUnit.MILLISECONDS);
+    String authHeader = ExecSupport.basicAuthHeader(target.auth());
+    if (authHeader != null) {
+      builder.httpHeader("Authorization", authHeader);
+    }
+    UpdateExecution ue = builder.build();
     return ExecSupport.runCancellable(ctx, ue::abort, () -> runUpdate(ue, updateUrl));
   }
 

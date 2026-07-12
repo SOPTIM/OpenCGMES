@@ -5,6 +5,59 @@
     "type": "object",
     "additionalProperties": true,
     "properties": {
+        "cimnotebook": {
+            "type": "object",
+            "description": "CIM Notebook execution settings (VS Code). Named connections referenced by # [endpoint=<name>] directives, plus workspace defaults for running cells. Passwords are NEVER stored here — declare \"authType\": \"basic\" and CIMNotebook keeps the credentials in VS Code secret storage.",
+            "additionalProperties": false,
+            "properties": {
+                "connections": {
+                    "type": "array",
+                    "description": "Named SPARQL endpoint connections for notebook cells.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["name", "url"],
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "The connection's name — cells reference it with # [endpoint=<name>]. Use letters, digits, dashes and underscores (no dots or slashes, which would read as a file path)."
+                            },
+                            "url": {
+                                "type": "string",
+                                "description": "SPARQL query endpoint URL, e.g. http://localhost:3030/dataset/query."
+                            },
+                            "updateUrl": {
+                                "type": "string",
+                                "description": "SPARQL Update endpoint URL. Omit to derive it from \"url\" (Fuseki-style …/query → …/update)."
+                            },
+                            "shaclUrl": {
+                                "type": "string",
+                                "description": "SHACL validation service URL. Omit to derive it from \"url\" (…/query → …/shacl?graph=default)."
+                            },
+                            "authType": {
+                                "type": "string",
+                                "enum": ["none", "basic"],
+                                "description": "Authentication scheme. With \"basic\", CIMNotebook prompts once for username/password and stores them in VS Code secret storage — never in this file."
+                            },
+                            "default": {
+                                "type": "boolean",
+                                "description": "Cells without a # [endpoint=...] directive run against this connection."
+                            }
+                        }
+                    }
+                },
+                "queryTimeoutSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Default timeout for notebook cell executions, in seconds (built-in default: 30)."
+                },
+                "maxRows": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Default cap on returned rows/triples per execution (built-in default: 10000)."
+                }
+            }
+        },
         "cimvocabcheck": {
             "type": "object",
             "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when neither \"schemas\" nor \"schemasDirectory\" is set, the bundled CGMES 3.0 profiles are used.",

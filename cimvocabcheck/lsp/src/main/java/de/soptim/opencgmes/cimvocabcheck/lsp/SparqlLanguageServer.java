@@ -74,11 +74,16 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
   /** Creates the server and wires up its document, workspace, and schema services. */
   public SparqlLanguageServer() {
     schemaManager = new SchemaManager();
-    textDocumentService = new SparqlTextDocumentService(schemaManager);
+    NotebookDefaults notebookDefaults = new NotebookDefaults();
+    textDocumentService = new SparqlTextDocumentService(schemaManager, notebookDefaults);
     notebookCommandHandler = new NotebookCommandHandler();
-    workspaceService = new SparqlWorkspaceService(schemaManager, notebookCommandHandler);
+    workspaceService =
+        new SparqlWorkspaceService(schemaManager, notebookCommandHandler, notebookDefaults);
     // After each successful schema load, revalidate all open documents.
     schemaManager.addOnLoadedCallback(textDocumentService::revalidateAll);
+    // Likewise when a notebook's default endpoint changes: its directive-less cells now validate
+    // against a different schema.
+    notebookDefaults.addOnChangeCallback(textDocumentService::revalidateAll);
   }
 
   // ---- LanguageClientAware ---------------------------------------------------------------

@@ -20,10 +20,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+    applyEndpointDirective,
+    classifyDirective,
+    ConnectionInfo,
     deriveShaclUrl,
     deriveUpdateUrl,
     parseEndpointDirectives,
-    resolveTarget,
+    resolveCellTarget,
+    statusBarText,
 } from "./endpoint";
 
 describe("parseEndpointDirectives", () => {
@@ -49,43 +53,197 @@ describe("parseEndpointDirectives", () => {
     });
 });
 
-describe("resolveTarget", () => {
-    it("returns none without a directive", () => {
-        assert.deepEqual(resolveTarget("SELECT * WHERE { ?s ?p ?o }"), { type: "none" });
+describe("classifyDirective", () => {
+    it("splits URLs, connection names, and file paths like the server does", () => {
+        assert.equal(classifyDirective("http://host/ds/query"), "url");
+        assert.equal(classifyDirective("HTTPS://host"), "url");
+        assert.equal(classifyDirective("local-fuseki"), "name");
+        assert.equal(classifyDirective("prod"), "name");
+        assert.equal(classifyDirective("./data.ttl"), "file");
+        assert.equal(classifyDirective("model.xml"), "file");
+        assert.equal(classifyDirective("sub/dir"), "file");
     });
+});
 
-    it("picks the first http(s) directive and derives the update and shacl siblings", () => {
-        const target = resolveTarget("# [endpoint=https://host/ds/query]\nASK {}");
-        assert.deepEqual(target, {
-            type: "http",
-            url: "https://host/ds/query",
-            updateUrl: "https://host/ds/update",
-            shaclUrl: "https://host/ds/shacl?graph=default",
+describe("resolveCellTarget", () => {
+    const CONNECTIONS: ConnectionInfo[] = [
+        {
+            name: "local-fuseki",
+            url: "http://localhost:3030/cgmes/query",
+            updateUrl: "http://localhost:3030/cgmes/upd",
+            authType: "basic",
+        },
+        { name: "prod", url: "https://sparql.example.org/query", default: true },
+    ];
+
+    it("returns none without directives, defaults, or a default connection", () => {
+        assert.deepEqual(resolveCellTarget("SELECT * WHERE { ?s ?p ?o }", []), {
+            kind: "none",
         });
     });
 
-    it("resolves a non-URL directive to a local-files target", () => {
-        assert.deepEqual(resolveTarget("# [endpoint=./data.ttl]\nASK {}"), {
-            type: "files",
-            files: ["./data.ttl"],
+    it("picks the first http(s) directive and derives the update and shacl siblings", () => {
+        const res = resolveCellTarget("# [endpoint=https://host/ds/query]\nASK {}", []);
+        assert.deepEqual(res, {
+            kind: "target",
+            label: "https://host/ds/query",
+            target: {
+                type: "http",
+                url: "https://host/ds/query",
+                updateUrl: "https://host/ds/update",
+                shaclUrl: "https://host/ds/shacl?graph=default",
+            },
         });
     });
 
     it("collects every file directive into one union target, in order", () => {
+        const res = resolveCellTarget(
+            "# [endpoint=./model.xml]\n# [endpoint=extra.ttl]\nASK {}",
+            [],
+        );
+        assert.equal(res.kind, "target");
+        assert.deepEqual(res.kind === "target" && res.target, {
+            type: "files",
+            files: ["./model.xml", "extra.ttl"],
+        });
+    });
+
+    it("reports directives of mixed kinds instead of silently picking one", () => {
         assert.deepEqual(
-            resolveTarget("# [endpoint=./model.xml]\n# [endpoint=extra.ttl]\nASK {}"),
+            resolveCellTarget("# [endpoint=./a.ttl]\n# [endpoint=http://host/sparql]\nASK {}", []),
             {
-                type: "files",
-                files: ["./model.xml", "extra.ttl"],
+                kind: "ambiguous-directives",
+                directives: ["./a.ttl", "http://host/sparql"],
+            },
+        );
+        assert.deepEqual(
+            resolveCellTarget(
+                "# [endpoint=./a.ttl]\n# [endpoint=local-fuseki]\nASK {}",
+                CONNECTIONS,
+            ),
+            {
+                kind: "ambiguous-directives",
+                directives: ["./a.ttl", "local-fuseki"],
             },
         );
     });
 
-    it("prefers the http directive when files are also present", () => {
-        const target = resolveTarget(
-            "# [endpoint=./a.ttl]\n# [endpoint=http://host/sparql]\nASK {}",
+    it("reports repeated URL or connection directives — only files union", () => {
+        assert.equal(
+            resolveCellTarget("# [endpoint=http://a/q]\n# [endpoint=http://b/q]\nASK {}", []).kind,
+            "ambiguous-directives",
         );
-        assert.equal(target.type, "http");
+        assert.equal(
+            resolveCellTarget("# [endpoint=local-fuseki]\n# [endpoint=prod]\nASK {}", CONNECTIONS)
+                .kind,
+            "ambiguous-directives",
+        );
+    });
+
+    it("resolves a connection name, keeping its explicit URLs and deriving the rest", () => {
+        const res = resolveCellTarget("# [endpoint=local-fuseki]\nASK {}", CONNECTIONS);
+        assert.ok(res.kind === "target");
+        if (res.kind === "target") {
+            assert.equal(res.label, "local-fuseki");
+            assert.deepEqual(res.target, {
+                type: "http",
+                url: "http://localhost:3030/cgmes/query",
+                updateUrl: "http://localhost:3030/cgmes/upd",
+                shaclUrl: "http://localhost:3030/cgmes/shacl?graph=default",
+            });
+            assert.equal(res.authConnection?.name, "local-fuseki");
+        }
+    });
+
+    it("reports an unknown connection name with the known ones", () => {
+        assert.deepEqual(resolveCellTarget("# [endpoint=nope]\nASK {}", CONNECTIONS), {
+            kind: "unknown-connection",
+            name: "nope",
+            known: ["local-fuseki", "prod"],
+        });
+    });
+
+    it("falls back to the notebook default directive, then the default connection", () => {
+        const viaDefault = resolveCellTarget("ASK {}", CONNECTIONS, "./model.xml");
+        assert.ok(viaDefault.kind === "target" && viaDefault.target.type === "files");
+
+        const viaConfig = resolveCellTarget("ASK {}", CONNECTIONS);
+        assert.ok(viaConfig.kind === "target");
+        if (viaConfig.kind === "target") {
+            assert.equal(viaConfig.label, "prod");
+            assert.equal(viaConfig.authConnection, undefined);
+        }
+    });
+
+    it("cell directives beat the notebook default", () => {
+        const res = resolveCellTarget(
+            "# [endpoint=./cell.ttl]\nASK {}",
+            CONNECTIONS,
+            "local-fuseki",
+        );
+        assert.ok(res.kind === "target" && res.target.type === "files");
+    });
+});
+
+describe("statusBarText", () => {
+    it("labels each resolution kind distinctly", () => {
+        assert.equal(
+            statusBarText({
+                kind: "target",
+                label: "local-fuseki",
+                target: { type: "http", url: "http://h/q" },
+            }),
+            "$(plug) local-fuseki",
+        );
+        assert.equal(
+            statusBarText({
+                kind: "target",
+                label: "http://h:3030/ds/query?x=1",
+                target: { type: "http", url: "http://h:3030/ds/query?x=1" },
+            }),
+            "$(globe) h:3030/ds/query",
+        );
+        assert.equal(
+            statusBarText({
+                kind: "target",
+                label: "./a/model.xml, b.ttl",
+                target: { type: "files", files: ["./a/model.xml", "b.ttl"] },
+            }),
+            "$(file) model.xml (+1)",
+        );
+        assert.equal(
+            statusBarText({ kind: "unknown-connection", name: "x", known: [] }),
+            "$(warning) unknown connection: x",
+        );
+        assert.equal(
+            statusBarText({ kind: "ambiguous-directives", directives: ["a.ttl", "http://h/q"] }),
+            "$(warning) conflicting endpoint directives",
+        );
+        assert.equal(statusBarText({ kind: "none" }), "$(warning) no endpoint");
+    });
+});
+
+describe("applyEndpointDirective", () => {
+    it("inserts a directive as the first line when none exists", () => {
+        assert.equal(
+            applyEndpointDirective("ASK {}", "local-fuseki"),
+            "# [endpoint=local-fuseki]\nASK {}",
+        );
+    });
+
+    it("replaces the first directive and drops any further ones", () => {
+        const text = "# [endpoint=./a.ttl]\nASK {}\n# [endpoint=./b.ttl]";
+        assert.equal(applyEndpointDirective(text, "http://h/q"), "# [endpoint=http://h/q]\nASK {}");
+    });
+
+    it("removes all directive lines when clearing", () => {
+        const text = "# [endpoint=./a.ttl]\nASK {}\n# [endpoint=./b.ttl]";
+        assert.equal(applyEndpointDirective(text, null), "ASK {}");
+    });
+
+    it("leaves ordinary comments alone", () => {
+        const text = "# just a comment\nASK {}";
+        assert.equal(applyEndpointDirective(text, null), text);
     });
 });
 

@@ -28,6 +28,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConfigLoader;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConnection;
 import de.soptim.opencgmes.cimvocabcheck.lsp.schema.SchemaLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -199,33 +201,78 @@ final class SchemaManager {
   }
 
   /**
-   * Resolves the schema a document should be validated against.
-   *
-   * <p>When {@code endpoint} is {@code null}/blank, the document's workspace schema is used: the
-   * nearest {@code opencgmes.jsonc} above the document. When none is found (or it declares no
-   * schemas) the result is empty and the caller validates syntax-only. Otherwise the schema is
-   * loaded from the endpoint — a local {@code .ttl}/{@code .rdf}/{@code .owl} file or a remote
-   * SPARQL endpoint — and cached by resolved source.
+   * Resolves the schema a document should be validated against — {@link #schemaSourceOf} followed
+   * by {@link #resolveFrom}. Callers that also need to know <em>whether</em> the endpoint is a
+   * schema source (to tell a failed endpoint apart from one that never was one) should call the two
+   * separately.
    *
    * @param endpoint the {@code # [endpoint=...]} value, or {@code null} for the workspace schema
    * @param docDir the document's own directory, used for config discovery and relative endpoints
    */
   Optional<ResolvedSchema> resolveSchema(String endpoint, Path docDir) {
+    return resolveFrom(schemaSourceOf(endpoint, docDir), docDir);
+  }
+
+  /**
+   * The source an endpoint directive loads its schema from — a remote SPARQL endpoint URL or a
+   * local {@code .ttl}/{@code .rdf}/{@code .owl} file — or {@code null} when the directive names no
+   * schema at all and the document's workspace schema applies instead. That is the case for a blank
+   * directive, and for two notebook-specific ones:
+   *
+   * <ul>
+   *   <li><b>Instance data.</b> The same directive is also the cell's execution target, which may
+   *       be a CIMXML model or an {@code .nt}/{@code .nq}/{@code .trig} dump. Loading data as a
+   *       schema would turn every term in the cell into a false diagnostic.
+   *   <li><b>An unresolvable connection name.</b> Names with no matching {@code "cimnotebook"}
+   *       connection, or whose connection declares no remote URL, have no schema to offer.
+   * </ul>
+   */
+  String schemaSourceOf(String endpoint, Path docDir) {
     if (endpoint == null || endpoint.isBlank()) {
-      return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
+      return null;
     }
     if (isRemote(endpoint)) {
-      return resolveRemote(endpoint);
+      return endpoint;
+    }
+    if (looksLikeConnectionName(endpoint)) {
+      // Notebook cells may name a connection from the "cimnotebook" config section instead of a
+      // URL or file. Resolving it here keeps validation and execution agreeing on what the
+      // directive means: the schema loads from the connection's endpoint.
+      NotebookConnection connection =
+          NotebookConfigLoader.forDirectory(docDir).config().byName(endpoint);
+      return connection != null && connection.url() != null && isRemote(connection.url())
+          ? connection.url()
+          : null;
     }
     Path file = resolveLocalEndpoint(endpoint, docDir);
     if (!isSchemaFile(file)) {
-      // The same # [endpoint=...] directive is also the notebook execution target, which may be
-      // instance data (a CIMXML model, an .nt/.nq/.trig dump). Loading that as a schema would
-      // produce misleading diagnostics, so validation quietly keeps the workspace schema instead.
       LOG.debug("Endpoint directive {} is not a schema file; using the workspace schema", file);
+      return null;
+    }
+    return file.toString();
+  }
+
+  /**
+   * Loads the schema from a {@link #schemaSourceOf} result, caching it by source; {@code null} —
+   * i.e. no schema source — falls back to the document's workspace schema (the nearest {@code
+   * opencgmes.jsonc} above it). Empty when nothing applies: no config, a config without schemas, or
+   * an endpoint that is still loading or failed — the caller then validates syntax-only.
+   */
+  Optional<ResolvedSchema> resolveFrom(String source, Path docDir) {
+    if (source == null) {
       return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
     }
-    return resolveLocal(file);
+    return isRemote(source) ? resolveRemote(source) : resolveLocal(Path.of(source));
+  }
+
+  /**
+   * Whether a directive could be a named connection: no path separators, no extension dot. Only
+   * such directives pay for a config lookup; files virtually always have an extension, so
+   * "model.xml" never does, while "local-fuseki" does. (A connection whose name contains a dot or
+   * slash is not resolvable from a directive — documented limitation.)
+   */
+  private static boolean looksLikeConnectionName(String endpoint) {
+    return !endpoint.contains("/") && !endpoint.contains("\\") && !endpoint.contains(".");
   }
 
   /** Whether a local endpoint directive names a schema file (vs instance data — see above). */
