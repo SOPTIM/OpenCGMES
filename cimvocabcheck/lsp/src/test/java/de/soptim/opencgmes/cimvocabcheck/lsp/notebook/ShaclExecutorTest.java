@@ -327,14 +327,14 @@ public class ShaclExecutorTest {
 
   private ExecuteResponse executeLocal(String shapes, String... files) {
     ExecuteTarget target =
-        new ExecuteTarget(ExecuteTarget.TYPE_FILES, null, null, null, List.of(files));
+        new ExecuteTarget(ExecuteTarget.TYPE_FILES, null, null, null, List.of(files), null);
     return ShaclExecutor.execute(request(shapes, target), stores, ctx(NEVER_CANCELLED));
   }
 
   private ExecuteResponse executeRemote(String shapes, String shaclServiceUrl) {
     ExecuteTarget target =
         new ExecuteTarget(
-            ExecuteTarget.TYPE_HTTP, fuseki.serverURL() + "ds", null, shaclServiceUrl, null);
+            ExecuteTarget.TYPE_HTTP, fuseki.serverURL() + "ds", null, shaclServiceUrl, null, null);
     return ShaclExecutor.execute(request(shapes, target), stores, ctx(NEVER_CANCELLED));
   }
 

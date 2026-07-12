@@ -71,6 +71,19 @@ public final class ConfigTemplate {
           // their ontology conventions: "cim16" (CGMES 2.4.15), "cim17"/"cim18" (CGMES 3.0+).
           // "cimNamespaces": { "http://example.org/CIM-Custom#": "cim17" }
         }
+
+        // CIM Notebooks (VS Code) read the "cimnotebook" section: named connections that
+        // cells reference with "# [endpoint=<name>]", plus execution defaults. Passwords
+        // NEVER belong in this file — declare "authType": "basic" and CIMNotebook keeps
+        // the credentials in VS Code secret storage.
+        // "cimnotebook": {
+        //   "connections": [
+        //     { "name": "local-fuseki", "url": "http://localhost:3030/cgmes/query", "default": true },
+        //     { "name": "prod", "url": "https://sparql.example.org/query", "authType": "basic" }
+        //   ],
+        //   "queryTimeoutSeconds": 30,
+        //   "maxRows": 10000
+        // }
       }
       """;
 

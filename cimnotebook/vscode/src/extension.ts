@@ -29,6 +29,9 @@ import {
 import { registerNotebookSerializers } from "./notebook/serializers";
 import { registerNotebookControllers } from "./notebook/controller";
 import { registerConvertCommand } from "./notebook/convert";
+import { ConnectionStore } from "./notebook/connections";
+import { registerEndpointCommands } from "./notebook/endpointCommands";
+import { registerCellStatusBar } from "./notebook/statusBar";
 
 const CHANNEL = "CIMNotebook";
 
@@ -63,11 +66,14 @@ export function activate(context: vscode.ExtensionContext): void {
     // the vscode-notebook-cell entries of the LSP documentSelector below and executed
     // via the server's cimvocabcheck.notebook.execute command).
     registerNotebookSerializers(context);
-    registerNotebookControllers(context, () => client);
+    const connectionStore = new ConnectionStore(context, () => client);
+    registerNotebookControllers(context, () => client, connectionStore);
     registerConvertCommand(context);
+    registerEndpointCommands(context, connectionStore);
+    registerCellStatusBar(context, connectionStore);
 
     try {
-        doActivate(context);
+        doActivate(context, connectionStore);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`FATAL during activation: ${msg}`);
@@ -76,7 +82,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 }
 
-function doActivate(context: vscode.ExtensionContext): void {
+function doActivate(context: vscode.ExtensionContext, connectionStore: ConnectionStore): void {
     const serverJar = resolveServerJar(context);
     if (!serverJar) {
         const hint =
@@ -91,7 +97,17 @@ function doActivate(context: vscode.ExtensionContext): void {
     }
 
     client = buildClient(serverJar, context);
-    client.start();
+    client.start().then(
+        () => {
+            // The notebook defaults live in workspace state, so a freshly started server knows
+            // none of them — replay them, or directive-less cells would validate syntax-only.
+            void connectionStore.syncNotebookDefaults();
+        },
+        (err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            out.appendLine(`Language server failed to start: ${msg}`);
+        },
+    );
     out.appendLine("Language client started — waiting for server handshake.");
 
     // Offer a reload when the user changes launch settings.

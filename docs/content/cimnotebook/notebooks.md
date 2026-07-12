@@ -146,6 +146,11 @@ Parsed files are cached in the language server and re-parsed automatically when 
 changes on disk, so _edit model → re-run cell_ just works. Local files are **read-only**:
 a SPARQL Update against a file target is rejected — updates need an HTTP endpoint.
 
+Multiple **file** directives are the only repetition that means something. A cell runs
+against exactly one endpoint, so mixing kinds (a file and a URL, a file and a connection
+name) or repeating a URL or a connection name is reported as an error rather than
+silently resolved to one of them — remove the directives you didn't mean.
+
 Note the dual meaning of the directive: for _validation_, a `.ttl`/`.rdf`/`.owl` file is
 loaded as the schema, while instance-data files (`.xml` models, `.nt`/`.nq`/`.trig` dumps)
 keep the workspace schema so diagnostics stay meaningful — and either way the file is what
@@ -177,6 +182,82 @@ The output is a ✅ conforms / ❌ does-not-conform banner with counts per sever
 run that finds violations is still a _successful_ run — non-conformance is the result,
 not an error.
 
+### Named connections
+
+Endpoints you use often can be declared once in `opencgmes.jsonc` (the same file that
+configures validation) under a `cimnotebook` section, and referenced by name:
+
+```jsonc
+{
+  "cimnotebook": {
+    "connections": [
+      {
+        "name": "local-fuseki",
+        "url": "http://localhost:3030/cgmes/query",
+        "default": true,
+      },
+      {
+        "name": "prod",
+        "url": "https://sparql.example.org/query",
+        "authType": "basic",
+      },
+    ],
+    "queryTimeoutSeconds": 30, // workspace default for cell executions
+    "maxRows": 10000, // workspace default result cap
+  },
+}
+```
+
+```sparql
+# [endpoint=local-fuseki]
+SELECT * WHERE { ?s ?p ?o } LIMIT 10
+```
+
+A connection name has no slashes and no dots — that's how it is told apart from a file
+path. `updateUrl`/`shaclUrl` are optional and derived from `url` when omitted.
+
+Every cell shows its resolved target in the **cell status bar** (`local-fuseki`, a URL,
+`model.xml (+1)`, or a _no endpoint_ warning); clicking it — or running **CIMNotebook:
+Set Cell Endpoint…** — picks a connection, URL, or file and either writes the
+`# [endpoint=…]` directive into the cell (the portable, versioned form) or remembers it
+as the notebook's default without touching the file.
+
+### Where a cell without a directive runs
+
+A cell with no `# [endpoint=...]` line of its own is not stranded — the target is resolved
+in three steps, and the first one that answers wins:
+
+1. **The cell's own directive.**
+2. **The notebook default.** *Set Cell Endpoint…* offers to apply a single connection, URL,
+   or file as the **Notebook default** instead of writing it into the cell. It is remembered
+   in VS Code's **workspace state** — deliberately not in the notebook file and not in
+   `opencgmes.jsonc` — so it is a private, per-workspace convenience: a notebook shared with
+   a colleague carries only its directives. The picker shows the current default in its title
+   and offers **Clear the notebook default** while one is set.
+3. **The default connection.** The `opencgmes.jsonc` connection marked `"default": true`.
+
+Validation follows the same three steps, so a cell is always validated against the endpoint
+it runs against: schema-based diagnostics, completion, hover, and go-to-definition all use
+the schema of the resolved target (a `.ttl`/`.rdf`/`.owl` file or the endpoint's schema
+graphs). A target that carries no schema — a CIMXML model, an `.nt` dump — keeps the
+workspace schema from `opencgmes.jsonc` instead, since instance data would only produce
+false diagnostics.
+
+### Credentials
+
+Connections with `"authType": "basic"` prompt once for username and password on first
+run and offer to keep them in **VS Code secret storage** (the OS keychain). Passwords are
+**never** written to `opencgmes.jsonc`, VS Code settings, or the notebook — they travel
+only inside the execute request to the local language server, which turns them into the
+HTTP `Authorization` header. Manage them with **CIMNotebook: Set Connection
+Credentials…** and **Clear Connection Credentials…**.
+
+:::caution Verbose tracing logs requests
+The `CIMNotebook (trace)` output channel (LSP trace, off by default) logs full request
+payloads — including credentials of an execute request. Leave tracing off when working
+with authenticated endpoints, or clear the channel afterwards.
+:::
+
 **Current limitations:**
 
-- No authentication support yet — HTTP endpoints must be reachable without credentials.
+- Only HTTP basic authentication is supported.

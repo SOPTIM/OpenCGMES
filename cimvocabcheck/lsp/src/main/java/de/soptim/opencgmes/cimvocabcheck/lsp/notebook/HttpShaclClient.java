@@ -74,13 +74,17 @@ final class HttpShaclClient {
 
     HttpRequest request;
     try {
-      request =
+      HttpRequest.Builder builder =
           HttpRequest.newBuilder(URI.create(shaclUrl))
               .timeout(Duration.ofMillis(ExecSupport.timeoutMs(options)))
               .header("Content-Type", TEXT_TURTLE)
               .header("Accept", TEXT_TURTLE)
-              .POST(HttpRequest.BodyPublishers.ofString(shapesTurtle))
-              .build();
+              .POST(HttpRequest.BodyPublishers.ofString(shapesTurtle));
+      String authHeader = ExecSupport.basicAuthHeader(target.auth());
+      if (authHeader != null) {
+        builder.header("Authorization", authHeader);
+      }
+      request = builder.build();
     } catch (IllegalArgumentException e) {
       return ExecuteResponse.failed(
           new ExecError(

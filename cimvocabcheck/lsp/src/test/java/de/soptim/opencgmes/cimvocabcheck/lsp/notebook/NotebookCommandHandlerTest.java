@@ -245,6 +245,86 @@ public class NotebookCommandHandlerTest {
     }
   }
 
+  // ---- connections and config defaults ---------------------------------------------------------
+
+  @Test
+  public void listConnectionsAnswersTheNotebookConfigAndPinsTheWireShape() throws Exception {
+    Path dir = Files.createTempDirectory("cimnb-conn");
+    try {
+      Files.writeString(
+          dir.resolve("opencgmes.jsonc"),
+          """
+          {
+            "cimnotebook": {
+              "queryTimeoutSeconds": 7,
+              "connections": [
+                { "name": "local-fuseki", "url": "http://localhost:3030/ds/query",
+                  "authType": "basic", "default": true,
+                  "password": "must-never-be-echoed" }
+              ]
+            }
+          }
+          """);
+      JsonObject arg = new JsonObject();
+      arg.addProperty("notebookUri", dir.resolve("demo.cimnb.md").toUri().toString());
+
+      Object result = handler.listConnections(List.of(arg)).get();
+
+      Gson wireGson = new MessageJsonHandler(Map.of()).getGson();
+      JsonObject json = wireGson.toJsonTree(result).getAsJsonObject();
+      assertTrue(json.get("configPath").getAsString().endsWith("opencgmes.jsonc"));
+      assertEquals(7, json.get("queryTimeoutSeconds").getAsInt());
+      JsonObject connection = json.getAsJsonArray("connections").get(0).getAsJsonObject();
+      assertEquals("local-fuseki", connection.get("name").getAsString());
+      assertEquals("basic", connection.get("authType").getAsString());
+      assertTrue(
+          "the keyword-named flag must serialize as 'default'",
+          connection.get("default").getAsBoolean());
+      assertFalse(
+          "secrets in the config must never be echoed back", json.toString().contains("password"));
+    } finally {
+      try (var paths = Files.walk(dir)) {
+        paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+      }
+    }
+  }
+
+  @Test
+  public void listConnectionsWithoutAConfigAnswersEmpty() throws Exception {
+    JsonObject arg = new JsonObject();
+    arg.addProperty("notebookUri", "untitled:Untitled-1");
+
+    Gson wireGson = new MessageJsonHandler(Map.of()).getGson();
+    JsonObject json =
+        wireGson.toJsonTree(handler.listConnections(List.of(arg)).get()).getAsJsonObject();
+
+    assertFalse(json.has("configPath"));
+    assertEquals(0, json.getAsJsonArray("connections").size());
+  }
+
+  @Test
+  public void executeAppliesTheConfigMaxRowsWhenTheRequestHasNoOptions() throws Exception {
+    Path dir = Files.createTempDirectory("cimnb-clamp");
+    try {
+      Files.writeString(dir.resolve("opencgmes.jsonc"), "{ \"cimnotebook\": { \"maxRows\": 1 } }");
+      Files.writeString(
+          dir.resolve("data.ttl"),
+          "<http://example.org/a> <http://example.org/p> 1 . "
+              + "<http://example.org/b> <http://example.org/p> 2 .");
+      JsonObject arg = filesRequestJson("SELECT ?s WHERE { ?s ?p ?o }", dir, "./data.ttl");
+
+      ExecuteResponse response = getResponse(handler.executeCommand(List.of(arg)));
+
+      assertEquals(ExecutionStatus.SUCCESS.name(), response.status());
+      assertEquals(Integer.valueOf(1), response.stats().rowCount());
+      assertTrue("the config cap must truncate the result", response.stats().truncated());
+    } finally {
+      try (var paths = Files.walk(dir)) {
+        paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
+      }
+    }
+  }
+
   // ---- wire shape ----------------------------------------------------------------------------
 
   /**

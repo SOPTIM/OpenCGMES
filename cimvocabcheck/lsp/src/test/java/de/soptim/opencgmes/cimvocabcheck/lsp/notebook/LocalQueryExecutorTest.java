@@ -318,7 +318,7 @@ public class LocalQueryExecutorTest {
   }
 
   private static ExecuteTarget filesTarget(String... files) {
-    return new ExecuteTarget(ExecuteTarget.TYPE_FILES, null, null, null, List.of(files));
+    return new ExecuteTarget(ExecuteTarget.TYPE_FILES, null, null, null, List.of(files), null);
   }
 
   private Path dataFile(String name, String content) throws IOException {

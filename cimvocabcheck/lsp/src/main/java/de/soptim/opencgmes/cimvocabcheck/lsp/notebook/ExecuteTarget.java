@@ -38,9 +38,11 @@ import java.util.List;
  *     targets only). Relative paths are resolved server-side against the directory of {@link
  *     ExecuteRequest#notebookUri()}; multiple files are queried as one union store. Local files are
  *     read-only — updates are rejected with {@link ErrorCode#UPDATE_NOT_ALLOWED}.
+ * @param auth optional credentials for {@code "http"} targets — see {@link ExecAuth} for the
+ *     handling guarantees; {@code null} for anonymous access.
  */
 record ExecuteTarget(
-    String type, String url, String updateUrl, String shaclUrl, List<String> files) {
+    String type, String url, String updateUrl, String shaclUrl, List<String> files, ExecAuth auth) {
 
   /** Target {@link #type()}: a remote SPARQL endpoint. */
   static final String TYPE_HTTP = "http";

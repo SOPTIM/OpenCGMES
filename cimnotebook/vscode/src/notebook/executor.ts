@@ -26,17 +26,17 @@
 import * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
 
-import {
-    EXECUTE_COMMAND,
-    ExecError,
-    ExecuteRequest,
-    ExecuteResponse,
-    resolveTarget,
-} from "./endpoint";
+import { ConnectionStore } from "./connections";
+import { authFor } from "./credentials";
+import { EXECUTE_COMMAND, ExecError, ExecuteRequest, ExecuteResponse } from "./endpoint";
 import { errorSummary, MIME_MARKDOWN, outputItemsFor } from "./outputs";
 
 export class CellExecutor {
-    constructor(private readonly getClient: () => LanguageClient | undefined) {}
+    constructor(
+        private readonly getClient: () => LanguageClient | undefined,
+        private readonly store: ConnectionStore,
+        private readonly secrets: vscode.SecretStorage,
+    ) {}
 
     async execute(
         cell: vscode.NotebookCell,
@@ -77,27 +77,50 @@ export class CellExecutor {
         }
 
         const text = cell.document.getText();
-        const target = resolveTarget(text);
-        if (target.type === "none") {
+        const resolution = await this.store.resolveCell(cell);
+        if (resolution.kind === "none") {
             await replaceMarkdown(
                 execution,
                 "**No endpoint configured.** Add a directive to the cell, e.g.\n\n" +
                     "```\n# [endpoint=http://localhost:3030/dataset/query]\n```\n\n" +
-                    "or point it at a local RDF or CIMXML file:\n\n" +
-                    "```\n# [endpoint=./model.xml]\n```",
+                    "point it at a local RDF or CIMXML file (`# [endpoint=./model.xml]`), " +
+                    "name a connection from `opencgmes.jsonc`, or use the cell's endpoint " +
+                    "status-bar button.",
+            );
+            return false;
+        }
+        if (resolution.kind === "ambiguous-directives") {
+            await replaceMarkdown(
+                execution,
+                "**Conflicting `# [endpoint=…]` directives.** This cell declares " +
+                    resolution.directives.map((d) => `\`${d}\``).join(", ") +
+                    " — a cell runs against one endpoint. Keep a single URL or connection name " +
+                    "(several *file* paths are allowed: they are queried as one union).",
+            );
+            return false;
+        }
+        if (resolution.kind === "unknown-connection") {
+            const known =
+                resolution.known.length > 0
+                    ? `Known connections: ${resolution.known.map((n) => `\`${n}\``).join(", ")}.`
+                    : "The applicable `opencgmes.jsonc` declares no connections.";
+            await replaceMarkdown(
+                execution,
+                `**Unknown connection \`${resolution.name}\`.** ${known}`,
             );
             return false;
         }
 
+        const target = resolution.target;
+        if (resolution.authConnection) {
+            target.auth = await authFor(this.secrets, resolution.authConnection, true);
+        }
         const request: ExecuteRequest = {
             cellUri: cell.document.uri.toString(),
             notebookUri: cell.notebook.uri.toString(),
             languageId: cell.document.languageId,
             text,
-            target:
-                target.type === "http"
-                    ? { type: "http", url: target.url, updateUrl: target.updateUrl }
-                    : { type: "files", files: target.files },
+            target,
         };
         const response = await client.sendRequest<ExecuteResponse>(
             "workspace/executeCommand",

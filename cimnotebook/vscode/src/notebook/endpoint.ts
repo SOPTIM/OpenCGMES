@@ -34,27 +34,181 @@ export function parseEndpointDirectives(text: string): string[] {
     return [...text.matchAll(DIRECTIVE)].map((m) => m[1].trim());
 }
 
-export type ResolvedTarget =
-    | { type: "http"; url: string; updateUrl: string; shaclUrl: string }
-    | { type: "files"; files: string[] }
-    | { type: "none" };
+/**
+ * What one directive value means: an endpoint URL, a named connection from the config's
+ * `cimnotebook.connections`, or a file path. Mirrors the server's heuristic — a
+ * connection name has no path separators and no extension dot, files virtually always
+ * have one ("model.xml" is a file, "local-fuseki" a name).
+ */
+export function classifyDirective(directive: string): "url" | "name" | "file" {
+    if (/^https?:\/\//i.test(directive)) {
+        return "url";
+    }
+    if (!/[/\\.]/.test(directive)) {
+        return "name";
+    }
+    return "file";
+}
 
 /**
- * Resolves the target for a cell: the first `http(s)://` directive wins; otherwise every
- * directive is taken as a local file path and the cell queries their union. The server
- * resolves relative paths against the notebook's directory — the same base validation
- * uses — so one directive means one file for both.
+ * How a cell's execution target was resolved. `authConnection` is set when the target
+ * came from a connection declaring `authType: "basic"` — the executor then attaches
+ * stored credentials before sending the request.
  */
-export function resolveTarget(cellText: string): ResolvedTarget {
+export type CellResolution =
+    | { kind: "target"; target: ExecuteTarget; label: string; authConnection?: ConnectionInfo }
+    | { kind: "unknown-connection"; name: string; known: string[] }
+    | { kind: "ambiguous-directives"; directives: string[] }
+    | { kind: "none" };
+
+/**
+ * Resolves a cell's execution target with the full precedence chain: the cell's own
+ * directives → the notebook's default directive (set via the *Set Cell Endpoint*
+ * command) → the config connection marked `"default": true` → none. Pure — the caller
+ * supplies the config connections (from `listConnections`) and the stored notebook
+ * default.
+ */
+export function resolveCellTarget(
+    cellText: string,
+    connections: ConnectionInfo[],
+    notebookDefaultDirective?: string,
+): CellResolution {
     const directives = parseEndpointDirectives(cellText);
-    if (directives.length === 0) {
-        return { type: "none" };
+    if (directives.length > 0) {
+        return resolveDirectives(directives, connections);
     }
-    const url = directives.find((d) => /^https?:\/\//i.test(d));
-    if (url === undefined) {
-        return { type: "files", files: directives };
+    if (notebookDefaultDirective) {
+        return resolveDirectives([notebookDefaultDirective], connections);
     }
-    return { type: "http", url, updateUrl: deriveUpdateUrl(url), shaclUrl: deriveShaclUrl(url) };
+    const defaultConnection = connections.find((c) => c.default === true);
+    if (defaultConnection) {
+        return connectionResolution(defaultConnection, connections);
+    }
+    return { kind: "none" };
+}
+
+/**
+ * One target per cell. Several *file* directives are a union (the M3 multi-file target),
+ * but any other repetition — two URLs, two connection names, or a mix of kinds — has no
+ * single meaning, and quietly running the cell against whichever one came first would
+ * send the query somewhere the author didn't ask for. Those are reported instead.
+ */
+function resolveDirectives(directives: string[], connections: ConnectionInfo[]): CellResolution {
+    const kinds = new Set(directives.map(classifyDirective));
+    if (kinds.size > 1 || (directives.length > 1 && !kinds.has("file"))) {
+        return { kind: "ambiguous-directives", directives };
+    }
+
+    if (kinds.has("url")) {
+        const url = directives[0];
+        return {
+            kind: "target",
+            target: {
+                type: "http",
+                url,
+                updateUrl: deriveUpdateUrl(url),
+                shaclUrl: deriveShaclUrl(url),
+            },
+            label: url,
+        };
+    }
+    if (kinds.has("name")) {
+        const name = directives[0];
+        const connection = connections.find((c) => c.name === name);
+        if (!connection) {
+            return {
+                kind: "unknown-connection",
+                name,
+                known: connections.map((c) => c.name),
+            };
+        }
+        return connectionResolution(connection, connections);
+    }
+    return {
+        kind: "target",
+        target: { type: "files", files: directives },
+        label: directives.join(", "),
+    };
+}
+
+function connectionResolution(
+    connection: ConnectionInfo,
+    connections: ConnectionInfo[],
+): CellResolution {
+    if (!connection.url) {
+        return {
+            kind: "unknown-connection",
+            name: connection.name,
+            known: connections.filter((c) => c.url).map((c) => c.name),
+        };
+    }
+    return {
+        kind: "target",
+        target: {
+            type: "http",
+            url: connection.url,
+            updateUrl: connection.updateUrl || deriveUpdateUrl(connection.url),
+            shaclUrl: connection.shaclUrl || deriveShaclUrl(connection.url),
+        },
+        label: connection.name,
+        authConnection: connection.authType?.toLowerCase() === "basic" ? connection : undefined,
+    };
+}
+
+/** Short status-bar text for a cell's resolution, with a codicon hinting the kind. */
+export function statusBarText(resolution: CellResolution): string {
+    switch (resolution.kind) {
+        case "target": {
+            const target = resolution.target;
+            if (target.type === "files") {
+                const files = target.files ?? [];
+                const first = files[0]?.replace(/^.*[/\\]/, "") ?? "?";
+                return `$(file) ${first}${files.length > 1 ? ` (+${files.length - 1})` : ""}`;
+            }
+            const viaConnection = resolution.label !== target.url;
+            return viaConnection
+                ? `$(plug) ${resolution.label}`
+                : `$(globe) ${shortUrl(target.url ?? "")}`;
+        }
+        case "unknown-connection":
+            return `$(warning) unknown connection: ${resolution.name}`;
+        case "ambiguous-directives":
+            return "$(warning) conflicting endpoint directives";
+        case "none":
+            return "$(warning) no endpoint";
+    }
+}
+
+function shortUrl(url: string): string {
+    return url.replace(/^https?:\/\//i, "").replace(/\?.*$/, "");
+}
+
+/**
+ * Returns the cell text with its endpoint directive set to `value` (replacing the first
+ * existing directive line and dropping any further ones), or with all directive lines
+ * removed when `value` is null. Used by the *Set Cell Endpoint* command — the directive
+ * stays the portable source of truth inside the file.
+ */
+export function applyEndpointDirective(cellText: string, value: string | null): string {
+    const directiveLine = /^\s*#\s*\[\s*endpoint\s*=\s*[^\]\s]+\s*\][^\n]*$/;
+    const lines = cellText.split("\n");
+    const kept: string[] = [];
+    let replaced = false;
+    for (const line of lines) {
+        if (!directiveLine.test(line)) {
+            kept.push(line);
+            continue;
+        }
+        if (value !== null && !replaced) {
+            kept.push(`# [endpoint=${value}]`);
+            replaced = true;
+        }
+        // Further directive lines (and all of them when clearing) are dropped.
+    }
+    if (value !== null && !replaced) {
+        kept.unshift(`# [endpoint=${value}]`);
+    }
+    return kept.join("\n");
 }
 
 /**
@@ -89,9 +243,49 @@ export function deriveShaclUrl(url: string): string {
     return shaclPath + (query || "?graph=default");
 }
 
-// ---- Wire types for cimvocabcheck.notebook.execute (mirror the server's records) ----
+// ---- Wire types for the cimvocabcheck.notebook.* commands (mirror the server's records) ----
 
 export const EXECUTE_COMMAND = "cimvocabcheck.notebook.execute";
+export const LIST_CONNECTIONS_COMMAND = "cimvocabcheck.notebook.listConnections";
+export const SET_DEFAULT_ENDPOINT_COMMAND = "cimvocabcheck.notebook.setDefaultEndpoint";
+
+/**
+ * Tells the server which endpoint a notebook's directive-less cells use, so they validate against
+ * what they run against. The default lives in the client's workspace state (not in the notebook
+ * file), hence this push; `endpoint: null` clears it.
+ */
+export interface SetDefaultEndpointRequest {
+    notebookUri: string;
+    endpoint: string | null;
+}
+
+/**
+ * Credentials attached to an execute request. They come from VS Code SecretStorage —
+ * never from the config file — and travel only inside this request.
+ */
+export interface ExecAuth {
+    type: "basic";
+    username: string;
+    password: string;
+}
+
+/** One connection from the config's `cimnotebook.connections`, as the server lists it. */
+export interface ConnectionInfo {
+    name: string;
+    url?: string;
+    updateUrl?: string;
+    shaclUrl?: string;
+    authType?: string;
+    default?: boolean;
+}
+
+/** Result of `cimvocabcheck.notebook.listConnections`. */
+export interface ListConnectionsResponse {
+    configPath?: string | null;
+    connections: ConnectionInfo[];
+    queryTimeoutSeconds?: number | null;
+    maxRows?: number | null;
+}
 
 export interface ExecuteTarget {
     type: "http" | "files";
@@ -99,6 +293,7 @@ export interface ExecuteTarget {
     updateUrl?: string;
     shaclUrl?: string;
     files?: string[];
+    auth?: ExecAuth;
 }
 
 export interface ExecuteRequest {

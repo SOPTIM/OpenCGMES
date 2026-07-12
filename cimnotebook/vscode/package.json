@@ -142,6 +142,21 @@
                 "command": "cimnotebook.notebook.convert",
                 "title": "Convert Notebook (Markdown ⇔ SPARQL Book)",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.notebook.setEndpoint",
+                "title": "Set Cell Endpoint…",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.notebook.setCredentials",
+                "title": "Set Connection Credentials…",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.notebook.clearCredentials",
+                "title": "Clear Connection Credentials…",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -163,6 +178,16 @@
                 {
                     "command": "cimnotebook.notebook.convert",
                     "when": "activeNotebookType =~ /^cimnotebook/"
+                },
+                {
+                    "command": "cimnotebook.notebook.setEndpoint",
+                    "when": "activeNotebookType =~ /^cimnotebook/"
+                },
+                {
+                    "command": "cimnotebook.notebook.setCredentials"
+                },
+                {
+                    "command": "cimnotebook.notebook.clearCredentials"
                 }
             ]
         },

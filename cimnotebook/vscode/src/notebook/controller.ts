@@ -26,14 +26,16 @@
 import * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
 
+import { ConnectionStore } from "./connections";
 import { CellExecutor } from "./executor";
 import { NOTEBOOK_TYPES } from "./serializers";
 
 export function registerNotebookControllers(
     context: vscode.ExtensionContext,
     getClient: () => LanguageClient | undefined,
+    store: ConnectionStore,
 ): void {
-    const executor = new CellExecutor(getClient);
+    const executor = new CellExecutor(getClient, store, context.secrets);
     let executionOrder = 0;
 
     for (const notebookType of NOTEBOOK_TYPES) {

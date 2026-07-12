@@ -18,6 +18,8 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -161,5 +163,21 @@ final class ExecSupport {
 
   static boolean isBlank(String s) {
     return s == null || s.isBlank();
+  }
+
+  /**
+   * The value for a preemptive {@code Authorization} header, or {@code null} when the target has no
+   * usable basic-auth credentials. Sent preemptively (rather than via a 401 challenge dance) so it
+   * also works with services that answer 400/404 instead of challenging.
+   */
+  static String basicAuthHeader(ExecAuth auth) {
+    if (auth == null
+        || !ExecAuth.TYPE_BASIC.equalsIgnoreCase(auth.type())
+        || auth.username() == null) {
+      return null;
+    }
+    String credentials = auth.username() + ":" + (auth.password() != null ? auth.password() : "");
+    return "Basic "
+        + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
   }
 }
