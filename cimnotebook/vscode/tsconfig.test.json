@@ -14,6 +14,10 @@
         "src/notebook/sparqlbook.ts",
         "src/notebook/endpoint.ts",
         "src/notebook/outputs.ts",
-        "src/notebook/*.test.ts"
+        "src/notebook/relativizePath.ts",
+        "src/notebook/*.test.ts",
+        "src/sidebar/configModel.ts",
+        "src/sidebar/treeItems.ts",
+        "src/sidebar/*.test.ts"
     ]
 }

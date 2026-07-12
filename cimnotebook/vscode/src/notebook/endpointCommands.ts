@@ -29,13 +29,22 @@
 
 import * as vscode from "vscode";
 
+import { validateRequiredUrl } from "../sidebar/treeItems";
 import { ConnectionStore } from "./connections";
 import { clearCredentials, setCredentials } from "./credentials";
 import { applyEndpointDirective, ConnectionInfo } from "./endpoint";
+import { pickWorkspaceFiles } from "./filePicker";
 
 export const SET_ENDPOINT_COMMAND = "cimnotebook.notebook.setEndpoint";
 export const SET_CREDENTIALS_COMMAND = "cimnotebook.notebook.setCredentials";
 export const CLEAR_CREDENTIALS_COMMAND = "cimnotebook.notebook.clearCredentials";
+
+/** Data file extensions offered by the "Enter data file path…" picker. */
+const DATA_FILE_PATTERN = "**/*.{xml,ttl,rdf,owl,nt,nq,trig}";
+
+/** Workspace-scoped memory of recently used endpoint URLs (most recent first). */
+const RECENT_URLS_KEY = "cimnotebook.recentEndpointUrls";
+const MAX_RECENT_URLS = 5;
 
 export function registerEndpointCommands(
     context: vscode.ExtensionContext,
@@ -43,7 +52,7 @@ export function registerEndpointCommands(
 ): void {
     context.subscriptions.push(
         vscode.commands.registerCommand(SET_ENDPOINT_COMMAND, (cell?: vscode.NotebookCell) =>
-            setEndpoint(store, cell),
+            setEndpoint(context, store, cell),
         ),
         vscode.commands.registerCommand(SET_CREDENTIALS_COMMAND, () =>
             manageCredentials(context, store, "set"),
@@ -61,7 +70,11 @@ interface EndpointPick extends vscode.QuickPickItem {
     connection?: ConnectionInfo;
 }
 
-async function setEndpoint(store: ConnectionStore, cell?: vscode.NotebookCell): Promise<void> {
+async function setEndpoint(
+    context: vscode.ExtensionContext,
+    store: ConnectionStore,
+    cell?: vscode.NotebookCell,
+): Promise<void> {
     const target = cell ?? activeCell();
     if (!target) {
         vscode.window.showWarningMessage("CIMNotebook: no notebook cell is active.");
@@ -104,18 +117,13 @@ async function setEndpoint(store: ConnectionStore, cell?: vscode.NotebookCell): 
         return;
     }
 
-    let directive: string | null;
+    let directive: string | string[] | null;
     switch (pick.action) {
         case "connection":
             directive = pick.connection?.name ?? null;
             break;
         case "url": {
-            const url = await vscode.window.showInputBox({
-                title: "SPARQL endpoint URL",
-                placeHolder: "http://localhost:3030/dataset/query",
-                validateInput: (v) =>
-                    /^https?:\/\/\S+$/i.test(v) ? undefined : "Enter an http(s):// URL",
-            });
+            const url = await pickEndpointUrl(context);
             if (url === undefined) {
                 return;
             }
@@ -123,14 +131,21 @@ async function setEndpoint(store: ConnectionStore, cell?: vscode.NotebookCell): 
             break;
         }
         case "file": {
-            const file = await vscode.window.showInputBox({
-                title: "Data file path (relative to the notebook)",
-                placeHolder: "./model.xml",
+            const files = await pickWorkspaceFiles({
+                pattern: DATA_FILE_PATTERN,
+                baseUri: vscode.Uri.joinPath(target.notebook.uri, ".."),
+                title: "Data file(s) to run this cell against",
+                placeHolder: "Search by file name — pick one or more (Tab to multi-select)",
+                canPickMany: true,
+                allowManualEntry: true,
             });
-            if (file === undefined || file === "") {
+            const usable = filterDirectiveSafePaths(files);
+            if (!usable || usable.length === 0) {
                 return;
             }
-            directive = file;
+            // A notebook-wide default is a single stored directive (connections.ts), so a
+            // multi-file union — the M3 target — only makes sense written into the cell.
+            directive = usable.length > 1 ? usable : usable[0];
             break;
         }
         case "clear":
@@ -138,8 +153,9 @@ async function setEndpoint(store: ConnectionStore, cell?: vscode.NotebookCell): 
             break;
     }
 
+    // "clear" (null) and multi-file (string[]) both apply to the cell only.
     const scope =
-        directive === null
+        directive === null || Array.isArray(directive)
             ? "This cell"
             : await vscode.window.showQuickPick(["This cell", "Notebook default"], {
                   title: "Apply where?",
@@ -150,8 +166,8 @@ async function setEndpoint(store: ConnectionStore, cell?: vscode.NotebookCell): 
     if (scope === undefined) {
         return;
     }
-    if (scope === "Notebook default") {
-        await store.setNotebookDefault(target.notebook, directive ?? undefined);
+    if (scope === "Notebook default" && typeof directive === "string") {
+        await store.setNotebookDefault(target.notebook, directive);
         return;
     }
 
@@ -165,6 +181,72 @@ async function setEndpoint(store: ConnectionStore, cell?: vscode.NotebookCell): 
         );
         await vscode.workspace.applyEdit(edit);
     }
+}
+
+/**
+ * A small QuickPick history of recently used URLs (workspaceState, last {@link
+ * MAX_RECENT_URLS}) above a plain "Enter new URL…" input box — skipped entirely the
+ * first time, when there is nothing to recall yet.
+ */
+async function pickEndpointUrl(context: vscode.ExtensionContext): Promise<string | undefined> {
+    const recent = context.workspaceState.get<string[]>(RECENT_URLS_KEY, []);
+    let url: string | undefined;
+    if (recent.length === 0) {
+        url = await promptForUrl();
+    } else {
+        interface UrlPick extends vscode.QuickPickItem {
+            url?: string;
+            enterNew?: boolean;
+        }
+        const items: UrlPick[] = recent.map((u) => ({ label: `$(history) ${u}`, url: u }));
+        items.push({ label: "$(edit) Enter new URL…", enterNew: true });
+        const pick = await vscode.window.showQuickPick(items, {
+            title: "SPARQL endpoint URL",
+            placeHolder: "Pick a recent URL or enter a new one",
+        });
+        if (!pick) {
+            return undefined;
+        }
+        url = pick.enterNew ? await promptForUrl() : pick.url;
+    }
+    if (url === undefined) {
+        return undefined;
+    }
+    await rememberRecentUrl(context, url);
+    return url;
+}
+
+function promptForUrl(): Thenable<string | undefined> {
+    return vscode.window.showInputBox({
+        title: "SPARQL endpoint URL",
+        placeHolder: "http://localhost:3030/dataset/query",
+        validateInput: validateRequiredUrl,
+    });
+}
+
+/**
+ * Drops picked paths that a `# [endpoint=...]` directive cannot express — its value ends
+ * at the first whitespace character (see `parseEndpointDirectives`) — and tells the user
+ * why. Returns `undefined` when the pick itself was cancelled.
+ */
+function filterDirectiveSafePaths(files: string[] | undefined): string[] | undefined {
+    if (!files) {
+        return undefined;
+    }
+    const unusable = files.filter((f) => /\s/.test(f));
+    if (unusable.length > 0) {
+        vscode.window.showErrorMessage(
+            `CIMNotebook: ${unusable.join(", ")} can't be used in a # [endpoint=…] directive — ` +
+                "paths containing whitespace aren't supported. Rename the file or folder to use it here.",
+        );
+    }
+    return files.filter((f) => !/\s/.test(f));
+}
+
+async function rememberRecentUrl(context: vscode.ExtensionContext, url: string): Promise<void> {
+    const recent = context.workspaceState.get<string[]>(RECENT_URLS_KEY, []);
+    const next = [url, ...recent.filter((u) => u !== url)].slice(0, MAX_RECENT_URLS);
+    await context.workspaceState.update(RECENT_URLS_KEY, next);
 }
 
 function activeCell(): vscode.NotebookCell | undefined {

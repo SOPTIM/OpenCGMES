@@ -103,6 +103,23 @@ status-bar button and **CIMNotebook: Set Cell Endpoint…** pick the target, and
 **CIMNotebook: Set/Clear Connection Credentials…** manage basic-auth secrets. See
 [CIM Notebooks](/cimnotebook/notebooks).
 
+### Configuration sidebar
+
+The **CIMNotebook** icon in the activity bar opens three native, collapsible sections for
+the workspace's [`opencgmes.jsonc`](/cimvocabcheck/configuration): **Connections**,
+**Validation** (strictness, standard-vocabulary check, schemas directory, schema files),
+and **Notebook Execution** (query timeout, max rows). Each row shows its current value —
+click a row to edit it with a QuickPick or input box, use the `+` button in a section's
+title bar (or on **Schema files**) to add an entry, and hover a row for inline edit /
+remove / set-default / credentials actions. Adding a schema file or a connection's data
+file offers fuzzy, search-as-you-type file matching over the workspace, with a
+**Browse…** fallback for files outside it. Every edit patches only the changed value
+through the same comment-preserving path edits as hand-editing, so the sidebar and manual
+changes to the file coexist. Without a config file yet, the sections show a **Create
+Config File** prompt instead. The sections follow the active document's _nearest_ config,
+the same discovery validation uses — the **Connections** section header shows which
+config file that is.
+
 ### SPARQL Notebook support
 
 CIMNotebook validates SPARQL **cells** inside notebook documents — its own CIM Notebooks as well

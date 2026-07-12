@@ -32,6 +32,7 @@ import { registerConvertCommand } from "./notebook/convert";
 import { ConnectionStore } from "./notebook/connections";
 import { registerEndpointCommands } from "./notebook/endpointCommands";
 import { registerCellStatusBar } from "./notebook/statusBar";
+import { registerConfigTreeViews } from "./sidebar/treeViews";
 
 const CHANNEL = "CIMNotebook";
 
@@ -71,6 +72,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerConvertCommand(context);
     registerEndpointCommands(context, connectionStore);
     registerCellStatusBar(context, connectionStore);
+    registerConfigTreeViews(context, connectionStore);
 
     try {
         doActivate(context, connectionStore);

@@ -245,6 +245,26 @@ describe("applyEndpointDirective", () => {
         const text = "# just a comment\nASK {}";
         assert.equal(applyEndpointDirective(text, null), text);
     });
+
+    it("writes one directive line per array entry, in order", () => {
+        assert.equal(
+            applyEndpointDirective("ASK {}", ["a.ttl", "b.ttl"]),
+            "# [endpoint=a.ttl]\n# [endpoint=b.ttl]\nASK {}",
+        );
+    });
+
+    it("replaces every existing directive with the new array at the first one's position", () => {
+        const text = "# [endpoint=./a.ttl]\nASK {}\n# [endpoint=./b.ttl]";
+        assert.equal(
+            applyEndpointDirective(text, ["x.ttl", "y.ttl", "z.ttl"]),
+            "# [endpoint=x.ttl]\n# [endpoint=y.ttl]\n# [endpoint=z.ttl]\nASK {}",
+        );
+    });
+
+    it("treats an empty array like clearing", () => {
+        const text = "# [endpoint=./a.ttl]\nASK {}";
+        assert.equal(applyEndpointDirective(text, []), "ASK {}");
+    });
 });
 
 describe("deriveShaclUrl", () => {
