@@ -1,5 +1,5 @@
 
-Lists of 38 third-party dependencies.
+Lists of 39 third-party dependencies.
      (Apache-2.0) aalto-xml (com.fasterxml:aalto-xml:1.4.0 - https://github.com/FasterXML/aalto-xml)
      (Apache-2.0) Apache Commons Codec (commons-codec:commons-codec:1.22.0 - https://commons.apache.org/proper/commons-codec/)
      (Apache-2.0) Apache Commons Collections (org.apache.commons:commons-collections4:4.5.0 - https://commons.apache.org/proper/commons-collections/)
@@ -12,6 +12,7 @@ Lists of 38 third-party dependencies.
      (Apache-2.0) Apache Jena - Core (org.apache.jena:jena-core:6.1.0 - https://jena.apache.org/jena-core/)
      (Apache-2.0) Apache Jena - IRI3986 (org.apache.jena:jena-iri3986:6.1.0 - https://jena.apache.org/jena-iri3986/)
      (Apache-2.0) Apache Jena - Language tags (org.apache.jena:jena-langtag:6.1.0 - https://jena.apache.org/jena-langtag/)
+     (Apache-2.0) Apache Jena - SHACL (org.apache.jena:jena-shacl:6.1.0 - https://jena.apache.org/jena-shacl/)
      (Apache-2.0) Apache Log4j API (org.apache.logging.log4j:log4j-api:2.26.1 - https://logging.apache.org/log4j/2.x/)
      (Apache-2.0) Apache Log4j Core (org.apache.logging.log4j:log4j-core:2.26.1 - https://logging.apache.org/log4j/2.x/)
      (Apache-2.0) Apache Thrift (org.apache.thrift:libthrift:0.22.0 - https://thrift.apache.org/)

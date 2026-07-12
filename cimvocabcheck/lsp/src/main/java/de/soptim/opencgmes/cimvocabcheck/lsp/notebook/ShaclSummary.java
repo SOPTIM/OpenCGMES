@@ -19,14 +19,12 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
 /**
- * The kind of operation a cell was classified as: for SPARQL cells, by {@link QueryKindDetector};
- * {@link #SHACL} is assigned directly from the cell's language id (see {@code ShaclExecutor}).
+ * Aggregated outcome of a SHACL validation run, so the client can render a verdict banner without
+ * parsing the report graph in {@link ExecuteResponse#turtle()}.
+ *
+ * @param conforms the report's {@code sh:conforms} value.
+ * @param violations number of report entries with severity {@code sh:Violation}.
+ * @param warnings number of report entries with severity {@code sh:Warning}.
+ * @param infos number of report entries with severity {@code sh:Info}.
  */
-enum QueryKind {
-  SELECT,
-  ASK,
-  CONSTRUCT,
-  DESCRIBE,
-  UPDATE,
-  SHACL
-}
+record ShaclSummary(boolean conforms, int violations, int warnings, int infos) {}

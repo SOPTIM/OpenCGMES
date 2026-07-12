@@ -26,7 +26,7 @@
  * *Change Presentation*.
  */
 
-import { ExecError, ExecStats, ExecuteResponse } from "./endpoint";
+import { ExecError, ExecStats, ExecuteResponse, ShaclSummary } from "./endpoint";
 
 /** Rows shown in the markdown table; the raw output item carries the full result. */
 export const DISPLAY_ROW_CAP = 50;
@@ -80,6 +80,16 @@ export function outputItemsFor(response: ExecuteResponse): OutputItem[] {
         }
         case "UPDATE":
             return [{ mime: MIME_MARKDOWN, text: updateResultToMarkdown(stats) }];
+        case "SHACL": {
+            const turtle = response.turtle ?? "";
+            return [
+                {
+                    mime: MIME_MARKDOWN,
+                    text: shaclReportToMarkdown(turtle, response.shaclSummary, stats),
+                },
+                { mime: MIME_TEXT, text: turtle },
+            ];
+        }
         default:
             return [];
     }
@@ -139,6 +149,38 @@ export function turtleToMarkdown(turtle: string, stats?: ExecStats | null): stri
 /** Confirmation line for a successful UPDATE. */
 export function updateResultToMarkdown(stats?: ExecStats | null): string {
     return "✅ **Update executed.**" + statsFooter(stats);
+}
+
+/** Verdict banner plus the fenced validation report for a SHACL run. */
+export function shaclReportToMarkdown(
+    turtle: string,
+    summary: ShaclSummary | null | undefined,
+    stats?: ExecStats | null,
+): string {
+    const banner =
+        summary == null
+            ? "**Validation finished.**"
+            : summary.conforms
+              ? "✅ **Conforms** — no validation results."
+              : `❌ **Does not conform** — ${shaclCounts(summary)}.`;
+    const report = turtle.trimEnd();
+    const fenced = report.length > 0 ? "\n\n```turtle\n" + report + "\n```" : "";
+    return banner + fenced + statsFooter(stats);
+}
+
+function shaclCounts(summary: ShaclSummary): string {
+    const parts = [plural(summary.violations, "violation")];
+    if (summary.warnings > 0) {
+        parts.push(plural(summary.warnings, "warning"));
+    }
+    if (summary.infos > 0) {
+        parts.push(plural(summary.infos, "info"));
+    }
+    return parts.join(", ");
+}
+
+function plural(n: number, noun: string): string {
+    return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /** One-line summary for `NotebookCellOutputItem.error`, with parse position if known. */

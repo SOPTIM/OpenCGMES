@@ -19,7 +19,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { deriveUpdateUrl, parseEndpointDirectives, resolveTarget } from "./endpoint";
+import {
+    deriveShaclUrl,
+    deriveUpdateUrl,
+    parseEndpointDirectives,
+    resolveTarget,
+} from "./endpoint";
 
 describe("parseEndpointDirectives", () => {
     it("finds every directive, in order, with flexible spacing", () => {
@@ -49,12 +54,13 @@ describe("resolveTarget", () => {
         assert.deepEqual(resolveTarget("SELECT * WHERE { ?s ?p ?o }"), { type: "none" });
     });
 
-    it("picks the first http(s) directive and derives the update sibling", () => {
+    it("picks the first http(s) directive and derives the update and shacl siblings", () => {
         const target = resolveTarget("# [endpoint=https://host/ds/query]\nASK {}");
         assert.deepEqual(target, {
             type: "http",
             url: "https://host/ds/query",
             updateUrl: "https://host/ds/update",
+            shaclUrl: "https://host/ds/shacl?graph=default",
         });
     });
 
@@ -80,6 +86,32 @@ describe("resolveTarget", () => {
             "# [endpoint=./a.ttl]\n# [endpoint=http://host/sparql]\nASK {}",
         );
         assert.equal(target.type, "http");
+    });
+});
+
+describe("deriveShaclUrl", () => {
+    it("maps Fuseki-style query/sparql services to the shacl sibling with a default graph", () => {
+        assert.equal(
+            deriveShaclUrl("http://h:3030/ds/query"),
+            "http://h:3030/ds/shacl?graph=default",
+        );
+        assert.equal(deriveShaclUrl("http://h/ds/sparql"), "http://h/ds/shacl?graph=default");
+    });
+
+    it("appends /shacl to dataset-style URLs", () => {
+        assert.equal(deriveShaclUrl("http://h/ds"), "http://h/ds/shacl?graph=default");
+        assert.equal(deriveShaclUrl("http://h/ds/"), "http://h/ds/shacl?graph=default");
+    });
+
+    it("keeps an explicit shacl service and preserves an existing query string", () => {
+        assert.equal(
+            deriveShaclUrl("http://h/ds/shacl?graph=urn:x"),
+            "http://h/ds/shacl?graph=urn:x",
+        );
+        assert.equal(
+            deriveShaclUrl("http://h/ds/query?graph=urn:x"),
+            "http://h/ds/shacl?graph=urn:x",
+        );
     });
 });
 

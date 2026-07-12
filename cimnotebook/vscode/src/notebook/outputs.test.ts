@@ -26,6 +26,7 @@ import {
     MIME_MARKDOWN,
     outputItemsFor,
     selectResultsToMarkdown,
+    shaclReportToMarkdown,
     turtleToMarkdown,
     updateResultToMarkdown,
 } from "./outputs";
@@ -125,6 +126,37 @@ describe("turtleToMarkdown", () => {
     });
 });
 
+describe("shaclReportToMarkdown", () => {
+    const report = "[] a sh:ValidationReport ; sh:conforms true .";
+
+    it("renders a conforming verdict with the fenced report", () => {
+        const md = shaclReportToMarkdown(
+            report,
+            { conforms: true, violations: 0, warnings: 0, infos: 0 },
+            { durationMs: 12, truncated: false, resolvedTarget: "./model.xml" },
+        );
+        assert.ok(md.startsWith("✅ **Conforms**"));
+        assert.ok(md.includes("```turtle\n" + report + "\n```"));
+        assert.ok(md.includes("12 ms"));
+    });
+
+    it("counts violations and mentions warnings/infos only when present", () => {
+        const md = shaclReportToMarkdown("report", {
+            conforms: false,
+            violations: 2,
+            warnings: 1,
+            infos: 0,
+        });
+        assert.ok(md.startsWith("❌ **Does not conform** — 2 violations, 1 warning."));
+        assert.ok(!md.includes("info"));
+    });
+
+    it("copes with a missing summary and an empty report", () => {
+        const md = shaclReportToMarkdown("", null);
+        assert.equal(md, "**Validation finished.**");
+    });
+});
+
 describe("updateResultToMarkdown", () => {
     it("confirms the update with stats", () => {
         const md = updateResultToMarkdown({ durationMs: 8, truncated: false });
@@ -153,6 +185,12 @@ describe("outputItemsFor", () => {
             { status: "SUCCESS", queryKind: "ASK", resultsJson: '{"boolean":true}' },
             { status: "SUCCESS", queryKind: "CONSTRUCT", turtle: "<a> <b> <c> ." },
             { status: "SUCCESS", queryKind: "UPDATE" },
+            {
+                status: "SUCCESS",
+                queryKind: "SHACL",
+                turtle: "",
+                shaclSummary: { conforms: true, violations: 0, warnings: 0, infos: 0 },
+            },
         ] as const;
 
         for (const response of responses) {
