@@ -141,8 +141,8 @@ export function deactivate(): Thenable<void> | undefined {
 }
 
 /**
- * Scaffolds an `opencgmes.jsonc` in the workspace root. CIMNotebook works without it (validating against
- * the bundled CGMES 3.0 schemas); the generated file is fully commented and exists for customisation.
+ * Scaffolds an `opencgmes.jsonc` in the workspace root. CIMNotebook works without it, but there is no
+ * bundled default schema, so validation stays syntax-only until the file points at CGMES profiles.
  * The template text comes from the language server's `cimvocabcheck.createConfig` command so the CLI and
  * editors stay in sync. A plain `opencgmes.json` (no comments) is also recognised by CIMNotebook — if one
  * already exists, it is treated as the existing config instead of creating a second `opencgmes.jsonc`
