@@ -25,15 +25,10 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.compose.MultiUnion;
 import org.apache.jena.riot.RDFDataMgr;
@@ -53,10 +48,10 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>Caching.</b> Entries are keyed by absolute path and invalidated when the file's
  * modification time or size changes, checked on every access — editing a model and re-running the
- * cell always queries the current file. The cache is future-valued so concurrent cells hitting the
- * same not-yet-parsed file share one parse instead of racing, and LRU-bounded ({@value
- * #DEFAULT_CAPACITY} files by default) because CIMXML models can be large; evicted files are simply
- * re-parsed on next use.
+ * cell always queries the current file. Lookups are serialized on the manager, so concurrent cells
+ * hitting the same not-yet-parsed file briefly queue up behind one parse instead of racing. The
+ * cache is LRU-bounded ({@value #DEFAULT_CAPACITY} files by default) because CIMXML models can be
+ * large; evicted files are simply re-parsed on next use.
  *
  * <p><b>Union semantics.</b> {@link #unionFor} exposes multiple files as one dataset: every named
  * graph of every file stays addressable via {@code GRAPH}, while the default graph is the union of
@@ -78,18 +73,19 @@ final class LocalStoreManager {
   /** A cached parse: the file's attributes at parse time, used to detect staleness on access. */
   private record CachedEntry(FileTime mtime, long size, DatasetGraph graph) {}
 
-  private final Map<Path, CompletableFuture<CachedEntry>> cache;
+  /** All access goes through the synchronized {@link #datasetGraphFor}. */
+  private final LruCache cache;
 
   LocalStoreManager() {
     this(DEFAULT_CAPACITY);
   }
 
   LocalStoreManager(int capacity) {
-    this.cache = Collections.synchronizedMap(new LruCache(capacity));
+    this.cache = new LruCache(capacity);
   }
 
   /** Access-ordered {@link LinkedHashMap} bounded at {@code capacity} entries. */
-  private static final class LruCache extends LinkedHashMap<Path, CompletableFuture<CachedEntry>> {
+  private static final class LruCache extends LinkedHashMap<Path, CachedEntry> {
 
     private static final long serialVersionUID = 1L;
 
@@ -101,7 +97,7 @@ final class LocalStoreManager {
     }
 
     @Override
-    protected boolean removeEldestEntry(Map.Entry<Path, CompletableFuture<CachedEntry>> eldest) {
+    protected boolean removeEldestEntry(Map.Entry<Path, CachedEntry> eldest) {
       boolean evict = size() > capacity;
       if (evict) {
         LOG.debug(
@@ -157,58 +153,22 @@ final class LocalStoreManager {
   }
 
   /**
-   * Returns the (possibly cached) parse of one file, re-parsing when the file changed on disk.
-   * Package-private so tests can observe cache behavior through instance identity.
+   * Returns the (possibly cached) parse of one file, re-parsing when the file changed on disk. A
+   * failed parse is not cached, so the next run retries (the file has usually been edited by then
+   * anyway). Package-private so tests can observe cache behavior through instance identity.
    */
-  DatasetGraph datasetGraphFor(Path file) throws StoreException {
-    while (true) {
-      BasicFileAttributes attrs = readAttributes(file);
-
-      AtomicBoolean isLoader = new AtomicBoolean();
-      CompletableFuture<CachedEntry> future =
-          cache.computeIfAbsent(
-              file,
-              p -> {
-                isLoader.set(true);
-                return new CompletableFuture<>();
-              });
-
-      if (isLoader.get()) {
-        // This thread inserted the future, so it owns the parse; concurrent callers of the same
-        // file are waiting on the future below. A failed parse is not cached — the mapping is
-        // removed so the next run retries (the file has usually been edited by then anyway).
-        try {
-          CachedEntry entry = new CachedEntry(attrs.lastModifiedTime(), attrs.size(), parse(file));
-          future.complete(entry);
-          return entry.graph();
-        } catch (StoreException | RuntimeException | Error e) {
-          cache.remove(file, future);
-          future.completeExceptionally(e);
-          throw e;
-        }
-      }
-
-      CachedEntry entry = awaitEntry(file, future);
+  synchronized DatasetGraph datasetGraphFor(Path file) throws StoreException {
+    BasicFileAttributes attrs = readAttributes(file);
+    CachedEntry entry = cache.get(file);
+    if (entry != null) {
       if (entry.mtime().equals(attrs.lastModifiedTime()) && entry.size() == attrs.size()) {
         return entry.graph();
       }
       LOG.debug("Cached store for {} is stale, re-parsing", file);
-      cache.remove(file, future);
     }
-  }
-
-  private static CachedEntry awaitEntry(Path file, CompletableFuture<CachedEntry> future)
-      throws StoreException {
-    try {
-      return future.join();
-    } catch (CompletionException | CancellationException e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof StoreException storeException) {
-        throw storeException;
-      }
-      throw new StoreException(
-          ErrorCode.FILE_PARSE_ERROR, "Failed to parse " + file + ": " + e.getMessage(), e);
-    }
+    CachedEntry parsed = new CachedEntry(attrs.lastModifiedTime(), attrs.size(), parse(file));
+    cache.put(file, parsed);
+    return parsed.graph();
   }
 
   private static BasicFileAttributes readAttributes(Path file) throws StoreException {

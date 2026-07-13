@@ -36,15 +36,16 @@ export function parseEndpointDirectives(text: string): string[] {
 
 /**
  * What one directive value means: an endpoint URL, a named connection from the config's
- * `cimnotebook.connections`, or a file path. Mirrors the server's heuristic — a
- * connection name has no path separators and no extension dot, files virtually always
- * have one ("model.xml" is a file, "local-fuseki" a name).
+ * `cimnotebook.connections`, or a file path / glob pattern. Mirrors the server's
+ * heuristic — a connection name has no path separators, no extension dot, and no glob
+ * metacharacters ("model.xml" and "*.ttl" are files, "local-fuseki" a name). Glob
+ * patterns (`./rdf/*.ttl`, `./rdf/{a,b}.ttl`) are expanded server-side.
  */
 export function classifyDirective(directive: string): "url" | "name" | "file" {
     if (/^https?:\/\//i.test(directive)) {
         return "url";
     }
-    if (!/[/\\.]/.test(directive)) {
+    if (!/[/\\.*?{[]/.test(directive)) {
         return "name";
     }
     return "file";
@@ -281,12 +282,14 @@ export interface ConnectionInfo {
     default?: boolean;
 }
 
-/** Result of `cimvocabcheck.notebook.listConnections`. */
+/**
+ * Result of `cimvocabcheck.notebook.listConnections`. Execution defaults
+ * (queryTimeoutSeconds/maxRows) are applied server-side and deliberately not part of the wire.
+ */
 export interface ListConnectionsResponse {
+    /** The config file the connections came from — watched for changes when outside the workspace. */
     configPath?: string | null;
     connections: ConnectionInfo[];
-    queryTimeoutSeconds?: number | null;
-    maxRows?: number | null;
 }
 
 export interface ExecuteTarget {
@@ -305,7 +308,6 @@ export interface ExecuteRequest {
     languageId: string;
     text: string;
     target: ExecuteTarget;
-    options?: { timeoutMs?: number; maxRows?: number };
 }
 
 export type QueryKind = "SELECT" | "ASK" | "CONSTRUCT" | "DESCRIBE" | "UPDATE" | "SHACL";

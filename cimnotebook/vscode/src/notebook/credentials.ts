@@ -91,6 +91,29 @@ export async function clearCredentials(
     await secrets.delete(secretKey(connectionName));
 }
 
+/**
+ * Runs one set/clear credentials action including the confirmation message — the shared tail of
+ * the palette commands and the connections-view context menu.
+ */
+export async function runCredentialsAction(
+    secrets: vscode.SecretStorage,
+    connectionName: string,
+    action: "set" | "clear",
+): Promise<void> {
+    if (action === "set") {
+        if (await setCredentials(secrets, connectionName)) {
+            vscode.window.showInformationMessage(
+                `CIMNotebook: credentials for "${connectionName}" stored in VS Code secret storage.`,
+            );
+        }
+        return;
+    }
+    await clearCredentials(secrets, connectionName);
+    vscode.window.showInformationMessage(
+        `CIMNotebook: credentials for "${connectionName}" cleared.`,
+    );
+}
+
 async function promptForCredentials(connectionName: string): Promise<ExecAuth | undefined> {
     const username = await vscode.window.showInputBox({
         title: `Username for connection "${connectionName}"`,

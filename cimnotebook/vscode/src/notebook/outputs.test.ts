@@ -67,7 +67,7 @@ describe("selectResultsToMarkdown", () => {
             ),
         );
         assert.ok(md.includes('"hi"@en'));
-        assert.ok(md.includes('"4"^^<http://www.w3.org/2001/XMLSchema#int>'));
+        assert.ok(md.includes('"4"^^&lt;http://www.w3.org/2001/XMLSchema#int&gt;'));
         assert.ok(md.includes("_:b0"));
     });
 
@@ -76,6 +76,14 @@ describe("selectResultsToMarkdown", () => {
             selectJson([{ a: { type: "literal", value: "x|y\nz" } }], ["a", "b"]),
         );
         assert.ok(md.includes("| x\\|y<br>z |  |"));
+    });
+
+    it("escapes HTML in cell values so result data is never parsed as markup", () => {
+        const md = selectResultsToMarkdown(
+            selectJson([{ a: { type: "literal", value: "use <b> & stay a<b" } }], ["a"]),
+        );
+        assert.ok(md.includes("| use &lt;b&gt; &amp; stay a&lt;b |"));
+        assert.ok(!md.includes("<b>"));
     });
 
     it("caps the table at DISPLAY_ROW_CAP rows with a note", () => {

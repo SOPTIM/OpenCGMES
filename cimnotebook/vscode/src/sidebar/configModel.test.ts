@@ -52,6 +52,7 @@ describe("parseConfigModel", () => {
                 shaclUrl: undefined,
                 authType: undefined,
                 default: true,
+                rawIndex: 0,
             },
         ]);
     });
@@ -116,8 +117,74 @@ describe("applyConfigModel", () => {
                 shaclUrl: undefined,
                 authType: "basic",
                 default: undefined,
+                rawIndex: 0,
             },
         ]);
+    });
+
+    // A config the sidebar's form model cannot fully represent: comments between and inside
+    // entries, a field the form does not know, and a work-in-progress entry without a url.
+    const HANDWRITTEN = `{
+  "cimnotebook": {
+    "connections": [
+      // production — ask ops for credentials
+      {
+        "name": "prod",
+        "url": "https://example.org/query",
+        "description": "the shared instance"
+      },
+      { "name": "wip" },
+      { "name": "local", "url": "http://localhost:3030/ds/query" }
+    ]
+  }
+}
+`;
+
+    it("edits one connection in place, keeping comments, unknown fields, and skipped entries", () => {
+        const model = parseConfigModel(HANDWRITTEN);
+        const local = model.connections?.find((c) => c.name === "local");
+        assert.ok(local);
+        local.default = true;
+
+        const result = applyConfigModel(HANDWRITTEN, model);
+
+        assert.ok(result.includes("production — ask ops for credentials"), "comment kept");
+        assert.ok(result.includes('"description": "the shared instance"'), "unknown field kept");
+        assert.ok(result.includes('{ "name": "wip" }'), "incomplete entry kept verbatim");
+        const parsedBack = parseConfigModel(result);
+        assert.equal(parsedBack.connections?.find((c) => c.name === "local")?.default, true);
+        assert.equal(parsedBack.connections?.find((c) => c.name === "prod")?.default, undefined);
+    });
+
+    it("removes exactly the targeted entry by its raw-array position", () => {
+        const model = parseConfigModel(HANDWRITTEN);
+        model.connections = model.connections?.filter((c) => c.name !== "prod");
+
+        const result = applyConfigModel(HANDWRITTEN, model);
+
+        assert.ok(!result.includes('"prod"'));
+        // The neighbor may get reformatted by the removal edit, but it must survive.
+        assert.ok(result.includes('"wip"'), "skipped entry survives the removal");
+        assert.ok(result.includes('"local"'));
+    });
+
+    it("appends a new connection without rewriting existing entries", () => {
+        const model = parseConfigModel(HANDWRITTEN);
+        model.connections = [
+            ...(model.connections ?? []),
+            { name: "new", url: "http://h/q", default: true },
+        ];
+
+        const result = applyConfigModel(HANDWRITTEN, model);
+
+        assert.ok(result.includes("production — ask ops for credentials"), "comment kept");
+        assert.ok(result.includes('{ "name": "wip" }'), "skipped entry kept");
+        const parsedBack = parseConfigModel(result);
+        assert.deepEqual(
+            parsedBack.connections?.map((c) => c.name),
+            ["prod", "local", "new"],
+        );
+        assert.equal(parsedBack.connections?.find((c) => c.name === "new")?.default, true);
     });
 
     it("builds a full config from empty text", () => {

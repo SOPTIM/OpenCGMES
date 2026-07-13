@@ -18,11 +18,13 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp.notebook;
 
-/** Machine-readable failure reason reported in {@link ExecError#code()}. */
+/**
+ * Machine-readable failure reason reported in {@link ExecError#code()}.
+ *
+ * <p>A malformed command argument never reaches these codes — it is rejected at the JSON-RPC level
+ * as an {@code InvalidParams} response error (see {@code NotebookCommandHandler}).
+ */
 enum ErrorCode {
-  /** The command argument could not be parsed as an {@link ExecuteRequest} at all. */
-  INVALID_REQUEST,
-
   /** No endpoint is configured for the cell (missing/blank {@code target}). */
   NO_TARGET,
 

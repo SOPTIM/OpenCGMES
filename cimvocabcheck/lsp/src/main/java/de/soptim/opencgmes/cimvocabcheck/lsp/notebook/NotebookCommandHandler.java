@@ -98,25 +98,17 @@ public final class NotebookCommandHandler {
    * only ever declares an {@code authType}.
    */
   public CompletableFuture<Object> listConnections(List<Object> arguments) {
-    String notebookUri = null;
-    if (arguments != null && !arguments.isEmpty() && arguments.get(0) != null) {
-      Object first = arguments.get(0);
-      JsonElement el =
-          first instanceof JsonElement je ? je : GSON.fromJson(first.toString(), JsonElement.class);
-      if (el != null && el.isJsonObject() && el.getAsJsonObject().has("notebookUri")) {
-        notebookUri = el.getAsJsonObject().get("notebookUri").getAsString();
-      }
-    }
-    final String uri = notebookUri;
+    JsonElement el = CommandArguments.firstAsJson(arguments);
+    final String uri =
+        el != null && el.isJsonObject() && el.getAsJsonObject().has("notebookUri")
+            ? el.getAsJsonObject().get("notebookUri").getAsString()
+            : null;
     return CompletableFuture.supplyAsync(
         () -> {
           NotebookConfigLoader.Located located = NotebookConfigLoader.forNotebook(uri);
-          NotebookConfig config = located.config();
           return new ListConnectionsResponse(
               located.configPath() != null ? located.configPath().toString() : null,
-              config.connections(),
-              config.queryTimeoutSeconds(),
-              config.maxRows());
+              located.config().connections());
         },
         executionPool);
   }
@@ -208,20 +200,13 @@ public final class NotebookCommandHandler {
         new ExecuteOptions(timeoutMs, maxRows));
   }
 
-  /**
-   * Extracts and deserializes the command's single argument. Over JSON-RPC, lsp4j delivers
-   * arguments as Gson {@link JsonElement}s; a direct in-process call may pass a JSON {@link String}
-   * instead — mirrors the dual-case handling in {@code SparqlWorkspaceService}.
-   */
+  /** Extracts and deserializes the command's single argument (see {@link CommandArguments}). */
   private static ExecuteRequest parseRequest(List<Object> arguments) {
-    if (arguments == null || arguments.isEmpty() || arguments.get(0) == null) {
+    JsonElement el = CommandArguments.firstAsJson(arguments);
+    if (el == null) {
       throw new IllegalArgumentException("missing required argument");
     }
-    Object first = arguments.get(0);
-    ExecuteRequest request =
-        first instanceof JsonElement el
-            ? GSON.fromJson(el, ExecuteRequest.class)
-            : GSON.fromJson(first.toString(), ExecuteRequest.class);
+    ExecuteRequest request = GSON.fromJson(el, ExecuteRequest.class);
     if (request == null || request.text() == null) {
       throw new IllegalArgumentException("missing required field 'text'");
     }

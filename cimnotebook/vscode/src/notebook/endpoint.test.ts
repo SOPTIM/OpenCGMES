@@ -63,6 +63,14 @@ describe("classifyDirective", () => {
         assert.equal(classifyDirective("model.xml"), "file");
         assert.equal(classifyDirective("sub/dir"), "file");
     });
+
+    it("treats glob patterns as files, never connection names", () => {
+        assert.equal(classifyDirective("./rdf/*.ttl"), "file");
+        assert.equal(classifyDirective("./rdf/{a,b}.ttl"), "file");
+        assert.equal(classifyDirective("{a,b}"), "file");
+        assert.equal(classifyDirective("data-?"), "file");
+        assert.equal(classifyDirective("[ab]"), "file");
+    });
 });
 
 describe("resolveCellTarget", () => {
@@ -105,6 +113,18 @@ describe("resolveCellTarget", () => {
         assert.deepEqual(res.kind === "target" && res.target, {
             type: "files",
             files: ["./model.xml", "extra.ttl"],
+        });
+    });
+
+    it("passes glob patterns through as file targets for the server to expand", () => {
+        const res = resolveCellTarget(
+            "# [endpoint=./rdf/{a,b}.ttl]\n# [endpoint=./more/*.ttl]\nASK {}",
+            [],
+        );
+        assert.equal(res.kind, "target");
+        assert.deepEqual(res.kind === "target" && res.target, {
+            type: "files",
+            files: ["./rdf/{a,b}.ttl", "./more/*.ttl"],
         });
     });
 

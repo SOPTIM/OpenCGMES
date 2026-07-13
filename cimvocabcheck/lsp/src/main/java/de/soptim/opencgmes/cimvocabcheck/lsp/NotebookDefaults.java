@@ -18,9 +18,9 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.CommandArguments;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
@@ -46,7 +46,6 @@ import org.slf4j.LoggerFactory;
 final class NotebookDefaults {
 
   private static final Logger LOG = LoggerFactory.getLogger(NotebookDefaults.class);
-  private static final Gson GSON = new Gson();
 
   private final Map<String, String> endpoints = new ConcurrentHashMap<>();
   private final List<Runnable> onChangeCallbacks = new CopyOnWriteArrayList<>();
@@ -64,16 +63,10 @@ final class NotebookDefaults {
    * in {@code NotebookCommandHandler}.
    */
   void apply(List<Object> arguments) {
-    if (arguments == null || arguments.isEmpty() || arguments.get(0) == null) {
-      LOG.warn("Ignoring setDefaultEndpoint without an argument");
-      return;
-    }
     try {
-      Object first = arguments.get(0);
-      JsonElement el =
-          first instanceof JsonElement je ? je : GSON.fromJson(first.toString(), JsonElement.class);
+      JsonElement el = CommandArguments.firstAsJson(arguments);
       if (el == null || !el.isJsonObject()) {
-        LOG.warn("Ignoring malformed setDefaultEndpoint argument: {}", first);
+        LOG.warn("Ignoring missing or malformed setDefaultEndpoint argument");
         return;
       }
       JsonObject obj = el.getAsJsonObject();

@@ -41,6 +41,9 @@ export interface ConfigState extends ConfigTarget {
     model: ConfigModel;
 }
 
+/** Belt-and-braces guard: the parent-fixpoint check below is the real terminator. */
+const MAX_CONFIG_WALK_DEPTH = 64;
+
 export async function targetConfig(): Promise<ConfigTarget> {
     const active =
         vscode.window.activeNotebookEditor?.notebook.uri ??
@@ -48,19 +51,24 @@ export async function targetConfig(): Promise<ConfigTarget> {
     const folder = active
         ? vscode.workspace.getWorkspaceFolder(active)
         : vscode.workspace.workspaceFolders?.[0];
-    if (active && folder) {
+    if (active && active.scheme === "file") {
+        // Mirror the server's nearest-config discovery (ConfigLoader.discoverFile): walk from the
+        // document's directory all the way to the filesystem root, not just to the workspace
+        // folder — otherwise the sidebar would edit (or offer to create) a different file than
+        // the one validation and execution actually use.
         let dir = vscode.Uri.joinPath(active, "..");
-        for (let i = 0; i < 64; i++) {
+        for (let i = 0; i < MAX_CONFIG_WALK_DEPTH; i++) {
             for (const name of ["opencgmes.jsonc", "opencgmes.json"]) {
                 const candidate = vscode.Uri.joinPath(dir, name);
                 if (await exists(candidate)) {
                     return { uri: candidate, exists: true };
                 }
             }
-            if (dir.path === folder.uri.path || dir.path === "/") {
+            const parent = vscode.Uri.joinPath(dir, "..");
+            if (parent.path === dir.path) {
                 break;
             }
-            dir = vscode.Uri.joinPath(dir, "..");
+            dir = parent;
         }
     }
     const root = folder ?? vscode.workspace.workspaceFolders?.[0];

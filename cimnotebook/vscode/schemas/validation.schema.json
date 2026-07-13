@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "OpenCGMES Configuration (opencgmes.jsonc)",
-    "description": "Configuration for OpenCGMES tools. CIMVocabCheck reads the \"cimvocabcheck\" section. Place this file at the root of your project (or any parent directory of your queries); CIMVocabCheck discovers the nearest one walking up the tree. The file is optional — without it, validation uses the bundled CGMES 3.0 schemas.",
+    "description": "Configuration for OpenCGMES tools. CIMVocabCheck reads the \"cimvocabcheck\" section. Place this file at the root of your project (or any parent directory of your queries); CIMVocabCheck discovers the nearest one walking up the tree. The file is optional — but without a configured schema, validation is syntax-only (there is no bundled default schema).",
     "type": "object",
     "additionalProperties": true,
     "properties": {
@@ -60,16 +60,16 @@
         },
         "cimvocabcheck": {
             "type": "object",
-            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when neither \"schemas\" nor \"schemasDirectory\" is set, the bundled CGMES 3.0 profiles are used.",
+            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when neither \"schemas\" nor \"schemasDirectory\" is set, no schema is loaded and validation is syntax-only (there is no bundled default schema).",
             "additionalProperties": false,
             "properties": {
                 "schemasDirectory": {
                     "type": "string",
-                    "description": "Path to a directory containing RDFS profile files (.rdf, .ttl, .owl). All files in the directory are loaded as schema profiles. Path is resolved relative to this config file. Omit to use the bundled CGMES 3.0 schemas."
+                    "description": "Path to a directory containing RDFS profile files (.rdf, .ttl, .owl). All files in the directory are loaded as schema profiles. Path is resolved relative to this config file. Without this (and without \"schemas\"), validation is syntax-only."
                 },
                 "schemas": {
                     "type": "array",
-                    "description": "List of individual RDFS profile files to load. Each entry is a path relative to this config file. Omit to use the bundled CGMES 3.0 schemas.",
+                    "description": "List of individual RDFS profile files to load. Each entry is a path relative to this config file. Without this (and without \"schemasDirectory\"), validation is syntax-only.",
                     "items": {
                         "type": "string",
                         "description": "Path to an RDFS profile file (.rdf, .ttl, or .owl), relative to this config file."

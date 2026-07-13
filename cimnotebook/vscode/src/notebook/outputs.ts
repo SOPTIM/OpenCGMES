@@ -211,9 +211,13 @@ function statsFooter(stats?: ExecStats | null): string {
     return `\n\n<small>${parts.map(escapeHtml).join(" · ")}</small>`;
 }
 
-/** Escapes a value for use inside a markdown table cell. */
+/**
+ * Escapes a value for use inside a markdown table cell. HTML must be escaped too — the renderer
+ * accepts inline HTML (this module emits `<br>`/`<small>` itself), so an unescaped `<` in a
+ * result value would be parsed as markup instead of shown.
+ */
 function escapeCell(value: string): string {
-    return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
+    return escapeHtml(value).replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
 }
 
 function escapeHtml(value: string | number): string {
