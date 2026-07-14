@@ -23,16 +23,13 @@ import java.util.List;
 /**
  * Result of the {@code cimvocabcheck.notebook.listConnections} workspace command: the notebook's
  * applicable {@code "cimnotebook"} config, resolved with nearest-config discovery. Contains no
- * secrets by construction (see {@link NotebookConnection}).
+ * secrets by construction (see {@link NotebookConnection}). The execution defaults
+ * (queryTimeoutSeconds/maxRows) are deliberately not part of the response — the server applies them
+ * itself when a request carries no explicit options.
  *
  * @param configPath the config file the connections came from, or {@code null} when no {@code
- *     opencgmes.jsonc} applies to the notebook.
+ *     opencgmes.jsonc} applies to the notebook. The client watches this file for changes when it
+ *     lies outside the workspace.
  * @param connections the declared connections; empty when there are none.
- * @param queryTimeoutSeconds workspace default execution timeout, or {@code null}.
- * @param maxRows workspace default result cap, or {@code null}.
  */
-record ListConnectionsResponse(
-    String configPath,
-    List<NotebookConnection> connections,
-    Integer queryTimeoutSeconds,
-    Integer maxRows) {}
+record ListConnectionsResponse(String configPath, List<NotebookConnection> connections) {}

@@ -23,6 +23,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import org.apache.jena.atlas.web.HttpException;
 import org.apache.jena.query.Query;
+import org.apache.jena.query.QueryCancelledException;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.sparql.engine.http.QueryExceptionHTTP;
 import org.apache.jena.sparql.exec.http.QueryExecutionHTTP;
@@ -122,10 +123,11 @@ final class HttpQueryExecutor {
       return ExecSupport.successFor(qe, kind, url, maxRows);
     } catch (QueryExceptionHTTP e) {
       return ExecuteResponse.failed(classify(e.getStatusCode(), e.getMessage(), e));
-    } catch (CancellationException e) {
-      // Expected fallout of runCancellable's best-effort qe.abort(): the cancelFuture race has
-      // already been won by the time this unwinds, so the returned value is discarded, but avoid
-      // logging a normal user-initiated cancellation as an unexpected internal error.
+    } catch (QueryCancelledException | CancellationException e) {
+      // Expected fallout of runCancellable's best-effort qe.abort(), which Jena signals with
+      // QueryCancelledException: the cancelFuture race has already been won by the time this
+      // unwinds, so the returned value is discarded, but avoid logging a normal user-initiated
+      // cancellation as an unexpected internal error.
       LOG.debug("{} query aborted after cancellation", kind);
       return ExecuteResponse.cancelled();
     } catch (RuntimeException e) {
@@ -142,7 +144,7 @@ final class HttpQueryExecutor {
       return ExecuteResponse.successUpdate(ExecSupport.stats(start, null, false, updateUrl));
     } catch (HttpException e) {
       return ExecuteResponse.failed(classify(e.getStatusCode(), e.getMessage(), e));
-    } catch (CancellationException e) {
+    } catch (QueryCancelledException | CancellationException e) {
       // See the matching catch in runQuery: expected fallout of a best-effort abort() racing
       // against (and losing to) cancelFuture, not a genuine internal error.
       LOG.debug("Update aborted after cancellation");

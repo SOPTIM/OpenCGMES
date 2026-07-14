@@ -273,7 +273,9 @@ public class NotebookCommandHandlerTest {
       Gson wireGson = new MessageJsonHandler(Map.of()).getGson();
       JsonObject json = wireGson.toJsonTree(result).getAsJsonObject();
       assertTrue(json.get("configPath").getAsString().endsWith("opencgmes.jsonc"));
-      assertEquals(7, json.get("queryTimeoutSeconds").getAsInt());
+      assertFalse(
+          "execution defaults are applied server-side, not shipped to the client",
+          json.has("queryTimeoutSeconds"));
       JsonObject connection = json.getAsJsonArray("connections").get(0).getAsJsonObject();
       assertEquals("local-fuseki", connection.get("name").getAsString());
       assertEquals("basic", connection.get("authType").getAsString());
