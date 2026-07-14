@@ -25,6 +25,7 @@
  * to validate those cells against the same endpoint they run against.
  */
 
+import * as path from "path";
 import * as vscode from "vscode";
 import type { LanguageClient } from "vscode-languageclient/node";
 
@@ -49,6 +50,9 @@ export class ConnectionStore {
      */
     private readonly cache = new Map<string, Promise<ListConnectionsResponse>>();
     private readonly changeEmitter = new vscode.EventEmitter<void>();
+
+    /** Out-of-workspace config files already covered by a dedicated watcher (fsPath). */
+    private readonly watchedConfigs = new Set<string>();
 
     /** Fires when connections or notebook defaults may have changed (config edit, command). */
     readonly onDidChange = this.changeEmitter.event;
@@ -83,7 +87,10 @@ export class ConnectionStore {
                 command: LIST_CONNECTIONS_COMMAND,
                 arguments: [{ notebookUri: key }],
             })
-            .then((response) => response ?? EMPTY)
+            .then((response) => {
+                this.watchConfigOutsideWorkspace(response?.configPath);
+                return response ?? EMPTY;
+            })
             .catch(() => {
                 // Server not ready or command failed — behave as "no connections", and drop the
                 // entry so the next call retries. Only evict our own: invalidate() may already
@@ -166,6 +173,35 @@ export class ConnectionStore {
             // Server not ready or command unsupported (an older server jar): execution still works
             // — only the cell's schema-based validation keeps using the workspace schema.
         }
+    }
+
+    /**
+     * Watches a server-reported config file that lies outside every workspace folder. The
+     * server's nearest-config discovery walks the whole directory hierarchy, so the applicable
+     * `opencgmes.jsonc` can sit above the workspace root where the constructor's glob watcher
+     * cannot see it — without this, edits to that file would never invalidate the cache.
+     */
+    private watchConfigOutsideWorkspace(configPath: string | null | undefined): void {
+        if (!configPath) {
+            return;
+        }
+        const uri = vscode.Uri.file(configPath);
+        if (vscode.workspace.getWorkspaceFolder(uri) || this.watchedConfigs.has(uri.fsPath)) {
+            return;
+        }
+        this.watchedConfigs.add(uri.fsPath);
+        const watcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(
+                vscode.Uri.file(path.dirname(uri.fsPath)),
+                path.basename(uri.fsPath),
+            ),
+        );
+        this.context.subscriptions.push(
+            watcher,
+            watcher.onDidChange(() => this.invalidate()),
+            watcher.onDidCreate(() => this.invalidate()),
+            watcher.onDidDelete(() => this.invalidate()),
+        );
     }
 
     /** Drops all cached config responses (config file changed). */

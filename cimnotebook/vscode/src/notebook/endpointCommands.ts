@@ -31,7 +31,7 @@ import * as vscode from "vscode";
 
 import { validateRequiredUrl } from "../sidebar/treeItems";
 import { ConnectionStore } from "./connections";
-import { clearCredentials, setCredentials } from "./credentials";
+import { runCredentialsAction } from "./credentials";
 import { applyEndpointDirective, ConnectionInfo } from "./endpoint";
 import { pickWorkspaceFiles } from "./filePicker";
 
@@ -272,16 +272,7 @@ async function manageCredentials(
     if (!name) {
         return;
     }
-    if (mode === "set") {
-        if (await setCredentials(context.secrets, name)) {
-            vscode.window.showInformationMessage(
-                `CIMNotebook: credentials for "${name}" stored in VS Code secret storage.`,
-            );
-        }
-    } else {
-        await clearCredentials(context.secrets, name);
-        vscode.window.showInformationMessage(`CIMNotebook: credentials for "${name}" cleared.`);
-    }
+    await runCredentialsAction(context.secrets, name, mode);
 }
 
 async function pickConnectionName(store: ConnectionStore): Promise<string | undefined> {

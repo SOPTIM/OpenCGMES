@@ -23,9 +23,11 @@
  * Editing goes through jsonc-parser's `modify`/`applyEdits`, which patches individual
  * property paths: comments and formatting everywhere else in the file survive a save.
  * Only a value that actually changed is touched; a field cleared in the form removes
- * the property. The one caveat: rewriting an *array* value (schemas, connections)
- * replaces that array wholesale, so comments *inside* it are lost — the sidebar
- * documents this.
+ * the property. Connections are diffed entry-by-entry and field-by-field (keyed by
+ * {@link ConnectionModel.rawIndex}), so comments between entries, fields the form does
+ * not know, and entries the lenient parse skips all survive an edit. The remaining
+ * caveat: rewriting the *schemas* array replaces it wholesale, so comments inside that
+ * one array are lost.
  */
 
 import { applyEdits, modify, parse } from "jsonc-parser";
@@ -37,6 +39,13 @@ export interface ConnectionModel {
     shaclUrl?: string;
     authType?: "none" | "basic";
     default?: boolean;
+    /**
+     * The entry's index in the raw `connections` JSON array, assigned by {@link parseConfigModel}
+     * and used by {@link applyConfigModel} to edit that entry in place. Not necessarily the
+     * position in {@link ConfigModel.connections}: the raw array can hold entries the lenient
+     * parse skips (they stay in the file untouched). Absent on entries newly created by the UI.
+     */
+    rawIndex?: number;
 }
 
 export interface ConfigModel {
@@ -111,15 +120,85 @@ export function applyConfigModel(text: string, model: ConfigModel): string {
         model.queryTimeoutSeconds !== before.queryTimeoutSeconds,
     );
     set(["cimnotebook", "maxRows"], model.maxRows, model.maxRows !== before.maxRows);
-    set(
-        ["cimnotebook", "connections"],
-        undefinedIfEmpty(model.connections?.map(normalizeConnection)),
-        !sameJson(
-            undefinedIfEmpty(model.connections?.map(normalizeConnection)),
-            before.connections,
-        ),
-    );
+    result = applyConnections(result, model.connections ?? [], before.connections);
     return result;
+}
+
+/**
+ * Applies connection changes as the narrowest possible edits. Entries are paired with the file's
+ * raw array by {@link ConnectionModel.rawIndex} and diffed field-by-field, so everything the form
+ * did not change — comments between entries, fields it does not know, entries the lenient parse
+ * skipped — survives. Removals go highest-index-first (earlier indices stay valid), additions are
+ * appended. Only when the file has no connections array at all is one written as a whole.
+ */
+function applyConnections(
+    text: string,
+    after: ConnectionModel[],
+    beforeConnections: ConnectionModel[] | undefined,
+): string {
+    let result = text;
+    const edit = (path: (string | number)[], value: unknown): void => {
+        result = applyEdits(result, modify(result, path, value, FORMATTING));
+    };
+
+    if (beforeConnections === undefined) {
+        const created = after.map(normalizeConnection);
+        if (created.length > 0) {
+            edit(["cimnotebook", "connections"], created);
+        }
+        return result;
+    }
+
+    const beforeByRaw = new Map<number, ConnectionModel>();
+    for (const connection of beforeConnections) {
+        if (connection.rawIndex !== undefined) {
+            beforeByRaw.set(connection.rawIndex, connection);
+        }
+    }
+    const keptRaw = new Set<number>();
+
+    for (const connection of after) {
+        const beforeEntry =
+            connection.rawIndex !== undefined ? beforeByRaw.get(connection.rawIndex) : undefined;
+        if (connection.rawIndex === undefined || beforeEntry === undefined) {
+            continue; // an addition — appended below, after removals
+        }
+        keptRaw.add(connection.rawIndex);
+        const beforeFields = editableFields(beforeEntry);
+        const afterFields = editableFields(connection);
+        for (const key of Object.keys(afterFields) as (keyof EditableFields)[]) {
+            if (afterFields[key] !== beforeFields[key]) {
+                edit(["cimnotebook", "connections", connection.rawIndex, key], afterFields[key]);
+            }
+        }
+    }
+
+    const removed = [...beforeByRaw.keys()].filter((i) => !keptRaw.has(i)).sort((a, b) => b - a);
+    for (const rawIndex of removed) {
+        edit(["cimnotebook", "connections", rawIndex], undefined);
+    }
+
+    for (const connection of after) {
+        if (connection.rawIndex === undefined) {
+            edit(["cimnotebook", "connections", -1], normalizeConnection(connection));
+        }
+    }
+    return result;
+}
+
+type EditableFields = ReturnType<typeof editableFields>;
+
+/** A connection's form-editable fields in their normalized written form, for field diffing. */
+function editableFields(connection: ConnectionModel) {
+    const normalized = normalizeConnection(connection);
+    return {
+        name: normalized.name,
+        url: normalized.url,
+        updateUrl: normalized.updateUrl,
+        shaclUrl: normalized.shaclUrl,
+        authType: normalized.authType,
+        default: normalized.default,
+    };
 }
 
 /** Drops empty/false optional fields so the written JSON stays minimal. */
@@ -172,12 +251,12 @@ function asConnections(value: unknown): ConnectionModel[] | undefined {
         return undefined;
     }
     const connections: ConnectionModel[] = [];
-    for (const entry of value) {
+    value.forEach((entry, rawIndex) => {
         const obj = asObject(entry);
         const name = asString(obj["name"]);
         const url = asString(obj["url"]);
         if (name === undefined || url === undefined) {
-            continue;
+            return;
         }
         connections.push({
             name,
@@ -186,9 +265,10 @@ function asConnections(value: unknown): ConnectionModel[] | undefined {
             shaclUrl: asString(obj["shaclUrl"]),
             authType: obj["authType"] === "basic" ? "basic" : undefined,
             default: obj["default"] === true ? true : undefined,
+            rawIndex,
         });
-    }
-    return connections.length > 0 ? connections : undefined;
+    });
+    return connections;
 }
 
 function emptyToUndefined(value: string | undefined): string | undefined {

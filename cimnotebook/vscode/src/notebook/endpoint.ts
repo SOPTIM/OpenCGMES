@@ -281,12 +281,14 @@ export interface ConnectionInfo {
     default?: boolean;
 }
 
-/** Result of `cimvocabcheck.notebook.listConnections`. */
+/**
+ * Result of `cimvocabcheck.notebook.listConnections`. Execution defaults
+ * (queryTimeoutSeconds/maxRows) are applied server-side and deliberately not part of the wire.
+ */
 export interface ListConnectionsResponse {
+    /** The config file the connections came from — watched for changes when outside the workspace. */
     configPath?: string | null;
     connections: ConnectionInfo[];
-    queryTimeoutSeconds?: number | null;
-    maxRows?: number | null;
 }
 
 export interface ExecuteTarget {
@@ -305,7 +307,6 @@ export interface ExecuteRequest {
     languageId: string;
     text: string;
     target: ExecuteTarget;
-    options?: { timeoutMs?: number; maxRows?: number };
 }
 
 export type QueryKind = "SELECT" | "ASK" | "CONSTRUCT" | "DESCRIBE" | "UPDATE" | "SHACL";

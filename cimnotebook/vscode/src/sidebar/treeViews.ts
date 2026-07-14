@@ -38,7 +38,7 @@
 import * as vscode from "vscode";
 
 import { ConnectionStore } from "../notebook/connections";
-import { clearCredentials, setCredentials } from "../notebook/credentials";
+import { runCredentialsAction } from "../notebook/credentials";
 import { pickWorkspaceFiles, pickWorkspaceFolder } from "../notebook/filePicker";
 import { ConnectionModel } from "./configModel";
 import { openConfig, readConfig, targetConfig, updateConfig } from "./configEditor";
@@ -475,7 +475,9 @@ async function editConnection(node?: ConnectionNode): Promise<void> {
         if (index === -1) {
             return;
         }
-        list[index] = updated;
+        // Keep the raw-array position so applyConfigModel edits the entry in place instead of
+        // treating the wizard result as a new connection.
+        list[index] = { ...updated, rawIndex: list[index].rawIndex };
         if (updated.default) {
             makeSingleDefault(list, index);
         }
@@ -538,15 +540,12 @@ async function manageConnectionCredentials(
     const action = await vscode.window.showQuickPick(["Set credentials", "Clear credentials"], {
         title: `Credentials for "${name}"`,
     });
-    if (action === "Set credentials") {
-        if (await setCredentials(context.secrets, name)) {
-            vscode.window.showInformationMessage(
-                `CIMNotebook: credentials for "${name}" stored in VS Code secret storage.`,
-            );
-        }
-    } else if (action === "Clear credentials") {
-        await clearCredentials(context.secrets, name);
-        vscode.window.showInformationMessage(`CIMNotebook: credentials for "${name}" cleared.`);
+    if (action !== undefined) {
+        await runCredentialsAction(
+            context.secrets,
+            name,
+            action === "Set credentials" ? "set" : "clear",
+        );
     }
 }
 
