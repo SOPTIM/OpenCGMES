@@ -142,6 +142,22 @@ addressable with `GRAPH`, and a bare `?s ?p ?o` sees everything.
 SELECT (COUNT(*) AS ?triples) WHERE { ?s ?p ?o }
 ```
 
+A directive can also be a **glob pattern** — `*` matches within a directory, `**` crosses
+directories, and `{a,b}` picks alternatives, just like the SPARQL Notebook extension:
+
+```sparql
+# [endpoint=./rdf/*.ttl]
+SELECT (COUNT(*) AS ?triples) WHERE { ?s ?p ?o }
+```
+
+```sparql
+# [endpoint=./rdf/{a,b}.ttl]
+SELECT (COUNT(*) AS ?triples) WHERE { ?s ?p ?o }
+```
+
+A pattern that matches no files fails the run with an error (it won't silently query
+nothing); a file matched by several directives is read once.
+
 Parsed files are cached in the language server and re-parsed automatically when the file
 changes on disk, so _edit model → re-run cell_ just works. Local files are **read-only**:
 a SPARQL Update against a file target is rejected — updates need an HTTP endpoint.
@@ -151,10 +167,12 @@ against exactly one endpoint, so mixing kinds (a file and a URL, a file and a co
 name) or repeating a URL or a connection name is reported as an error rather than
 silently resolved to one of them — remove the directives you didn't mean.
 
-Note the dual meaning of the directive: for _validation_, a `.ttl`/`.rdf`/`.owl` file is
-loaded as the schema, while instance-data files (`.xml` models, `.nt`/`.nq`/`.trig` dumps)
-keep the workspace schema so diagnostics stay meaningful — and either way the file is what
-the cell _runs_ against.
+Note the dual meaning of the directive: for _validation_, the `.ttl`/`.rdf`/`.owl` files
+are loaded as the schema (several files or a pattern's matches form one union schema),
+while instance-data files (`.xml` models, `.nt`/`.nq`/`.trig` dumps) keep the workspace
+schema so diagnostics stay meaningful — and either way the files are what the cell _runs_
+against. So `# [endpoint=./model.xml]` + `# [endpoint=./schema.ttl]` queries both files
+while validating the query against `schema.ttl`.
 
 ### Running SHACL cells
 

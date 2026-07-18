@@ -38,8 +38,22 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 The directive names **where the CGMES schema lives** — never live instance data. There are three
 cases:
 
-- **Local file** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for
-  that cell. Relative paths resolve against the notebook's own directory.
+- **Local file(s)** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for
+  that cell. Relative paths resolve against the notebook's own directory. Several directives — or a
+  glob pattern — load the **union** of the files, so one cell can validate against multiple
+  profiles at once:
+
+  ```sparql
+  # [endpoint=./schemas/cgmes-3.0/EquipmentCore.ttl]
+  # [endpoint=./schemas/cgmes-3.0/Topology.ttl]
+  ```
+
+  or, equivalently, with glob (`*`) and alternative (`{a,b}`) patterns:
+
+  ```sparql
+  # [endpoint=./schemas/cgmes-3.0/*.ttl]
+  # [endpoint=./schemas/cgmes-3.0/{EquipmentCore,Topology}.ttl]
+  ```
 - **Remote SPARQL endpoint** (`http(s)://…`) — CIMNotebook loads the schema from the endpoint
   itself, enumerating the named graphs that hold the CGMES profiles and reading them into the schema
   index. The schema is fetched in the background; diagnostics appear once it has loaded.
