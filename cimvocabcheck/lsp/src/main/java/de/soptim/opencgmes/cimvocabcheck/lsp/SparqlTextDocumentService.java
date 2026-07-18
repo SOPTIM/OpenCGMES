@@ -222,7 +222,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
       // DefinitionIndex mechanism as a workspace schema; a remote SPARQL endpoint has none, so
       // the term's triples are fetched and opened as a generated read-only Turtle "peek" instead.
       Path docDir = documentDir(uri);
-      String source = schemaManager.schemaSourceOf(effectiveEndpoint(uri, text), docDir);
+      SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
       if (source != null) {
         var rsOpt = schemaManager.resolveFrom(source, docDir);
         if (rsOpt.isEmpty() || !termKnown(rsOpt.get().api().schemaIndex(), term)) {
@@ -235,8 +235,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
               .map(SparqlTextDocumentService::definitionAt)
               .orElseGet(SparqlTextDocumentService::noDefinition);
         }
+        // No DefinitionIndex means the schema came from a remote SPARQL endpoint.
         return endpointPeek
-            .locationFor(source, term.getURI())
+            .locationFor(source.remoteUrl(), term.getURI())
             .map(SparqlTextDocumentService::definitionAt)
             .orElseGet(SparqlTextDocumentService::noDefinition);
       }
@@ -345,38 +346,41 @@ final class SparqlTextDocumentService implements TextDocumentService {
    */
   private Optional<SchemaIndex> documentSchemaIndex(String uri, String text) {
     return schemaManager
-        .resolveSchema(effectiveEndpoint(uri, text), documentDir(uri))
+        .resolveSchema(effectiveEndpoints(uri, text), documentDir(uri))
         .map(rs -> rs.api().schemaIndex());
   }
 
   /**
-   * The endpoint a document's schema comes from.
+   * The endpoint(s) a document's schema comes from — several file directives (or a glob pattern)
+   * form a union of local files.
    *
    * <p>The precedence mirrors the one the VS Code client uses to pick a cell's <em>execution</em>
    * target, so a cell validates against what it runs against:
    *
    * <ol>
-   *   <li>the document's own {@code # [endpoint=...]} directive;
+   *   <li>the document's own {@code # [endpoint=...]} directives;
    *   <li>for notebook cells, the {@link NotebookDefaults notebook default} the client set;
    *   <li>for notebook cells, the {@code "cimnotebook"} connection marked {@code "default": true}.
    * </ol>
    *
-   * <p>Returns {@code null} when none applies — the document then uses its workspace schema. Only
+   * <p>Returns an empty list when none applies — the document then uses its workspace schema. Only
    * cells consult the notebook fallbacks: a stand-alone {@code .rq}/{@code .ttl} file is not part
    * of a notebook and keeps its workspace schema.
    */
-  private String effectiveEndpoint(String uri, String text) {
-    String directive = EndpointDirective.parse(text).orElse(null);
-    if (directive != null || !DocumentUris.isNotebookCell(uri)) {
-      return directive;
+  private List<String> effectiveEndpoints(String uri, String text) {
+    List<String> directives = EndpointDirective.parseAll(text);
+    if (!directives.isEmpty() || !DocumentUris.isNotebookCell(uri)) {
+      return directives;
     }
     String notebookDefault = notebookDefaults.forCell(uri);
     if (notebookDefault != null) {
-      return notebookDefault;
+      return List.of(notebookDefault);
     }
     NotebookConnection defaultConnection =
         NotebookConfigLoader.forDirectory(documentDir(uri)).config().defaultConnection();
-    return defaultConnection != null ? defaultConnection.url() : null;
+    return defaultConnection != null && defaultConnection.url() != null
+        ? List.of(defaultConnection.url())
+        : List.of();
   }
 
   // ---- Internal API ----------------------------------------------------------------------
@@ -421,7 +425,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     // (nearest opencgmes.jsonc) is used. With neither, validation is syntax-only — there is no
     // bundled default schema.
     Path docDir = documentDir(uri);
-    String source = schemaManager.schemaSourceOf(effectiveEndpoint(uri, text), docDir);
+    SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
     var schemaOpt = schemaManager.resolveFrom(source, docDir);
     if (schemaOpt.isEmpty()) {
       // No schema resolved: an endpoint that failed / is still loading, or no config + no
@@ -634,7 +638,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
 
     Path docDir = documentDir(uri);
-    String source = schemaManager.schemaSourceOf(effectiveEndpoint(uri, text), docDir);
+    SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
     var schemaOpt = schemaManager.resolveFrom(source, docDir);
     if (schemaOpt.isEmpty()) {
       // No schema resolved: an endpoint that failed / is still loading, or no config + no

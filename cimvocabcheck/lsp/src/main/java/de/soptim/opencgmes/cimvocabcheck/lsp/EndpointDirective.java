@@ -18,6 +18,8 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,11 +32,13 @@ import java.util.regex.Pattern;
  * <pre>{@code
  * # [endpoint=https://lindas.admin.ch/query]
  * # [endpoint=./relative/path/file.ttl]
+ * # [endpoint=./rdf/{a,b}.ttl]
  * }</pre>
  *
- * <p>Because the directive is a {@code #} comment it is ignored by the SPARQL parser; CIMVocabCheck
- * reads it only to decide <em>which</em> schema to validate the query against (the schema is
- * assumed to be loaded into the endpoint, not the live instance data).
+ * <p>Several directives (or a glob pattern) declare a union of local files. Because the directive
+ * is a {@code #} comment it is ignored by the SPARQL parser; CIMVocabCheck reads it only to decide
+ * <em>which</em> schema to validate the query against (the schema is assumed to be loaded into the
+ * endpoint, not the live instance data).
  */
 final class EndpointDirective {
 
@@ -46,10 +50,20 @@ final class EndpointDirective {
 
   /** Returns the first endpoint declared in {@code text}, or empty if none is present. */
   static Optional<String> parse(String text) {
+    List<String> all = parseAll(text);
+    return all.isEmpty() ? Optional.empty() : Optional.of(all.get(0));
+  }
+
+  /** Returns every endpoint declared in {@code text}, in order; empty when none is present. */
+  static List<String> parseAll(String text) {
     if (text == null) {
-      return Optional.empty();
+      return List.of();
     }
+    List<String> values = new ArrayList<>();
     Matcher m = PATTERN.matcher(text);
-    return m.find() ? Optional.of(m.group(1).trim()) : Optional.empty();
+    while (m.find()) {
+      values.add(m.group(1).trim());
+    }
+    return List.copyOf(values);
   }
 }

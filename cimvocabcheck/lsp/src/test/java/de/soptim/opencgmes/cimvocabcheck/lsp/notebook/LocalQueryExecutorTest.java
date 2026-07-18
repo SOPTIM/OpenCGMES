@@ -138,6 +138,56 @@ public class LocalQueryExecutorTest {
   }
 
   @Test
+  public void globDirectiveExpandsToAllMatchingFiles() throws IOException {
+    dataFile("a.ttl", "<" + EX + "a> <" + EX + "p> 1 .");
+    dataFile("b.ttl", "<" + EX + "b> <" + EX + "p> 2 .");
+    dataFile("c.nt", "<" + EX + "c> <" + EX + "p> <" + EX + "o> .\n");
+    String notebookUri = tmp.getRoot().toPath().resolve("demo.cimnb.md").toUri().toString();
+
+    ExecuteResponse response =
+        execute(
+            "SELECT ?s WHERE { ?s <" + EX + "p> ?o }",
+            QueryKind.SELECT,
+            request(notebookUri, "./*.ttl"));
+
+    assertEquals(ExecutionStatus.SUCCESS.name(), response.status());
+    assertEquals(2, bindings(response).size());
+    assertEquals("./*.ttl", response.stats().resolvedTarget());
+  }
+
+  @Test
+  public void bracePatternSelectsTheNamedFiles() throws IOException {
+    dataFile("a.ttl", "<" + EX + "a> <" + EX + "p> 1 .");
+    dataFile("b.ttl", "<" + EX + "b> <" + EX + "p> 2 .");
+    dataFile("c.ttl", "<" + EX + "c> <" + EX + "p> 3 .");
+    String notebookUri = tmp.getRoot().toPath().resolve("demo.cimnb.md").toUri().toString();
+
+    ExecuteResponse response =
+        execute(
+            "SELECT ?s WHERE { ?s <" + EX + "p> ?o }",
+            QueryKind.SELECT,
+            request(notebookUri, "./{a,b}.ttl"));
+
+    assertEquals(ExecutionStatus.SUCCESS.name(), response.status());
+    assertEquals(2, bindings(response).size());
+  }
+
+  @Test
+  public void fileMatchedTwiceIsQueriedOnce() throws IOException {
+    Path a = dataFile("a.ttl", "<" + EX + "a> <" + EX + "p> 1 .");
+    String notebookUri = tmp.getRoot().toPath().resolve("demo.cimnb.md").toUri().toString();
+
+    ExecuteResponse response =
+        execute(
+            "SELECT ?s WHERE { ?s <" + EX + "p> ?o }",
+            QueryKind.SELECT,
+            request(notebookUri, "./*.ttl", a.toString()));
+
+    assertEquals(ExecutionStatus.SUCCESS.name(), response.status());
+    assertEquals(1, bindings(response).size());
+  }
+
+  @Test
   public void constructReturnsTheResultGraphAsTurtle() throws IOException {
     Path file = dataFile("data.ttl", "<" + EX + "s> <" + EX + "p> \"v\" .");
 
@@ -207,6 +257,26 @@ public class LocalQueryExecutorTest {
 
     assertEquals(ExecutionStatus.ERROR.name(), response.status());
     assertEquals(ErrorCode.FILE_PARSE_ERROR.name(), response.error().code());
+  }
+
+  @Test
+  public void patternMatchingNothingReportsFileNotFound() {
+    String notebookUri = tmp.getRoot().toPath().resolve("demo.cimnb.md").toUri().toString();
+
+    ExecuteResponse response = execute("ASK {}", QueryKind.ASK, request(notebookUri, "./*.ttl"));
+
+    assertEquals(ExecutionStatus.ERROR.name(), response.status());
+    assertEquals(ErrorCode.FILE_NOT_FOUND.name(), response.error().code());
+    assertTrue(response.error().message().contains("No files match"));
+  }
+
+  @Test
+  public void relativePatternWithoutANotebookLocationAsksToSaveFirst() {
+    ExecuteResponse response = execute("ASK {}", QueryKind.ASK, request(null, "./*.ttl"));
+
+    assertEquals(ExecutionStatus.ERROR.name(), response.status());
+    assertEquals(ErrorCode.FILE_NOT_FOUND.name(), response.error().code());
+    assertTrue(response.error().message().contains("save the notebook"));
   }
 
   @Test

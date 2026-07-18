@@ -22,15 +22,17 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.regex.PatternSyntaxException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Resolves the file paths of a {@link ExecuteTarget#TYPE_FILES} target against the notebook's
  * directory — the same base validation uses for relative {@code # [endpoint=...]} directives.
- * Shared by {@link LocalQueryExecutor} and {@link ShaclExecutor}.
+ * Directive values may be glob patterns ({@code ./rdf/*.ttl}, {@code ./rdf/{a,b}.ttl}), expanded
+ * via {@link FileGlobs}. Shared by {@link LocalQueryExecutor} and {@link ShaclExecutor}.
  */
 final class NotebookPaths {
 
@@ -38,15 +40,53 @@ final class NotebookPaths {
 
   private NotebookPaths() {}
 
-  /** Resolves each directive path, relative ones against {@code notebookDir(notebookUri)}. */
+  /**
+   * Resolves each directive path, relative ones against {@code notebookDir(notebookUri)}, expanding
+   * glob patterns and dropping duplicates (a file matched by two patterns is queried once).
+   */
   static List<Path> resolvePaths(List<String> files, String notebookUri)
       throws LocalStoreManager.StoreException {
     Path notebookDir = notebookDir(notebookUri);
-    List<Path> paths = new ArrayList<>(files.size());
+    LinkedHashSet<Path> paths = new LinkedHashSet<>();
     for (String file : files) {
-      paths.add(resolvePath(file, notebookDir));
+      if (FileGlobs.isPattern(file)) {
+        paths.addAll(expandPattern(file, notebookDir));
+      } else {
+        paths.add(resolvePath(file, notebookDir));
+      }
     }
-    return paths;
+    return List.copyOf(paths);
+  }
+
+  /** Expands one glob directive; matching nothing is an error, not a silently empty target. */
+  private static List<Path> expandPattern(String pattern, Path notebookDir)
+      throws LocalStoreManager.StoreException {
+    if (notebookDir == null && !isAbsolutePattern(pattern)) {
+      throw new LocalStoreManager.StoreException(
+          ErrorCode.FILE_NOT_FOUND,
+          "Cannot resolve the relative pattern "
+              + pattern
+              + " — save the notebook first so relative paths have a base directory.",
+          null);
+    }
+    List<Path> matched;
+    try {
+      matched = FileGlobs.expand(pattern, notebookDir);
+    } catch (PatternSyntaxException e) {
+      throw new LocalStoreManager.StoreException(
+          ErrorCode.FILE_NOT_FOUND, "Invalid file pattern: " + pattern, e);
+    }
+    if (matched.isEmpty()) {
+      throw new LocalStoreManager.StoreException(
+          ErrorCode.FILE_NOT_FOUND, "No files match the pattern " + pattern, null);
+    }
+    return matched;
+  }
+
+  /** Whether a pattern starts from a filesystem root (Unix {@code /} or a Windows drive). */
+  private static boolean isAbsolutePattern(String pattern) {
+    String normalized = pattern.replace('\\', '/');
+    return normalized.startsWith("/") || normalized.matches("^[A-Za-z]:/.*");
   }
 
   private static Path resolvePath(String file, Path notebookDir)
