@@ -67,6 +67,19 @@ class CimnotebookLexer : LexerBase() {
     // Returns the char at position i, or NUL if out of bounds.
     private fun at(i: Int): Char = if (i < myBufferEnd) myBuffer[i] else '\u0000'
 
+    // Whether the '<' at myTokenEnd opens an IRIREF: a '>' must follow before any
+    // character the SPARQL grammar excludes there (whitespace/controls and <"{}|^`\).
+    private fun hasIriTail(): Boolean {
+        var i = myTokenEnd + 1
+        while (i < myBufferEnd) {
+            val ch = myBuffer[i]
+            if (ch == '>') return true
+            if (ch <= ' ' || ch in "<\"{}|^`\\") return false
+            i++
+        }
+        return false
+    }
+
     private fun nextToken(): IElementType {
         val c = at(myTokenEnd)
 
@@ -112,16 +125,11 @@ class CimnotebookLexer : LexerBase() {
             return SparqlTokenTypes.STRING
         }
 
-        // IRI reference  <…>
-        if (c == '<') {
+        // IRI reference  <…> — only when a closing '>' follows with none of the
+        // characters IRIREF forbids in between; a bare '<' is the less-than operator.
+        if (c == '<' && hasIriTail()) {
+            while (myBuffer[myTokenEnd] != '>') myTokenEnd++
             myTokenEnd++
-            while (myTokenEnd < myBufferEnd &&
-                myBuffer[myTokenEnd] != '>' &&
-                myBuffer[myTokenEnd] != '\n'
-            ) {
-                myTokenEnd++
-            }
-            if (myTokenEnd < myBufferEnd) myTokenEnd++
             return SparqlTokenTypes.IRI
         }
 

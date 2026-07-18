@@ -117,6 +117,12 @@ dependencies {
         // Update lsp4ijVersion in gradle.properties to the latest available release.
         plugins("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").get()}")
     }
+    testImplementation("org.junit.jupiter:junit-jupiter:5.14.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 // ---------------------------------------------------------------------------
