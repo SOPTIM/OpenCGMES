@@ -172,18 +172,27 @@ public final class UnusedVariableCheck {
     void analyzeQuery(Query query) {
       var scope = new Scope();
       walkElement(query.getQueryPattern(), scope, false);
+      walkSolutionModifiers(query, scope);
+      Map<Var, String> resultSurface = collectResultSurface(query, scope);
 
-      // Solution modifiers: uses, but not part of the query body for the unbound check.
+      if (scope.unsupported) {
+        return;
+      }
+      reportUnboundResultVariables(scope, resultSurface);
+
+      // Skipped when every pattern variable is implicitly part of the result (SELECT * /
+      // DESCRIBE *) or the whole body is an existence test (ASK).
+      if (!query.isQueryResultStar() && !query.isAskType()) {
+        reportUnusedVariables(scope);
+      }
+    }
+
+    /** GROUP BY / HAVING / ORDER BY / trailing VALUES: uses, but not part of the query body. */
+    private void walkSolutionModifiers(Query query, Scope scope) {
       VarExprList groupBy = query.getGroupBy();
       if (groupBy != null) {
         for (Var v : groupBy.getVars()) {
-          Expr e = groupBy.getExpr(v);
-          if (e == null) {
-            record(scope, v, Kind.USAGE, false, false);
-          } else {
-            scope.exprDefined.add(v);
-            walkExpr(e, scope, false, false);
-          }
+          recordProjectionEntry(scope, v, groupBy.getExpr(v), null, null);
         }
       }
       for (Expr e : query.getHavingExprs()) {
@@ -200,22 +209,19 @@ public final class UnusedVariableCheck {
           record(scope, v, Kind.VALUES, false, true);
         }
       }
+    }
 
-      // Result surface: explicitly projected / template / described variables, with the phrase
-      // used in the PROJECTED_VARIABLE_UNBOUND message.
+    /**
+     * Explicitly projected / template / described variables, mapped to the phrase used in the
+     * {@code PROJECTED_VARIABLE_UNBOUND} message.
+     */
+    private Map<Var, String> collectResultSurface(Query query, Scope scope) {
       var resultSurface = new LinkedHashMap<Var, String>();
       boolean star = query.isQueryResultStar();
       if (query.isSelectType() && !star) {
         VarExprList project = query.getProject();
         for (Var v : project.getVars()) {
-          Expr e = project.getExpr(v);
-          if (e == null) {
-            resultSurface.put(v, "projected");
-            record(scope, v, Kind.USAGE, false, false);
-          } else {
-            scope.exprDefined.add(v);
-            walkExpr(e, scope, false, false);
-          }
+          recordProjectionEntry(scope, v, project.getExpr(v), resultSurface, "projected");
         }
       } else if (query.isConstructType()) {
         Template template = query.getConstructTemplate();
@@ -233,12 +239,29 @@ public final class UnusedVariableCheck {
           record(scope, v, Kind.USAGE, false, false);
         }
       }
+      return resultSurface;
+    }
 
-      if (scope.unsupported) {
+    /**
+     * Records one {@code ?v} / {@code (expr AS ?v)} entry of a projection or GROUP BY list. A bare
+     * variable is a use and joins the result surface (when one is being collected); an expression
+     * defines the variable and its operands are the uses.
+     */
+    private void recordProjectionEntry(
+        Scope scope, Var v, Expr expr, Map<Var, String> resultSurface, String phrase) {
+      if (expr != null) {
+        scope.exprDefined.add(v);
+        walkExpr(expr, scope, false, false);
         return;
       }
+      if (resultSurface != null) {
+        resultSurface.put(v, phrase);
+      }
+      record(scope, v, Kind.USAGE, false, false);
+    }
 
-      // Case 1: in the result surface but nowhere in the query body.
+    /** Case 1: in the result surface but nowhere in the query body. */
+    private void reportUnboundResultVariables(Scope scope, Map<Var, String> resultSurface) {
       for (var entry : resultSurface.entrySet()) {
         Var v = entry.getKey();
         if (exempt.contains(v.getName())
@@ -257,13 +280,10 @@ public final class UnusedVariableCheck {
                     + " but never bound: it does not appear anywhere in the query body"
                     + " (WHERE / BIND / VALUES)."));
       }
+    }
 
-      // Case 2: bound exactly once and never reused. Skipped when every pattern variable is
-      // implicitly part of the result (SELECT * / DESCRIBE *) or the whole body is an existence
-      // test (ASK).
-      if (star || query.isAskType()) {
-        return;
-      }
+    /** Case 2: bound exactly once and never reused. */
+    private void reportUnusedVariables(Scope scope) {
       for (var entry : scope.vars.entrySet()) {
         Var v = entry.getKey();
         Occurrences o = entry.getValue();
