@@ -295,11 +295,11 @@
                 },
                 {
                     "command": "cimnotebook.notebook.convert",
-                    "when": "activeNotebookType =~ /^cimnotebook/"
+                    "when": "notebookType =~ /^cimnotebook/"
                 },
                 {
                     "command": "cimnotebook.notebook.setEndpoint",
-                    "when": "activeNotebookType =~ /^cimnotebook/"
+                    "when": "notebookType =~ /^cimnotebook/"
                 },
                 {
                     "command": "cimnotebook.notebook.setCredentials"
