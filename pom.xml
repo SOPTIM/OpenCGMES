@@ -62,11 +62,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- Supply-chain tooling (SBOM + license compliance) -->
-        <ver.plugin.cyclonedx>2.9.2</ver.plugin.cyclonedx>
+        <ver.plugin.cyclonedx>2.9.3</ver.plugin.cyclonedx>
         <ver.plugin.license>2.7.1</ver.plugin.license>
 
         <!-- Source license-header enforcement (mycila) -->
-        <ver.plugin.license-header>5.0.0</ver.plugin.license-header>
+        <ver.plugin.license-header>5.1.1</ver.plugin.license-header>
 
         <!-- Directory holding the committed, drift-checked supply-chain artifacts.
              The CIMNotebook editor plugins keep their SBOMs under cimnotebook/sbom/{vscode,intellij}/. -->
