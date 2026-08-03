@@ -147,11 +147,30 @@ opens the result as a snapshot in the panel. The dataset is named after the conf
 directory. After that, **Open in RDFArchitect** finds every class of your profiles without any
 manual import.
 
-:::note Embedded sessions
-VS Code webviews embed the app in a third-party browsing context, so an RDFArchitect deployment
-whose session cookie is restricted to same-site use may lose its session state inside the panel.
-If the embedded view misbehaves, use **Open RDFArchitect in Browser** (also available from the
-panel's toolbar).
+:::warning Configure the session cookie for embedding
+A VS Code webview loads RDFArchitect in a **third-party browsing context**, so the browser does
+not send a `SameSite=Lax` session cookie with the app's API calls. RDFArchitect's default is
+`Lax`, and with it the embedded panel shows *"No schemas imported yet"* no matter what you
+imported — every request lands in a different session.
+
+Configure the instance you embed to send its session cookie in third-party contexts:
+
+```yaml
+server:
+    servlet:
+        session:
+            cookie:
+                same-site: none
+                secure: true
+```
+
+or, equivalently, set `SERVER_SERVLET_SESSION_COOKIE_SAME_SITE=none` and
+`SERVER_SERVLET_SESSION_COOKIE_SECURE=true` on the backend. `secure: true` works for a local
+`http://localhost` instance too — browsers treat localhost as a trustworthy origin.
+
+If you cannot change the deployment, use **Open RDFArchitect in Browser** (also on the panel's
+toolbar) instead of the embedded panel. The IntelliJ tool window is unaffected: it loads the app
+as a top-level document, not an iframe.
 :::
 
 ### SPARQL Notebook support
