@@ -37,6 +37,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.CimvocabcheckConfig;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSource;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
@@ -255,7 +257,7 @@ public class ValidateCommand implements Callable<Integer> {
       throw abortUsage("failed to load schema from endpoint " + endpoint + " — " + e.getMessage());
     }
     if (!es.hasSchema()) {
-      String msg = describeNoSchema(endpoint, es);
+      String msg = describeNoSchema("endpoint " + endpoint, es);
       if (strictEndpoint) {
         throw abortUsage(msg + " (--strict-endpoint).");
       }
@@ -283,12 +285,11 @@ public class ValidateCommand implements Callable<Integer> {
    * unrecognized {@code cim} namespace — see the {@code cimNamespaces} setting in {@code
    * opencgmes.jsonc}).
    */
-  private static String describeNoSchema(String endpoint, EndpointSchema es) {
+  private static String describeNoSchema(String source, EndpointSchema es) {
     if (es.schemaGraphNames().isEmpty()) {
-      return "endpoint " + endpoint + " exposes no CIM schema graphs";
+      return source + " exposes no CIM schema graphs";
     }
-    return "endpoint "
-        + endpoint
+    return source
         + " exposes "
         + es.schemaGraphNames().size()
         + " schema graph(s), but none resolved to a registered CIM profile"
@@ -311,6 +312,9 @@ public class ValidateCommand implements Callable<Integer> {
         config = ConfigLoader.discover(Path.of(".")).orElse(null);
         base = Path.of(".").toAbsolutePath();
       }
+      if (config != null && config.rdfArchitect() != null && !config.rdfArchitect().isBlank()) {
+        return resolveSchemaFromRdfArchitect(config);
+      }
       RdfsSchemaIndex index =
           (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
       if (index == null) {
@@ -323,6 +327,42 @@ public class ValidateCommand implements Callable<Integer> {
     } catch (ConfigLoader.ConfigException | SchemaLoader.SchemaLoadException e) {
       throw abortUsage(e.getMessage());
     }
+  }
+
+  /**
+   * Loads the schema from the RDFArchitect instance the config names ({@code "rdfArchitect"}), so a
+   * pipeline can validate against the model as it is curated there. Honours {@code
+   * --strict-endpoint} the same way an endpoint schema does: an instance that holds no CIM profiles
+   * is a warning by default and a hard failure under the flag.
+   */
+  private SchemaContext resolveSchemaFromRdfArchitect(CimvocabcheckConfig config) {
+    RdfArchitectSource source;
+    EndpointSchema es;
+    try {
+      source = RdfArchitectSource.parse(config.rdfArchitect());
+      es = RdfArchitectSchemaLoader.load(source, Duration.ofSeconds(30));
+    } catch (RuntimeException e) {
+      throw abortUsage(
+          "failed to load schema from RDFArchitect "
+              + config.rdfArchitect()
+              + " — "
+              + e.getMessage());
+    }
+    if (!es.hasSchema()) {
+      String msg = describeNoSchema("RDFArchitect " + source.describe(), es);
+      if (strictEndpoint) {
+        throw abortUsage(msg + " (--strict-endpoint).");
+      }
+      System.err.println("Warning: " + msg + " — validating SPARQL syntax only.");
+      return SchemaContext.syntaxOnly(config);
+    }
+    System.err.println(
+        "Info: schema loaded from RDFArchitect "
+            + source.describe()
+            + " — "
+            + es.schemaGraphNames().size()
+            + " schema graph(s) detected.");
+    return new SchemaContext(es.index(), config, es.namedGraphScope(), false);
   }
 
   /** Resolves the effective strictness: CLI flag → config file → {@code "default"}. */

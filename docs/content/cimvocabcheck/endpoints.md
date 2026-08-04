@@ -140,6 +140,32 @@ inline:
 SELECT * WHERE { ?s a cim:ACLineSegment }
 ```
 
+## From RDFArchitect
+
+A [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance can be the schema source directly,
+with its own directive. The value is a link copied out of the application — a snapshot link from its
+**Share** dialog, or an instance URL with `?dataset=<name>`:
+
+```sparql
+# [rdfarchitect=http://localhost:3000/?snapshot=ffPKWuq2hw8WKBRn5VwEOA]
+SELECT * WHERE { ?s a cim:ACLineSegment }
+```
+
+The graphs are exported over RDFArchitect's REST API and then run through exactly the pipeline above,
+so profile detection and per-graph scoping work the same way.
+
+This is deliberately **not** a value of `# [endpoint=...]`: that directive belongs to SPARQL
+Notebook, which executes the cell against whatever it names, and an RDFArchitect URL there would
+break execution. A cell can carry both — `endpoint` runs the query, `rdfarchitect` supplies the
+schema — in which case `rdfarchitect` wins for validation. The same source can be set once for a
+whole workspace with [`rdfArchitect`](/cimvocabcheck/configuration#rdfarchitect) in the config.
+
+:::note Session-scoped datasets
+RDFArchitect keeps datasets per browser session. A snapshot is loadable from any session (this is
+how CIMVocabCheck reads it at all); a plain `?dataset=` is only visible to other clients when the
+instance is backed by a triple store. In-memory snapshots are lost when the backend restarts.
+:::
+
 ## Assumptions & limitations
 
 - The CGMES profiles must be stored in **per-profile named graphs** (graphs declaring
