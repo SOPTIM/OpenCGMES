@@ -136,6 +136,12 @@ save step. Consequences worth knowing:
 
 - The dataset must exist **in the window the editor shows**. Import it there (or use *Send Schema to
   RDFArchitect*); a dataset in some other browser tab is invisible.
+- A name of the form `SNAPSHOT_<dataset>_<token>` — what RDFArchitect calls a loaded snapshot, and
+  what you see in the address bar after opening one — is understood as that snapshot and loaded on
+  its own. It needs no connection and does not change, so it behaves like a snapshot link.
+- "No RDFArchitect session is connected" means the view is open **and** the instance reports its
+  session: an instance older than that support, or one whose deployment has not enabled the
+  handshake, cannot answer. The editor's output log says which of the two it is.
 - Changes are lost when the RDFArchitect instance restarts, exactly as they are for anything else
   you edit in the browser without exporting.
 - Without a connected view, a bare dataset name cannot be resolved and CIMVocabCheck says so rather
