@@ -166,13 +166,21 @@ language server's memory — never in `opencgmes.jsonc`, which only ever holds t
 
 :::info An instance behind a private CA
 The plugin's own calls go through the IDE's certificate manager, so a certificate you accepted in
-**Settings → Tools → Server Certificates** (or that the IDE trusts through the system store) is
+**Settings → Tools → Server Certificates** — or that the IDE trusts through the system store — is
 enough for them.
 
-The **language server runs in its own JVM** and does not share that trust: add
-`-Djavax.net.ssl.trustStore=<file>` and `-Djavax.net.ssl.trustStorePassword=<password>` to the
-**Java arguments** setting under **Settings → Tools → CIMNotebook**, or import the CA into the
-JDK's `cacerts`. It reports this specifically instead of only surfacing a PKIX error.
+The **language server runs in its own JVM** and does not share that trust, so the plugin points it
+at the machine's certificates when it can: the system root store on Windows, and
+`/etc/ssl/certs/java/cacerts` on Debian/Ubuntu, which the system keeps in sync. **macOS is the
+exception** — a JVM cannot be pointed at the Keychain safely from here, so add the CA to the JDK's
+`cacerts` or name a truststore under **Settings → Tools → CIMNotebook → Java arguments**:
+
+```
+-Djavax.net.ssl.trustStore=/path/to/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit
+```
+
+A truststore you configure always wins over the automatic one. If a handshake still fails, the
+language server says so in those terms instead of only surfacing a PKIX error.
 :::
 
 ## Settings
