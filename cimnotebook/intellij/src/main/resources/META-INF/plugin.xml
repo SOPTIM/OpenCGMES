@@ -176,6 +176,13 @@
 
     </extensions>
 
+    <projectListeners>
+        <!-- Warms the term cache when a SPARQL/SHACL file opens, so the first Ctrl+hover over it
+             already has a declaration target to offer (the EDT cannot wait for the server). -->
+        <listener class="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectTermPrefetch"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+
     <actions>
         <!-- ── Explain Query (static algebra plan) ───────────────────────── -->
         <action id="de.soptim.opencgmes.cimnotebook.explainQuery"

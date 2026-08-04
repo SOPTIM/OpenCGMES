@@ -166,6 +166,26 @@ public class RdfArchitectTermsCommandTest {
   }
 
   @Test
+  public void reportsTermsEvenWhenNoInstanceIsKnownYet() throws Exception {
+    // A bare dataset name with no window connected. Which instance holds it is the editor's to
+    // say — but the terms are navigable all the same, and reporting "not RDFArchitect" here would
+    // silently take Ctrl+Click away with nothing to explain why.
+    String uri = "file:///queries/bare.rq";
+    open(
+        uri,
+        "# [rdfarchitect=cgmes-3.0]\n"
+            + "PREFIX cim: <"
+            + CIM
+            + ">\nSELECT * WHERE { ?s a cim:ACLineSegment }\n");
+
+    Map<String, Object> result = run(uri);
+
+    assertNull("the instance is unknown here", result.get("baseUrl"));
+    assertEquals("cgmes-3.0", result.get("dataset"));
+    assertEquals(List.of(CIM + "ACLineSegment"), iris(terms(result)));
+  }
+
+  @Test
   public void nullForADocumentThatIsNotBackedByRdfArchitect() throws Exception {
     String uri = "file:///queries/plain.rq";
     open(uri, "PREFIX cim: <" + CIM + ">\nSELECT * WHERE { ?s a cim:ACLineSegment }\n");

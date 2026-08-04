@@ -19,16 +19,19 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
@@ -36,7 +39,9 @@ import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.eclipse.lsp4j.TextDocumentItem;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * A term declared in several profiles must be reported with all of them, so the editor can ask
@@ -91,6 +96,8 @@ public class RdfArchitectTermProfilesTest {
     }
     return ttl.toString();
   }
+
+  @Rule public TemporaryFolder tmp = new TemporaryFolder();
 
   private HttpServer server;
   private SchemaManager manager;
@@ -152,17 +159,21 @@ public class RdfArchitectTermProfilesTest {
     return rest.substring(0, rest.lastIndexOf("/content"));
   }
 
-  /** Runs the command once the asynchronous schema load has landed. */
+  /** Runs the command once for a document. */
   @SuppressWarnings("unchecked")
+  private Map<String, Object> command(String uri) throws Exception {
+    return (Map<String, Object>)
+        workspace
+            .executeCommand(
+                new ExecuteCommandParams(
+                    SparqlWorkspaceService.CMD_RDFARCHITECT_TERMS, List.of(uri)))
+            .get();
+  }
+
+  /** Runs the command once the asynchronous schema load has landed. */
   private Map<String, Object> terms() throws Exception {
     for (int i = 0; i < 100; i++) {
-      Map<String, Object> result =
-          (Map<String, Object>)
-              workspace
-                  .executeCommand(
-                      new ExecuteCommandParams(
-                          SparqlWorkspaceService.CMD_RDFARCHITECT_TERMS, List.of(DOC_URI)))
-                  .get();
+      Map<String, Object> result = command(DOC_URI);
       if (result != null && !profilesOf(result, CIM + "Breaker").isEmpty()) {
         return result;
       }
@@ -201,6 +212,35 @@ public class RdfArchitectTermProfilesTest {
 
     assertEquals(1, profiles.size());
     assertEquals("http://graph#TP", profiles.get(0).get("graph"));
+  }
+
+  /**
+   * The everyday setup: no directive in the document, the dataset named once in {@code
+   * opencgmes.jsonc}. It reaches the same answer by a different route — the config, not the text.
+   */
+  @Test
+  public void reportsTermsForAWorkspaceConfiguredRdfArchitect() throws Exception {
+    File root = tmp.newFolder("workspace");
+    Files.writeString(
+        root.toPath().resolve("opencgmes.jsonc"),
+        "{ \"cimvocabcheck\": { \"rdfArchitect\": \"" + DATASET + "\" } }");
+    String uri = root.toPath().resolve("query.rq").toUri().toString();
+    String query = "PREFIX cim: <" + CIM + ">\nSELECT * WHERE { ?s a cim:Breaker }\n";
+    documents.didOpen(new DidOpenTextDocumentParams(new TextDocumentItem(uri, "sparql", 1, query)));
+    manager.loadAsync(root.toPath());
+
+    Map<String, Object> result = null;
+    for (int i = 0; i < 100 && result == null; i++) {
+      result = command(uri);
+      if (result == null || profilesOf(result, CIM + "Breaker").isEmpty()) {
+        result = null;
+        Thread.sleep(50);
+      }
+    }
+
+    assertNotNull("a config-configured RDFArchitect must produce term links too", result);
+    assertEquals(DATASET, result.get("dataset"));
+    assertEquals(2, profilesOf(result, CIM + "Breaker").size());
   }
 
   @Test
