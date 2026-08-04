@@ -82,6 +82,11 @@ enumeration's members are suggested (e.g. `cim:WindGenUnitKind.offshore`).
 `Ctrl+Click` / `Cmd+Click` (or `Ctrl+B` / `Cmd+B`) on any CIM IRI jumps to its declaration line in
 the source `.rdf` or `.ttl` profile file.
 
+When the schema comes from [RDFArchitect](#live-datasets), the same gesture opens the term **in the
+RDFArchitect tool window** — there are no schema files to jump to, and the model is best read where
+it is being edited. A class opens itself; an attribute, association or enum entry opens the class
+that declares it, with the row highlighted.
+
 ### Workspace symbol search
 
 Use **Go to Symbol** (`Ctrl+Alt+Shift+N` on Windows/Linux, `Cmd+Option+O` on macOS) and type a CIM
@@ -110,6 +115,11 @@ while an attribute, association or enum entry such as `cim:ACLineSegment.r` open
 **declares** it and highlights that row in the class editor. Terms are looked up across the schemas
 loaded in the RDFArchitect session, so import your profiles there once (or load a shared snapshot)
 and the jump works from then on.
+
+When the schema itself comes from RDFArchitect — `rdfArchitect` in
+[`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect), or a `# [rdfarchitect=...]` directive
+— plain `Ctrl+Click` does the same thing, no right-click needed. The right-click action stays
+available everywhere, including for projects whose schema comes from files.
 
 :::note
 Because a property is declared once, jumping to an inherited attribute opens the superclass that
@@ -156,6 +166,9 @@ language server. `"rdfArchitect": "<dataset>"` in
 [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then validates against that dataset
 **as you edit it** — add a class in the tool window and the next validation knows it. No setting on
 the RDFArchitect side is needed (unlike the VS Code webview, which is a third-party iframe).
+
+Reading the model from RDFArchitect also changes what `Ctrl+Click` does: with no schema files to
+open, terms navigate into the tool window (see [Go to definition](#go-to-definition)).
 
 The connection is remembered per project and restored on IDE start, so validation keeps working
 without reopening the tool window — a backend session outlives the browser that created it, though

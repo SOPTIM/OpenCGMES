@@ -28,8 +28,6 @@ import com.intellij.openapi.ui.Messages
 import com.redhat.devtools.lsp4ij.LSPIJUtils
 import com.redhat.devtools.lsp4ij.LanguageServerManager
 import org.eclipse.lsp4j.ExecuteCommandParams
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 /**
  * "Open in RDFArchitect" editor action. Resolves the schema term under the caret via the
@@ -113,13 +111,13 @@ class OpenInRdfArchitectAction : AnAction() {
         base: String,
         iri: String,
     ) {
-        val url =
-            base.trimEnd('/') + "/mainpage?class=" +
-                URLEncoder.encode(iri, StandardCharsets.UTF_8)
         // If this is what first opens the tool window and the schema was never sent, the import
         // offered there should land on the term the user asked for.
         project.putUserData(RdfArchitectToolWindowFactory.PENDING_TERM_KEY, iri)
-        RdfArchitectToolWindowFactory.openUrl(project, url)
+        RdfArchitectToolWindowFactory.openUrl(
+            project,
+            RdfArchitectToolWindowFactory.termDeepLink(base, iri),
+        )
     }
 
     /** The `iri` field of a termInfo result, tolerating Gson and in-process shapes. */

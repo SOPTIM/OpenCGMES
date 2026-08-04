@@ -84,7 +84,15 @@ SHACL shapes and SPARQL queries complete the same way.
 ### Go-to-definition
 
 Press `F12` or `Ctrl+Click` on any CIM IRI to jump directly to its declaration line in the source
-`.rdf` or `.ttl` profile file.
+`.rdf` or `.ttl` profile file. For a schema loaded from a remote SPARQL endpoint, which has no
+source file, the term's triples are fetched and opened as a generated read-only Turtle document
+instead.
+
+When the schema comes from [RDFArchitect](#live-datasets), `Ctrl+Click` opens the term **in the
+RDFArchitect panel** — there are no schema files to jump to, and the model is best read where it is
+being edited. A class opens itself; an attribute, association or enum entry opens the class that
+declares it, with the row highlighted. Terms are shown as links, so `Ctrl`-hovering one underlines
+it before you commit to the jump.
 
 ### Workspace symbol search
 
@@ -141,6 +149,11 @@ while an attribute, association or enum entry such as `cim:ACLineSegment.r` open
 **declares** it and highlights that row in the class editor. Terms are looked up across the schemas
 loaded in the RDFArchitect session, so import your profiles there once (or load a shared snapshot)
 and the jump works from then on.
+
+When the schema itself comes from RDFArchitect — `rdfArchitect` in
+[`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect), or a `# [rdfarchitect=...]` directive
+— plain `Ctrl+Click` does the same thing, no right-click needed. The right-click action stays
+available everywhere, including for workspaces whose schema comes from files.
 
 :::note
 Because a property is declared once, jumping to an inherited attribute opens the superclass that
@@ -213,6 +226,9 @@ app reports which session it uses, the extension hands that to the language serv
 `"rdfArchitect": "<dataset>"` in [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then
 validates against that dataset **as you edit it** — add a class in the panel and the next validation
 knows it.
+
+Reading the model from RDFArchitect also changes what `Ctrl+Click` does: with no schema files to
+open, terms become links into the panel (see [Go-to-definition](#go-to-definition)).
 
 The status bar shows whether a session is connected; clicking it reconnects (also available as
 **CIMNotebook: Reconnect RDFArchitect Session**). The connection is remembered per workspace and

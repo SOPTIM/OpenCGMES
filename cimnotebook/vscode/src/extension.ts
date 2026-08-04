@@ -39,6 +39,19 @@ import { registerConfigTreeViews } from "./sidebar/treeViews";
 
 const CHANNEL = "CIMNotebook";
 
+/** The documents CIMNotebook validates: the language client's scope, and the term links' scope. */
+const SCHEMA_DOCUMENTS = [
+    { scheme: "file", language: "sparql" },
+    { scheme: "file", language: "shacl" },
+    { scheme: "file", language: "turtle" },
+    { scheme: "file", pattern: "**/*.ttl" },
+    { scheme: "file", pattern: "**/*.shacl" },
+    // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
+    // under the vscode-notebook-cell scheme, validated per-cell by the server.
+    { scheme: "vscode-notebook-cell", language: "sparql" },
+    { scheme: "vscode-notebook-cell", language: "shacl" },
+];
+
 let client: LanguageClient | undefined;
 // Created at the very start of activate() so it always appears in the Output dropdown.
 let out: vscode.LogOutputChannel;
@@ -93,6 +106,10 @@ export function activate(context: vscode.ExtensionContext): void {
             openRdfArchitectExternal,
         ),
         vscode.commands.registerCommand("cimnotebook.openInRdfArchitect", openInRdfArchitect),
+        vscode.commands.registerCommand(
+            "cimnotebook.openTermInRdfArchitect",
+            openTermInRdfArchitect,
+        ),
         vscode.commands.registerCommand("cimnotebook.sendSchemaToRdfArchitect", () =>
             sendSchemaToRdfArchitect(),
         ),
@@ -205,6 +222,9 @@ function doActivate(context: vscode.ExtensionContext, connectionStore: Connectio
         },
     );
     out.appendLine("Language client started — waiting for server handshake.");
+
+    context.subscriptions.push({ dispose: () => termLinkRegistration?.dispose() });
+    registerRdfArchitectTermLinks();
 
     // Offer a reload when the user changes launch settings.
     context.subscriptions.push(
@@ -398,6 +418,76 @@ async function openInRdfArchitect(): Promise<void> {
 }
 
 /**
+ * Opens one term in the RDFArchitect panel. Invoked from the term links (see
+ * {@link registerRdfArchitectTermLinks}), which carry the instance the schema is read from — so
+ * Ctrl+Click lands in the RDFArchitect the document is actually validated against, whatever the
+ * `cimnotebook.rdfArchitectUrl` setting says.
+ */
+function openTermInRdfArchitect(base: string, iri: string): void {
+    if (!base || !iri) {
+        return;
+    }
+    showRdfArchitectPanel(base, termDeepLink(base, iri), true, iri);
+}
+
+/** A document's terms and the RDFArchitect instance its schema comes from. */
+interface RdfArchitectTerms {
+    baseUrl: string;
+    terms: { line: number; startCharacter: number; endCharacter: number; iri: string }[];
+}
+
+/** Disposed and replaced whenever the connection changes; see {@link registerRdfArchitectTermLinks}. */
+let termLinkRegistration: vscode.Disposable | undefined;
+
+/**
+ * Makes every CIM term in an RDFArchitect-backed document Ctrl+Clickable, opening it in the panel.
+ *
+ * A document validated against RDFArchitect has no schema files on disk, so ordinary
+ * go-to-definition has nothing to jump to and does nothing. Links fill that gap. They are links
+ * rather than a definition provider on purpose: VS Code resolves definitions while the user merely
+ * hovers with Ctrl held, so a provider that opened the panel would open it without a click.
+ *
+ * Re-registering is how the link set is refreshed — VS Code recomputes a document's links when the
+ * set of providers changes, and there is no other way to invalidate them. That matters because a
+ * config naming a bare dataset only resolves to an instance once the panel's session is connected.
+ */
+function registerRdfArchitectTermLinks(): void {
+    termLinkRegistration?.dispose();
+    termLinkRegistration = vscode.languages.registerDocumentLinkProvider(SCHEMA_DOCUMENTS, {
+        provideDocumentLinks: rdfArchitectTermLinks,
+    });
+}
+
+async function rdfArchitectTermLinks(doc: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
+    if (!client) {
+        return [];
+    }
+    let found: RdfArchitectTerms | null | undefined;
+    try {
+        found = await client.sendRequest<RdfArchitectTerms | null>("workspace/executeCommand", {
+            command: "cimvocabcheck.rdfArchitectTerms",
+            arguments: [doc.uri.toString()],
+        });
+    } catch (err) {
+        out.appendLine(`Could not resolve the RDFArchitect terms of ${doc.uri.fsPath}: ${err}`);
+        return [];
+    }
+    if (!found) {
+        return [];
+    }
+    const base = found.baseUrl;
+    return found.terms.map((term) => {
+        const args = encodeURIComponent(JSON.stringify([base, term.iri]));
+        const link = new vscode.DocumentLink(
+            new vscode.Range(term.line, term.startCharacter, term.line, term.endCharacter),
+            vscode.Uri.parse(`command:cimnotebook.openTermInRdfArchitect?${args}`),
+        );
+        link.tooltip = `Open ${term.iri} in RDFArchitect`;
+        return link;
+    });
+}
+
+/**
  * "Send Schema to RDFArchitect": asks the language server for the workspace schema files
  * (`cimvocabcheck.schemaInfo`), imports them into a fresh RDFArchitect session as a read-only
  * dataset, snapshots that dataset, and opens the snapshot link in the webview panel — the
@@ -545,6 +635,9 @@ async function connectRdfArchitectSession(url: string, id: string): Promise<void
     await sendConnectionToServer(connectedSession);
     out.appendLine(`Connected to the RDFArchitect session at ${url}.`);
     updateConnectionStatus();
+    // A config naming a bare dataset only resolves to an instance now, so terms only become
+    // clickable now; VS Code recomputes a document's links when its providers change.
+    registerRdfArchitectTermLinks();
 }
 
 /** Tells the language server which window to read, or that there is none. */
@@ -573,6 +666,9 @@ async function sendConnectionToServer(session: RdfArchitectSession | undefined):
 async function restoreRdfArchitectSession(): Promise<void> {
     const remembered = extensionContext.workspaceState.get<RdfArchitectSession>(SESSION_KEY);
     if (!remembered) {
+        // Nothing to restore, but the server is ready now — a document opened before it was has no
+        // term links yet, and only re-registering the provider makes VS Code ask again.
+        registerRdfArchitectTermLinks();
         return;
     }
     if (await sessionIsAlive(remembered)) {
@@ -586,6 +682,7 @@ async function restoreRdfArchitectSession(): Promise<void> {
         );
     }
     updateConnectionStatus();
+    registerRdfArchitectTermLinks();
 }
 
 /** Whether the instance still knows this session (it answers with the id of the caller's own). */
@@ -1081,17 +1178,7 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
     context.subscriptions.push(traceChannel);
 
     const clientOptions: LanguageClientOptions = {
-        documentSelector: [
-            { scheme: "file", language: "sparql" },
-            { scheme: "file", language: "shacl" },
-            { scheme: "file", language: "turtle" },
-            { scheme: "file", pattern: "**/*.ttl" },
-            { scheme: "file", pattern: "**/*.shacl" },
-            // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
-            // under the vscode-notebook-cell scheme, validated per-cell by the server.
-            { scheme: "vscode-notebook-cell", language: "sparql" },
-            { scheme: "vscode-notebook-cell", language: "shacl" },
-        ],
+        documentSelector: SCHEMA_DOCUMENTS,
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {
