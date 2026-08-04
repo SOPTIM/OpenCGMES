@@ -223,8 +223,11 @@ function doActivate(context: vscode.ExtensionContext, connectionStore: Connectio
     );
     out.appendLine("Language client started — waiting for server handshake.");
 
-    context.subscriptions.push({ dispose: () => termLinkRegistration?.dispose() });
-    registerRdfArchitectTermLinks();
+    // Ctrl+Click on a term of an RDFArchitect-held model goes to a document the server renders;
+    // opening one is what shows the term in the panel.
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(openRdfArchitectFromDefinition),
+    );
 
     // Offer a reload when the user changes launch settings.
     context.subscriptions.push(
@@ -459,9 +462,8 @@ async function termAtPosition(
 }
 
 /**
- * Opens one term in the RDFArchitect panel. Invoked from the term links (see
- * {@link registerRdfArchitectTermLinks}), which carry the instance the schema is read from — so
- * Ctrl+Click lands in the RDFArchitect the document is actually validated against, whatever the
+ * Opens one term in the RDFArchitect panel. The instance comes from wherever the schema is read
+ * from, so this lands in the RDFArchitect the document is actually validated against, whatever the
  * `cimnotebook.rdfArchitectUrl` setting says.
  *
  * A term declared in several profiles is ambiguous — without saying which graph to open,
@@ -525,47 +527,6 @@ interface RdfArchitectTerms {
     }[];
 }
 
-/** Disposed and replaced whenever the connection changes; see {@link registerRdfArchitectTermLinks}. */
-let termLinkRegistration: vscode.Disposable | undefined;
-
-/** The last term-link outcome logged per document, so an unchanged one stays quiet. */
-const termLinkOutcomes = new Map<string, string>();
-
-/**
- * Logs what the term links came to for a document, once per outcome.
- *
- * Links that do not appear are invisible by nature — there is no error, just nothing to Ctrl+Click.
- * The log is where that becomes answerable: it says whether the document is RDFArchitect-backed at
- * all, how many terms were linked, and to which instance.
- */
-function reportTermLinks(doc: vscode.TextDocument, outcome: string): void {
-    const key = doc.uri.toString();
-    if (termLinkOutcomes.get(key) === outcome) {
-        return;
-    }
-    termLinkOutcomes.set(key, outcome);
-    out.appendLine(`RDFArchitect term links for ${doc.uri.fsPath}: ${outcome}`);
-}
-
-/**
- * Makes every CIM term in an RDFArchitect-backed document Ctrl+Clickable, opening it in the panel.
- *
- * A document validated against RDFArchitect has no schema files on disk, so ordinary
- * go-to-definition has nothing to jump to and does nothing. Links fill that gap. They are links
- * rather than a definition provider on purpose: VS Code resolves definitions while the user merely
- * hovers with Ctrl held, so a provider that opened the panel would open it without a click.
- *
- * Re-registering is how the link set is refreshed — VS Code recomputes a document's links when the
- * set of providers changes, and there is no other way to invalidate them. That matters because a
- * config naming a bare dataset only resolves to an instance once the panel's session is connected.
- */
-function registerRdfArchitectTermLinks(): void {
-    termLinkRegistration?.dispose();
-    termLinkRegistration = vscode.languages.registerDocumentLinkProvider(SCHEMA_DOCUMENTS, {
-        provideDocumentLinks: rdfArchitectTermLinks,
-    });
-}
-
 /** The language server's answer for a document, or undefined when it is not RDFArchitect-backed. */
 async function rdfArchitectTerms(doc: vscode.TextDocument): Promise<RdfArchitectTerms | undefined> {
     if (!client) {
@@ -586,40 +547,51 @@ async function rdfArchitectTerms(doc: vscode.TextDocument): Promise<RdfArchitect
     }
 }
 
-async function rdfArchitectTermLinks(doc: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
-    const found = await rdfArchitectTerms(doc);
-    if (!found) {
-        reportTermLinks(doc, "no RDFArchitect schema — no term links");
-        return [];
+/** Marks the header line of a generated RDFArchitect definition document. */
+const RDFA_DEFINITION_MARKER = "#! rdfarchitect ";
+
+/**
+ * Shows the term in the RDFArchitect panel whenever one of the language server's generated
+ * definition documents is opened.
+ *
+ * A model held in RDFArchitect has no schema files, so `Ctrl+Click` on one of its terms goes to a
+ * document the server renders from the loaded schema. Opening that document is the moment the user
+ * asked to *see* the term — and the only moment we can act on: both editors resolve a `Ctrl+Click`
+ * target while the user is merely hovering, so nothing may happen at resolution time. Hovering
+ * loads the document but never activates an editor for it, which is exactly the distinction this
+ * hooks into.
+ */
+function openRdfArchitectFromDefinition(editor: vscode.TextEditor | undefined): void {
+    const doc = editor?.document;
+    if (!doc || doc.lineCount === 0) {
+        return;
     }
-    // The server knows the instance only when the config names one, or when a session is connected.
-    // Otherwise the panel's own URL is the answer, and the setting is where that lives.
+    const header = doc.lineAt(0).text;
+    if (!header.startsWith(RDFA_DEFINITION_MARKER)) {
+        return;
+    }
+    const fields = new Map<string, string>();
+    for (const pair of header.slice(RDFA_DEFINITION_MARKER.length).trim().split(" ")) {
+        const eq = pair.indexOf("=");
+        if (eq > 0) {
+            fields.set(pair.slice(0, eq), decodeURIComponent(pair.slice(eq + 1)));
+        }
+    }
+    const iri = fields.get("class");
+    if (!iri) {
+        return;
+    }
     const base =
-        found.baseUrl ??
+        fields.get("base") ??
         vscode.workspace.getConfiguration("cimnotebook").get<string>("rdfArchitectUrl", "").trim();
     if (!base) {
-        reportTermLinks(
-            doc,
-            `${found.terms.length} term(s), but no RDFArchitect instance is known — ` +
-                "set cimnotebook.rdfArchitectUrl or open the panel",
+        out.appendLine(
+            `No RDFArchitect instance to show ${iri} in — set cimnotebook.rdfArchitectUrl.`,
         );
-        return [];
+        return;
     }
-    reportTermLinks(doc, `${found.terms.length} term(s) linked to ${base}`);
-    const dataset = found.dataset ?? undefined;
-    return found.terms.map((term) => {
-        const profiles = term.profiles ?? [];
-        const args = encodeURIComponent(JSON.stringify([base, dataset, term.iri, profiles]));
-        const link = new vscode.DocumentLink(
-            new vscode.Range(term.line, term.startCharacter, term.line, term.endCharacter),
-            vscode.Uri.parse(`command:cimnotebook.openTermInRdfArchitect?${args}`),
-        );
-        link.tooltip =
-            profiles.length > 1
-                ? `Open ${term.iri} in RDFArchitect (declared in ${profiles.length} profiles)`
-                : `Open ${term.iri} in RDFArchitect`;
-        return link;
-    });
+    const url = termDeepLink(base, iri, fields.get("dataset"), fields.get("graph"));
+    showRdfArchitectPanel(base, url, true, iri);
 }
 
 /**
@@ -770,9 +742,6 @@ async function connectRdfArchitectSession(url: string, id: string): Promise<void
     await sendConnectionToServer(connectedSession);
     out.appendLine(`Connected to the RDFArchitect session at ${url}.`);
     updateConnectionStatus();
-    // A config naming a bare dataset only resolves to an instance now, so terms only become
-    // clickable now; VS Code recomputes a document's links when its providers change.
-    registerRdfArchitectTermLinks();
 }
 
 /** Tells the language server which window to read, or that there is none. */
@@ -801,9 +770,6 @@ async function sendConnectionToServer(session: RdfArchitectSession | undefined):
 async function restoreRdfArchitectSession(): Promise<void> {
     const remembered = extensionContext.workspaceState.get<RdfArchitectSession>(SESSION_KEY);
     if (!remembered) {
-        // Nothing to restore, but the server is ready now — a document opened before it was has no
-        // term links yet, and only re-registering the provider makes VS Code ask again.
-        registerRdfArchitectTermLinks();
         return;
     }
     if (await sessionIsAlive(remembered)) {
@@ -817,7 +783,6 @@ async function restoreRdfArchitectSession(): Promise<void> {
         );
     }
     updateConnectionStatus();
-    registerRdfArchitectTermLinks();
 }
 
 /** Whether the instance still knows this session (it answers with the id of the caller's own). */

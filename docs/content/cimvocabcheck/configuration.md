@@ -126,8 +126,9 @@ instance-specific, nothing secret.
 
 Either way it takes precedence over `schemas`/`schemasDirectory`, and profile detection,
 named-graph mapping and typo-checking behave exactly as for files. What does change is
-go-to-definition: there is no source file to open, so `Ctrl+Click` on a term opens it in the
-editor's RDFArchitect view instead — in the profile you pick, when the term is declared in several
+go-to-definition: there is no source file to open, so `Ctrl+Click` on a term goes to a read-only
+document rendered from the loaded schema — one per declaring profile — and opening it shows that
+term in the editor's RDFArchitect view
 ([VS Code](/cimnotebook/vscode#go-to-definition), [IntelliJ](/cimnotebook/intellij#go-to-definition)).
 
 #### Live datasets

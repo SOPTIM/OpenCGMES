@@ -41,12 +41,11 @@ import javax.swing.JList
  * The terms of a document that navigate into RDFArchitect, as the language server reports them
  * (`cimvocabcheck.rdfArchitectTerms`).
  *
- * A document validated against a model held in RDFArchitect has no schema files on disk, so
- * go-to-definition has nothing to jump to. The server answers with the term ranges instead, and
- * [RdfArchitectGotoDeclarationHandler] turns the one under the caret into a Ctrl+Click target.
+ * Backs "Open in RDFArchitect": the action needs to know which profiles declare the term under the
+ * caret, so it can ask which one to open rather than letting RDFArchitect pick whichever graph it
+ * finds the term in first.
  *
- * The answer is cached per document revision: Ctrl+hover asks for a target on every mouse move, and
- * that must not become a round trip to the server each time.
+ * The answer is cached per document revision, so repeated use of the action costs one round trip.
  */
 @Service(Service.Level.PROJECT)
 class RdfArchitectTermLinks(
@@ -132,23 +131,6 @@ class RdfArchitectTermLinks(
         return Target(baseUrl, found.dataset, term.iri, term.profiles)
     }
 
-    /**
-     * Reads a file's terms in the background, so the first Ctrl+hover over it already has an answer.
-     *
-     * The IDE asks for a declaration target on the EDT, where waiting on the language server is not
-     * allowed — without this, the first hover over a freshly opened file finds nothing cached and
-     * silently offers no target.
-     */
-    fun prefetch(
-        file: VirtualFile,
-        document: Document,
-    ) {
-        val stamp = document.modificationStamp
-        ApplicationManager.getApplication().executeOnPooledThread {
-            store(LSPIJUtils.toUriAsString(file), stamp)
-        }
-    }
-
     private fun termsFor(
         file: VirtualFile,
         stamp: Long,
@@ -190,10 +172,22 @@ class RdfArchitectTermLinks(
         }.onFailure { LOG.debug("Could not read the RDFArchitect terms of $uri", it) }
             .getOrNull()
 
-    /** Reads the command result, tolerating the Gson and in-process shapes. */
+    /**
+     * Reads the command result, tolerating the Gson and in-process shapes.
+     *
+     * An answer without a `baseUrl` is still an answer: the server says which instance holds the
+     * dataset only when the config does, or when a window is connected.
+     */
     private fun parse(result: Any?): Terms? {
-        val base = stringOf(result, "baseUrl") ?: return null
-        return Terms(base, stringOf(result, "dataset"), jsonArray(result, "terms").mapNotNull(::parseTerm))
+        val holder = objectOf(result) ?: return null
+        if (holder !is JsonObject && holder !is Map<*, *>) {
+            return null
+        }
+        return Terms(
+            stringOf(holder, "baseUrl"),
+            stringOf(holder, "dataset"),
+            jsonArray(holder, "terms").mapNotNull(::parseTerm),
+        )
     }
 
     private fun parseTerm(raw: Any?): Term? {

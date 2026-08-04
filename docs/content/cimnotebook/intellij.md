@@ -87,12 +87,12 @@ A CIM term is usually declared in **several profiles**. All of them are offered,
 For a schema loaded from a SPARQL endpoint, where there is no source file, each profile's triples
 are fetched and opened as a generated read-only Turtle document.
 
-When the schema comes from [RDFArchitect](#live-datasets), the same gesture opens the term **in the
-RDFArchitect tool window** — there are no schema files to jump to, and the model is best read where
-it is being edited. A class opens itself; an attribute, association or enum entry opens the class
-that declares it, with the row highlighted. A term in several profiles brings up a chooser first,
-and the tool window then opens that profile's graph; without it, RDFArchitect would show whichever
-graph it happens to find the term in first.
+When the schema comes from [RDFArchitect](#live-datasets) there are no schema files either, so the
+term is rendered from the loaded schema into a read-only document — one per profile, as above — and
+**opening it also shows the term in the RDFArchitect tool window**: a class opens itself, an
+attribute, association or enum entry opens the class that declares it, with the row highlighted.
+The tool window opens on the profile you picked, rather than on whichever graph RDFArchitect
+happens to find the term in first.
 
 ### Workspace symbol search
 

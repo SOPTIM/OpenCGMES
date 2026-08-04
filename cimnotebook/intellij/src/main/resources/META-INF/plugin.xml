@@ -45,7 +45,7 @@
             <li><b>Real-time diagnostics</b> — unknown classes and properties, typos in the standard vocabularies (<code>rdf</code>/<code>rdfs</code>/<code>owl</code>/<code>sh</code>), domain/range mismatches, datatype conflicts, invalid enumeration values, and contradictory SHACL constraints. Full catalogue: <a href="https://opencgmes.soptim.de/cimvocabcheck/validation-checks">validation checks</a>.</li>
             <li><b>Hover documentation</b> — the full IRI, <code>rdfs:label</code> / <code>rdfs:comment</code>, domain/range, and source profile for any CIM term (e.g. <code>cim:ACLineSegment</code>).</li>
             <li><b>Auto-completion</b> — type <code>:</code> after a prefix such as <code>cim:</code> for class and property suggestions; enumeration members are suggested in object position, and standard-vocabulary prefixes (<code>rdf:</code>, <code>rdfs:</code>, <code>owl:</code>, <code>sh:</code>) complete too.</li>
-            <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file, choosing between profiles when it is declared in several; when the schema comes from RDFArchitect there is no such file, and the term opens in the RDFArchitect tool window instead.</li>
+            <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file, choosing between profiles when it is declared in several; when the schema comes from RDFArchitect there is no such file, so the term is rendered from the loaded schema into a read-only document — and opening it shows the term in the RDFArchitect tool window.</li>
             <li><b>Workspace symbol search</b> — press Ctrl+Alt+Shift+N (Go to Symbol) and type a term name to find any schema term.</li>
             <li><b>Explain Query</b> — right-click a SPARQL query for its Jena-style static algebra plan (original and optimized), computed without executing anything.</li>
             <li><b>RDFArchitect tool window</b> — embed a running <a href="https://github.com/SOPTIM/RDFArchitect">RDFArchitect</a> instance (SOPTIM's open-source RDFS/CIM schema editor) in the IDE to browse and edit schema diagrams next to your queries. Right-click a CIM term and choose <b>Open in RDFArchitect</b> to jump straight to that class, or run <b>Tools → CIMNotebook: Send Schema to RDFArchitect</b> to import the workspace schema as a read-only dataset — no manual import needed. Configure the instance URL under <b>Settings → Tools → CIMNotebook</b>.</li>
@@ -144,14 +144,6 @@
         <lang.documentationProvider language="SHACL"
             implementationClass="de.soptim.opencgmes.cimnotebook.intellij.CimnotebookDocumentationProvider"/>
 
-        <!-- ── Ctrl+Click into RDFArchitect ───────────────────────────────
-             Only fires for documents whose schema comes from RDFArchitect: those have no schema
-             files to open, so the language server returns no declaration and Ctrl+Click would
-             otherwise do nothing at all.
-        -->
-        <gotoDeclarationHandler
-            implementation="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectGotoDeclarationHandler"/>
-
         <!-- ── Syntax highlighting ───────────────────────────────────────── -->
         <lang.syntaxHighlighterFactory
             language="SPARQL"
@@ -177,9 +169,10 @@
     </extensions>
 
     <projectListeners>
-        <!-- Warms the term cache when a SPARQL/SHACL file opens, so the first Ctrl+hover over it
-             already has a declaration target to offer (the EDT cannot wait for the server). -->
-        <listener class="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectTermPrefetch"
+        <!-- Ctrl+Click on a term of an RDFArchitect-held model goes to a document the language
+             server renders (there are no schema files); opening one shows the term in the tool
+             window. -->
+        <listener class="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectDefinitionOpener"
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
     </projectListeners>
 
