@@ -95,6 +95,19 @@ final class SparqlWorkspaceService implements WorkspaceService {
    */
   static final String CMD_CONNECT_RDFARCHITECT = "cimvocabcheck.connectRdfArchitect";
 
+  /**
+   * Command id for the terms of a document that should navigate into RDFArchitect. Arguments:
+   * {@code [uri]}. Returns {@code null} unless the document's schema comes from RDFArchitect, else
+   * {@code {"baseUrl": ..., "terms": [{"line", "startCharacter", "endCharacter", "iri"}, ...]}}.
+   *
+   * <p>Such a document has no schema files to open, so go-to-definition has nothing to offer;
+   * editor integrations turn these ranges into links that open the term in their RDFArchitect view
+   * instead. The ranges are supplied ahead of the click, because both editors resolve a Ctrl+Click
+   * target while the user is merely hovering — the navigation has to hang off a link, not off the
+   * act of resolving one.
+   */
+  static final String CMD_RDFARCHITECT_TERMS = "cimvocabcheck.rdfArchitectTerms";
+
   private final SchemaManager schemaManager;
   private final SparqlTextDocumentService documentService;
   private final NotebookCommandHandler notebookCommandHandler;
@@ -159,6 +172,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
     if (CMD_CONNECT_RDFARCHITECT.equals(params.getCommand())) {
       return connectRdfArchitect(params.getArguments());
     }
+    if (CMD_RDFARCHITECT_TERMS.equals(params.getCommand())) {
+      return rdfArchitectTerms(params.getArguments());
+    }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());
       return CompletableFuture.completedFuture(null);
@@ -218,6 +234,38 @@ final class SparqlWorkspaceService implements WorkspaceService {
       return CompletableFuture.completedFuture(iri == null ? null : Map.of("iri", iri));
     } catch (Exception e) {
       LOG.error("termInfo failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
+  /** Resolves a document's RDFArchitect-backed terms (see {@link #CMD_RDFARCHITECT_TERMS}). */
+  private CompletableFuture<Object> rdfArchitectTerms(List<Object> args) {
+    try {
+      String uri = stringArg(args, 0);
+      if (uri == null) {
+        return CompletableFuture.completedFuture(null);
+      }
+      return CompletableFuture.completedFuture(
+          documentService
+              .rdfArchitectTerms(uri)
+              .<Object>map(
+                  found ->
+                      Map.of(
+                          "baseUrl",
+                          found.baseUrl(),
+                          "terms",
+                          found.terms().stream()
+                              .map(
+                                  t ->
+                                      Map.of(
+                                          "line", t.line(),
+                                          "startCharacter", t.startCharacter(),
+                                          "endCharacter", t.endCharacter(),
+                                          "iri", (Object) t.iri()))
+                              .toList()))
+              .orElse(null));
+    } catch (Exception e) {
+      LOG.error("rdfArchitectTerms failed: {}", e.getMessage(), e);
       return CompletableFuture.completedFuture(null);
     }
   }

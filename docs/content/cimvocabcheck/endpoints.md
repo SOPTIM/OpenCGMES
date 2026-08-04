@@ -164,6 +164,10 @@ so profile detection and per-graph scoping work the same way. A live dataset is 
 change log moves, so an edit made in the view reaches the next validation without a reload; the
 change log is polled at most every few seconds, so a burst of typing costs one small request.
 
+Because such a schema has no source files, `Ctrl+Click` on a term in the cell opens it in the
+editor's RDFArchitect view rather than jumping to a declaration line
+([VS Code](/cimnotebook/vscode#go-to-definition), [IntelliJ](/cimnotebook/intellij#go-to-definition)).
+
 This is deliberately **not** a value of `# [endpoint=...]`: that directive belongs to SPARQL
 Notebook, which executes the cell against whatever it names, and an RDFArchitect URL there would
 break execution. A cell can carry both — `endpoint` runs the query, `rdfarchitect` supplies the

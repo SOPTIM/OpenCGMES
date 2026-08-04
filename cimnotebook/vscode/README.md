@@ -35,7 +35,7 @@ Typing `:` after a prefix (e.g. `cim:`) suggests all classes and properties in t
 
 ### Go-to-definition
 
-Press `F12` or `Ctrl+Click` on any CIM IRI to jump directly to its declaration line in the source `.rdf` or `.ttl` profile file.
+Press `F12` or `Ctrl+Click` on any CIM IRI to jump directly to its declaration line in the source `.rdf` or `.ttl` profile file. When the schema comes from RDFArchitect there is no such file, and `Ctrl+Click` opens the term in the RDFArchitect panel instead — a class opens itself, an attribute or association opens the class declaring it.
 
 ### Workspace symbol search
 

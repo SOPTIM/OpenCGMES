@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
+import de.soptim.opencgmes.cimvocabcheck.core.ExemptVocabulary;
 import de.soptim.opencgmes.cimvocabcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
@@ -320,6 +321,151 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
     Node term = termAtPosition(text, line, character, extractPrefixes(text));
     return term != null && term.isURI() ? term.getURI() : null;
+  }
+
+  /**
+   * A schema term named in a document, with the source range of the token that names it.
+   *
+   * @param line zero-based line
+   * @param startCharacter zero-based column of the token's first character
+   * @param endCharacter zero-based column just past the token's last character
+   * @param iri the full IRI the token resolves to
+   */
+  record TermRange(int line, int startCharacter, int endCharacter, String iri) {}
+
+  /** The RDFArchitect instance behind a document, and the terms it names. */
+  record RdfArchitectTerms(String baseUrl, List<TermRange> terms) {}
+
+  /**
+   * The terms of an open document that should navigate into RDFArchitect, or empty when the
+   * document's schema does not come from RDFArchitect at all.
+   *
+   * <p>Backs the {@code cimvocabcheck.rdfArchitectTerms} workspace command. A document validated
+   * against RDFArchitect has no schema files to jump to, so plain go-to-definition has nothing to
+   * offer; editor integrations turn these ranges into links that open the term in the RDFArchitect
+   * view instead.
+   *
+   * <p>Terms are filtered against the loaded schema where it is available, so a link only appears
+   * on something RDFArchitect can actually show. While the schema is still loading, every
+   * term-shaped token outside the standard vocabularies is offered instead — RDFArchitect answering
+   * "not found" is a better outcome than a document that has no links because it was opened a
+   * moment too early.
+   */
+  Optional<RdfArchitectTerms> rdfArchitectTerms(String uri) {
+    String text = documents.get(uri);
+    if (text == null) {
+      return Optional.empty();
+    }
+    String schemaSource = RdfArchitectDirective.schemaSourceOf(text);
+    var sourceOpt = schemaManager.rdfArchitectSourceFor(schemaSource, documentDir(uri));
+    if (sourceOpt.isEmpty()) {
+      return Optional.empty();
+    }
+    SchemaIndex index = documentSchemaIndex(uri, text).orElse(null);
+    return Optional.of(
+        new RdfArchitectTerms(sourceOpt.get().baseUrl(), schemaTermsIn(text, index)));
+  }
+
+  /**
+   * Scans a document for the tokens that name a schema term: {@code <full IRI>} and {@code
+   * prefix:local} names whose prefix is declared. Prefix and base declarations are skipped — the
+   * IRI on such a line is a namespace, not a term.
+   *
+   * @param index the schema to accept terms against, or {@code null} to accept every term-shaped
+   *     token outside the standard vocabularies
+   */
+  static List<TermRange> schemaTermsIn(String text, SchemaIndex index) {
+    PrefixMapping prefixes = extractPrefixes(text);
+    List<TermRange> terms = new ArrayList<>();
+    String[] lines = text.split("\n", -1);
+    for (int ln = 0; ln < lines.length; ln++) {
+      String src = lines[ln];
+      if (DECLARATION_LINE.matcher(src).find()) {
+        continue;
+      }
+      int i = 0;
+      while (i < src.length()) {
+        char c = src.charAt(i);
+        if (c == '<') {
+          int gt = closingAngle(src, i);
+          if (gt < 0) { // a comparison operator, not an IRI
+            i++;
+            continue;
+          }
+          addTerm(terms, text, ln, i, gt + 1, i + 1, prefixes, index);
+          i = gt + 1;
+        } else if (isNameChar(c)) {
+          int end = i;
+          while (end < src.length() && isNameChar(src.charAt(end))) {
+            end++;
+          }
+          addTerm(terms, text, ln, i, end, i, prefixes, index);
+          i = end;
+        } else {
+          i++;
+        }
+      }
+    }
+    return terms;
+  }
+
+  /**
+   * The index of the {@code >} closing an IRI opened at {@code lt}, or {@code -1} when that {@code
+   * <} opens no IRI — the same rule {@link #termAtPosition} applies, so the two agree on what a
+   * {@code <} in {@code FILTER(?a < 5 && ?b > 3)} is.
+   */
+  private static int closingAngle(String src, int lt) {
+    for (int i = lt + 1; i < src.length(); i++) {
+      char c = src.charAt(i);
+      if (c == '>') {
+        return i;
+      }
+      if (Character.isWhitespace(c) || c == '<') {
+        return -1;
+      }
+    }
+    return -1;
+  }
+
+  /** Resolves the token spanning {@code [start,end)} and keeps it if it names a schema term. */
+  private static void addTerm(
+      List<TermRange> terms,
+      String text,
+      int line,
+      int start,
+      int end,
+      int resolveAt,
+      PrefixMapping prefixes,
+      SchemaIndex index) {
+    Node term = termAtPosition(text, line, resolveAt, prefixes);
+    if (term == null || !term.isURI()) {
+      return;
+    }
+    boolean accepted = index != null ? termKnown(index, term) : isModelTerm(term);
+    if (accepted && !localNameOf(term.getURI()).isEmpty()) {
+      terms.add(new TermRange(line, start, end, term.getURI()));
+    }
+  }
+
+  /** A prefix, base, or {@code @prefix} declaration, whose IRI names a namespace, not a term. */
+  private static final Pattern DECLARATION_LINE = Pattern.compile("(?i)^\\s*(@?prefix|@?base)\\b");
+
+  /**
+   * Whether a term could be part of a curated model, i.e. is neither in a closed standard
+   * vocabulary ({@code rdf}, {@code rdfs}, {@code owl}, {@code sh}) nor in an open annotation
+   * namespace ({@code xsd}, {@code dcterms}, …). Used only while the schema is loading; once it is
+   * loaded, membership in the schema itself is the test.
+   */
+  private static boolean isModelTerm(Node term) {
+    return !StandardVocabulary.isClosedNamespace(term)
+        && !StandardVocabulary.isXsdNamespace(term)
+        && !ExemptVocabulary.isOpenNamespace(term);
+  }
+
+  /** The part of an IRI after its last {@code #} or {@code /}, empty when it has neither. */
+  private static String localNameOf(String iri) {
+    int sep = Math.max(iri.lastIndexOf('#'), iri.lastIndexOf('/'));
+    return sep >= 0 ? iri.substring(sep + 1) : "";
   }
 
   private Hover computeHover(HoverParams params) {

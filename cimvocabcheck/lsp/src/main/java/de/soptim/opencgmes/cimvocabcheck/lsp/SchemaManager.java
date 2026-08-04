@@ -711,6 +711,58 @@ final class SchemaManager {
     return Optional.ofNullable(rdfArchitect.get()).map(RdfArchitectConnection::url);
   }
 
+  /**
+   * The RDFArchitect instance a document's schema comes from, or empty when it comes from anywhere
+   * else — schema files, a SPARQL endpoint, or nothing at all.
+   *
+   * <p>Answered from the document's own directive and the nearest config alone, without waiting for
+   * (or triggering) a schema load: editor integrations ask this to decide whether a term should
+   * navigate into RDFArchitect, and that decision must not depend on how far a background load has
+   * got.
+   *
+   * @param schemaSource the document's schema source as {@link
+   *     RdfArchitectDirective#schemaSourceOf} returns it, or {@code null} when it declares none
+   * @param docDir the document's directory, for config discovery
+   */
+  Optional<RdfArchitectSource> rdfArchitectSourceFor(String schemaSource, Path docDir) {
+    String ref;
+    if (schemaSource != null && schemaSource.startsWith(RdfArchitectDirective.SCHEME)) {
+      ref = rdfArchitectRefOf(schemaSource);
+    } else if (schemaSource != null && !schemaSource.isBlank()) {
+      ref = null; // a plain "# [endpoint=...]" document: not RDFArchitect-backed
+    } else {
+      ref = configuredRdfArchitect(docDir);
+    }
+    if (ref == null || ref.isBlank()) {
+      return Optional.empty();
+    }
+    RdfArchitectConnection connection = rdfArchitect.get();
+    try {
+      return Optional.of(
+          RdfArchitectSource.parse(ref, connection == null ? null : connection.url()));
+    } catch (IllegalArgumentException e) {
+      // Typically a bare dataset name with no window connected: there is no instance to open.
+      return Optional.empty();
+    }
+  }
+
+  /** The {@code rdfArchitect} value of the nearest config, or {@code null} when there is none. */
+  private String configuredRdfArchitect(Path docDir) {
+    Path start = docDir != null ? docDir : workspaceRoot;
+    if (start == null) {
+      return null;
+    }
+    Optional<Path> configFile = ConfigLoader.discoverFile(start);
+    if (configFile.isEmpty()) {
+      return null;
+    }
+    try {
+      return ConfigLoader.load(configFile.get()).rdfArchitect();
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
   /** Drops everything read from RDFArchitect: another session holds different datasets. */
   private void forgetRdfArchitectSchemas() {
     liveSources.clear();
