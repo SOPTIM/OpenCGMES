@@ -93,6 +93,7 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand("cimnotebook.sendSchemaToRdfArchitect", () =>
             sendSchemaToRdfArchitect(),
         ),
+        vscode.commands.registerCommand("cimnotebook.reconnectRdfArchitect", reconnectRdfArchitect),
     );
 
     try {
@@ -120,11 +121,14 @@ function doActivate(context: vscode.ExtensionContext, connectionStore: Connectio
     }
 
     client = buildClient(serverJar, context);
+    // A backend session outlives the editor, so a workspace that was reading live datasets can
+    // keep doing so without opening the panel again — once the server is up to be told about it.
     client.start().then(
         () => {
             // The notebook defaults live in workspace state, so a freshly started server knows
             // none of them — replay them, or directive-less cells would validate syntax-only.
             void connectionStore.syncNotebookDefaults();
+            return restoreRdfArchitectSession();
         },
         (err: unknown) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -397,15 +401,25 @@ async function importSchemaAndSnapshot(
     schemaFiles: string[],
     termIri?: string,
 ): Promise<{ url: string; record: SchemaHandoff }> {
-    const api = new RdfArchitectClient(base);
+    const session = connectedSession?.url === base ? connectedSession.id : undefined;
+    const api = new RdfArchitectClient(base, session);
     const dataset = datasetNameFor(configFile);
     await api.importGraphs(dataset, schemaFiles);
-    await api.disableEditing(dataset);
-    const token = await api.createSnapshot(dataset);
     const url = new URL(base);
-    url.searchParams.set("snapshot", token);
-    // RDFArchitect loads a snapshot under SNAPSHOT_<dataset>_<token>; preselect it.
-    url.searchParams.set("dataset", `SNAPSHOT_${dataset}_${token}`);
+    let snapshot: string | undefined;
+    if (session) {
+        // The import landed in the panel's own session, so it can simply open the dataset — and
+        // because it stays editable there, changes are picked up live by the language server.
+        url.searchParams.set("dataset", dataset);
+    } else {
+        // No connected window: bridge into whatever session the panel gets via a snapshot, and
+        // keep that copy read-only since nothing would ever read edits back out of it.
+        await api.disableEditing(dataset);
+        snapshot = await api.createSnapshot(dataset);
+        url.searchParams.set("snapshot", snapshot);
+        // RDFArchitect loads a snapshot under SNAPSHOT_<dataset>_<token>; preselect it.
+        url.searchParams.set("dataset", `SNAPSHOT_${dataset}_${snapshot}`);
+    }
     // Sending the schema because a term could not be found: land on that term afterwards.
     if (termIri) {
         url.searchParams.set("class", termIri);
@@ -415,7 +429,7 @@ async function importSchemaAndSnapshot(
         record: {
             url: base,
             dataset,
-            snapshot: token,
+            snapshot,
             fingerprint: await schemaFingerprint(schemaFiles),
             sentAt: new Date().toISOString(),
         },
@@ -428,6 +442,129 @@ function datasetNameFor(configFile: string): string {
     return dir || "cimnotebook";
 }
 
+// ---- The RDFArchitect view's session ---------------------------------------------------------
+
+/** RDFArchitect's session cookie; its value is the session id the embedded app hands over. */
+const RDFA_SESSION_COOKIE = "RDFA_SESSION_ID";
+
+const SESSION_KEY = "cimnotebook.rdfArchitect.session";
+
+/** The RDFArchitect window this workspace is connected to. */
+interface RdfArchitectSession {
+    url: string;
+    id: string;
+}
+
+let connectedSession: RdfArchitectSession | undefined;
+let connectionStatus: vscode.StatusBarItem | undefined;
+
+/**
+ * Connects the RDFArchitect window the panel shows to the language server.
+ *
+ * Datasets in RDFArchitect belong to a browser session and are never published, so validating
+ * against the model *as it is being edited* means reading that session. The embedded app reports
+ * which session it uses (see {@link rdfArchitectHtml}), and this hands it to the server, which then
+ * resolves `"rdfArchitect": "<dataset>"` against it. The id is a credential for that session: it
+ * stays in workspace state and in the server's memory, and is never written to a config file.
+ */
+async function connectRdfArchitectSession(url: string, id: string): Promise<void> {
+    if (connectedSession?.url === url && connectedSession.id === id) {
+        return;
+    }
+    connectedSession = { url, id };
+    await extensionContext.workspaceState.update(SESSION_KEY, connectedSession);
+    await sendConnectionToServer(connectedSession);
+    out.appendLine(`Connected to the RDFArchitect session at ${url}.`);
+    updateConnectionStatus();
+}
+
+/** Tells the language server which window to read, or that there is none. */
+async function sendConnectionToServer(session: RdfArchitectSession | undefined): Promise<void> {
+    if (!client) {
+        return;
+    }
+    try {
+        await client.sendRequest("workspace/executeCommand", {
+            command: "cimvocabcheck.connectRdfArchitect",
+            arguments: session ? [session.url, session.id] : [],
+        });
+    } catch (err) {
+        out.appendLine(`Could not hand the RDFArchitect session to the server: ${err}`);
+    }
+}
+
+/**
+ * Restores the connection remembered for this workspace, so validation keeps working across an
+ * editor restart without opening the panel first.
+ *
+ * A backend session outlives the browser that created it, but not the backend itself — and a
+ * webview that lost its cookie silently gets a *new* session. Asking the instance which session
+ * the id names distinguishes the two: a different answer means the remembered one is gone.
+ */
+async function restoreRdfArchitectSession(): Promise<void> {
+    const remembered = extensionContext.workspaceState.get<RdfArchitectSession>(SESSION_KEY);
+    if (!remembered) {
+        return;
+    }
+    if (await sessionIsAlive(remembered)) {
+        connectedSession = remembered;
+        await sendConnectionToServer(remembered);
+        out.appendLine(`Reconnected to the RDFArchitect session at ${remembered.url}.`);
+    } else {
+        await extensionContext.workspaceState.update(SESSION_KEY, undefined);
+        out.appendLine(
+            "The remembered RDFArchitect session is gone — open the panel to reconnect.",
+        );
+    }
+    updateConnectionStatus();
+}
+
+/** Whether the instance still knows this session (it answers with the id of the caller's own). */
+async function sessionIsAlive(session: RdfArchitectSession): Promise<boolean> {
+    try {
+        const api = `${new URL(session.url).toString().replace(/\/+$/, "")}/api`;
+        const res = await fetch(`${api}/session`, {
+            headers: { Cookie: `${RDFA_SESSION_COOKIE}=${session.id}` },
+        });
+        if (!res.ok) {
+            return false;
+        }
+        return ((await res.json()) as { id?: string }).id === session.id;
+    } catch {
+        return false;
+    }
+}
+
+/** Reconnects on demand: re-probes the remembered session, else opens the panel to get a new one. */
+async function reconnectRdfArchitect(): Promise<void> {
+    connectedSession = undefined;
+    await restoreRdfArchitectSession();
+    if (!connectedSession) {
+        await openRdfArchitect();
+    }
+}
+
+/** A quiet indicator of whether live datasets can be read, with the reconnect command behind it. */
+function updateConnectionStatus(): void {
+    if (!connectionStatus) {
+        connectionStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+        connectionStatus.command = "cimnotebook.reconnectRdfArchitect";
+        extensionContext.subscriptions.push(connectionStatus);
+    }
+    if (connectedSession) {
+        connectionStatus.text = "$(plug) RDFArchitect";
+        connectionStatus.tooltip =
+            `Reading live datasets from ${connectedSession.url}.\n` +
+            "Click to reconnect (e.g. after restarting RDFArchitect).";
+    } else {
+        connectionStatus.text = "$(debug-disconnect) RDFArchitect";
+        connectionStatus.tooltip =
+            "Not connected — a dataset named in opencgmes.jsonc cannot be read.\n" +
+            "Click to connect by opening the RDFArchitect panel.";
+    }
+    connectionStatus.show();
+}
+
 // ---- Keeping RDFArchitect's copy of the schema in step ---------------------------------------
 
 /** What "Send Schema to RDFArchitect" last handed to which instance, per workspace. */
@@ -435,7 +572,8 @@ interface SchemaHandoff {
     /** The instance the schema went to; a different URL means a different (empty) RDFArchitect. */
     url: string;
     dataset: string;
-    snapshot: string;
+    /** The snapshot bridging into the panel's session, or undefined when it went to that session. */
+    snapshot?: string;
     fingerprint: string;
     sentAt: string;
 }
@@ -468,9 +606,7 @@ async function offerSchemaSync(base: string, termIri?: string): Promise<void> {
         }
         const previous = extensionContext.workspaceState.get<SchemaHandoff>(HANDOFF_KEY);
         const inSync =
-            previous?.url === base && (await snapshotExists(base, previous.snapshot))
-                ? previous
-                : undefined;
+            previous?.url === base && (await handoffIsAlive(base, previous)) ? previous : undefined;
         const fingerprint = await schemaFingerprint(info.schemaFiles);
         if (inSync?.fingerprint === fingerprint) {
             return;
@@ -497,14 +633,24 @@ async function offerSchemaSync(base: string, termIri?: string): Promise<void> {
 }
 
 /**
- * Whether a snapshot is still loadable, which is what decides "is our schema still over there?".
- * Loading it into this throwaway session is the probe; the panel has its own session.
+ * Whether what was sent is still over there — which differs by how it was sent: a snapshot has to
+ * still load (loading it into this throwaway session is the probe), while a dataset sent into the
+ * connected window has to still be in that window's session.
  */
-async function snapshotExists(base: string, token: string): Promise<boolean> {
+async function handoffIsAlive(base: string, handoff: SchemaHandoff): Promise<boolean> {
     try {
         const api = `${new URL(base).toString().replace(/\/+$/, "")}/api`;
-        const res = await fetch(`${api}/snapshots/${encodeURIComponent(token)}`);
-        return res.ok;
+        if (handoff.snapshot) {
+            const res = await fetch(`${api}/snapshots/${encodeURIComponent(handoff.snapshot)}`);
+            return res.ok;
+        }
+        if (connectedSession?.url !== base) {
+            return false;
+        }
+        const res = await fetch(`${api}/datasets`, {
+            headers: { Cookie: `${RDFA_SESSION_COOKIE}=${connectedSession.id}` },
+        });
+        return res.ok && ((await res.json()) as string[]).includes(handoff.dataset);
     } catch {
         return false;
     }
@@ -529,8 +675,15 @@ class RdfArchitectClient {
     private readonly api: string;
     private readonly cookies = new Map<string, string>();
 
-    constructor(base: string) {
+    /**
+     * @param sessionId a session to work in (the embedded view's), instead of a fresh one of our
+     *     own — what puts an imported dataset where the user can actually see and edit it
+     */
+    constructor(base: string, sessionId?: string) {
         this.api = `${new URL(base).toString().replace(/\/+$/, "")}/api`;
+        if (sessionId) {
+            this.cookies.set(RDFA_SESSION_COOKIE, sessionId);
+        }
     }
 
     async importGraphs(dataset: string, files: string[]): Promise<void> {
@@ -630,11 +783,13 @@ function showRdfArchitectPanel(
         },
     );
     panel.webview.html = rdfArchitectHtml(url);
-    panel.webview.onDidReceiveMessage((msg: { command?: string; url?: string }) => {
+    panel.webview.onDidReceiveMessage((msg: { command?: string; url?: string; id?: string }) => {
         if (msg.command === "openExternal" && msg.url) {
             void vscode.env.openExternal(vscode.Uri.parse(msg.url));
         } else if (msg.command === "sendSchema") {
             void sendSchemaToRdfArchitect();
+        } else if (msg.command === "session" && msg.id) {
+            void connectRdfArchitectSession(base, msg.id);
         }
     });
     panel.onDidDispose(() => {
@@ -722,6 +877,30 @@ function rdfArchitectHtml(url: string): string {
     <iframe id="app" src="${url}" allow="clipboard-read; clipboard-write"></iframe>
     <script nonce="${nonce}">
         const vscodeApi = acquireVsCodeApi();
+        const appOrigin = ${JSON.stringify(origin)};
+        // Datasets belong to the embedded app's backend session, so the language server needs that
+        // session to read them. The app answers this request when its deployment allows it
+        // (PUBLIC_EMBED_SESSION_HANDSHAKE); we retry because it may not be listening yet.
+        let sessionAsked = 0;
+        const askForSession = () => {
+            const frame = document.getElementById("app");
+            if (!frame.contentWindow || sessionAsked > 20) {
+                return;
+            }
+            sessionAsked++;
+            frame.contentWindow.postMessage({ type: "rdfa:session-request" }, appOrigin);
+            setTimeout(askForSession, 500);
+        };
+        window.addEventListener("message", event => {
+            if (event.origin === appOrigin && event.data && event.data.type === "rdfa:session") {
+                sessionAsked = Infinity; // answered; stop asking
+                vscodeApi.postMessage({ command: "session", id: event.data.id });
+            }
+        });
+        document.getElementById("app").addEventListener("load", () => {
+            sessionAsked = 0;
+            askForSession();
+        });
         document.getElementById("reload").addEventListener("click", () => {
             const frame = document.getElementById("app");
             frame.src = frame.src;

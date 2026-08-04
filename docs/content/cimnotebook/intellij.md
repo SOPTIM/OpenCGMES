@@ -124,6 +124,10 @@ opens the result as a snapshot in the tool window. The dataset is named after th
 directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
 manual import. It is available from **Tools** and from the RDFArchitect tool window's toolbar.
 
+When a session is connected (see below), the schema is imported into the tool window's own session
+and stays **editable** there — so changes you make to it are picked up live by validation. Without a
+connection it is imported read-only and bridged in as a snapshot, as before.
+
 You are not expected to remember to run it. When the tool window opens, CIMNotebook checks what
 this project last sent to that instance and offers to do it for you:
 
@@ -141,6 +145,23 @@ Re-sending is safe: every send runs in a fresh RDFArchitect session, so the data
 from scratch rather than merged into the previous one. Note that the changed-schema check compares
 the *files on disk* with what was last sent — edits you make inside RDFArchitect are not detected
 (and the imported dataset is read-only precisely so it stays a copy of your profiles).
+
+### Live datasets
+
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so the datasets
+in the tool window are invisible to anything outside that session. The plugin bridges this: the tool
+window is its own JCEF browser, so the plugin reads that session directly and hands it to the
+language server. `"rdfArchitect": "<dataset>"` in
+[`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then validates against that dataset
+**as you edit it** — add a class in the tool window and the next validation knows it. No setting on
+the RDFArchitect side is needed (unlike the VS Code webview, which is a third-party iframe).
+
+The connection is remembered per project and restored on IDE start, so validation keeps working
+without reopening the tool window — a backend session outlives the browser that created it, though
+not a restart of RDFArchitect itself. **Reconnect Session** on the tool window's toolbar re-reads it.
+
+The session id grants access to that session, so it stays in the project's properties and in the
+language server's memory — never in `opencgmes.jsonc`, which only ever holds the dataset name.
 
 ## Settings
 
