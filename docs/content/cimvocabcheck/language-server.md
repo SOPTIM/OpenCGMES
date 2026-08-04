@@ -45,7 +45,10 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   `cimvocabcheck.termInfo` (`[uri, line, character]` → the full IRI of the schema term at a
   position in an open document; backs the editors' **Open in RDFArchitect** action), and
   `cimvocabcheck.schemaInfo` (`[uri?]` → the discovered config file and the schema files it
-  declares, as absolute paths; backs the editors' **Send Schema to RDFArchitect** action).
+  declares, as absolute paths; backs the editors' **Send Schema to RDFArchitect** action), and
+  `cimvocabcheck.connectRdfArchitect` (`[url, sessionId]` → connects the RDFArchitect window an
+  editor embeds, so a dataset named in the config is read from that session
+  [as it is edited](/cimvocabcheck/configuration#live-datasets); no arguments disconnects).
 
 ## Configuration discovery
 

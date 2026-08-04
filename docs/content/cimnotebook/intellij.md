@@ -94,8 +94,9 @@ class or property name to navigate to any schema term. Matching is partial and c
 schemas with CIM extensions. The **RDFArchitect** tool window (also reachable via **Tools →
 CIMNotebook: Open RDFArchitect**) embeds a running RDFArchitect instance in the IDE's built-in
 browser (JCEF), so you can browse and edit the schema diagrams next to your queries. The tool
-window's title bar has **Reload** and **Open in Browser** actions; if the IDE runtime does not
-support JCEF, the tool window offers the system browser instead.
+window's title bar has **Send Schema**, **Reconnect Session**, **Reload** and **Open in Browser**
+actions; if the IDE runtime does not support JCEF, the tool window offers the system browser
+instead.
 
 RDFArchitect is not bundled — point the **RDFArchitect URL** setting at a local
 [docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g.
@@ -119,8 +120,8 @@ Jumping to a property requires an RDFArchitect that supports property deep links
 
 The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks
 the language server for the workspace's configured schema files (the `opencgmes.jsonc`
-`schemas`/`schemasDirectory`), imports them into RDFArchitect as a **read-only** dataset, and
-opens the result as a snapshot in the tool window. The dataset is named after the config file's
+`schemas`/`schemasDirectory`), imports them into RDFArchitect as a dataset, and opens the result
+in the tool window. The dataset is named after the config file's
 directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
 manual import. It is available from **Tools** and from the RDFArchitect tool window's toolbar.
 
@@ -133,7 +134,7 @@ this project last sent to that instance and offers to do it for you:
 
 | Situation                                                          | What you get                        |
 | ------------------------------------------------------------------ | ----------------------------------- |
-| nothing sent yet, or the instance restarted and lost the snapshot   | *"…schema is not in RDFArchitect yet. Import it?"* |
+| nothing sent yet, or what was sent is gone (the instance restarted) | *"…schema is not in RDFArchitect yet. Import it?"* |
 | the schema files changed since the last send                        | *"…schema changed since it was sent. Update it?"*  |
 | the schema is there and unchanged                                   | nothing                              |
 
@@ -141,10 +142,10 @@ The dialog's third button, **Never for This Project**, is remembered in the proj
 so a project you always import by hand stays quiet. When the offer follows an **Open in
 RDFArchitect** that could not find its term, the import lands on that term afterwards.
 
-Re-sending is safe: every send runs in a fresh RDFArchitect session, so the dataset is rebuilt
-from scratch rather than merged into the previous one. Note that the changed-schema check compares
-the *files on disk* with what was last sent — edits you make inside RDFArchitect are not detected
-(and the imported dataset is read-only precisely so it stays a copy of your profiles).
+Re-sending is safe: the dataset is rebuilt from its files rather than merged into the previous one.
+Note that the changed-schema check compares the *files on disk* with what was last sent, so it asks
+about edits made **here**, never about edits made in RDFArchitect — those are not a reason to
+re-import, and with a connected session they are picked up live anyway.
 
 ### Live datasets
 
