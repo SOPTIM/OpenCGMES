@@ -220,16 +220,27 @@ restored when the editor starts, so validation keeps working without reopening t
 backend session outlives the browser that created it, though not a restart of RDFArchitect itself.
 
 :::info An instance behind a private CA
-Three processes talk to RDFArchitect, and each has its own idea of which certificates to trust —
-so a company CA that the machine already trusts is not automatically enough:
+Three processes talk to RDFArchitect, each with its own idea of which certificates to trust. A CA
+installed in the machine's store is used by all of them **without any configuration**:
 
-| Who | How to trust the CA |
+| Who | How the machine's CA reaches it |
 | --- | --- |
-| the **language server** (its own JVM) | add `-Djavax.net.ssl.trustStore=<file>` and `-Djavax.net.ssl.trustStorePassword=<password>` to `cimnotebook.javaArgs`, or import the CA into the JDK's `cacerts` |
-| the **extension**'s REST calls (VS Code's Node) | start VS Code with `NODE_EXTRA_CA_CERTS=/path/to/ca.pem` |
-| the **panel** (the embedded browser) | uses the machine's own store, so an installed CA already applies |
+| the **panel** (embedded browser) | uses the system store directly |
+| the **extension**'s REST calls | the system store is added to Node's list on activation (VS Code 1.100+ / Node 22.15+; honours `http.systemCertificates`) |
+| the **language server** (its own JVM) | Windows: the system root store is used; Debian/Ubuntu: `/etc/ssl/certs/java/cacerts`, which the system keeps in sync |
 
-The language server says which of these failed rather than only reporting a PKIX error.
+**macOS is the exception** — a JVM cannot be pointed at the Keychain safely from here, so add the CA
+to the JDK's `cacerts`, or name a truststore yourself:
+
+```json
+"cimnotebook.javaArgs": [
+    "-Djavax.net.ssl.trustStore=/path/to/truststore.jks",
+    "-Djavax.net.ssl.trustStorePassword=changeit"
+]
+```
+
+A truststore you configure always wins over the automatic one. If a handshake still fails, the
+language server says so in those terms rather than only reporting a PKIX error.
 :::
 
 :::warning Requires the instance to allow the handshake
