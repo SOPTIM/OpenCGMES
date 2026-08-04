@@ -48,7 +48,10 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   declares, as absolute paths; backs the editors' **Send Schema to RDFArchitect** action), and
   `cimvocabcheck.connectRdfArchitect` (`[url, sessionId]` → connects the RDFArchitect window an
   editor embeds, so a dataset named in the config is read from that session
-  [as it is edited](/cimvocabcheck/configuration#live-datasets); no arguments disconnects).
+  [as it is edited](/cimvocabcheck/configuration#live-datasets); no arguments disconnects), and
+  `cimvocabcheck.rdfArchitectTerms` (`[uri]` → the instance a document's schema comes from and the
+  ranges of the terms it names, or `null` when the schema comes from anywhere else; backs
+  Ctrl+Click into RDFArchitect, which a schema without source files cannot answer with a location).
 
 ## Configuration discovery
 

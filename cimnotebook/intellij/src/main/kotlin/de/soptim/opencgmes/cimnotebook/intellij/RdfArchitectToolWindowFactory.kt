@@ -37,6 +37,8 @@ import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import de.soptim.opencgmes.cimnotebook.intellij.settings.CimnotebookSettings
 import java.awt.BorderLayout
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import javax.swing.JPanel
 
 /**
@@ -131,6 +133,17 @@ class RdfArchitectToolWindowFactory :
 
         /** The instance root of a URL the view may have been navigated to. */
         fun baseOf(url: String): String = configuredUrl()?.trimEnd('/') ?: url.trimEnd('/')
+
+        /**
+         * RDFArchitect's deep link for a term. Every kind of term uses the `class` parameter: a
+         * class opens itself, an attribute, association or enum entry opens the class declaring it.
+         */
+        fun termDeepLink(
+            base: String,
+            iri: String,
+        ): String =
+            base.trimEnd('/') + "/mainpage?class=" +
+                URLEncoder.encode(iri, StandardCharsets.UTF_8)
 
         /** The configured RDFArchitect base URL, or null when unset. */
         fun configuredUrl(): String? =
