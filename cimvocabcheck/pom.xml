@@ -36,7 +36,7 @@
     </modules>
 
     <properties>
-        <ver.plugin.license-header>5.0.0</ver.plugin.license-header>
+        <ver.plugin.license-header>5.1.1</ver.plugin.license-header>
     </properties>
 
     <build>
