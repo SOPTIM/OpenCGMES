@@ -370,8 +370,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * The endpoint(s) a document's schema comes from — several file directives (or a glob pattern)
    * form a union of local files.
    *
-   * <p>The precedence mirrors the one the VS Code client uses to pick a cell's <em>execution</em>
-   * target, so a cell validates against what it runs against:
+   * <p>A {@code # [rdfarchitect=...]} directive wins over everything: it is the more specific
+   * statement about where the <em>schema</em> comes from, while {@code endpoint} also says where
+   * queries run. Otherwise the precedence mirrors the one the VS Code client uses to pick a cell's
+   * <em>execution</em> target, so a cell validates against what it runs against:
    *
    * <ol>
    *   <li>the document's own {@code # [endpoint=...]} directives;
@@ -384,6 +386,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * of a notebook and keeps its workspace schema.
    */
   private List<String> effectiveEndpoints(String uri, String text) {
+    Optional<String> rdfArchitect = RdfArchitectDirective.parse(text);
+    if (rdfArchitect.isPresent()) {
+      return List.of(RdfArchitectDirective.SCHEME + rdfArchitect.get());
+    }
     List<String> directives = EndpointDirective.parseAll(text);
     if (!directives.isEmpty() || !DocumentUris.isNotebookCell(uri)) {
       return directives;

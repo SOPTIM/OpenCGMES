@@ -27,6 +27,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.CimvocabcheckConfig;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSource;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.FileGlobs;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConfigLoader;
@@ -228,8 +230,9 @@ final class SchemaManager {
   }
 
   /**
-   * The source a document's endpoint directives load their schema from — a remote SPARQL endpoint
-   * URL or a union of local {@code .ttl}/{@code .rdf}/{@code .owl} files (several directives and
+   * The source a document's directives load their schema from — a model held in a running
+   * RDFArchitect (an {@link RdfArchitectDirective#SCHEME}-prefixed value), a remote SPARQL endpoint
+   * URL, or a union of local {@code .ttl}/{@code .rdf}/{@code .owl} files (several directives and
    * glob patterns like {@code ./rdf/*.ttl} name multiple files) — or {@code null} when the
    * directives name no schema at all and the document's workspace schema applies instead. That is
    * the case for a blank directive, and for these notebook-specific ones:
@@ -256,6 +259,9 @@ final class SchemaManager {
     }
     if (directives.size() == 1) {
       String endpoint = directives.get(0);
+      if (endpoint.startsWith(RdfArchitectDirective.SCHEME)) {
+        return SchemaSource.rdfArchitect(endpoint.substring(RdfArchitectDirective.SCHEME.length()));
+      }
       if (isRemote(endpoint)) {
         return SchemaSource.remote(endpoint);
       }
@@ -314,6 +320,10 @@ final class SchemaManager {
   Optional<ResolvedSchema> resolveFrom(SchemaSource source, Path docDir) {
     if (source == null) {
       return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
+    }
+    if (source.isRdfArchitect()) {
+      String key = RdfArchitectDirective.SCHEME + source.rdfArchitect();
+      return resolveAsync(key, () -> loadRdfArchitect(key));
     }
     return source.isRemote() ? resolveRemote(source.remoteUrl()) : resolveLocal(source.files());
   }
@@ -536,18 +546,78 @@ final class SchemaManager {
    * schema lands. Returns empty until then.
    */
   private Optional<ResolvedSchema> resolveRemote(String endpoint) {
-    ResolvedSchema cached = endpointCache.get(endpoint);
+    return resolveAsync(endpoint, () -> loadRemoteEndpoint(endpoint));
+  }
+
+  /**
+   * Serves a network-backed schema from the cache, kicking off {@code load} the first time it is
+   * asked for. Returns empty until the load lands (open documents are revalidated then), and stays
+   * empty for a failure window afterwards so a keystroke cannot re-trigger a failing fetch.
+   */
+  private Optional<ResolvedSchema> resolveAsync(String key, Runnable load) {
+    ResolvedSchema cached = endpointCache.get(key);
     if (cached != null) {
       return Optional.of(cached);
     }
-    if (isFailed(endpoint)) {
+    if (isFailed(key)) {
       return Optional.empty();
     }
-    if (inFlightEndpoints.add(endpoint)) {
-      notify(MessageType.Info, "CIMVocabCheck: loading schema from endpoint " + endpoint + " …");
-      endpointExecutor.submit(() -> loadRemoteEndpoint(endpoint));
+    if (inFlightEndpoints.add(key)) {
+      notify(MessageType.Info, "CIMVocabCheck: loading schema from " + describeSource(key) + " …");
+      endpointExecutor.submit(load);
     }
     return Optional.empty();
+  }
+
+  /** Loads the schema for a {@code # [rdfarchitect=...]} document. */
+  private void loadRdfArchitect(String key) {
+    String url = key.substring(RdfArchitectDirective.SCHEME.length());
+    try {
+      RdfArchitectSource source = RdfArchitectSource.parse(url);
+      EndpointSchema es = RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT);
+      if (!es.hasSchema()) {
+        markFailed(key);
+        notify(
+            MessageType.Warning,
+            "CIMVocabCheck: RDFArchitect "
+                + source.describe()
+                + " "
+                + describeNoSchema(es)
+                + " — validating SPARQL syntax only.");
+        return;
+      }
+      endpointCache.put(key, buildSchema(es.index(), es.namedGraphScope(), null));
+      LOG.info(
+          "Loaded schema from RDFArchitect {} ({} schema graph(s))",
+          source.describe(),
+          es.schemaGraphNames().size());
+      notify(
+          MessageType.Info,
+          "CIMVocabCheck: schema loaded from RDFArchitect "
+              + source.describe()
+              + " — "
+              + es.schemaGraphNames().size()
+              + " schema graph(s).");
+      fireOnLoaded();
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to load schema from RDFArchitect {}: {}", url, e.getMessage());
+      fail(
+          key,
+          MessageType.Error,
+          "CIMVocabCheck: could not load the schema from RDFArchitect "
+              + url
+              + " — "
+              + e.getMessage());
+    } finally {
+      inFlightEndpoints.remove(key);
+    }
+  }
+
+  /** How a schema source reads in a user-facing message. */
+  private static String describeSource(String key) {
+    return key.startsWith(RdfArchitectDirective.SCHEME)
+        ? "RDFArchitect " + key.substring(RdfArchitectDirective.SCHEME.length())
+        : "endpoint " + key;
   }
 
   private void loadRemoteEndpoint(String endpoint) {
@@ -764,6 +834,9 @@ final class SchemaManager {
   private WorkspaceSchema buildSchemaForConfig(Path configFile) throws Exception {
     Path base = configFile.toAbsolutePath().getParent();
     CimvocabcheckConfig config = ConfigLoader.load(configFile);
+    if (config.rdfArchitect() != null && !config.rdfArchitect().isBlank()) {
+      return buildSchemaFromRdfArchitect(config);
+    }
     Optional<SchemaLoader.SchemaAndSources> loaded = SchemaLoader.loadWithSources(config, base);
     if (loaded.isEmpty()) {
       // Config present but no schemas declared → syntax-only (unless documents use an endpoint).
@@ -771,6 +844,57 @@ final class SchemaManager {
           null, parseLevel(config), null, Map.of(), config.checkStandardVocabulary());
     }
     return assemble(config, loaded.get());
+  }
+
+  /**
+   * Builds a {@link WorkspaceSchema} from the profiles held in an RDFArchitect instance ({@code
+   * "rdfArchitect"} in the config) instead of from schema files, so a workspace validates against
+   * the model as it is curated there.
+   *
+   * <p>This is a network load on the schema-loading thread, like the primary file load: the result
+   * is cached per config for the session, and {@code cimvocabcheck.reloadSchema} refetches it.
+   * There is no definition index — the terms have no backing source file to jump to.
+   */
+  private WorkspaceSchema buildSchemaFromRdfArchitect(CimvocabcheckConfig config) {
+    RdfArchitectSource source = RdfArchitectSource.parse(config.rdfArchitect());
+    EndpointSchema es = RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT);
+    if (!es.hasSchema()) {
+      notify(
+          MessageType.Warning,
+          "CIMVocabCheck: RDFArchitect "
+              + source.describe()
+              + " "
+              + describeNoSchema(es)
+              + " — validating SPARQL syntax only.");
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    LOG.info(
+        "Loaded schema from RDFArchitect {} ({} schema graph(s))",
+        source.describe(),
+        es.schemaGraphNames().size());
+    notify(
+        MessageType.Info,
+        "CIMVocabCheck: schema loaded from RDFArchitect "
+            + source.describe()
+            + " — "
+            + es.schemaGraphNames().size()
+            + " schema graph(s).");
+    var prefixes =
+        config.prefixes() != null
+            ? config.prefixes()
+            : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, es.index());
+    boolean checkStd = config.checkStandardVocabulary();
+    var scope =
+        config.hasNamedGraphs()
+            ? SparqlValidationApi.buildNamedGraphScope(
+                config.namedGraphs(), es.index(), msg -> LOG.warn("{}", msg))
+            : es.namedGraphScope();
+    return new WorkspaceSchema(
+        new SparqlValidationApi(es.index(), prefixes, checkStd),
+        parseLevel(config),
+        null,
+        scope,
+        checkStd);
   }
 
   /**
