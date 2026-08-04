@@ -24,6 +24,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.jar.JarInputStream;
 import java.util.stream.Collectors;
 import org.eclipse.lsp4j.CompletionOptions;
 import org.eclipse.lsp4j.DidChangeWatchedFilesRegistrationOptions;
@@ -112,8 +113,45 @@ public final class SparqlLanguageServer implements LanguageServer, LanguageClien
     caps.setWorkspaceSymbolProvider(true);
 
     InitializeResult result = new InitializeResult(caps);
-    result.setServerInfo(new ServerInfo("SPARQL Validation Server", "1.0.0"));
+    result.setServerInfo(new ServerInfo("CIMLangServer", version()));
+    LOG.info("CIMLangServer {}", version());
     return CompletableFuture.completedFuture(result);
+  }
+
+  /**
+   * The build this server was packaged from, as the editors show it (VS Code in its trace log,
+   * IntelliJ in the Language Servers window).
+   *
+   * <p>An editor bundles the server JAR, so "is this the build I think it is?" is a question that
+   * comes up whenever a feature seems missing — and answering it by looking at a file date is
+   * guesswork. The server says so itself.
+   */
+  private static String version() {
+    Package pkg = SparqlLanguageServer.class.getPackage();
+    String version = pkg == null ? null : pkg.getImplementationVersion();
+    String built = manifestValue("Build-Time");
+    if (version == null || version.startsWith("0.0.0")) {
+      version = "development build";
+    }
+    return built == null ? version : version + " (built " + built + ")";
+  }
+
+  /** Reads an attribute of this JAR's own manifest, or {@code null} when it is not packaged. */
+  private static String manifestValue(String name) {
+    try {
+      var url = SparqlLanguageServer.class.getResource("SparqlLanguageServer.class");
+      if (url == null || !"jar".equals(url.getProtocol())) {
+        return null;
+      }
+      String jar = url.getPath().substring(0, url.getPath().indexOf('!'));
+      try (var stream = URI.create(jar).toURL().openStream();
+          var jarStream = new JarInputStream(stream)) {
+        var manifest = jarStream.getManifest();
+        return manifest == null ? null : manifest.getMainAttributes().getValue(name);
+      }
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   @Override
