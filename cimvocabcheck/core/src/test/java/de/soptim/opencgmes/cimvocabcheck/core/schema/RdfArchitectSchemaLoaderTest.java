@@ -280,6 +280,32 @@ public class RdfArchitectSchemaLoaderTest {
   }
 
   @Test
+  public void takesTheWholeTokenWhenItContainsAnUnderscore() {
+    // Real tokens are base64url, so "_" occurs inside them — splitting on the last one truncates.
+    RdfArchitectSource source =
+        RdfArchitectSource.parse("SNAPSHOT_cimnotebook-test_iLdGrIScuO2wWUtWv_NDvw", "http://host");
+
+    assertEquals("iLdGrIScuO2wWUtWv_NDvw", source.snapshot());
+  }
+
+  @Test
+  public void takesTheTokenWhenTheDatasetNameContainsUnderscores() {
+    RdfArchitectSource source =
+        RdfArchitectSource.parse("SNAPSHOT_my_profile_set_ffPKWuq2hw8WKBRn5VwEOA", "http://host");
+
+    assertEquals("ffPKWuq2hw8WKBRn5VwEOA", source.snapshot());
+  }
+
+  @Test
+  public void acceptsASnapshotGivenAsItsDatasetName() {
+    // ?snapshot= with the name from the address bar rather than the token behind it.
+    RdfArchitectSource source =
+        RdfArchitectSource.parse("http://host/?snapshot=SNAPSHOT_profiles_" + TOKEN);
+
+    assertEquals(TOKEN, source.snapshot());
+  }
+
+  @Test
   public void treatsAnOrdinaryNameStartingWithSnapshotAsADataset() {
     RdfArchitectSource source = RdfArchitectSource.parse("SNAPSHOT_", "http://host:3000");
 

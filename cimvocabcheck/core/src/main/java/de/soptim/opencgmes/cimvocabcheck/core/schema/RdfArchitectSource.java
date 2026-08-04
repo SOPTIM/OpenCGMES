@@ -49,6 +49,9 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
   /** How RDFArchitect names the dataset a loaded snapshot appears as. */
   private static final String SNAPSHOT_PREFIX = "SNAPSHOT_";
 
+  /** Length of a snapshot token: 16 random bytes, base64url, unpadded. */
+  private static final int TOKEN_LENGTH = 22;
+
   /** Validates that the source names something to read, and recognises a snapshot by its name. */
   public RdfArchitectSource {
     Objects.requireNonNull(baseUrl, "baseUrl");
@@ -56,7 +59,12 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
       throw new IllegalArgumentException("an RDFArchitect source needs a dataset or a snapshot");
     }
     if (snapshot == null) {
+      // A dataset named the way a loaded snapshot is *is* that snapshot.
       snapshot = snapshotTokenOf(dataset);
+    } else {
+      // ...and a snapshot may be given as that name rather than as its token.
+      String token = snapshotTokenOf(snapshot);
+      snapshot = token != null ? token : snapshot;
     }
   }
 
@@ -73,11 +81,28 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
     if (dataset == null || !dataset.startsWith(SNAPSHOT_PREFIX)) {
       return null;
     }
-    int tokenStart = dataset.lastIndexOf('_') + 1;
-    // "SNAPSHOT_<dataset>_<token>" — a name with nothing after the prefix has no token to take.
-    return tokenStart > SNAPSHOT_PREFIX.length() && tokenStart < dataset.length()
-        ? dataset.substring(tokenStart)
-        : null;
+    // The token is taken by length, not by splitting on '_': both it and the dataset name it is
+    // appended to may contain underscores, so no separator in "SNAPSHOT_<dataset>_<token>" can be
+    // told apart from one inside the parts.
+    int start = dataset.length() - TOKEN_LENGTH;
+    if (start <= SNAPSHOT_PREFIX.length() || dataset.charAt(start - 1) != '_') {
+      return null;
+    }
+    String token = dataset.substring(start);
+    return isBase64Url(token) ? token : null;
+  }
+
+  /** Whether a string is in the alphabet of an unpadded base64url token. */
+  private static boolean isBase64Url(String value) {
+    return value
+        .chars()
+        .allMatch(
+            c ->
+                (c >= 'A' && c <= 'Z')
+                    || (c >= 'a' && c <= 'z')
+                    || (c >= '0' && c <= '9')
+                    || c == '-'
+                    || c == '_');
   }
 
   /**
