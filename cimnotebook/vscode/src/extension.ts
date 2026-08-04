@@ -20,6 +20,8 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import * as crypto from "crypto";
+import * as os from "os";
+import * as tls from "tls";
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -48,6 +50,7 @@ let extensionContext: vscode.ExtensionContext;
 export function activate(context: vscode.ExtensionContext): void {
     extensionContext = context;
     out = vscode.window.createOutputChannel(CHANNEL, { log: true });
+    trustSystemCertificates();
     context.subscriptions.push(out);
 
     out.appendLine("Extension activating...");
@@ -104,6 +107,72 @@ export function activate(context: vscode.ExtensionContext): void {
         out.show(true);
         vscode.window.showErrorMessage(`CIMNotebook failed to start: ${msg}`);
     }
+}
+
+/**
+ * Adds the machine's own CA certificates to the ones this extension host trusts.
+ *
+ * An RDFArchitect behind a company CA is trusted by the machine (and so by the panel, which uses
+ * the system store) but not by Node, which ships its own list — the extension's REST calls would
+ * fail where the panel works. Node exposes the OS store from v22.15, so no configuration and no
+ * `NODE_EXTRA_CA_CERTS` are needed on those versions; where it is missing the calls behave as
+ * before. VS Code's own `http.systemCertificates` setting is honoured, since a user who turned
+ * system certificates off meant it.
+ */
+function trustSystemCertificates(): void {
+    if (!vscode.workspace.getConfiguration("http").get<boolean>("systemCertificates", true)) {
+        return;
+    }
+    if (!tls.getCACertificates || !tls.setDefaultCACertificates) {
+        out.appendLine("Node cannot read the system certificate store — using its bundled CAs.");
+        return;
+    }
+    try {
+        const bundled = tls.getCACertificates("default");
+        const system = tls.getCACertificates("system");
+        const added = system.filter((cert) => !bundled.includes(cert));
+        if (added.length === 0) {
+            return;
+        }
+        tls.setDefaultCACertificates([...bundled, ...added]);
+        out.appendLine(`Trusting ${added.length} certificate(s) from the system store.`);
+    } catch (err) {
+        out.appendLine(`Could not read the system certificate store: ${err}`);
+    }
+}
+
+/**
+ * Java arguments that make the language server trust the machine's certificates, since it runs in
+ * its own JVM with its own store — the reason an RDFArchitect behind a company CA can work in the
+ * panel and still fail to load a schema.
+ *
+ * Nothing is added when the user configured a truststore themselves; theirs wins. On macOS there is
+ * no equivalent that can be set safely from here, so the CA has to be added to the JDK's `cacerts`
+ * (or a truststore named in `cimnotebook.javaArgs`).
+ */
+function systemTrustJavaArgs(configured: string[]): string[] {
+    if (configured.some((arg) => arg.startsWith("-Djavax.net.ssl.trustStore"))) {
+        return [];
+    }
+    if (os.platform() === "win32") {
+        return ["-Djavax.net.ssl.trustStoreType=Windows-ROOT"];
+    }
+    // Distributions keep a Java view of the system store in sync with it, and it is a superset of
+    // the JDK's own list — so pointing at it adds the machine's CAs without dropping public roots.
+    const systemJavaStores = [
+        "/etc/ssl/certs/java/cacerts", // Debian, Ubuntu (ca-certificates-java)
+        "/etc/pki/java/cacerts", // Fedora, RHEL
+    ];
+    if (os.platform() === "linux") {
+        const store = systemJavaStores.find((path) => fs.existsSync(path));
+        if (store) {
+            return [
+                `-Djavax.net.ssl.trustStore=${store}`,
+                "-Djavax.net.ssl.trustStorePassword=changeit",
+            ];
+        }
+    }
+    return [];
 }
 
 function doActivate(context: vscode.ExtensionContext, connectionStore: ConnectionStore): void {
@@ -949,7 +1018,7 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
     const config = vscode.workspace.getConfiguration("cimnotebook");
     const javaExe = config.get<string>("javaExecutable", "java");
     const extraArgs = config.get<string[]>("javaArgs", []);
-    const args = [...extraArgs, "-jar", serverJar];
+    const args = [...systemTrustJavaArgs(extraArgs), ...extraArgs, "-jar", serverJar];
 
     out.appendLine(`[launch] ${javaExe} ${args.join(" ")}`);
 
