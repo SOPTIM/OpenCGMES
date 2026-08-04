@@ -164,6 +164,17 @@ not a restart of RDFArchitect itself. **Reconnect Session** on the tool window's
 The session id grants access to that session, so it stays in the project's properties and in the
 language server's memory — never in `opencgmes.jsonc`, which only ever holds the dataset name.
 
+:::info An instance behind a private CA
+The plugin's own calls go through the IDE's certificate manager, so a certificate you accepted in
+**Settings → Tools → Server Certificates** (or that the IDE trusts through the system store) is
+enough for them.
+
+The **language server runs in its own JVM** and does not share that trust: add
+`-Djavax.net.ssl.trustStore=<file>` and `-Djavax.net.ssl.trustStorePassword=<password>` to the
+**Java arguments** setting under **Settings → Tools → CIMNotebook**, or import the CA into the
+JDK's `cacerts`. It reports this specifically instead of only surfacing a PKIX error.
+:::
+
 ## Settings
 
 Under **Settings / Preferences → Tools → CIMNotebook**. Schema configuration itself lives in

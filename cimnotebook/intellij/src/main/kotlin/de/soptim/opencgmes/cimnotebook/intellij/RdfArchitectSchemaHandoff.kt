@@ -28,6 +28,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.util.net.ssl.CertificateManager
 import com.redhat.devtools.lsp4ij.LanguageServerManager
 import org.eclipse.lsp4j.ExecuteCommandParams
 import java.io.ByteArrayOutputStream
@@ -363,7 +364,12 @@ object RdfArchitectSchemaHandoff {
         private val sessionId: String? = null,
     ) {
         private val api = base.trimEnd('/') + "/api"
-        private val http = HttpClient.newBuilder().cookieHandler(CookieManager()).build()
+        private val http =
+            HttpClient
+                .newBuilder()
+                .cookieHandler(CookieManager())
+                .sslContext(CertificateManager.getInstance().sslContext)
+                .build()
 
         fun importGraphs(
             dataset: String,
