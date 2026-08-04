@@ -81,6 +81,7 @@ public class RdfArchitectLiveDatasetTest {
 
   private HttpServer server;
   private String changeId = "";
+  private final java.util.List<String> cookiesSeen = new java.util.ArrayList<>();
 
   @Before
   public void setUp() throws IOException {
@@ -102,8 +103,11 @@ public class RdfArchitectLiveDatasetTest {
 
   private void dispatch(HttpExchange exchange) throws IOException {
     String path = URLDecoder.decode(exchange.getRequestURI().getPath(), StandardCharsets.UTF_8);
-    boolean connected =
-        SESSION.equals(cookieValue(exchange.getRequestHeaders().getFirst("Cookie")));
+    String cookie = exchange.getRequestHeaders().getFirst("Cookie");
+    if (cookie != null) {
+      cookiesSeen.add(cookie);
+    }
+    boolean connected = SESSION.equals(cookieValue(cookie));
     String body;
     if (path.equals("/api/datasets")) {
       // Without the connected session there is nothing to see — datasets live in a session.
@@ -224,6 +228,26 @@ public class RdfArchitectLiveDatasetTest {
       assertTrue(
           "a schema from the previous session must not survive",
           manager.resolveSchema(RdfArchitectDirective.SCHEME + DATASET, null).isEmpty());
+    } finally {
+      manager.shutdown();
+    }
+  }
+
+  @Test
+  public void neverSendsTheSessionToAnotherInstance() throws Exception {
+    SchemaManager manager = new SchemaManager();
+    try {
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+
+      // The config names an instance of its own — the same server here, but under a different
+      // address, so it is a different instance as far as a credential is concerned.
+      String elsewhere =
+          "http://localhost:" + server.getAddress().getPort() + "/?dataset=" + DATASET;
+      resolve(manager, elsewhere);
+
+      assertTrue(
+          "the connected session must not be handed to an instance the config named itself",
+          cookiesSeen.stream().noneMatch(c -> c.contains(SESSION)));
     } finally {
       manager.shutdown();
     }
