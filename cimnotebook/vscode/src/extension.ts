@@ -214,6 +214,12 @@ function doActivate(context: vscode.ExtensionContext, connectionStore: Connectio
             // The notebook defaults live in workspace state, so a freshly started server knows
             // none of them — replay them, or directive-less cells would validate syntax-only.
             void connectionStore.syncNotebookDefaults();
+            // The JAR's file date says when it was copied here; the server says which build it is.
+            // A bundle packaged before a change looks exactly like a feature that does not work.
+            const server = client?.initializeResult?.serverInfo;
+            if (server) {
+                out.appendLine(`[server] ${server.name} ${server.version ?? "(unversioned)"}`);
+            }
             return restoreRdfArchitectSession();
         },
         (err: unknown) => {

@@ -159,6 +159,10 @@
                     icon="AllIcons.Toolwindows.WebToolWindow"
                     factoryClass="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectToolWindowFactory"/>
 
+        <!-- ── Reconnect the remembered RDFArchitect session on project open ── -->
+        <postStartupActivity
+            implementation="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectSessionRestore"/>
+
         <!-- ── Settings page under Settings > Tools > CIMNotebook ───────────── -->
         <applicationConfigurable
             parentId="tools"

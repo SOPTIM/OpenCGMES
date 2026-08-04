@@ -67,6 +67,33 @@ and that each referenced RDF / Turtle file is well-formed.
 never see it, the schema did not load; check the output channel.
 :::
 
+## A feature seems missing — which server am I actually running?
+
+Both editors bundle the language server, so a plugin or extension packaged before a change looks
+exactly like a feature that does not work: no error, just nothing. The server names its own build,
+so this is one look rather than a guess:
+
+- **VS Code** — **CIMNotebook: Show Output** logs the JAR it resolved and, once the handshake is
+  through, the build that answered: `[server] CIMLangServer 1.2.3 (built 2026-01-01 00:00Z)`.
+- **IntelliJ** — the LSP4IJ **Language Servers** window shows the server as
+  `CIMLangServer 1.2.3 (built 2026-01-01 00:00Z)`.
+
+If that build predates the feature you are looking for, reinstall from a newer artifact — and note
+that the two editors are packaged separately, so one can be current while the other is not.
+
+A server built from a working tree rather than from a release tag reports `development build
+(built …)` — only a release carries a version number, so that is the expected reading when you
+built the JAR yourself.
+
+## RDFArchitect: `rdfArchitect` / `# [rdfarchitect=...]` seems ignored
+
+A **dataset name** is only resolvable while the editor's RDFArchitect view is connected — it is what
+says which instance, and which session, holds that dataset. Open the RDFArchitect panel (VS Code) or
+tool window (IntelliJ) once; the connection is then remembered and restored when the workspace is
+reopened. VS Code shows the state in the status bar. A **snapshot or instance link** needs no
+connection at all, and is the form to use in CI. See
+[live datasets](/cimvocabcheck/configuration#live-datasets).
+
 ## See also
 
 - [VS Code](/cimnotebook/vscode) and [IntelliJ](/cimnotebook/intellij) — install and settings.
