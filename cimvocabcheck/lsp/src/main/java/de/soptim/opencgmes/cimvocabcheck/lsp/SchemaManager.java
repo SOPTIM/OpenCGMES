@@ -586,8 +586,7 @@ final class SchemaManager {
           RdfArchitectSource.parse(url, connection == null ? null : connection.url());
       String stamp = liveStampOf(source, connection);
       EndpointSchema es =
-          RdfArchitectSchemaLoader.load(
-              source, REMOTE_TIMEOUT, connection == null ? null : connection.sessionId());
+          RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
       if (!es.hasSchema()) {
         markFailed(key);
         notify(
@@ -734,7 +733,21 @@ final class SchemaManager {
     return source.snapshot() != null
         ? null
         : RdfArchitectSchemaLoader.changeStamp(
-            source, REMOTE_TIMEOUT, connection == null ? null : connection.sessionId());
+            source, REMOTE_TIMEOUT, sessionFor(source, connection));
+  }
+
+  /**
+   * The session to read {@code source} with: the connected one only when the source names the very
+   * instance that session belongs to.
+   *
+   * <p>A session id is a credential for one instance. A config may name another instance outright
+   * ({@code "rdfArchitect": "https://other/?dataset=x"}), and sending the editor's session there
+   * would hand it to a host that has no business seeing it — and could not use it anyway.
+   */
+  private static String sessionFor(RdfArchitectSource source, RdfArchitectConnection connection) {
+    return connection != null && connection.url().equals(source.baseUrl())
+        ? connection.sessionId()
+        : null;
   }
 
   /**
@@ -771,9 +784,7 @@ final class SchemaManager {
         () -> {
           String stamp =
               RdfArchitectSchemaLoader.changeStamp(
-                  live.source,
-                  REMOTE_TIMEOUT,
-                  live.connection == null ? null : live.connection.sessionId());
+                  live.source, REMOTE_TIMEOUT, sessionFor(live.source, live.connection));
           if (stamp == null || stamp.equals(live.stamp)) {
             return;
           }
@@ -1090,8 +1101,7 @@ final class SchemaManager {
     }
     String stamp = liveStampOf(source, connection);
     EndpointSchema es =
-        RdfArchitectSchemaLoader.load(
-            source, REMOTE_TIMEOUT, connection == null ? null : connection.sessionId());
+        RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
     if (!es.hasSchema()) {
       notify(
           MessageType.Warning,
