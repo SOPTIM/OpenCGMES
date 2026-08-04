@@ -32,6 +32,7 @@ import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
@@ -241,6 +242,39 @@ public class RdfArchitectTermProfilesTest {
     assertNotNull("a config-configured RDFArchitect must produce term links too", result);
     assertEquals(DATASET, result.get("dataset"));
     assertEquals(2, profilesOf(result, CIM + "Breaker").size());
+  }
+
+  /**
+   * The gesture that has to work: Ctrl+Click. It is the editors' own go-to-definition, so the
+   * server has to answer with real locations — anything else leaves the term without so much as an
+   * underline.
+   */
+  @Test
+  public void answersGoToDefinitionWithOneDocumentPerProfile() throws Exception {
+    terms(); // wait for the schema
+
+    var params =
+        new org.eclipse.lsp4j.DefinitionParams(
+            new org.eclipse.lsp4j.TextDocumentIdentifier(DOC_URI),
+            new org.eclipse.lsp4j.Position(2, QUERY.split("\n")[2].indexOf("cim:Breaker") + 5));
+    List<? extends org.eclipse.lsp4j.Location> locations =
+        documents.definition(params).get().getLeft();
+
+    assertEquals("declared in both profiles", 2, locations.size());
+    for (var location : locations) {
+      Path file = Path.of(java.net.URI.create(location.getUri()));
+      assertTrue("the definition document must exist", Files.exists(file));
+      String header = Files.readAllLines(file).get(0);
+      assertTrue(
+          "the editor reads the first line to open the term in RDFArchitect: " + header,
+          header.startsWith("#! rdfarchitect ") && header.contains("class=http"));
+      assertTrue("and it names the graph to open it in", header.contains("graph=http"));
+      assertTrue("the term is in the document", Files.readString(file).contains("Breaker"));
+    }
+    // One document per profile, kept apart by the profile's own directory.
+    assertTrue(
+        locations.get(0).getUri().contains("CoreEquipment-EU")
+            || locations.get(1).getUri().contains("CoreEquipment-EU"));
   }
 
   @Test

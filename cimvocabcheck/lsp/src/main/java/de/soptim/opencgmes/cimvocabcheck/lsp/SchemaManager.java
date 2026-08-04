@@ -746,15 +746,15 @@ final class SchemaManager {
    * invisible: the terms would simply stop being navigable, with nothing to explain why. The editor
    * knows which instance it is showing and fills that gap in.
    *
-   * @param schemaSource the document's schema source as {@link
-   *     RdfArchitectDirective#schemaSourceOf} returns it, or {@code null} when it declares none
+   * @param schemaSource the document's schema source as {@link #schemaSourceOf} returns it, or
+   *     {@code null} when it declares none
    * @param docDir the document's directory, for config discovery
    */
-  Optional<RdfArchitectRef> rdfArchitectRefFor(String schemaSource, Path docDir) {
+  Optional<RdfArchitectRef> rdfArchitectRefFor(SchemaSource schemaSource, Path docDir) {
     String ref;
-    if (schemaSource != null && schemaSource.startsWith(RdfArchitectDirective.SCHEME)) {
-      ref = rdfArchitectRefOf(schemaSource);
-    } else if (schemaSource != null && !schemaSource.isBlank()) {
+    if (schemaSource != null && schemaSource.isRdfArchitect()) {
+      ref = schemaSource.rdfArchitect();
+    } else if (schemaSource != null) {
       ref = null; // a plain "# [endpoint=...]" document: not RDFArchitect-backed
     } else {
       ref = configuredRdfArchitect(docDir);
