@@ -153,8 +153,27 @@ The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchite
 language server for the workspace's configured schema files (the `opencgmes.jsonc`
 `schemas`/`schemasDirectory`), imports them into RDFArchitect as a **read-only** dataset, and
 opens the result as a snapshot in the panel. The dataset is named after the config file's
-directory. After that, **Open in RDFArchitect** finds every class of your profiles without any
-manual import.
+directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
+manual import. It sits in the editor's right-click menu next to **Open in RDFArchitect**, on the
+panel's toolbar as **Send Schema**, and in the command palette.
+
+You are not expected to remember to run it. When the panel opens, CIMNotebook checks what this
+workspace last sent to that instance and offers to do it for you:
+
+| Situation                                                          | What you get                        |
+| ------------------------------------------------------------------ | ----------------------------------- |
+| nothing sent yet, or the instance restarted and lost the snapshot   | *"…schema is not in RDFArchitect yet"* → **Import** |
+| the schema files changed since the last send                        | *"…schema changed since it was sent"* → **Update**  |
+| the schema is there and unchanged                                   | nothing                              |
+
+Both prompts offer **Not now** and **Never for this workspace**; the latter is remembered in the
+workspace state, so a workspace you always import by hand stays quiet. When the offer follows an
+**Open in RDFArchitect** that could not find its term, the import lands on that term afterwards.
+
+Re-sending is safe: every send runs in a fresh RDFArchitect session, so the dataset is rebuilt
+from scratch rather than merged into the previous one. Note that the changed-schema check compares
+the *files on disk* with what was last sent — edits you make inside RDFArchitect are not detected
+(and the imported dataset is read-only precisely so it stays a copy of your profiles).
 
 :::warning Configure the session cookie for embedding
 A VS Code webview loads RDFArchitect in a **third-party browsing context**, so the browser does

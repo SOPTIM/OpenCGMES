@@ -308,6 +308,11 @@
                     "command": "cimnotebook.openInRdfArchitect",
                     "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle",
                     "group": "cimnotebook@2"
+                },
+                {
+                    "command": "cimnotebook.sendSchemaToRdfArchitect",
+                    "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle",
+                    "group": "cimnotebook@3"
                 }
             ],
             "commandPalette": [
