@@ -222,6 +222,69 @@ public class DefinitionIndexTest {
     assertTrue(tnLoc.get().getUri().endsWith("tp.rdf"));
   }
 
+  @Test
+  public void build_termInSeveralProfiles_reportsEveryDeclaration() throws IOException {
+    // A CIM class is routinely declared in more than one profile. Go-to-definition offers all of
+    // them so the editor can ask which one, instead of silently taking the first.
+    Path eqFile = writeTmp("eq.rdf", "  <rdfs:Class rdf:about=\"" + CIM + "ACLineSegment\">\n");
+    Path tpFile =
+        writeTmp(
+            "tp.rdf",
+            "  <rdfs:Class rdf:about=\""
+                + CIM
+                + "Terminal\">\n"
+                + "  <rdfs:Class rdf:about=\""
+                + CIM
+                + "ACLineSegment\">\n");
+
+    SchemaIndex index =
+        RdfsSchemaIndex.builder()
+            .addProfile(PROFILE_EQ, List.of(CIM + "ACLineSegment"), List.of())
+            .addProfile(PROFILE_TP, List.of(CIM + "ACLineSegment", CIM + "Terminal"), List.of())
+            .build();
+
+    DefinitionIndex defIndex =
+        DefinitionIndex.build(
+            index,
+            Map.of(
+                VersionIri.of(PROFILE_EQ), eqFile,
+                VersionIri.of(PROFILE_TP), tpFile));
+
+    List<Location> locations = defIndex.locationsOf(NodeFactory.createURI(CIM + "ACLineSegment"));
+
+    assertEquals(2, locations.size());
+    assertTrue(locations.get(0).getUri().endsWith("eq.rdf"));
+    assertTrue(locations.get(1).getUri().endsWith("tp.rdf"));
+    assertEquals(1, locations.get(1).getRange().getStart().getLine());
+    // The single-location view stays the first declaration, as workspace symbols expect.
+    assertTrue(
+        defIndex
+            .locationOf(NodeFactory.createURI(CIM + "ACLineSegment"))
+            .orElseThrow()
+            .getUri()
+            .endsWith("eq.rdf"));
+  }
+
+  @Test
+  public void build_profilesSharingOneFile_reportItOnce() throws IOException {
+    Path file = writeTmp("all.rdf", "  <rdfs:Class rdf:about=\"" + CIM + "ACLineSegment\">\n");
+
+    SchemaIndex index =
+        RdfsSchemaIndex.builder()
+            .addProfile(PROFILE_EQ, List.of(CIM + "ACLineSegment"), List.of())
+            .addProfile(PROFILE_TP, List.of(CIM + "ACLineSegment"), List.of())
+            .build();
+
+    DefinitionIndex defIndex =
+        DefinitionIndex.build(
+            index,
+            Map.of(
+                VersionIri.of(PROFILE_EQ), file,
+                VersionIri.of(PROFILE_TP), file));
+
+    assertEquals(1, defIndex.locationsOf(NodeFactory.createURI(CIM + "ACLineSegment")).size());
+  }
+
   // ============================================================================================
   // findSymbols
   // ============================================================================================

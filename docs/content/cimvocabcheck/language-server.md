@@ -37,7 +37,9 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   position after an enumeration-ranged property, the enumeration's members are offered (e.g.
   `cim:WindGenUnitKind.offshore`).
 - **Go-to-definition** — jump to a term's declaration in the source RDFS file (classes, properties,
-  and enumeration members).
+  and enumeration members). A term declared in several profiles reports one location per profile,
+  so the editor can offer the choice; for an endpoint schema, which has no source files, one
+  read-only Turtle document is generated per profile.
 - **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
   case-insensitive) name.
 - **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)),
@@ -49,9 +51,10 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   `cimvocabcheck.connectRdfArchitect` (`[url, sessionId]` → connects the RDFArchitect window an
   editor embeds, so a dataset named in the config is read from that session
   [as it is edited](/cimvocabcheck/configuration#live-datasets); no arguments disconnects), and
-  `cimvocabcheck.rdfArchitectTerms` (`[uri]` → the instance a document's schema comes from and the
-  ranges of the terms it names, or `null` when the schema comes from anywhere else; backs
-  Ctrl+Click into RDFArchitect, which a schema without source files cannot answer with a location).
+  `cimvocabcheck.rdfArchitectTerms` (`[uri]` → the instance and dataset a document's schema comes
+  from and the ranges of the terms it names, each with the profiles declaring it and the graph
+  holding each profile, or `null` when the schema comes from anywhere else; backs Ctrl+Click into
+  RDFArchitect, which a schema without source files cannot answer with a location).
 
 ## Configuration discovery
 

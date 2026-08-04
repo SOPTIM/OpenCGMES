@@ -116,6 +116,29 @@ public class EndpointSchemaLoaderTest {
   }
 
   @Test
+  public void reportsWhichGraphDeclaresEachProfile() {
+    // What lets a caller open a term in the profile the user picked, rather than in whichever
+    // profile happens to declare it first.
+    EndpointSchema es =
+        EndpointSchemaLoader.load(new DatasetSparqlGraphSource(datasetWithSchema()));
+
+    assertEquals("http://ex.org/schema/eq", es.graphOf(VersionIri.of(EQ_VERSION)));
+    assertEquals("http://ex.org/schema/tp", es.graphOf(VersionIri.of(TP_VERSION)));
+    assertEquals(2, es.profileGraphs().size());
+  }
+
+  @Test
+  public void hasNoProfileGraphsWhenNoSchemaResolved() {
+    Dataset ds = DatasetFactory.createGeneral();
+    ds.addNamedModel("http://ex.org/data", parse("<http://ex.org/a> <http://ex.org/b> 1 ."));
+
+    EndpointSchema es = EndpointSchemaLoader.load(new DatasetSparqlGraphSource(ds));
+
+    assertFalse(es.hasSchema());
+    assertTrue(es.profileGraphs().isEmpty());
+  }
+
+  @Test
   public void reportsGraphsWithNoMatchingProfileAsUnmatched() {
     Dataset ds = datasetWithSchema();
     ds.addNamedModel(

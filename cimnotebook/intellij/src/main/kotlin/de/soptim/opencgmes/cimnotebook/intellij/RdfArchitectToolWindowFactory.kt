@@ -137,13 +137,24 @@ class RdfArchitectToolWindowFactory :
         /**
          * RDFArchitect's deep link for a term. Every kind of term uses the `class` parameter: a
          * class opens itself, an attribute, association or enum entry opens the class declaring it.
+         *
+         * [dataset] and [graph] narrow the lookup — a term is routinely declared in several
+         * profiles, and without them RDFArchitect opens whichever graph it finds it in first.
          */
         fun termDeepLink(
             base: String,
             iri: String,
-        ): String =
-            base.trimEnd('/') + "/mainpage?class=" +
-                URLEncoder.encode(iri, StandardCharsets.UTF_8)
+            dataset: String? = null,
+            graph: String? = null,
+        ): String {
+            val url = StringBuilder(base.trimEnd('/'))
+            url.append("/mainpage?class=").append(encode(iri))
+            dataset?.takeIf { it.isNotBlank() }?.let { url.append("&dataset=").append(encode(it)) }
+            graph?.takeIf { it.isNotBlank() }?.let { url.append("&graph=").append(encode(it)) }
+            return url.toString()
+        }
+
+        private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
 
         /** The configured RDFArchitect base URL, or null when unset. */
         fun configuredUrl(): String? =

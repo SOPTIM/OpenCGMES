@@ -82,10 +82,17 @@ enumeration's members are suggested (e.g. `cim:WindGenUnitKind.offshore`).
 `Ctrl+Click` / `Cmd+Click` (or `Ctrl+B` / `Cmd+B`) on any CIM IRI jumps to its declaration line in
 the source `.rdf` or `.ttl` profile file.
 
+A CIM term is usually declared in **several profiles**. All of them are offered, in IntelliJ's own
+**Choose Declaration** popup, ordered by profile version IRI so the same one is on top every time.
+For a schema loaded from a SPARQL endpoint, where there is no source file, each profile's triples
+are fetched and opened as a generated read-only Turtle document.
+
 When the schema comes from [RDFArchitect](#live-datasets), the same gesture opens the term **in the
 RDFArchitect tool window** — there are no schema files to jump to, and the model is best read where
 it is being edited. A class opens itself; an attribute, association or enum entry opens the class
-that declares it, with the row highlighted.
+that declares it, with the row highlighted. A term in several profiles brings up a chooser first,
+and the tool window then opens that profile's graph; without it, RDFArchitect would show whichever
+graph it happens to find the term in first.
 
 ### Workspace symbol search
 
@@ -118,8 +125,9 @@ and the jump works from then on.
 
 When the schema itself comes from RDFArchitect — `rdfArchitect` in
 [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect), or a `# [rdfarchitect=...]` directive
-— plain `Ctrl+Click` does the same thing, no right-click needed. The right-click action stays
-available everywhere, including for projects whose schema comes from files.
+— plain `Ctrl+Click` does the same thing, no right-click needed, and both ask which profile to open
+a term declared in several. The right-click action stays available everywhere, including for projects
+whose schema comes from files.
 
 :::note
 Because a property is declared once, jumping to an inherited attribute opens the superclass that
