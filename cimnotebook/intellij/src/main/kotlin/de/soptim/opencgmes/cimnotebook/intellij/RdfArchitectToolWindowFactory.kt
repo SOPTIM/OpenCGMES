@@ -58,8 +58,14 @@ class RdfArchitectToolWindowFactory :
         val content = ContentFactory.getInstance().createContent(panel, "", false)
         toolWindow.contentManager.addContent(content)
         toolWindow.setTitleActions(
-            listOf(SendSchemaToRdfArchitectAction(), ReloadAction(panel), OpenInBrowserAction()),
+            listOf(
+                SendSchemaToRdfArchitectAction(),
+                ReconnectSessionAction(panel),
+                ReloadAction(panel),
+                OpenInBrowserAction(),
+            ),
         )
+        RdfArchitectSessionBridge.restore(project)
 
         // Opening the tool window is the moment to notice that RDFArchitect has no schema of this
         // project yet, or an outdated one. A term the user was navigating to is picked up so the
@@ -91,6 +97,20 @@ class RdfArchitectToolWindowFactory :
         override fun actionPerformed(e: AnActionEvent) = panel.reload()
     }
 
+    /** Drops the connection and reloads, which makes the view report its session again. */
+    private class ReconnectSessionAction(
+        private val panel: RdfArchitectPanel,
+    ) : AnAction(
+            "Reconnect Session",
+            "Read the RDFArchitect session of this view again, e.g. after restarting the instance",
+            AllIcons.Actions.Refresh,
+        ) {
+        override fun actionPerformed(e: AnActionEvent) {
+            e.project?.let { RdfArchitectSessionBridge.disconnect(it) }
+            panel.reload()
+        }
+    }
+
     private class OpenInBrowserAction :
         AnAction(
             "Open in Browser",
@@ -108,6 +128,9 @@ class RdfArchitectToolWindowFactory :
          * schema import can land on it. Read and cleared when the tool window content is created.
          */
         val PENDING_TERM_KEY: Key<String> = Key.create("cimnotebook.rdfArchitect.pendingTerm")
+
+        /** The instance root of a URL the view may have been navigated to. */
+        fun baseOf(url: String): String = configuredUrl()?.trimEnd('/') ?: url.trimEnd('/')
 
         /** The configured RDFArchitect base URL, or null when unset. */
         fun configuredUrl(): String? =
@@ -200,6 +223,9 @@ class RdfArchitectPanel(
         }
         val created = JBCefBrowser.createBuilder().setUrl(url).build()
         Disposer.register(toolWindow.disposable, created)
+        // The tool window is our own browser, so its RDFArchitect session can be read directly and
+        // handed to the language server — that is what makes live datasets readable.
+        RdfArchitectSessionBridge.attach(project, created, RdfArchitectToolWindowFactory.baseOf(url))
         browser = created
         return created.component
     }
