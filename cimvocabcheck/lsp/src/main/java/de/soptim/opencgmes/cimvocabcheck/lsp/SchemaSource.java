@@ -22,21 +22,33 @@ import java.nio.file.Path;
 import java.util.List;
 
 /**
- * Where a document's {@code # [endpoint=...]} schema comes from: a remote SPARQL endpoint URL, or
- * one or more local schema files — several directives and glob patterns form a union of files.
- * Exactly one of the two components is set.
+ * Where a document's schema comes from: a remote SPARQL endpoint URL, one or more local schema
+ * files — several {@code # [endpoint=...]} directives and glob patterns form a union of files — or
+ * a model held in a running RDFArchitect ({@code # [rdfarchitect=...]}). Exactly one of the three
+ * components is set.
+ *
+ * @param rdfArchitect the RDFArchitect reference as written: a dataset name, or a link naming a
+ *     dataset or snapshot — see {@code RdfArchitectSource}
  */
-record SchemaSource(String remoteUrl, List<Path> files) {
+record SchemaSource(String remoteUrl, List<Path> files, String rdfArchitect) {
 
   static SchemaSource remote(String url) {
-    return new SchemaSource(url, null);
+    return new SchemaSource(url, null, null);
   }
 
   static SchemaSource localFiles(List<Path> files) {
-    return new SchemaSource(null, List.copyOf(files));
+    return new SchemaSource(null, List.copyOf(files), null);
+  }
+
+  static SchemaSource rdfArchitect(String ref) {
+    return new SchemaSource(null, null, ref);
   }
 
   boolean isRemote() {
     return remoteUrl != null;
+  }
+
+  boolean isRdfArchitect() {
+    return rdfArchitect != null;
   }
 }
