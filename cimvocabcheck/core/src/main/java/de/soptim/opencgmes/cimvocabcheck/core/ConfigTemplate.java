@@ -48,6 +48,13 @@ public final class ConfigTemplate {
           // "schemasDirectory": "schemas",
           // "schemas": ["schemas/MyEquipment.rdf", "schemas/MyTopology.rdf"],
 
+          // --- ...or a model curated in RDFArchitect ------------------------------------
+          // A dataset name validates against that dataset in the RDFArchitect view open in
+          // your IDE, as you edit it. A link (snapshot or ?dataset=) pins a fixed source and
+          // needs no editor — use that form for CI.
+          // "rdfArchitect": "cgmes-3.0",
+          // "rdfArchitect": "http://localhost:3000/?snapshot=<token>",
+
           // --- Strictness --------------------------------------------------------------
           // "permissive" | "default" | "strict" | "pedantic"
           "strictness": "default"
