@@ -117,12 +117,30 @@ Jumping to a property requires an RDFArchitect that supports property deep links
 1.2.0); on an older instance the term reports "Not found" and classes keep working.
 :::
 
-The import itself can be automated too: **Tools → CIMNotebook: Send Schema to RDFArchitect** asks
+The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks
 the language server for the workspace's configured schema files (the `opencgmes.jsonc`
 `schemas`/`schemasDirectory`), imports them into RDFArchitect as a **read-only** dataset, and
 opens the result as a snapshot in the tool window. The dataset is named after the config file's
-directory. After that, **Open in RDFArchitect** finds every class of your profiles without any
-manual import.
+directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
+manual import. It is available from **Tools** and from the RDFArchitect tool window's toolbar.
+
+You are not expected to remember to run it. When the tool window opens, CIMNotebook checks what
+this project last sent to that instance and offers to do it for you:
+
+| Situation                                                          | What you get                        |
+| ------------------------------------------------------------------ | ----------------------------------- |
+| nothing sent yet, or the instance restarted and lost the snapshot   | *"…schema is not in RDFArchitect yet. Import it?"* |
+| the schema files changed since the last send                        | *"…schema changed since it was sent. Update it?"*  |
+| the schema is there and unchanged                                   | nothing                              |
+
+The dialog's third button, **Never for This Project**, is remembered in the project's properties,
+so a project you always import by hand stays quiet. When the offer follows an **Open in
+RDFArchitect** that could not find its term, the import lands on that term afterwards.
+
+Re-sending is safe: every send runs in a fresh RDFArchitect session, so the dataset is rebuilt
+from scratch rather than merged into the previous one. Note that the changed-schema check compares
+the *files on disk* with what was last sent — edits you make inside RDFArchitect are not detected
+(and the imported dataset is read-only precisely so it stays a copy of your profiles).
 
 ## Settings
 

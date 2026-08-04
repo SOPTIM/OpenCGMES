@@ -116,6 +116,9 @@ class OpenInRdfArchitectAction : AnAction() {
         val url =
             base.trimEnd('/') + "/mainpage?class=" +
                 URLEncoder.encode(iri, StandardCharsets.UTF_8)
+        // If this is what first opens the tool window and the schema was never sent, the import
+        // offered there should land on the term the user asked for.
+        project.putUserData(RdfArchitectToolWindowFactory.PENDING_TERM_KEY, iri)
         RdfArchitectToolWindowFactory.openUrl(project, url)
     }
 
