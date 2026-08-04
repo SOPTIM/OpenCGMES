@@ -65,7 +65,8 @@ object RdfArchitectSchemaHandoff {
     data class Handoff(
         val url: String,
         val dataset: String,
-        val snapshot: String,
+        /** The snapshot bridging into the view's session, or null when it went to that session. */
+        val snapshot: String?,
         val fingerprint: String,
         val sentAt: String,
     )
@@ -103,13 +104,21 @@ object RdfArchitectSchemaHandoff {
                         }
                         return
                     }
-                    val client = RdfArchitectClient(base)
+                    // With a connected view the import goes into *its* session, so the dataset is
+                    // the one on screen — editable, and read live by the language server. Without
+                    // one, a snapshot is still the only bridge into whatever session the view gets.
+                    val session =
+                        RdfArchitectSessionBridge.connection()?.takeIf { it.url == base.trimEnd('/') }
+                    val client = RdfArchitectClient(base, session?.id)
                     val dataset = datasetNameFor(info.configFile)
                     indicator.text = "Importing ${info.schemaFiles.size} schema file(s)…"
                     client.importGraphs(dataset, info.schemaFiles.map(Path::of))
-                    client.disableEditing(dataset)
-                    indicator.text = "Creating snapshot…"
-                    val token = client.createSnapshot(dataset)
+                    var token: String? = null
+                    if (session == null) {
+                        client.disableEditing(dataset)
+                        indicator.text = "Creating snapshot…"
+                        token = client.createSnapshot(dataset)
+                    }
                     remember(
                         project,
                         Handoff(
@@ -123,7 +132,7 @@ object RdfArchitectSchemaHandoff {
                                     .toString(),
                         ),
                     )
-                    val url = snapshotLink(base, dataset, token, termIri)
+                    val url = datasetLink(base, dataset, token, termIri)
                     invokeLater { RdfArchitectToolWindowFactory.openUrl(project, url) }
                 }
 
@@ -164,8 +173,7 @@ object RdfArchitectSchemaHandoff {
                 override fun run(indicator: ProgressIndicator) {
                     val info = requestSchemaInfo(project, null) ?: return
                     val previous = remembered(project)
-                    val live =
-                        previous?.takeIf { it.url == base && snapshotExists(base, it.snapshot) }
+                    val live = previous?.takeIf { it.url == base && stillThere(base, it) }
                     if (live?.fingerprint == fingerprint(info.schemaFiles)) {
                         return
                     }
@@ -225,29 +233,36 @@ object RdfArchitectSchemaHandoff {
             }
 
     /**
-     * Whether a snapshot is still loadable, which is what decides "is our schema still over there?".
-     * Loading it into this throwaway session is the probe; the tool window has its own session.
+     * Whether what was sent is still over there, which differs by how it was sent: a snapshot has to
+     * still load (loading it into this throwaway session is the probe), while a dataset sent into
+     * the connected view has to still be in that view's session.
      */
-    private fun snapshotExists(
+    private fun stillThere(
         base: String,
-        token: String,
+        handoff: Handoff,
     ): Boolean =
         runCatching {
-            val uri =
-                URI.create(
-                    base.trimEnd('/') + "/api/snapshots/" +
-                        URLEncoder.encode(token, StandardCharsets.UTF_8),
+            val session =
+                RdfArchitectSessionBridge.connection()?.takeIf { it.url == base.trimEnd('/') }
+            val builder = HttpRequest.newBuilder().GET()
+            if (handoff.snapshot != null) {
+                builder.uri(
+                    URI.create(
+                        base.trimEnd('/') + "/api/snapshots/" +
+                            URLEncoder.encode(handoff.snapshot, StandardCharsets.UTF_8),
+                    ),
                 )
-            HttpClient
-                .newHttpClient()
-                .send(
-                    HttpRequest
-                        .newBuilder()
-                        .uri(uri)
-                        .GET()
-                        .build(),
-                    HttpResponse.BodyHandlers.discarding(),
-                ).statusCode() < 400
+            } else {
+                if (session == null) {
+                    return@runCatching false
+                }
+                builder.uri(URI.create(base.trimEnd('/') + "/api/datasets"))
+                builder.header("Cookie", "RDFA_SESSION_ID=" + session.id)
+            }
+            val response =
+                HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString())
+            response.statusCode() < 400 &&
+                (handoff.snapshot != null || response.body().contains("\"" + handoff.dataset + "\""))
         }.getOrDefault(false)
 
     /** Identifies a set of schema files by their paths and contents, to detect edits since a send. */
@@ -318,20 +333,23 @@ object RdfArchitectSchemaHandoff {
     }
 
     /**
-     * The link that loads the snapshot into the browser session and preselects the dataset —
-     * RDFArchitect loads a snapshot under `SNAPSHOT_<dataset>_<token>`. A [termIri] is forwarded so
-     * the app lands on that term once the snapshot is loaded.
+     * The link that opens what was just imported: the dataset itself when it went into the view's
+     * own session, or the snapshot that bridges into it otherwise — RDFArchitect loads a snapshot
+     * under `SNAPSHOT_<dataset>_<token>`. A [termIri] is forwarded so the app lands on that term.
      */
-    private fun snapshotLink(
+    private fun datasetLink(
         base: String,
         dataset: String,
-        token: String,
+        token: String?,
         termIri: String?,
     ): String {
+        val term = termIri?.let { "&class=" + URLEncoder.encode(it, StandardCharsets.UTF_8) } ?: ""
+        if (token == null) {
+            return base.trimEnd('/') + "/?dataset=" +
+                URLEncoder.encode(dataset, StandardCharsets.UTF_8) + term
+        }
         val encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8)
         val encodedDataset = URLEncoder.encode("SNAPSHOT_${dataset}_$token", StandardCharsets.UTF_8)
-        val term =
-            termIri?.let { "&class=" + URLEncoder.encode(it, StandardCharsets.UTF_8) } ?: ""
         return base.trimEnd('/') + "/?snapshot=$encodedToken&dataset=$encodedDataset$term"
     }
 
@@ -342,6 +360,7 @@ object RdfArchitectSchemaHandoff {
      */
     private class RdfArchitectClient(
         base: String,
+        private val sessionId: String? = null,
     ) {
         private val api = base.trimEnd('/') + "/api"
         private val http = HttpClient.newBuilder().cookieHandler(CookieManager()).build()
@@ -392,7 +411,17 @@ object RdfArchitectSchemaHandoff {
             ).body().trim()
 
         private fun send(request: HttpRequest): HttpResponse<String> {
-            val response = http.send(request, HttpResponse.BodyHandlers.ofString())
+            val withSession =
+                if (sessionId == null) {
+                    request
+                } else {
+                    // Work in the view's session, so the import lands where the user can see it.
+                    HttpRequest
+                        .newBuilder(request, { _, _ -> true })
+                        .header("Cookie", "RDFA_SESSION_ID=" + sessionId)
+                        .build()
+                }
+            val response = http.send(withSession, HttpResponse.BodyHandlers.ofString())
             if (response.statusCode() >= 400) {
                 throw IOException(
                     "${request.method()} ${request.uri().path} → HTTP ${response.statusCode()}" +

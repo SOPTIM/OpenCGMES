@@ -295,6 +295,11 @@
                 "command": "cimnotebook.sendSchemaToRdfArchitect",
                 "title": "Send Schema to RDFArchitect",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.reconnectRdfArchitect",
+                "title": "Reconnect RDFArchitect Session",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -401,6 +406,9 @@
                 },
                 {
                     "command": "cimnotebook.sendSchemaToRdfArchitect"
+                },
+                {
+                    "command": "cimnotebook.reconnectRdfArchitect"
                 }
             ],
             "view/title": [
@@ -494,7 +502,7 @@
                 "cimnotebook.rdfArchitectUrl": {
                     "type": "string",
                     "default": "",
-                    "markdownDescription": "URL of a running [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance (e.g. `http://localhost:3000`), shown by the **CIMNotebook: Open RDFArchitect** command. RDFArchitect is not bundled — point this at a local or hosted deployment."
+                    "markdownDescription": "URL of a running [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance (e.g. `http://localhost:3000`), shown by the **CIMNotebook: Open RDFArchitect** command. RDFArchitect is not bundled \u2014 point this at a local or hosted deployment."
                 },
                 "cimnotebook.trace.server": {
                     "type": "string",

@@ -157,6 +157,10 @@ directory. After that, **Open in RDFArchitect** finds every term of your profile
 manual import. It sits in the editor's right-click menu next to **Open in RDFArchitect**, on the
 panel's toolbar as **Send Schema**, and in the command palette.
 
+When a session is connected (see below), the schema is imported into the panel's own session and
+stays **editable** there — so changes you make to it are picked up live by validation. Without a
+connection it is imported read-only and bridged in as a snapshot, as before.
+
 You are not expected to remember to run it. When the panel opens, CIMNotebook checks what this
 workspace last sent to that instance and offers to do it for you:
 
@@ -199,6 +203,30 @@ or, equivalently, set `SERVER_SERVLET_SESSION_COOKIE_SAME_SITE=none` and
 If you cannot change the deployment, use **Open RDFArchitect in Browser** (also on the panel's
 toolbar) instead of the embedded panel. The IntelliJ tool window is unaffected: it loads the app
 as a top-level document, not an iframe.
+:::
+
+### Live datasets
+
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so the datasets
+in the panel are invisible to anything outside that session. CIMNotebook bridges this: the embedded
+app reports which session it uses, the extension hands that to the language server, and
+`"rdfArchitect": "<dataset>"` in [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then
+validates against that dataset **as you edit it** — add a class in the panel and the next validation
+knows it.
+
+The status bar shows whether a session is connected; clicking it reconnects (also available as
+**CIMNotebook: Reconnect RDFArchitect Session**). The connection is remembered per workspace and
+restored when the editor starts, so validation keeps working without reopening the panel — a
+backend session outlives the browser that created it, though not a restart of RDFArchitect itself.
+
+:::warning Requires the instance to allow the handshake
+A VS Code webview is a third-party iframe, so the app only reveals its session when the deployment
+sets `PUBLIC_EMBED_SESSION_HANDSHAKE=true` (see RDFArchitect's admin guide). Without it, live
+datasets are unavailable and CIMNotebook falls back to snapshots. The IntelliJ plugin needs no such
+setting: its tool window is the plugin's own browser.
+
+The session id grants access to that session, so it stays in workspace state and in the language
+server's memory — never in `opencgmes.jsonc`, which only ever holds the dataset name.
 :::
 
 ### SPARQL Notebook support
