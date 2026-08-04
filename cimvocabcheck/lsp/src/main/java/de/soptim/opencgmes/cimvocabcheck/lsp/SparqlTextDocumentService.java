@@ -28,7 +28,6 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimvocabcheck.core.StandardVocabulary;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
-import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSource;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql;
@@ -366,8 +365,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
   /**
    * The RDFArchitect instance behind a document, and the terms it names.
    *
+   * @param baseUrl the instance to open terms in, or {@code null} when the config names a dataset
+   *     without saying where it lives — the editor knows which instance it is showing
    * @param dataset the dataset to open terms in, or {@code null} when the schema is read from a
-   *     snapshot — whose dataset is named differently in every session that loads it
+   *     snapshot link — whose dataset is named differently in every session that loads it
    */
   record RdfArchitectTerms(String baseUrl, String dataset, List<TermRange> terms) {}
 
@@ -396,18 +397,31 @@ final class SparqlTextDocumentService implements TextDocumentService {
       return Optional.empty();
     }
     String schemaSource = RdfArchitectDirective.schemaSourceOf(text);
-    var sourceOpt = schemaManager.rdfArchitectSourceFor(schemaSource, documentDir(uri));
-    if (sourceOpt.isEmpty()) {
+    var refOpt = schemaManager.rdfArchitectRefFor(schemaSource, documentDir(uri));
+    if (refOpt.isEmpty()) {
       return Optional.empty();
     }
-    RdfArchitectSource source = sourceOpt.get();
+    SchemaManager.RdfArchitectRef ref = refOpt.get();
     ResolvedSchema schema =
         schemaManager.resolveSchema(schemaSource, documentDir(uri)).orElse(null);
-    // A snapshot is loaded under a different dataset name in every session, so only a dataset read
-    // live can be named here; the graph alone still pins the profile.
-    String dataset = source.snapshot() == null ? source.dataset() : null;
-    return Optional.of(
-        new RdfArchitectTerms(source.baseUrl(), dataset, schemaTermsIn(text, schema)));
+    String baseUrl = ref.source() == null ? null : ref.source().baseUrl();
+    return Optional.of(new RdfArchitectTerms(baseUrl, datasetOf(ref), schemaTermsIn(text, schema)));
+  }
+
+  /**
+   * The dataset a term should be opened in.
+   *
+   * <p>A bare name is what the panel's address bar shows, so it is the name to send back — that is
+   * true of a loaded snapshot's {@code SNAPSHOT_…} name too. A snapshot named by <em>link</em> is
+   * different: it becomes a differently-named dataset in every session that loads it, so there is
+   * no name worth sending and the graph alone pins the profile.
+   */
+  private static String datasetOf(SchemaManager.RdfArchitectRef ref) {
+    if (ref.source() == null) {
+      return ref.ref(); // unresolved, so a bare name — a URL would have parsed
+    }
+    boolean bareName = !ref.ref().contains("://");
+    return bareName || ref.source().snapshot() == null ? ref.source().dataset() : null;
   }
 
   /**

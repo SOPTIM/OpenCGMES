@@ -72,11 +72,13 @@ class RdfArchitectTermLinks(
     /**
      * A document's terms and the RDFArchitect instance its schema comes from.
      *
-     * @param dataset the dataset to open terms in, or null when the schema is a snapshot — which
-     *   every session that loads it names differently
+     * @param baseUrl null when the config names a dataset without saying which instance holds it —
+     *   the tool window's configured URL answers that
+     * @param dataset the dataset to open terms in, or null when the schema is a snapshot link —
+     *   which every session that loads it names differently
      */
     data class Terms(
-        val baseUrl: String,
+        val baseUrl: String?,
         val dataset: String?,
         val terms: List<Term>,
     )
@@ -124,7 +126,27 @@ class RdfArchitectTermLinks(
             found.terms.firstOrNull {
                 it.line == line && column >= it.startCharacter && column < it.endCharacter
             } ?: return null
-        return Target(found.baseUrl, found.dataset, term.iri, term.profiles)
+        // The server names the instance only when the config does, or when a session is connected;
+        // otherwise the tool window's own URL is the answer.
+        val baseUrl = found.baseUrl ?: RdfArchitectToolWindowFactory.configuredUrl() ?: return null
+        return Target(baseUrl, found.dataset, term.iri, term.profiles)
+    }
+
+    /**
+     * Reads a file's terms in the background, so the first Ctrl+hover over it already has an answer.
+     *
+     * The IDE asks for a declaration target on the EDT, where waiting on the language server is not
+     * allowed — without this, the first hover over a freshly opened file finds nothing cached and
+     * silently offers no target.
+     */
+    fun prefetch(
+        file: VirtualFile,
+        document: Document,
+    ) {
+        val stamp = document.modificationStamp
+        ApplicationManager.getApplication().executeOnPooledThread {
+            store(LSPIJUtils.toUriAsString(file), stamp)
+        }
     }
 
     private fun termsFor(

@@ -723,19 +723,34 @@ final class SchemaManager {
   }
 
   /**
-   * The RDFArchitect instance a document's schema comes from, or empty when it comes from anywhere
-   * else — schema files, a SPARQL endpoint, or nothing at all.
+   * Where a document's schema comes from, when it comes from RDFArchitect.
+   *
+   * @param ref the reference as written, in the directive or the config
+   * @param source the instance and dataset it resolves to, or {@code null} when it cannot be
+   *     resolved here — a bare dataset name with no window connected names an instance only the
+   *     editor knows about
+   */
+  record RdfArchitectRef(String ref, RdfArchitectSource source) {}
+
+  /**
+   * Where a document's schema comes from when that is RDFArchitect, or empty when it comes from
+   * anywhere else — schema files, a SPARQL endpoint, or nothing at all.
    *
    * <p>Answered from the document's own directive and the nearest config alone, without waiting for
    * (or triggering) a schema load: editor integrations ask this to decide whether a term should
    * navigate into RDFArchitect, and that decision must not depend on how far a background load has
    * got.
    *
+   * <p>A reference that cannot be resolved to an instance still answers <em>yes</em>, with a null
+   * {@link RdfArchitectRef#source()}. Saying "not RDFArchitect" there would be wrong and, worse,
+   * invisible: the terms would simply stop being navigable, with nothing to explain why. The editor
+   * knows which instance it is showing and fills that gap in.
+   *
    * @param schemaSource the document's schema source as {@link
    *     RdfArchitectDirective#schemaSourceOf} returns it, or {@code null} when it declares none
    * @param docDir the document's directory, for config discovery
    */
-  Optional<RdfArchitectSource> rdfArchitectSourceFor(String schemaSource, Path docDir) {
+  Optional<RdfArchitectRef> rdfArchitectRefFor(String schemaSource, Path docDir) {
     String ref;
     if (schemaSource != null && schemaSource.startsWith(RdfArchitectDirective.SCHEME)) {
       ref = rdfArchitectRefOf(schemaSource);
@@ -749,11 +764,12 @@ final class SchemaManager {
     }
     RdfArchitectConnection connection = rdfArchitect.get();
     try {
-      return Optional.of(
-          RdfArchitectSource.parse(ref, connection == null ? null : connection.url()));
+      String base = connection == null ? null : connection.url();
+      return Optional.of(new RdfArchitectRef(ref, RdfArchitectSource.parse(ref, base)));
     } catch (IllegalArgumentException e) {
-      // Typically a bare dataset name with no window connected: there is no instance to open.
-      return Optional.empty();
+      // A bare dataset name with no window connected: which instance holds it is the editor's to
+      // say, not ours.
+      return Optional.of(new RdfArchitectRef(ref, null));
     }
   }
 
