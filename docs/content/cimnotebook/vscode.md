@@ -134,11 +134,20 @@ RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting 
 it.
 
 Right-click a CIM term in a SPARQL query or SHACL shape and choose **Open in RDFArchitect** to jump
-straight to that class: the term under the cursor is resolved to its full IRI by the language
-server, and RDFArchitect opens the class and its package diagram
-(`/mainpage?class=<iri>`). The class is looked up across the schemas loaded in the RDFArchitect
-session, so import your profiles there once (or load a shared snapshot) and the jump works from
-then on.
+straight to it: the term under the cursor is resolved to its full IRI by the language server, and
+RDFArchitect opens the matching model element (`/mainpage?class=<iri>`). It works for every kind of
+term a query names — a class such as `cim:ACLineSegment` opens that class and its package diagram,
+while an attribute, association or enum entry such as `cim:ACLineSegment.r` opens the class that
+**declares** it and highlights that row in the class editor. Terms are looked up across the schemas
+loaded in the RDFArchitect session, so import your profiles there once (or load a shared snapshot)
+and the jump works from then on.
+
+:::note
+Because a property is declared once, jumping to an inherited attribute opens the superclass that
+declares it — `cim:Conductor.length` opens `Conductor`, even when you were reading `ACLineSegment`.
+Jumping to a property requires an RDFArchitect that supports property deep links (released after
+1.2.0); on an older instance the term reports "Not found" and classes keep working.
+:::
 
 The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks the
 language server for the workspace's configured schema files (the `opencgmes.jsonc`

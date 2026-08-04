@@ -71,6 +71,22 @@ public class TermInfoCommandTest {
   }
 
   @Test
+  public void resolvesPropertyNameToFullIri() throws Exception {
+    // Attributes and associations are what a query mostly names; RDFArchitect resolves such an IRI
+    // to the declaring class and reveals the property there.
+    String uri = "file:///queries/property.rq";
+    String query = "PREFIX cim: <" + CIM + ">\nSELECT * WHERE { ?s cim:ACLineSegment.r ?r }\n";
+    documents.didOpen(
+        new DidOpenTextDocumentParams(
+            new org.eclipse.lsp4j.TextDocumentItem(uri, "sparql", 1, query)));
+
+    int character = query.split("\n")[1].indexOf("cim:ACLineSegment.r") + 5;
+    Object result = run(uri, 1, character);
+
+    assertEquals(Map.of("iri", CIM + "ACLineSegment.r"), result);
+  }
+
+  @Test
   public void acceptsJsonRpcArgumentForms() throws Exception {
     // Over JSON-RPC, lsp4j delivers all arguments as Gson JsonPrimitives.
     int character = QUERY.split("\n")[1].indexOf("cim:ACLineSegment") + 5;
