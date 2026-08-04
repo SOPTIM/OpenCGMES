@@ -25,6 +25,7 @@ import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.openapi.wm.ToolWindowManager
@@ -56,7 +57,18 @@ class RdfArchitectToolWindowFactory :
         val panel = RdfArchitectPanel(project, toolWindow)
         val content = ContentFactory.getInstance().createContent(panel, "", false)
         toolWindow.contentManager.addContent(content)
-        toolWindow.setTitleActions(listOf(ReloadAction(panel), OpenInBrowserAction()))
+        toolWindow.setTitleActions(
+            listOf(SendSchemaToRdfArchitectAction(), ReloadAction(panel), OpenInBrowserAction()),
+        )
+
+        // Opening the tool window is the moment to notice that RDFArchitect has no schema of this
+        // project yet, or an outdated one. A term the user was navigating to is picked up so the
+        // import can land there (see OpenInRdfArchitectAction).
+        configuredUrl()?.let { base ->
+            val termIri = project.getUserData(PENDING_TERM_KEY)
+            project.putUserData(PENDING_TERM_KEY, null)
+            RdfArchitectSchemaHandoff.offerIfNeeded(project, base, termIri)
+        }
 
         // Re-check the configured URL whenever the tool window is shown, so configuring or
         // changing it in settings takes effect without restarting the IDE.
@@ -91,6 +103,12 @@ class RdfArchitectToolWindowFactory :
     }
 
     companion object {
+        /**
+         * The term a deep link is heading for, set before the tool window is opened so a first-time
+         * schema import can land on it. Read and cleared when the tool window content is created.
+         */
+        val PENDING_TERM_KEY: Key<String> = Key.create("cimnotebook.rdfArchitect.pendingTerm")
+
         /** The configured RDFArchitect base URL, or null when unset. */
         fun configuredUrl(): String? =
             CimnotebookSettings

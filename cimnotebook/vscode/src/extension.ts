@@ -19,6 +19,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import * as crypto from "crypto";
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -41,8 +42,11 @@ let client: LanguageClient | undefined;
 let out: vscode.LogOutputChannel;
 // Singleton RDFArchitect panel — reopening the command reveals it instead of stacking panels.
 let rdfArchitectPanel: vscode.WebviewPanel | undefined;
+// Kept for workspaceState, which remembers what was last sent to RDFArchitect.
+let extensionContext: vscode.ExtensionContext;
 
 export function activate(context: vscode.ExtensionContext): void {
+    extensionContext = context;
     out = vscode.window.createOutputChannel(CHANNEL, { log: true });
     context.subscriptions.push(out);
 
@@ -86,9 +90,8 @@ export function activate(context: vscode.ExtensionContext): void {
             openRdfArchitectExternal,
         ),
         vscode.commands.registerCommand("cimnotebook.openInRdfArchitect", openInRdfArchitect),
-        vscode.commands.registerCommand(
-            "cimnotebook.sendSchemaToRdfArchitect",
-            sendSchemaToRdfArchitect,
+        vscode.commands.registerCommand("cimnotebook.sendSchemaToRdfArchitect", () =>
+            sendSchemaToRdfArchitect(),
         ),
     );
 
@@ -276,15 +279,15 @@ async function explainQuery(): Promise<void> {
 async function openRdfArchitect(): Promise<void> {
     const url = await resolveRdfArchitectUrl();
     if (url) {
-        showRdfArchitectPanel(url, false);
+        showRdfArchitectPanel(url, url, false);
     }
 }
 
 /**
  * "Open in RDFArchitect" editor action: asks the language server for the schema term under the
- * cursor (`cimvocabcheck.termInfo`) and opens RDFArchitect's class deep link
- * (`/mainpage?class=<iri>`) in the webview panel. RDFArchitect locates the class across the
- * schemas loaded in its session.
+ * cursor (`cimvocabcheck.termInfo`) and opens RDFArchitect's deep link (`/mainpage?class=<iri>`)
+ * in the webview panel. RDFArchitect locates the term across the schemas loaded in its session —
+ * a class opens directly, an attribute, association or enum entry opens its declaring class.
  */
 async function openInRdfArchitect(): Promise<void> {
     if (!client) {
@@ -313,7 +316,7 @@ async function openInRdfArchitect(): Promise<void> {
             );
             return;
         }
-        showRdfArchitectPanel(classDeepLink(base, iri), true);
+        showRdfArchitectPanel(base, termDeepLink(base, iri), true, iri);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`Open in RDFArchitect failed: ${msg}`);
@@ -328,7 +331,7 @@ async function openInRdfArchitect(): Promise<void> {
  * embedded browser session loads the snapshot and selects the dataset, so the workspace schema is
  * browsable without a manual import.
  */
-async function sendSchemaToRdfArchitect(): Promise<void> {
+async function sendSchemaToRdfArchitect(termIri?: string): Promise<void> {
     if (!client) {
         vscode.window.showWarningMessage("CIMNotebook: language server is not running.");
         return;
@@ -337,29 +340,23 @@ async function sendSchemaToRdfArchitect(): Promise<void> {
     if (!base) {
         return;
     }
-    const docUri = vscode.window.activeTextEditor?.document.uri.toString();
     try {
-        const info = await client.sendRequest<{
-            configFile?: string;
-            schemaFiles?: string[];
-        } | null>("workspace/executeCommand", {
-            command: "cimvocabcheck.schemaInfo",
-            arguments: docUri ? [docUri] : [],
-        });
-        if (!info?.configFile || !info.schemaFiles?.length) {
+        const info = await workspaceSchemaInfo();
+        if (!info) {
             vscode.window.showWarningMessage(
                 "CIMNotebook: no schema configured — add schemas to opencgmes.jsonc first.",
             );
             return;
         }
-        const url = await vscode.window.withProgress(
+        const handoff = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: "CIMNotebook: sending schema to RDFArchitect…",
             },
-            () => importSchemaAndSnapshot(base, info.configFile!, info.schemaFiles!),
+            () => importSchemaAndSnapshot(base, info.configFile, info.schemaFiles, termIri),
         );
-        showRdfArchitectPanel(url, true);
+        await extensionContext.workspaceState.update(HANDOFF_KEY, handoff.record);
+        showRdfArchitectPanel(base, handoff.url, true);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`Send Schema to RDFArchitect failed: ${msg}`);
@@ -368,15 +365,38 @@ async function sendSchemaToRdfArchitect(): Promise<void> {
 }
 
 /**
+ * The workspace's configured schema, as the language server resolves it for the active document
+ * (`cimvocabcheck.schemaInfo`), or undefined when no schema is configured.
+ */
+async function workspaceSchemaInfo(): Promise<
+    { configFile: string; schemaFiles: string[] } | undefined
+> {
+    const docUri = vscode.window.activeTextEditor?.document.uri.toString();
+    const info = await client?.sendRequest<{
+        configFile?: string;
+        schemaFiles?: string[];
+    } | null>("workspace/executeCommand", {
+        command: "cimvocabcheck.schemaInfo",
+        arguments: docUri ? [docUri] : [],
+    });
+    return info?.configFile && info.schemaFiles?.length
+        ? { configFile: info.configFile, schemaFiles: info.schemaFiles }
+        : undefined;
+}
+
+/**
  * Imports the schema files into RDFArchitect as a read-only dataset and returns the snapshot link
- * to open. The REST calls run in their own (fresh, empty) backend session, held together by the
- * session cookie; the snapshot is the cross-session bridge into the embedded browser's session.
+ * to open, plus the record of what was sent. The REST calls run in their own (fresh, empty) backend
+ * session, held together by the session cookie; the snapshot is the cross-session bridge into the
+ * embedded browser's session. Because every send starts a new session, the dataset is always built
+ * from scratch — re-sending an updated schema needs no cleanup of the previous one.
  */
 async function importSchemaAndSnapshot(
     base: string,
     configFile: string,
     schemaFiles: string[],
-): Promise<string> {
+    termIri?: string,
+): Promise<{ url: string; record: SchemaHandoff }> {
     const api = new RdfArchitectClient(base);
     const dataset = datasetNameFor(configFile);
     await api.importGraphs(dataset, schemaFiles);
@@ -386,13 +406,118 @@ async function importSchemaAndSnapshot(
     url.searchParams.set("snapshot", token);
     // RDFArchitect loads a snapshot under SNAPSHOT_<dataset>_<token>; preselect it.
     url.searchParams.set("dataset", `SNAPSHOT_${dataset}_${token}`);
-    return url.toString();
+    // Sending the schema because a term could not be found: land on that term afterwards.
+    if (termIri) {
+        url.searchParams.set("class", termIri);
+    }
+    return {
+        url: url.toString(),
+        record: {
+            url: base,
+            dataset,
+            snapshot: token,
+            fingerprint: await schemaFingerprint(schemaFiles),
+            sentAt: new Date().toISOString(),
+        },
+    };
 }
 
 /** Dataset name for the imported schema: the config file's directory name, sanitised. */
 function datasetNameFor(configFile: string): string {
     const dir = path.basename(path.dirname(configFile)).replace(/[^A-Za-z0-9._-]/g, "_");
     return dir || "cimnotebook";
+}
+
+// ---- Keeping RDFArchitect's copy of the schema in step ---------------------------------------
+
+/** What "Send Schema to RDFArchitect" last handed to which instance, per workspace. */
+interface SchemaHandoff {
+    /** The instance the schema went to; a different URL means a different (empty) RDFArchitect. */
+    url: string;
+    dataset: string;
+    snapshot: string;
+    fingerprint: string;
+    sentAt: string;
+}
+
+const HANDOFF_KEY = "cimnotebook.rdfArchitect.handoff";
+const HANDOFF_OPT_OUT_KEY = "cimnotebook.rdfArchitect.handoff.optOut";
+
+/**
+ * Offers to send the workspace schema when the RDFArchitect panel opens, so the feature does not
+ * depend on the user knowing that the command exists.
+ *
+ * The extension's REST calls and the panel's embedded browser are *different* backend sessions, so
+ * there is no way to ask RDFArchitect whether the panel can see the schema. What can be checked is
+ * what this workspace sent: the snapshot is the bridge, and it still resolves as long as the
+ * backend has it — an instance that restarted loses in-memory snapshots, which reads exactly like
+ * never having imported. Beyond that, the schema files are fingerprinted so a schema edited after
+ * the last send offers an update instead of silently serving a stale model.
+ *
+ * @param base the RDFArchitect instance the panel was opened against
+ * @param termIri a term the user was trying to reach, re-opened after an import
+ */
+async function offerSchemaSync(base: string, termIri?: string): Promise<void> {
+    if (!client || extensionContext.workspaceState.get<boolean>(HANDOFF_OPT_OUT_KEY)) {
+        return;
+    }
+    try {
+        const info = await workspaceSchemaInfo();
+        if (!info) {
+            return;
+        }
+        const previous = extensionContext.workspaceState.get<SchemaHandoff>(HANDOFF_KEY);
+        const inSync =
+            previous?.url === base && (await snapshotExists(base, previous.snapshot))
+                ? previous
+                : undefined;
+        const fingerprint = await schemaFingerprint(info.schemaFiles);
+        if (inSync?.fingerprint === fingerprint) {
+            return;
+        }
+        const accept = inSync ? "Update" : "Import";
+        const message = inSync
+            ? "CIMNotebook: the workspace schema changed since it was sent to RDFArchitect."
+            : "CIMNotebook: this workspace's schema is not in RDFArchitect yet.";
+        const choice = await vscode.window.showInformationMessage(
+            message,
+            accept,
+            "Not now",
+            "Never for this workspace",
+        );
+        if (choice === accept) {
+            await sendSchemaToRdfArchitect(termIri);
+        } else if (choice === "Never for this workspace") {
+            await extensionContext.workspaceState.update(HANDOFF_OPT_OUT_KEY, true);
+        }
+    } catch (err) {
+        // Never let the offer break opening the panel.
+        out.appendLine(`Schema sync check failed: ${err instanceof Error ? err.message : err}`);
+    }
+}
+
+/**
+ * Whether a snapshot is still loadable, which is what decides "is our schema still over there?".
+ * Loading it into this throwaway session is the probe; the panel has its own session.
+ */
+async function snapshotExists(base: string, token: string): Promise<boolean> {
+    try {
+        const api = `${new URL(base).toString().replace(/\/+$/, "")}/api`;
+        const res = await fetch(`${api}/snapshots/${encodeURIComponent(token)}`);
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+/** Identifies a set of schema files by their paths and contents, to detect edits since the send. */
+async function schemaFingerprint(files: string[]): Promise<string> {
+    const hash = crypto.createHash("sha256");
+    for (const file of [...files].sort()) {
+        hash.update(file);
+        hash.update(await fs.promises.readFile(file));
+    }
+    return hash.digest("hex");
 }
 
 /**
@@ -462,8 +587,8 @@ class RdfArchitectClient {
     }
 }
 
-/** RDFArchitect's class deep link: {@code <base>/mainpage?class=<iri>}. */
-function classDeepLink(base: string, iri: string): string {
+/** RDFArchitect's term deep link: {@code <base>/mainpage?class=<iri>} takes any schema term. */
+function termDeepLink(base: string, iri: string): string {
     const url = new URL(base);
     url.pathname = `${url.pathname.replace(/\/+$/, "")}/mainpage`;
     url.searchParams.set("class", iri);
@@ -473,8 +598,19 @@ function classDeepLink(base: string, iri: string): string {
 /**
  * Reveals the singleton RDFArchitect panel. With {@code navigate}, the embedded app is (re)loaded
  * at {@code url}; otherwise an already-open panel keeps its current page and session.
+ *
+ * Opening the panel for the first time also offers to send the workspace schema (see
+ * {@link offerSchemaSync}) — the offer runs detached so it never delays the panel.
+ *
+ * @param base the configured instance URL, without the deep-link parameters {@code url} may carry
+ * @param termIri a term the user was navigating to, handed to the offer so an import can land there
  */
-function showRdfArchitectPanel(url: string, navigate: boolean): void {
+function showRdfArchitectPanel(
+    base: string,
+    url: string,
+    navigate: boolean,
+    termIri?: string,
+): void {
     if (rdfArchitectPanel) {
         if (navigate) {
             rdfArchitectPanel.webview.html = rdfArchitectHtml(url);
@@ -482,6 +618,7 @@ function showRdfArchitectPanel(url: string, navigate: boolean): void {
         rdfArchitectPanel.reveal();
         return;
     }
+    void offerSchemaSync(base, termIri);
     const panel = vscode.window.createWebviewPanel(
         "cimnotebook.rdfArchitect",
         "RDFArchitect",
@@ -496,6 +633,8 @@ function showRdfArchitectPanel(url: string, navigate: boolean): void {
     panel.webview.onDidReceiveMessage((msg: { command?: string; url?: string }) => {
         if (msg.command === "openExternal" && msg.url) {
             void vscode.env.openExternal(vscode.Uri.parse(msg.url));
+        } else if (msg.command === "sendSchema") {
+            void sendSchemaToRdfArchitect();
         }
     });
     panel.onDidDispose(() => {
@@ -576,6 +715,7 @@ function rdfArchitectHtml(url: string): string {
 <body>
     <div id="toolbar">
         <span>${origin}</span>
+        <button id="sendSchema">Send Schema</button>
         <button id="reload">Reload</button>
         <button id="external">Open in Browser</button>
     </div>
@@ -588,6 +728,9 @@ function rdfArchitectHtml(url: string): string {
         });
         document.getElementById("external").addEventListener("click", () => {
             vscodeApi.postMessage({ command: "openExternal", url: ${JSON.stringify(url)} });
+        });
+        document.getElementById("sendSchema").addEventListener("click", () => {
+            vscodeApi.postMessage({ command: "sendSchema" });
         });
     </script>
 </body>
