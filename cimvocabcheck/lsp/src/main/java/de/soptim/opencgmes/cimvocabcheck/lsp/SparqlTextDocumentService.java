@@ -28,6 +28,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationResult;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import de.soptim.opencgmes.cimvocabcheck.core.StandardVocabulary;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSource;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql;
@@ -231,16 +232,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
         }
         ResolvedSchema rs = rsOpt.get();
         if (rs.definitionIndex() != null) {
-          return rs.definitionIndex()
-              .locationOf(term)
-              .map(SparqlTextDocumentService::definitionAt)
-              .orElseGet(SparqlTextDocumentService::noDefinition);
+          return definitionsAt(rs.definitionIndex().locationsOf(term));
         }
         // No DefinitionIndex means the schema came from a remote SPARQL endpoint.
-        return endpointPeek
-            .locationFor(source.remoteUrl(), term.getURI())
-            .map(SparqlTextDocumentService::definitionAt)
-            .orElseGet(SparqlTextDocumentService::noDefinition);
+        return definitionsAt(
+            endpointPeek.locationsFor(source.remoteUrl(), term.getURI(), peekProfiles(term, rs)));
       }
 
       // Workspace document: jump into the local RDFS source file.
@@ -248,12 +244,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
       if (wsOpt.isEmpty() || wsOpt.get().definitionIndex() == null) {
         return noDefinition();
       }
-      return wsOpt
-          .get()
-          .definitionIndex()
-          .locationOf(term)
-          .map(SparqlTextDocumentService::definitionAt)
-          .orElseGet(SparqlTextDocumentService::noDefinition);
+      return definitionsAt(wsOpt.get().definitionIndex().locationsOf(term));
     } catch (Exception e) {
       LOG.error(
           "Definition error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
@@ -266,11 +257,15 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return CompletableFuture.completedFuture(Either.forLeft(List.of()));
   }
 
-  /** Wraps a single {@link Location} as the result of a {@code textDocument/definition} request. */
+  /**
+   * Wraps the declarations of a term as the result of a {@code textDocument/definition} request.
+   * More than one means the term is declared in more than one profile, and the editor offers the
+   * choice — VS Code as a peek list, IntelliJ as a "Choose Declaration" popup.
+   */
   private static CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>>
-      definitionAt(Location loc) {
+      definitionsAt(List<Location> locations) {
     return CompletableFuture.completedFuture(
-        Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(List.of(loc)));
+        Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(locations));
   }
 
   /** Whether {@code term} is declared as a class, property, or enum member in the schema index. */
@@ -278,6 +273,30 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return !index.findClass(term).isEmpty()
         || !index.findProperty(term).isEmpty()
         || !index.findEnumMember(term).isEmpty();
+  }
+
+  /**
+   * The profiles declaring {@code term}, in a stable order. A term is a class, a property, or an
+   * enumeration member — never more than one — so the three lookups concatenate cleanly.
+   */
+  private static List<VersionIri> declaringProfiles(SchemaIndex index, Node term) {
+    var profiles = new ArrayList<VersionIri>(index.findClass(term));
+    profiles.addAll(index.findProperty(term));
+    profiles.addAll(index.findEnumMember(term));
+    return DefinitionIndex.orderedProfiles(profiles);
+  }
+
+  /** The per-profile peek targets for an endpoint term, or empty when the graphs are unknown. */
+  private static List<EndpointDefinitionPeek.ProfileGraph> peekProfiles(
+      Node term, ResolvedSchema schema) {
+    var targets = new ArrayList<EndpointDefinitionPeek.ProfileGraph>();
+    for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
+      String graph = schema.profileGraphs().get(profile);
+      if (graph != null) {
+        targets.add(new EndpointDefinitionPeek.ProfileGraph(shortProfileIri(profile.iri()), graph));
+      }
+    }
+    return targets;
   }
 
   @Override
@@ -330,11 +349,27 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * @param startCharacter zero-based column of the token's first character
    * @param endCharacter zero-based column just past the token's last character
    * @param iri the full IRI the token resolves to
+   * @param profiles the profiles declaring the term, so the editor can offer the choice when there
+   *     is more than one; empty while the schema is still loading
    */
-  record TermRange(int line, int startCharacter, int endCharacter, String iri) {}
+  record TermRange(
+      int line, int startCharacter, int endCharacter, String iri, List<TermProfile> profiles) {}
 
-  /** The RDFArchitect instance behind a document, and the terms it names. */
-  record RdfArchitectTerms(String baseUrl, List<TermRange> terms) {}
+  /**
+   * One profile a term is declared in, and the graph holding that profile in RDFArchitect.
+   *
+   * @param label how the profile should read in the editor's chooser
+   * @param graph the graph to open the term in
+   */
+  record TermProfile(String label, String graph) {}
+
+  /**
+   * The RDFArchitect instance behind a document, and the terms it names.
+   *
+   * @param dataset the dataset to open terms in, or {@code null} when the schema is read from a
+   *     snapshot — whose dataset is named differently in every session that loads it
+   */
+  record RdfArchitectTerms(String baseUrl, String dataset, List<TermRange> terms) {}
 
   /**
    * The terms of an open document that should navigate into RDFArchitect, or empty when the
@@ -350,6 +385,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * term-shaped token outside the standard vocabularies is offered instead — RDFArchitect answering
    * "not found" is a better outcome than a document that has no links because it was opened a
    * moment too early.
+   *
+   * <p>Each term also carries the profiles declaring it. A CIM term is routinely declared in
+   * several, and without saying which one to open, RDFArchitect shows whichever graph it happens to
+   * find the term in first.
    */
   Optional<RdfArchitectTerms> rdfArchitectTerms(String uri) {
     String text = documents.get(uri);
@@ -361,9 +400,14 @@ final class SparqlTextDocumentService implements TextDocumentService {
     if (sourceOpt.isEmpty()) {
       return Optional.empty();
     }
-    SchemaIndex index = documentSchemaIndex(uri, text).orElse(null);
+    RdfArchitectSource source = sourceOpt.get();
+    ResolvedSchema schema =
+        schemaManager.resolveSchema(schemaSource, documentDir(uri)).orElse(null);
+    // A snapshot is loaded under a different dataset name in every session, so only a dataset read
+    // live can be named here; the graph alone still pins the profile.
+    String dataset = source.snapshot() == null ? source.dataset() : null;
     return Optional.of(
-        new RdfArchitectTerms(sourceOpt.get().baseUrl(), schemaTermsIn(text, index)));
+        new RdfArchitectTerms(source.baseUrl(), dataset, schemaTermsIn(text, schema)));
   }
 
   /**
@@ -371,10 +415,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * prefix:local} names whose prefix is declared. Prefix and base declarations are skipped — the
    * IRI on such a line is a namespace, not a term.
    *
-   * @param index the schema to accept terms against, or {@code null} to accept every term-shaped
-   *     token outside the standard vocabularies
+   * @param schema the schema to accept terms against and read their profiles from, or {@code null}
+   *     to accept every term-shaped token outside the standard vocabularies
    */
-  static List<TermRange> schemaTermsIn(String text, SchemaIndex index) {
+  static List<TermRange> schemaTermsIn(String text, ResolvedSchema schema) {
     PrefixMapping prefixes = extractPrefixes(text);
     List<TermRange> terms = new ArrayList<>();
     String[] lines = text.split("\n", -1);
@@ -392,14 +436,14 @@ final class SparqlTextDocumentService implements TextDocumentService {
             i++;
             continue;
           }
-          addTerm(terms, text, ln, i, gt + 1, i + 1, prefixes, index);
+          addTerm(terms, text, ln, i, gt + 1, i + 1, prefixes, schema);
           i = gt + 1;
         } else if (isNameChar(c)) {
           int end = i;
           while (end < src.length() && isNameChar(src.charAt(end))) {
             end++;
           }
-          addTerm(terms, text, ln, i, end, i, prefixes, index);
+          addTerm(terms, text, ln, i, end, i, prefixes, schema);
           i = end;
         } else {
           i++;
@@ -436,15 +480,34 @@ final class SparqlTextDocumentService implements TextDocumentService {
       int end,
       int resolveAt,
       PrefixMapping prefixes,
-      SchemaIndex index) {
+      ResolvedSchema schema) {
     Node term = termAtPosition(text, line, resolveAt, prefixes);
     if (term == null || !term.isURI()) {
       return;
     }
+    SchemaIndex index = schema == null ? null : schema.api().schemaIndex();
     boolean accepted = index != null ? termKnown(index, term) : isModelTerm(term);
     if (accepted && !localNameOf(term.getURI()).isEmpty()) {
-      terms.add(new TermRange(line, start, end, term.getURI()));
+      terms.add(new TermRange(line, start, end, term.getURI(), termProfiles(term, schema)));
     }
+  }
+
+  /**
+   * The profiles declaring {@code term} and the graph each lives in, or empty when the schema has
+   * not loaded (or came from somewhere with no graphs to name).
+   */
+  private static List<TermProfile> termProfiles(Node term, ResolvedSchema schema) {
+    if (schema == null || schema.profileGraphs().isEmpty()) {
+      return List.of();
+    }
+    var found = new ArrayList<TermProfile>();
+    for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
+      String graph = schema.profileGraphs().get(profile);
+      if (graph != null) {
+        found.add(new TermProfile(shortProfileIri(profile.iri()), graph));
+      }
+    }
+    return List.copyOf(found);
   }
 
   /** A prefix, base, or {@code @prefix} declaration, whose IRI names a namespace, not a term. */

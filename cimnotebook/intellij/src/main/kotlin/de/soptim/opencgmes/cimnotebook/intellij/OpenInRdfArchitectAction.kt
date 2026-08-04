@@ -23,8 +23,11 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.service
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.VirtualFile
 import com.redhat.devtools.lsp4ij.LSPIJUtils
 import com.redhat.devtools.lsp4ij.LanguageServerManager
 import org.eclipse.lsp4j.ExecuteCommandParams
@@ -49,6 +52,38 @@ class OpenInRdfArchitectAction : AnAction() {
         val project = e.project ?: return
         val editor = e.getData(CommonDataKeys.EDITOR) ?: return
         val virtualFile = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
+
+        // When the schema itself comes from RDFArchitect the term's profiles are known, so this
+        // offers the same choice Ctrl+Click does. The position is read here, on the EDT; the
+        // lookup waits on the language server and so must not be.
+        val document = editor.document
+        val offset = editor.caretModel.offset
+        val stamp = document.modificationStamp
+        val line = document.getLineNumber(offset)
+        val column = offset - document.getLineStartOffset(line)
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val target =
+                project.service<RdfArchitectTermLinks>().termAt(virtualFile, stamp, line, column)
+            ApplicationManager.getApplication().invokeLater {
+                if (target != null) {
+                    RdfArchitectTermLinks.open(project, editor, target)
+                } else {
+                    openViaTermInfo(project, editor, virtualFile)
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves the term under the caret through `cimvocabcheck.termInfo` and opens it unpinned —
+     * the path for a workspace whose schema does not come from RDFArchitect, where the profiles a
+     * term is declared in say nothing about which RDFArchitect graph holds it.
+     */
+    private fun openViaTermInfo(
+        project: Project,
+        editor: Editor,
+        virtualFile: VirtualFile,
+    ) {
         val base = RdfArchitectToolWindowFactory.configuredUrl()
         if (base == null) {
             Messages.showErrorDialog(

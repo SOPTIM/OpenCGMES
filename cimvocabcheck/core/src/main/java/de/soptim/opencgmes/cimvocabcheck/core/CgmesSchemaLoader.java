@@ -196,17 +196,58 @@ public final class CgmesSchemaLoader {
    * @throws SchemaLoadException if no CIM profile could be registered from any graph
    */
   public static RdfsSchemaIndex indexFromGraphs(Iterable<Graph> graphs) throws SchemaLoadException {
+    // Callers of this overload have no names to give; the synthetic ones are only used to keep
+    // the graphs apart in the map and are dropped with the mapping.
+    var named = new LinkedHashMap<String, Graph>();
+    int n = 0;
+    for (Graph graph : graphs) {
+      named.put("#" + n++, graph);
+    }
+    return indexFromNamedGraphs(named).index();
+  }
+
+  /**
+   * An index built from named graphs, together with the graph each profile was found in.
+   *
+   * <p>The mapping is what lets a caller navigate <em>to</em> a profile: a term declared in several
+   * profiles can be opened in the one the user picks, rather than in whichever happens to come
+   * first. It only covers profiles that were registered — a graph skipped as a duplicate does not
+   * displace the graph that claimed those version IRIs first.
+   *
+   * @param index the schema index built from all profile graphs
+   * @param profileGraphs profile version IRI → the name of the graph declaring it
+   */
+  public record IndexedGraphs(RdfsSchemaIndex index, Map<VersionIri, String> profileGraphs) {
+
+    /** Canonical constructor; defensively copies the mapping. */
+    public IndexedGraphs {
+      profileGraphs = Map.copyOf(profileGraphs);
+    }
+  }
+
+  /**
+   * Builds an {@link RdfsSchemaIndex} from named profile graphs — the named-graph form of {@link
+   * #indexFromGraphs(Iterable)}, which additionally reports which graph each profile came from.
+   *
+   * @param graphs graph name → graph, in the order they should be considered
+   * @throws SchemaLoadException if no CIM profile could be registered from any graph
+   */
+  public static IndexedGraphs indexFromNamedGraphs(Map<String, Graph> graphs)
+      throws SchemaLoadException {
     var registry = new CimProfileRegistryStd();
     var unrecognizedNamespaces = new LinkedHashSet<String>();
+    var profileGraphs = new LinkedHashMap<VersionIri, String>();
     int total = 0;
     int skipped = 0;
-    for (Graph graph : graphs) {
+    for (Map.Entry<String, Graph> entry : graphs.entrySet()) {
       total++;
+      Graph graph = entry.getValue();
       String cimNs = ensureCimPrefix(graph);
       try {
         CimProfile profile = CimProfile.wrap(graph);
         try {
           registry.register(profile);
+          rememberProfileGraph(profileGraphs, profile, entry.getKey());
         } catch (IllegalArgumentException dup) {
           LOG.debug("Skipping duplicate profile graph: {}", dup.getMessage());
         }
@@ -226,7 +267,22 @@ public final class CgmesSchemaLoader {
         registry.getRegisteredProfiles().size(),
         total,
         skipped);
-    return RdfsSchemaIndex.fromCimRegistry(registry);
+    return new IndexedGraphs(RdfsSchemaIndex.fromCimRegistry(registry), profileGraphs);
+  }
+
+  /**
+   * Records which graph a registered profile was read from, under every version IRI it declares —
+   * the same identity {@link RdfsSchemaIndex#fromCimRegistry} indexes it by. Header profiles are
+   * skipped for the same reason they are there: they are not addressable by version IRI.
+   */
+  private static void rememberProfileGraph(
+      Map<VersionIri, String> out, CimProfile profile, String graphName) {
+    if (profile.isHeaderProfile()) {
+      return;
+    }
+    for (Node versionIri : profile.getOwlVersionIris()) {
+      out.putIfAbsent(new VersionIri(versionIri), graphName);
+    }
   }
 
   private static SchemaLoadException noProfilesFoundException(

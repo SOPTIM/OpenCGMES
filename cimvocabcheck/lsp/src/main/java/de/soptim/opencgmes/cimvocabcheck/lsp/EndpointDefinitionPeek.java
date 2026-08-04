@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,28 +72,70 @@ final class EndpointDefinitionPeek {
   }
 
   /**
+   * A profile a term is declared in, and the named graph holding that profile.
+   *
+   * @param label how the profile should read in the editor's chooser
+   * @param graph the named graph to scope the fetch to
+   */
+  record ProfileGraph(String label, String graph) {}
+
+  /**
    * Returns a go-to-definition location for {@code termIri} hosted at {@code endpoint}, or empty if
    * the endpoint has no triples for it or the fetch fails. Only remote (http/https) endpoints are
    * supported; the result is cached per endpoint+term.
    */
   Optional<Location> locationFor(String endpoint, String termIri) {
+    return peek(endpoint, termIri, null, null);
+  }
+
+  /**
+   * Returns one location per profile that declares {@code termIri} — the editor then offers the
+   * choice — or a single merged peek when the profiles are unknown.
+   *
+   * <p>A CIM term is routinely declared in several profiles, and the union of their triples reads
+   * as one contradictory definition: two {@code rdfs:domain}s, two multiplicities, no indication of
+   * which profile said what. One document per profile keeps each one readable.
+   */
+  List<Location> locationsFor(String endpoint, String termIri, List<ProfileGraph> profiles) {
+    if (profiles == null || profiles.isEmpty()) {
+      return locationFor(endpoint, termIri).map(List::of).orElseGet(List::of);
+    }
+    var locations = new ArrayList<Location>();
+    for (ProfileGraph profile : profiles) {
+      peek(endpoint, termIri, profile.graph(), profile.label()).ifPresent(locations::add);
+    }
+    // Every per-profile fetch came back empty (a stale index, say) — the unscoped peek is still
+    // better than reporting that the term has no definition at all.
+    return locations.isEmpty()
+        ? locationFor(endpoint, termIri).map(List::of).orElseGet(List::of)
+        : List.copyOf(locations);
+  }
+
+  /**
+   * Writes (or reuses) the peek document for one term, optionally scoped to one profile's graph.
+   *
+   * @param graphName the named graph to read, or {@code null} for every graph merged
+   * @param label the profile's name, used to keep per-profile documents apart and to make the
+   *     editor's chooser readable; {@code null} for the merged document
+   */
+  private Optional<Location> peek(String endpoint, String termIri, String graphName, String label) {
     if (endpoint == null || !(endpoint.startsWith("http://") || endpoint.startsWith("https://"))) {
       return Optional.empty();
     }
-    String key = endpoint + "\n" + termIri;
+    String key = endpoint + "\n" + termIri + "\n" + graphName;
     Location cached = cache.get(key);
     if (cached != null) {
       return Optional.of(cached);
     }
 
     try (HttpSparqlGraphSource source = new HttpSparqlGraphSource(endpoint, timeout)) {
-      Graph graph = source.fetchResource(termIri);
+      Graph graph = source.fetchResource(graphName, termIri);
       if (graph.isEmpty()) {
-        LOG.debug("Endpoint {} has no triples defining {}", endpoint, termIri);
+        LOG.debug("Endpoint {} has no triples defining {} in {}", endpoint, termIri, graphName);
         return Optional.empty();
       }
       String turtle = renderTurtle(graph, termIri);
-      Path file = writePeekFile(termIri, turtle);
+      Path file = writePeekFile(termIri, turtle, label);
       int line = subjectLine(turtle, termIri);
       Location loc =
           new Location(
@@ -151,15 +194,27 @@ final class EndpointDefinitionPeek {
     return 0;
   }
 
-  private Path writePeekFile(String termIri, String turtle) throws Exception {
-    Files.createDirectories(cacheDir);
+  /**
+   * Writes the peek document, putting a profile's copy in a directory named after it — editors show
+   * the containing directory next to the file name, so that is what tells two profiles' documents
+   * apart in the chooser.
+   */
+  private Path writePeekFile(String termIri, String turtle, String label) throws Exception {
+    Path dir = label == null ? cacheDir : cacheDir.resolve(slug(label));
+    Files.createDirectories(dir);
     String name = localName(termIri) + "-" + Integer.toHexString(termIri.hashCode()) + ".ttl";
-    Path file = cacheDir.resolve(name);
+    Path file = dir.resolve(name);
     // Make writable to (re)write, then mark read-only — it is generated, not a real source.
     file.toFile().setWritable(true);
     Files.write(file, turtle.getBytes(StandardCharsets.UTF_8));
     file.toFile().setReadOnly();
     return file;
+  }
+
+  /** A profile label as a directory name: readable, and safe on every filesystem. */
+  static String slug(String label) {
+    String cleaned = label.replaceAll("[^A-Za-z0-9._-]+", "-").replaceAll("(^-+)|(-+$)", "");
+    return cleaned.isEmpty() ? "profile" : cleaned;
   }
 
   static String namespaceOf(String iri) {
@@ -178,8 +233,8 @@ final class EndpointDefinitionPeek {
       if (!Files.isDirectory(cacheDir)) {
         return List.of();
       }
-      try (var s = Files.list(cacheDir)) {
-        return s.toList();
+      try (var s = Files.walk(cacheDir)) {
+        return s.filter(Files::isRegularFile).toList();
       }
     } catch (Exception e) {
       return List.of();

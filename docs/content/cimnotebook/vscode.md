@@ -86,13 +86,20 @@ SHACL shapes and SPARQL queries complete the same way.
 Press `F12` or `Ctrl+Click` on any CIM IRI to jump directly to its declaration line in the source
 `.rdf` or `.ttl` profile file. For a schema loaded from a remote SPARQL endpoint, which has no
 source file, the term's triples are fetched and opened as a generated read-only Turtle document
-instead.
+instead — one per profile, so each reads as that profile's definition rather than as a merge of all
+of them.
+
+A CIM term is usually declared in **several profiles**. All of them are offered: VS Code shows its
+peek list, and you pick the profile you meant. The list is ordered by profile version IRI, so the
+same one is on top every time.
 
 When the schema comes from [RDFArchitect](#live-datasets), `Ctrl+Click` opens the term **in the
 RDFArchitect panel** — there are no schema files to jump to, and the model is best read where it is
 being edited. A class opens itself; an attribute, association or enum entry opens the class that
 declares it, with the row highlighted. Terms are shown as links, so `Ctrl`-hovering one underlines
-it before you commit to the jump.
+it before you commit to the jump; when the term is in several profiles, a quick pick asks which one
+first and the panel opens that profile's graph. Without that, RDFArchitect would show whichever
+graph it happens to find the term in first.
 
 ### Workspace symbol search
 
@@ -152,8 +159,9 @@ and the jump works from then on.
 
 When the schema itself comes from RDFArchitect — `rdfArchitect` in
 [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect), or a `# [rdfarchitect=...]` directive
-— plain `Ctrl+Click` does the same thing, no right-click needed. The right-click action stays
-available everywhere, including for workspaces whose schema comes from files.
+— plain `Ctrl+Click` does the same thing, no right-click needed, and both ask which profile to open
+a term declared in several. The right-click action stays available everywhere, including for workspaces
+whose schema comes from files.
 
 :::note
 Because a property is declared once, jumping to an inherited attribute opens the superclass that

@@ -25,6 +25,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryExplanation;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -98,7 +99,8 @@ final class SparqlWorkspaceService implements WorkspaceService {
   /**
    * Command id for the terms of a document that should navigate into RDFArchitect. Arguments:
    * {@code [uri]}. Returns {@code null} unless the document's schema comes from RDFArchitect, else
-   * {@code {"baseUrl": ..., "terms": [{"line", "startCharacter", "endCharacter", "iri"}, ...]}}.
+   * {@code {"baseUrl": ..., "dataset": ..., "terms": [{"line", "startCharacter", "endCharacter",
+   * "iri", "profiles": [{"label", "graph"}]}, ...]}}.
    *
    * <p>Such a document has no schema files to open, so go-to-definition has nothing to offer;
    * editor integrations turn these ranges into links that open the term in their RDFArchitect view
@@ -248,26 +250,41 @@ final class SparqlWorkspaceService implements WorkspaceService {
       return CompletableFuture.completedFuture(
           documentService
               .rdfArchitectTerms(uri)
-              .<Object>map(
-                  found ->
-                      Map.of(
-                          "baseUrl",
-                          found.baseUrl(),
-                          "terms",
-                          found.terms().stream()
-                              .map(
-                                  t ->
-                                      Map.of(
-                                          "line", t.line(),
-                                          "startCharacter", t.startCharacter(),
-                                          "endCharacter", t.endCharacter(),
-                                          "iri", (Object) t.iri()))
-                              .toList()))
+              .<Object>map(SparqlWorkspaceService::asMap)
               .orElse(null));
     } catch (Exception e) {
       LOG.error("rdfArchitectTerms failed: {}", e.getMessage(), e);
       return CompletableFuture.completedFuture(null);
     }
+  }
+
+  /**
+   * The wire form of an {@code rdfArchitectTerms} answer. A {@code HashMap} rather than {@code
+   * Map.of}: the dataset is absent for a snapshot, and a null value is how that is said.
+   */
+  private static Map<String, Object> asMap(SparqlTextDocumentService.RdfArchitectTerms found) {
+    var result = new HashMap<String, Object>();
+    result.put("baseUrl", found.baseUrl());
+    result.put("dataset", found.dataset());
+    result.put(
+        "terms",
+        found.terms().stream()
+            .map(
+                term -> {
+                  var t = new HashMap<String, Object>();
+                  t.put("line", term.line());
+                  t.put("startCharacter", term.startCharacter());
+                  t.put("endCharacter", term.endCharacter());
+                  t.put("iri", term.iri());
+                  t.put(
+                      "profiles",
+                      term.profiles().stream()
+                          .map(p -> Map.of("label", p.label(), "graph", p.graph()))
+                          .toList());
+                  return t;
+                })
+            .toList());
+    return result;
   }
 
   /** Resolves the workspace schema files for a document (see {@link #CMD_SCHEMA_INFO}). */
