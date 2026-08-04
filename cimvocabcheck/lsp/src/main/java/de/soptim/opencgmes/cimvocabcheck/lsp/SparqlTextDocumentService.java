@@ -131,6 +131,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
   private final EndpointDefinitionPeek endpointPeek =
       new EndpointDefinitionPeek(Duration.ofSeconds(15));
 
+  /** Generates the same for terms of a model held in RDFArchitect, which has no source files. */
+  private final RdfArchitectDefinitionPeek rdfArchitectPeek = new RdfArchitectDefinitionPeek();
+
   SparqlTextDocumentService(SchemaManager schemaManager, NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
     this.notebookDefaults = notebookDefaults;
@@ -218,12 +221,21 @@ final class SparqlTextDocumentService implements TextDocumentService {
         return noDefinition();
       }
 
+      Path docDir = documentDir(uri);
+      SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+
+      // RDFArchitect document: the model lives in a browser session, so there is no file to jump
+      // to. The term is rendered as the loaded schema holds it, one document per declaring
+      // profile, and opening one is what shows the term in the editor's RDFArchitect view.
+      var rdfArchitect = schemaManager.rdfArchitectRefFor(source, docDir);
+      if (rdfArchitect.isPresent()) {
+        return definitionsAt(rdfArchitectDefinitions(term, source, docDir, rdfArchitect.get()));
+      }
+
       // Endpoint document: resolve against the endpoint schema, never the workspace/bundled
       // files. A local-file endpoint has a real source file to jump to, via the same
       // DefinitionIndex mechanism as a workspace schema; a remote SPARQL endpoint has none, so
       // the term's triples are fetched and opened as a generated read-only Turtle "peek" instead.
-      Path docDir = documentDir(uri);
-      SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
       if (source != null) {
         var rsOpt = schemaManager.resolveFrom(source, docDir);
         if (rsOpt.isEmpty() || !termKnown(rsOpt.get().api().schemaIndex(), term)) {
@@ -265,6 +277,33 @@ final class SparqlTextDocumentService implements TextDocumentService {
       definitionsAt(List<Location> locations) {
     return CompletableFuture.completedFuture(
         Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(locations));
+  }
+
+  /**
+   * The declarations of a term whose schema comes from RDFArchitect: one generated document per
+   * profile declaring it, or none when the schema has not loaded or does not know the term.
+   */
+  private List<Location> rdfArchitectDefinitions(
+      Node term, SchemaSource schemaSource, Path docDir, SchemaManager.RdfArchitectRef ref) {
+    ResolvedSchema schema = schemaManager.resolveFrom(schemaSource, docDir).orElse(null);
+    if (schema == null || !termKnown(schema.api().schemaIndex(), term)) {
+      return List.of();
+    }
+    String baseUrl = ref.source() == null ? null : ref.source().baseUrl();
+    String dataset = datasetOf(ref);
+    var locations = new ArrayList<Location>();
+    for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
+      var target =
+          new RdfArchitectDefinitionPeek.Target(
+              baseUrl,
+              dataset,
+              schema.profileGraphs().get(profile),
+              shortProfileIri(profile.iri()));
+      rdfArchitectPeek
+          .locationFor(term, schema.api().schemaIndex(), profile, target)
+          .ifPresent(locations::add);
+    }
+    return List.copyOf(locations);
   }
 
   /** Whether {@code term} is declared as a class, property, or enum member in the schema index. */
@@ -396,14 +435,14 @@ final class SparqlTextDocumentService implements TextDocumentService {
     if (text == null) {
       return Optional.empty();
     }
-    String schemaSource = RdfArchitectDirective.schemaSourceOf(text);
-    var refOpt = schemaManager.rdfArchitectRefFor(schemaSource, documentDir(uri));
+    Path docDir = documentDir(uri);
+    SchemaSource schemaSource = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+    var refOpt = schemaManager.rdfArchitectRefFor(schemaSource, docDir);
     if (refOpt.isEmpty()) {
       return Optional.empty();
     }
     SchemaManager.RdfArchitectRef ref = refOpt.get();
-    ResolvedSchema schema =
-        schemaManager.resolveSchema(schemaSource, documentDir(uri)).orElse(null);
+    ResolvedSchema schema = schemaManager.resolveFrom(schemaSource, docDir).orElse(null);
     String baseUrl = ref.source() == null ? null : ref.source().baseUrl();
     return Optional.of(new RdfArchitectTerms(baseUrl, datasetOf(ref), schemaTermsIn(text, schema)));
   }
