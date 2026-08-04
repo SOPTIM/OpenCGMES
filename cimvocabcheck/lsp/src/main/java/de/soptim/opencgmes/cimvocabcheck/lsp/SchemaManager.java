@@ -115,6 +115,11 @@ final class SchemaManager {
   private final AtomicReference<DefinitionIndex> defRef = new AtomicReference<>();
   private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef =
       new AtomicReference<>(Map.of());
+
+  /** Profile → schema graph of the primary workspace schema; empty for a file-backed one. */
+  private final AtomicReference<Map<VersionIri, String>> profileGraphsRef =
+      new AtomicReference<>(Map.of());
+
   private final AtomicBoolean checkStdVocabRef = new AtomicBoolean(true);
   private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
@@ -453,7 +458,12 @@ final class SchemaManager {
     }
     return Optional.of(
         new WorkspaceSchema(
-            api, levelRef.get(), defRef.get(), namedGraphRef.get(), checkStdVocabRef.get()));
+            api,
+            levelRef.get(),
+            defRef.get(),
+            namedGraphRef.get(),
+            checkStdVocabRef.get(),
+            profileGraphsRef.get()));
   }
 
   /** Builds (and notifies on failure) the schema for a non-primary config key. */
@@ -598,7 +608,8 @@ final class SchemaManager {
                 + " — validating SPARQL syntax only.");
         return;
       }
-      endpointCache.put(key, buildSchema(es.index(), es.namedGraphScope(), null));
+      endpointCache.put(
+          key, buildSchema(es.index(), es.namedGraphScope(), null, es.profileGraphs()));
       rememberLiveSource(key, source, connection, stamp, () -> refetchDirectiveSchema(key));
       LOG.info(
           "Loaded schema from RDFArchitect {} ({} schema graph(s))",
@@ -906,7 +917,8 @@ final class SchemaManager {
                 + " — validating SPARQL syntax only.");
         return;
       }
-      ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope(), null);
+      ResolvedSchema schema =
+          buildSchema(es.index(), es.namedGraphScope(), null, es.profileGraphs());
       endpointCache.put(endpoint, schema);
       LOG.info(
           "Loaded schema from endpoint {} ({} instance graph(s) auto-mapped, {} unmatched, {}"
@@ -991,9 +1003,23 @@ final class SchemaManager {
       RdfsSchemaIndex index,
       Map<Node, Collection<VersionIri>> scope,
       DefinitionIndex definitionIndex) {
+    return buildSchema(index, scope, definitionIndex, Map.of());
+  }
+
+  /**
+   * Builds a {@link ResolvedSchema} from an index read out of a graph store.
+   *
+   * @param profileGraphs profile version IRI → the graph declaring it, so a term declared in
+   *     several profiles can be opened in the one the user picks
+   */
+  private ResolvedSchema buildSchema(
+      RdfsSchemaIndex index,
+      Map<Node, Collection<VersionIri>> scope,
+      DefinitionIndex definitionIndex,
+      Map<VersionIri, String> profileGraphs) {
     var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
     var api = new SparqlValidationApi(index, prefixes, checkStdVocabRef.get());
-    return new ResolvedSchema(api, levelRef.get(), scope, definitionIndex);
+    return new ResolvedSchema(api, levelRef.get(), scope, definitionIndex, profileGraphs);
   }
 
   /** Records an endpoint as failed (negative cache) and notifies once per failure window. */
@@ -1073,6 +1099,7 @@ final class SchemaManager {
       defRef.set(primary.definitionIndex());
       namedGraphRef.set(primary.namedGraphScope());
       checkStdVocabRef.set(primary.checkStandardVocab());
+      profileGraphsRef.set(primary.profileGraphs());
 
       if (primary.api() == null) {
         LOG.info(
@@ -1100,6 +1127,7 @@ final class SchemaManager {
       apiRef.set(null);
       defRef.set(null);
       namedGraphRef.set(Map.of());
+      profileGraphsRef.set(Map.of());
       // Preserve the config's standard-vocabulary flag so the syntax-only fallback honours it.
       checkStdVocabRef.set(configFile.map(SchemaManager::readCheckStandardVocab).orElse(true));
     }
@@ -1194,7 +1222,8 @@ final class SchemaManager {
         parseLevel(config),
         null,
         scope,
-        checkStd);
+        checkStd,
+        es.profileGraphs());
   }
 
   /**

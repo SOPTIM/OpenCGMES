@@ -49,12 +49,17 @@ class RdfArchitectGotoDeclarationHandler : GotoDeclarationHandler {
         if (language != SparqlLanguage && language != ShaclLanguage) {
             return null
         }
-        val document = editor?.document ?: return null
+        if (editor == null) {
+            return null
+        }
+        val document = editor.document
         val project = editor.project ?: sourceElement.project
         val file = FileDocumentManager.getInstance().getFile(document) ?: return null
-        val (baseUrl, iri) =
+        val target =
             project.service<RdfArchitectTermLinks>().termAt(file, document, offset) ?: return null
-        return arrayOf(PomService.convertToPsi(project, RdfArchitectTermTarget(project, baseUrl, iri)))
+        return arrayOf(
+            PomService.convertToPsi(project, RdfArchitectTermTarget(project, editor, target)),
+        )
     }
 
     override fun getActionText(context: DataContext): String? = null
@@ -67,8 +72,8 @@ class RdfArchitectGotoDeclarationHandler : GotoDeclarationHandler {
      */
     private class RdfArchitectTermTarget(
         private val project: Project,
-        private val baseUrl: String,
-        private val iri: String,
+        private val editor: Editor,
+        private val target: RdfArchitectTermLinks.Target,
     ) : PomNamedTarget {
         override fun isValid(): Boolean = true
 
@@ -76,16 +81,10 @@ class RdfArchitectGotoDeclarationHandler : GotoDeclarationHandler {
 
         override fun canNavigateToSource(): Boolean = true
 
-        override fun getName(): String = iri.substringAfterLast('#').ifEmpty { iri }
+        override fun getName(): String = target.iri.substringAfterLast('#').ifEmpty { target.iri }
 
         override fun navigate(requestFocus: Boolean) {
-            // If this is what first opens the tool window and the schema was never sent, the import
-            // offered there should land on the term the user asked for (see OpenInRdfArchitect).
-            project.putUserData(RdfArchitectToolWindowFactory.PENDING_TERM_KEY, iri)
-            RdfArchitectToolWindowFactory.openUrl(
-                project,
-                RdfArchitectToolWindowFactory.termDeepLink(baseUrl, iri),
-            )
+            RdfArchitectTermLinks.open(project, editor, target)
         }
     }
 }

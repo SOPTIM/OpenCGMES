@@ -381,6 +381,9 @@ async function openRdfArchitect(): Promise<void> {
  * cursor (`cimvocabcheck.termInfo`) and opens RDFArchitect's deep link (`/mainpage?class=<iri>`)
  * in the webview panel. RDFArchitect locates the term across the schemas loaded in its session —
  * a class opens directly, an attribute, association or enum entry opens its declaring class.
+ *
+ * When the schema itself comes from RDFArchitect the term's profiles are known, so this offers the
+ * same choice Ctrl+Click does rather than landing in whichever profile RDFArchitect finds first.
  */
 async function openInRdfArchitect(): Promise<void> {
     if (!client) {
@@ -392,12 +395,17 @@ async function openInRdfArchitect(): Promise<void> {
         vscode.window.showWarningMessage("CIMNotebook: open a SPARQL or SHACL document first.");
         return;
     }
-    const base = await resolveRdfArchitectUrl();
-    if (!base) {
-        return;
-    }
     const pos = editor.selection.active;
     try {
+        const known = await termAtPosition(editor.document, pos);
+        if (known) {
+            await openTermInRdfArchitect(known.baseUrl, known.dataset, known.iri, known.profiles);
+            return;
+        }
+        const base = await resolveRdfArchitectUrl();
+        if (!base) {
+            return;
+        }
         const info = await client.sendRequest<{ iri?: string } | null>("workspace/executeCommand", {
             command: "cimvocabcheck.termInfo",
             arguments: [editor.document.uri.toString(), pos.line, pos.character],
@@ -418,22 +426,96 @@ async function openInRdfArchitect(): Promise<void> {
 }
 
 /**
+ * The RDFArchitect-backed term at a position, with its profiles, or undefined when the document's
+ * schema does not come from RDFArchitect (or nothing is at that position).
+ */
+async function termAtPosition(
+    doc: vscode.TextDocument,
+    pos: vscode.Position,
+): Promise<
+    { baseUrl: string; dataset?: string; iri: string; profiles: TermProfile[] } | undefined
+> {
+    const found = await rdfArchitectTerms(doc);
+    const term = found?.terms.find(
+        (t) =>
+            t.line === pos.line &&
+            pos.character >= t.startCharacter &&
+            pos.character < t.endCharacter,
+    );
+    return found && term
+        ? {
+              baseUrl: found.baseUrl,
+              dataset: found.dataset ?? undefined,
+              iri: term.iri,
+              profiles: term.profiles ?? [],
+          }
+        : undefined;
+}
+
+/**
  * Opens one term in the RDFArchitect panel. Invoked from the term links (see
  * {@link registerRdfArchitectTermLinks}), which carry the instance the schema is read from — so
  * Ctrl+Click lands in the RDFArchitect the document is actually validated against, whatever the
  * `cimnotebook.rdfArchitectUrl` setting says.
+ *
+ * A term declared in several profiles is ambiguous — without saying which graph to open,
+ * RDFArchitect shows whichever one it finds the term in first — so the choice is put to the user.
  */
-function openTermInRdfArchitect(base: string, iri: string): void {
+async function openTermInRdfArchitect(
+    base: string,
+    dataset: string | undefined,
+    iri: string,
+    profiles: TermProfile[] = [],
+): Promise<void> {
     if (!base || !iri) {
         return;
     }
-    showRdfArchitectPanel(base, termDeepLink(base, iri), true, iri);
+    const profile = profiles.length > 1 ? await pickProfile(iri, profiles) : profiles[0];
+    if (profiles.length > 1 && !profile) {
+        return; // dismissed
+    }
+    const url = termDeepLink(base, iri, dataset, profile?.graph);
+    showRdfArchitectPanel(base, url, true, iri);
+}
+
+/** Asks which profile's copy of a term to open. */
+async function pickProfile(iri: string, profiles: TermProfile[]): Promise<TermProfile | undefined> {
+    const items = profiles.map((profile) => ({
+        label: profile.label,
+        description: profile.graph,
+        profile,
+    }));
+    const picked = await vscode.window.showQuickPick(items, {
+        title: `Open ${localNameOf(iri)} in RDFArchitect`,
+        placeHolder: `Declared in ${profiles.length} profiles — which one?`,
+        matchOnDescription: true,
+    });
+    return picked?.profile;
+}
+
+/** The part of an IRI after its last `#` or `/`. */
+function localNameOf(iri: string): string {
+    return iri.split(/[#/]/).pop() || iri;
+}
+
+/** One profile a term is declared in, and the RDFArchitect graph holding that profile. */
+interface TermProfile {
+    label: string;
+    graph: string;
 }
 
 /** A document's terms and the RDFArchitect instance its schema comes from. */
 interface RdfArchitectTerms {
     baseUrl: string;
-    terms: { line: number; startCharacter: number; endCharacter: number; iri: string }[];
+    /** Absent when the schema is a snapshot, which every session names differently. */
+    dataset?: string | null;
+    terms: {
+        line: number;
+        startCharacter: number;
+        endCharacter: number;
+        iri: string;
+        profiles: TermProfile[];
+    }[];
 }
 
 /** Disposed and replaced whenever the connection changes; see {@link registerRdfArchitectTermLinks}. */
@@ -458,31 +540,44 @@ function registerRdfArchitectTermLinks(): void {
     });
 }
 
-async function rdfArchitectTermLinks(doc: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
+/** The language server's answer for a document, or undefined when it is not RDFArchitect-backed. */
+async function rdfArchitectTerms(doc: vscode.TextDocument): Promise<RdfArchitectTerms | undefined> {
     if (!client) {
-        return [];
+        return undefined;
     }
-    let found: RdfArchitectTerms | null | undefined;
     try {
-        found = await client.sendRequest<RdfArchitectTerms | null>("workspace/executeCommand", {
-            command: "cimvocabcheck.rdfArchitectTerms",
-            arguments: [doc.uri.toString()],
-        });
+        const found = await client.sendRequest<RdfArchitectTerms | null>(
+            "workspace/executeCommand",
+            {
+                command: "cimvocabcheck.rdfArchitectTerms",
+                arguments: [doc.uri.toString()],
+            },
+        );
+        return found ?? undefined;
     } catch (err) {
         out.appendLine(`Could not resolve the RDFArchitect terms of ${doc.uri.fsPath}: ${err}`);
-        return [];
+        return undefined;
     }
+}
+
+async function rdfArchitectTermLinks(doc: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
+    const found = await rdfArchitectTerms(doc);
     if (!found) {
         return [];
     }
     const base = found.baseUrl;
+    const dataset = found.dataset ?? undefined;
     return found.terms.map((term) => {
-        const args = encodeURIComponent(JSON.stringify([base, term.iri]));
+        const profiles = term.profiles ?? [];
+        const args = encodeURIComponent(JSON.stringify([base, dataset, term.iri, profiles]));
         const link = new vscode.DocumentLink(
             new vscode.Range(term.line, term.startCharacter, term.line, term.endCharacter),
             vscode.Uri.parse(`command:cimnotebook.openTermInRdfArchitect?${args}`),
         );
-        link.tooltip = `Open ${term.iri} in RDFArchitect`;
+        link.tooltip =
+            profiles.length > 1
+                ? `Open ${term.iri} in RDFArchitect (declared in ${profiles.length} profiles)`
+                : `Open ${term.iri} in RDFArchitect`;
         return link;
     });
 }
@@ -939,10 +1034,18 @@ class RdfArchitectClient {
 }
 
 /** RDFArchitect's term deep link: {@code <base>/mainpage?class=<iri>} takes any schema term. */
-function termDeepLink(base: string, iri: string): string {
+function termDeepLink(base: string, iri: string, dataset?: string, graph?: string): string {
     const url = new URL(base);
     url.pathname = `${url.pathname.replace(/\/+$/, "")}/mainpage`;
     url.searchParams.set("class", iri);
+    // Narrowing the lookup is what pins the term to one profile; RDFArchitect otherwise opens
+    // whichever graph of whichever dataset it finds the term in first.
+    if (dataset) {
+        url.searchParams.set("dataset", dataset);
+    }
+    if (graph) {
+        url.searchParams.set("graph", graph);
+    }
     return url.toString();
 }
 

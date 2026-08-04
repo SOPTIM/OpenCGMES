@@ -165,7 +165,8 @@ change log moves, so an edit made in the view reaches the next validation withou
 change log is polled at most every few seconds, so a burst of typing costs one small request.
 
 Because such a schema has no source files, `Ctrl+Click` on a term in the cell opens it in the
-editor's RDFArchitect view rather than jumping to a declaration line
+editor's RDFArchitect view rather than jumping to a declaration line — asking which profile first
+when the term is declared in more than one
 ([VS Code](/cimnotebook/vscode#go-to-definition), [IntelliJ](/cimnotebook/intellij#go-to-definition)).
 
 This is deliberately **not** a value of `# [endpoint=...]`: that directive belongs to SPARQL
