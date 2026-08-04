@@ -442,9 +442,15 @@ async function termAtPosition(
             pos.character >= t.startCharacter &&
             pos.character < t.endCharacter,
     );
-    return found && term
+    if (!found || !term) {
+        return undefined;
+    }
+    // Without a connected session the server cannot say which instance holds the dataset; the
+    // action's own fallback (the setting, prompting if unset) takes it from here.
+    const base = found.baseUrl ?? (await resolveRdfArchitectUrl());
+    return base
         ? {
-              baseUrl: found.baseUrl,
+              baseUrl: base,
               dataset: found.dataset ?? undefined,
               iri: term.iri,
               profiles: term.profiles ?? [],
@@ -506,8 +512,9 @@ interface TermProfile {
 
 /** A document's terms and the RDFArchitect instance its schema comes from. */
 interface RdfArchitectTerms {
-    baseUrl: string;
-    /** Absent when the schema is a snapshot, which every session names differently. */
+    /** Absent when the config names a dataset without saying which instance holds it. */
+    baseUrl?: string | null;
+    /** Absent when the schema is a snapshot link, which every session names differently. */
     dataset?: string | null;
     terms: {
         line: number;
@@ -520,6 +527,25 @@ interface RdfArchitectTerms {
 
 /** Disposed and replaced whenever the connection changes; see {@link registerRdfArchitectTermLinks}. */
 let termLinkRegistration: vscode.Disposable | undefined;
+
+/** The last term-link outcome logged per document, so an unchanged one stays quiet. */
+const termLinkOutcomes = new Map<string, string>();
+
+/**
+ * Logs what the term links came to for a document, once per outcome.
+ *
+ * Links that do not appear are invisible by nature — there is no error, just nothing to Ctrl+Click.
+ * The log is where that becomes answerable: it says whether the document is RDFArchitect-backed at
+ * all, how many terms were linked, and to which instance.
+ */
+function reportTermLinks(doc: vscode.TextDocument, outcome: string): void {
+    const key = doc.uri.toString();
+    if (termLinkOutcomes.get(key) === outcome) {
+        return;
+    }
+    termLinkOutcomes.set(key, outcome);
+    out.appendLine(`RDFArchitect term links for ${doc.uri.fsPath}: ${outcome}`);
+}
 
 /**
  * Makes every CIM term in an RDFArchitect-backed document Ctrl+Clickable, opening it in the panel.
@@ -563,9 +589,23 @@ async function rdfArchitectTerms(doc: vscode.TextDocument): Promise<RdfArchitect
 async function rdfArchitectTermLinks(doc: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
     const found = await rdfArchitectTerms(doc);
     if (!found) {
+        reportTermLinks(doc, "no RDFArchitect schema — no term links");
         return [];
     }
-    const base = found.baseUrl;
+    // The server knows the instance only when the config names one, or when a session is connected.
+    // Otherwise the panel's own URL is the answer, and the setting is where that lives.
+    const base =
+        found.baseUrl ??
+        vscode.workspace.getConfiguration("cimnotebook").get<string>("rdfArchitectUrl", "").trim();
+    if (!base) {
+        reportTermLinks(
+            doc,
+            `${found.terms.length} term(s), but no RDFArchitect instance is known — ` +
+                "set cimnotebook.rdfArchitectUrl or open the panel",
+        );
+        return [];
+    }
+    reportTermLinks(doc, `${found.terms.length} term(s) linked to ${base}`);
     const dataset = found.dataset ?? undefined;
     return found.terms.map((term) => {
         const profiles = term.profiles ?? [];
@@ -1244,7 +1284,9 @@ function resolveServerJar(context: vscode.ExtensionContext): string | undefined 
     const bundled = context.asAbsolutePath(path.join("server", "cimvocabcheck-lsp.jar"));
     out.appendLine(`[jar] Trying bundled: ${bundled}`);
     if (fs.existsSync(bundled)) {
-        out.appendLine("[jar] Found ✓");
+        // The build date pins down which server is answering — a jar packaged before an extension
+        // change looks exactly like a feature that does not work.
+        out.appendLine(`[jar] Found ✓ (built ${fs.statSync(bundled).mtime.toISOString()})`);
         return bundled;
     }
     out.appendLine("[jar] NOT FOUND");
