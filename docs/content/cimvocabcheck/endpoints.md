@@ -143,8 +143,16 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 ## From RDFArchitect
 
 A [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance can be the schema source directly,
-with its own directive. The value is a link copied out of the application — a snapshot link from its
-**Share** dialog, or an instance URL with `?dataset=<name>`:
+with its own directive. Name a **dataset** of the RDFArchitect view open in your IDE to validate
+against it *as you edit it*:
+
+```sparql
+# [rdfarchitect=cgmes-3.0]
+SELECT * WHERE { ?s a cim:ACLineSegment }
+```
+
+or give a **link** — a snapshot from the **Share** dialog, or an instance URL with `?dataset=<name>`
+— to pin a fixed source that needs no editor:
 
 ```sparql
 # [rdfarchitect=http://localhost:3000/?snapshot=ffPKWuq2hw8WKBRn5VwEOA]
@@ -152,7 +160,9 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 ```
 
 The graphs are exported over RDFArchitect's REST API and then run through exactly the pipeline above,
-so profile detection and per-graph scoping work the same way.
+so profile detection and per-graph scoping work the same way. A live dataset is re-read when its
+change log moves, so an edit made in the view reaches the next validation without a reload; the
+change log is polled at most every few seconds, so a burst of typing costs one small request.
 
 This is deliberately **not** a value of `# [endpoint=...]`: that directive belongs to SPARQL
 Notebook, which executes the cell against whatever it names, and an RDFArchitect URL there would
@@ -161,9 +171,11 @@ schema — in which case `rdfarchitect` wins for validation. The same source can
 whole workspace with [`rdfArchitect`](/cimvocabcheck/configuration#rdfarchitect) in the config.
 
 :::note Session-scoped datasets
-RDFArchitect keeps datasets per browser session. A snapshot is loadable from any session (this is
-how CIMVocabCheck reads it at all); a plain `?dataset=` is only visible to other clients when the
-instance is backed by a triple store. In-memory snapshots are lost when the backend restarts.
+RDFArchitect keeps one working copy per browser session and never publishes it. A dataset is
+therefore readable only by whoever holds that session — which is why a bare dataset name needs the
+RDFArchitect view open in the IDE: the extension hands that session to the language server. See
+[live datasets](/cimvocabcheck/configuration#live-datasets) for what follows from that, including
+why the CLI can only use snapshot links.
 :::
 
 ## Assumptions & limitations

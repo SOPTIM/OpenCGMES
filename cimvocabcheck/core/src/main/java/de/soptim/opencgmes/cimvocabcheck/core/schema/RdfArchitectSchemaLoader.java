@@ -62,19 +62,40 @@ public final class RdfArchitectSchemaLoader {
   private static final Logger LOG = LoggerFactory.getLogger(RdfArchitectSchemaLoader.class);
   private static final ObjectMapper JSON = new ObjectMapper();
 
+  /** RDFArchitect's session cookie; its value is the session id an editor hands over. */
+  public static final String SESSION_COOKIE = "RDFA_SESSION_ID";
+
   private RdfArchitectSchemaLoader() {}
 
   /**
-   * Loads the schema addressed by {@code source}.
+   * Loads the schema addressed by {@code source} in a session of this loader's own.
    *
    * @param timeout per-request timeout
    * @throws RdfArchitectException when the instance cannot be reached or does not hold the
    *     requested dataset
    */
   public static EndpointSchema load(RdfArchitectSource source, Duration timeout) {
+    return load(source, timeout, null);
+  }
+
+  /**
+   * Loads the schema addressed by {@code source}, optionally borrowing a browser's session.
+   *
+   * <p>With a {@code sessionId}, the datasets read are the ones that session is editing — the
+   * working copy behind an open RDFArchitect window, unsaved changes included. That is the only way
+   * to see a dataset live: RDFArchitect keeps one working copy per session and never publishes it.
+   * A snapshot needs no session and is deliberately never loaded into a borrowed one, because doing
+   * so would add a dataset to somebody's open editor.
+   *
+   * @param sessionId the value of that session's {@code RDFA_SESSION_ID} cookie, or {@code null}
+   * @param timeout per-request timeout
+   * @throws RdfArchitectException when the instance cannot be reached or does not hold the
+   *     requested dataset
+   */
+  public static EndpointSchema load(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
     Objects.requireNonNull(timeout, "timeout");
-    Client client = new Client(source.baseUrl(), timeout);
+    Client client = clientFor(source, timeout, sessionId);
 
     String dataset = resolveDataset(client, source);
     List<String> graphs = client.listGraphs(dataset);
@@ -98,6 +119,39 @@ public final class RdfArchitectSchemaLoader {
   }
 
   /**
+   * A change stamp for the dataset behind {@code source}: it differs whenever a graph of that
+   * dataset has been edited. Reading the per-graph change logs is far cheaper than exporting every
+   * graph, so a live schema can be checked often and refetched only when it actually moved.
+   *
+   * @return an opaque stamp, or {@code null} when the dataset cannot be read at all
+   */
+  public static String changeStamp(RdfArchitectSource source, Duration timeout, String sessionId) {
+    Objects.requireNonNull(source, "source");
+    try {
+      Client client = clientFor(source, timeout, sessionId);
+      String dataset =
+          source.snapshot() == null ? source.dataset() : resolveDataset(client, source);
+      var stamp = new StringBuilder();
+      for (String graph : client.listGraphs(dataset)) {
+        stamp.append(graph).append('=').append(client.latestChangeId(dataset, graph)).append(';');
+      }
+      return stamp.toString();
+    } catch (RuntimeException e) {
+      LOG.debug("Could not read the change stamp of {}: {}", source.describe(), e.getMessage());
+      return null;
+    }
+  }
+
+  /**
+   * A client for {@code source}: one that borrows {@code sessionId} when given, except for a
+   * snapshot, which is loadable from any session and must not be dropped into a borrowed one.
+   */
+  private static Client clientFor(RdfArchitectSource source, Duration timeout, String sessionId) {
+    boolean borrow = sessionId != null && !sessionId.isBlank() && source.snapshot() == null;
+    return new Client(source.baseUrl(), timeout, borrow ? sessionId : null);
+  }
+
+  /**
    * The dataset to read: a snapshot is loaded into this loader's session first, which is what makes
    * it readable at all, and then names the dataset {@code SNAPSHOT_<name>_<token>}.
    */
@@ -108,10 +162,11 @@ public final class RdfArchitectSchemaLoader {
         throw new RdfArchitectException(
             "RDFArchitect has no dataset \""
                 + source.dataset()
-                + "\" in a fresh session"
+                + "\" in "
+                + (client.borrowsSession() ? "the connected session" : "a fresh session")
                 + (datasets.isEmpty()
-                    ? " (it exposes none — datasets are session-scoped unless the instance is"
-                        + " backed by a triple store; use a snapshot link instead)"
+                    ? " (it exposes none — datasets belong to a session, so import the schema in"
+                        + " the connected window, or address a snapshot instead)"
                     : "; it exposes " + datasets));
       }
       return source.dataset();
@@ -164,15 +219,32 @@ public final class RdfArchitectSchemaLoader {
     private final String api;
     private final Duration timeout;
     private final HttpClient http;
+    private final String sessionId;
 
-    Client(String baseUrl, Duration timeout) {
+    Client(String baseUrl, Duration timeout, String sessionId) {
       this.api = baseUrl + "/api";
       this.timeout = timeout;
+      this.sessionId = sessionId;
       this.http =
           HttpClient.newBuilder()
               .connectTimeout(timeout)
               .cookieHandler(new CookieManager())
               .build();
+    }
+
+    boolean borrowsSession() {
+      return sessionId != null;
+    }
+
+    /** The id of the newest change of a graph, or {@code ""} when it has none yet. */
+    String latestChangeId(String dataset, String graph) {
+      JsonNode changes =
+          readJson(
+              get(
+                  "/datasets/" + encode(dataset) + "/graphs/" + encode(graph) + "/changes",
+                  "application/json"));
+      JsonNode newest = changes.isArray() && !changes.isEmpty() ? changes.get(0) : null;
+      return newest == null ? "" : newest.path("changeId").asText("");
     }
 
     void loadSnapshot(String token) {
@@ -213,13 +285,17 @@ public final class RdfArchitectSchemaLoader {
     }
 
     private String get(String path, String accept) {
-      HttpRequest request =
+      HttpRequest.Builder builder =
           HttpRequest.newBuilder()
               .uri(URI.create(api + path))
               .timeout(timeout)
               .header("Accept", accept)
-              .GET()
-              .build();
+              .GET();
+      if (sessionId != null) {
+        // Borrowing the browser's session is what makes its live datasets readable.
+        builder.header("Cookie", SESSION_COOKIE + "=" + sessionId);
+      }
+      HttpRequest request = builder.build();
       HttpResponse<String> response;
       try {
         response = http.send(request, HttpResponse.BodyHandlers.ofString());
