@@ -604,6 +604,38 @@ async function sessionIsAlive(session: RdfArchitectSession): Promise<boolean> {
     }
 }
 
+/**
+ * Explains why the panel could not report a session, which decides what the user can do about it.
+ *
+ * The app answering is not something the panel can force: an instance that predates live datasets
+ * has no session endpoint at all, and a newer one stays silent unless its deployment opted into the
+ * handshake. Probing the endpoint from here tells the two apart — this session is not the panel's,
+ * but its existence is what is being asked.
+ */
+async function reportMissingSession(base: string): Promise<void> {
+    if (connectedSession?.url === base) {
+        return; // already connected; a late retry lost the race
+    }
+    const api = `${new URL(base).toString().replace(/\/+$/, "")}/api`;
+    let reason: string;
+    try {
+        const res = await fetch(`${api}/session`);
+        reason = res.ok
+            ? "the instance did not report its session to the panel — its deployment has to set " +
+              "PUBLIC_EMBED_SESSION_HANDSHAKE=true for an embedded view to ask"
+            : `the instance answered ${res.status} for /api/session — it is likely older than ` +
+              "live-dataset support";
+    } catch (err) {
+        reason = `the instance could not be reached: ${err instanceof Error ? err.message : err}`;
+    }
+    out.appendLine(`No live RDFArchitect session: ${reason}.`);
+    if (connectionStatus) {
+        connectionStatus.tooltip =
+            `No live session from ${base}.\n${reason}.\n` +
+            "A dataset named in opencgmes.jsonc cannot be read; a snapshot link still works.";
+    }
+}
+
 /** Reconnects on demand: re-probes the remembered session, else opens the panel to get a new one. */
 async function reconnectRdfArchitect(): Promise<void> {
     connectedSession = undefined;
@@ -859,6 +891,8 @@ function showRdfArchitectPanel(
             void sendSchemaToRdfArchitect();
         } else if (msg.command === "session" && msg.id) {
             void connectRdfArchitectSession(base, msg.id);
+        } else if (msg.command === "sessionUnavailable") {
+            void reportMissingSession(base);
         }
     });
     panel.onDidDispose(() => {
@@ -953,7 +987,11 @@ function rdfArchitectHtml(url: string): string {
         let sessionAsked = 0;
         const askForSession = () => {
             const frame = document.getElementById("app");
-            if (!frame.contentWindow || sessionAsked > 20) {
+            if (sessionAsked > 20) {
+                vscodeApi.postMessage({ command: "sessionUnavailable" });
+                return;
+            }
+            if (!frame.contentWindow) {
                 return;
             }
             sessionAsked++;

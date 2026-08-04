@@ -254,7 +254,36 @@ public class RdfArchitectSchemaLoaderTest {
     IllegalArgumentException e =
         assertThrows(IllegalArgumentException.class, () -> RdfArchitectSource.parse("cgmes-3.0"));
 
-    assertTrue(e.getMessage(), e.getMessage().contains("no RDFArchitect instance is connected"));
+    assertTrue(e.getMessage(), e.getMessage().contains("no RDFArchitect session is connected"));
+  }
+
+  @Test
+  public void loadsTheSnapshotBehindASnapshotDatasetName() {
+    // The name a loaded snapshot has in the address bar — what a user copies into a config. It
+    // exists only in sessions that loaded that snapshot, so the token has to be recovered from it.
+    EndpointSchema schema = load(baseUrl() + "/?dataset=" + SNAPSHOT_DATASET);
+
+    assertTrue(schema.hasSchema());
+    assertTrue(requested.contains("/api/snapshots/" + TOKEN));
+  }
+
+  @Test
+  public void aBareSnapshotDatasetNameAlsoLoadsIt() {
+    RdfArchitectSource source = RdfArchitectSource.parse(SNAPSHOT_DATASET, baseUrl());
+
+    assertEquals(TOKEN, source.snapshot());
+    assertEquals(SNAPSHOT_DATASET, source.dataset());
+    assertTrue(RdfArchitectSchemaLoader.load(source, Duration.ofSeconds(10), SESSION).hasSchema());
+    assertTrue(
+        "a snapshot must not be loaded into the borrowed session",
+        cookies.stream().noneMatch(c -> c.contains(SESSION)));
+  }
+
+  @Test
+  public void treatsAnOrdinaryNameStartingWithSnapshotAsADataset() {
+    RdfArchitectSource source = RdfArchitectSource.parse("SNAPSHOT_", "http://host:3000");
+
+    assertNull(source.snapshot());
   }
 
   @Test
