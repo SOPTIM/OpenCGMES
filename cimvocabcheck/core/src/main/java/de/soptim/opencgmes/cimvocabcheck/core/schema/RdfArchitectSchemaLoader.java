@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import javax.net.ssl.SSLException;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
@@ -302,6 +303,8 @@ public final class RdfArchitectSchemaLoader {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new RdfArchitectException("Interrupted while reading " + api + path, e);
+      } catch (SSLException e) {
+        throw new RdfArchitectException(untrustedCertificate(api, e), e);
       } catch (IOException e) {
         throw new RdfArchitectException(
             "Could not reach RDFArchitect at " + api + path + ": " + e.getMessage(), e);
@@ -311,6 +314,21 @@ public final class RdfArchitectSchemaLoader {
             "GET " + path + " → HTTP " + response.statusCode() + describe(response.body()));
       }
       return response.body();
+    }
+
+    /**
+     * A TLS failure deserves better than a PKIX stack trace: this JVM is not the editor's, so a
+     * certificate the machine (or the IDE) already trusts still has to be trusted <em>here</em>.
+     */
+    private static String untrustedCertificate(String api, SSLException e) {
+      return "Could not establish a trusted connection to RDFArchitect at "
+          + api
+          + " ("
+          + e.getMessage()
+          + "). If it uses a certificate from a private CA, that CA has to be trusted by the"
+          + " language server's own JVM — add it to a truststore and pass"
+          + " -Djavax.net.ssl.trustStore=<file> -Djavax.net.ssl.trustStorePassword=<password> in"
+          + " the editor's Java arguments setting, or import it into the JDK's cacerts.";
     }
 
     private static String describe(String body) {

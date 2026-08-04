@@ -219,6 +219,19 @@ The status bar shows whether a session is connected; clicking it reconnects (als
 restored when the editor starts, so validation keeps working without reopening the panel — a
 backend session outlives the browser that created it, though not a restart of RDFArchitect itself.
 
+:::info An instance behind a private CA
+Three processes talk to RDFArchitect, and each has its own idea of which certificates to trust —
+so a company CA that the machine already trusts is not automatically enough:
+
+| Who | How to trust the CA |
+| --- | --- |
+| the **language server** (its own JVM) | add `-Djavax.net.ssl.trustStore=<file>` and `-Djavax.net.ssl.trustStorePassword=<password>` to `cimnotebook.javaArgs`, or import the CA into the JDK's `cacerts` |
+| the **extension**'s REST calls (VS Code's Node) | start VS Code with `NODE_EXTRA_CA_CERTS=/path/to/ca.pem` |
+| the **panel** (the embedded browser) | uses the machine's own store, so an installed CA already applies |
+
+The language server says which of these failed rather than only reporting a PKIX error.
+:::
+
 :::warning Requires the instance to allow the handshake
 A VS Code webview is a third-party iframe, so the app only reveals its session when the deployment
 sets `PUBLIC_EMBED_SESSION_HANDSHAKE=true` (see RDFArchitect's admin guide). Without it, live
