@@ -19,7 +19,10 @@
 package de.soptim.opencgmes.cimvocabcheck.core.schema;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -46,6 +49,7 @@ import org.junit.Test;
 public class RdfArchitectSchemaLoaderTest {
 
   private static final String TOKEN = "ffPKWuq2hw8WKBRn5VwEOA";
+  private static final String SESSION = "4CD09ADDD8817D3369A57E60A9FDC506";
   private static final String GRAPH = "http://graph#Equipment";
   private static final String SNAPSHOT_DATASET = "SNAPSHOT_profiles_" + TOKEN;
 
@@ -74,7 +78,12 @@ public class RdfArchitectSchemaLoaderTest {
 
   private HttpServer server;
   private final List<String> requested = new ArrayList<>();
+  private final List<String> cookies = new ArrayList<>();
   private boolean snapshotLoaded;
+  private String changeId = "";
+
+  /** The dataset a borrowed session can see, as opposed to the snapshot one. */
+  private static final String LIVE_DATASET = "live";
 
   @Before
   public void setUp() throws IOException {
@@ -95,16 +104,28 @@ public class RdfArchitectSchemaLoaderTest {
   private void dispatch(HttpExchange exchange) throws IOException {
     String path = URLDecoder.decode(exchange.getRequestURI().getPath(), StandardCharsets.UTF_8);
     requested.add(path);
+    String cookie = exchange.getRequestHeaders().getFirst("Cookie");
+    if (cookie != null) {
+      cookies.add(cookie);
+    }
+    // A borrowed session sees the live dataset; a session of the loader's own sees only what it
+    // loaded itself — which is how the real backend behaves.
+    boolean borrowed = cookie != null && cookie.contains(SESSION);
     if (path.equals("/api/snapshots/" + TOKEN)) {
       snapshotLoaded = true;
       respond(exchange, 200, "loaded");
     } else if (path.equals("/api/datasets")) {
-      // Datasets are session-scoped: nothing is visible until the snapshot is loaded.
-      respond(exchange, 200, snapshotLoaded ? "[\"" + SNAPSHOT_DATASET + "\"]" : "[]");
-    } else if (path.equals("/api/datasets/" + SNAPSHOT_DATASET + "/graphs")) {
+      String visible =
+          borrowed
+              ? "[\"" + LIVE_DATASET + "\"]"
+              : snapshotLoaded ? "[\"" + SNAPSHOT_DATASET + "\"]" : "[]";
+      respond(exchange, 200, visible);
+    } else if (path.endsWith("/graphs")) {
       respond(exchange, 200, "[{\"prefix\":\"http://graph#\",\"suffix\":\"Equipment\"}]");
-    } else if (path.equals("/api/datasets/" + SNAPSHOT_DATASET + "/graphs/" + GRAPH + "/content")) {
+    } else if (path.endsWith("/content")) {
       respond(exchange, 200, TURTLE);
+    } else if (path.endsWith("/changes")) {
+      respond(exchange, 200, changeId.isEmpty() ? "[]" : "[{\"changeId\":\"" + changeId + "\"}]");
     } else {
       respond(exchange, 404, "");
     }
@@ -152,7 +173,7 @@ public class RdfArchitectSchemaLoaderTest {
         assertThrows(
             RdfArchitectException.class, () -> load(baseUrl() + "/?dataset=not-in-this-session"));
 
-    assertTrue(e.getMessage(), e.getMessage().contains("session-scoped"));
+    assertTrue(e.getMessage(), e.getMessage().contains("datasets belong to a session"));
   }
 
   @Test
@@ -166,6 +187,74 @@ public class RdfArchitectSchemaLoaderTest {
                     Duration.ofSeconds(2)));
 
     assertTrue(e.getMessage(), e.getMessage().contains("Could not reach RDFArchitect"));
+  }
+
+  @Test
+  public void readsALiveDatasetThroughABorrowedSession() {
+    EndpointSchema schema =
+        RdfArchitectSchemaLoader.load(
+            RdfArchitectSource.parse(baseUrl() + "/?dataset=" + LIVE_DATASET),
+            Duration.ofSeconds(10),
+            SESSION);
+
+    assertTrue(schema.hasSchema());
+    assertTrue(
+        "every request must carry the borrowed session",
+        cookies.stream().allMatch(c -> c.contains(SESSION)));
+    assertFalse("a live dataset needs no snapshot", requested.contains("/api/snapshots/" + TOKEN));
+  }
+
+  @Test
+  public void neverLoadsASnapshotIntoABorrowedSession() {
+    // Loading one would add a dataset to somebody's open editor, so the snapshot gets its own
+    // session even when a session was offered.
+    RdfArchitectSchemaLoader.load(
+        RdfArchitectSource.parse(baseUrl() + "/?snapshot=" + TOKEN),
+        Duration.ofSeconds(10),
+        SESSION);
+
+    assertTrue(requested.contains("/api/snapshots/" + TOKEN));
+    assertTrue(
+        "the snapshot must not be loaded into the borrowed session",
+        cookies.stream().noneMatch(c -> c.contains(SESSION)));
+  }
+
+  @Test
+  public void changeStampFollowsTheChangeLog() {
+    var source = RdfArchitectSource.parse(baseUrl() + "/?dataset=" + LIVE_DATASET);
+
+    String before = RdfArchitectSchemaLoader.changeStamp(source, Duration.ofSeconds(10), SESSION);
+    changeId = "9f1c1c1e-0000-4000-8000-000000000001";
+    String after = RdfArchitectSchemaLoader.changeStamp(source, Duration.ofSeconds(10), SESSION);
+
+    assertNotNull(before);
+    assertNotEquals("an edit in RDFArchitect must move the stamp", before, after);
+  }
+
+  @Test
+  public void changeStampIsNullWhenTheInstanceCannotBeRead() {
+    assertNull(
+        RdfArchitectSchemaLoader.changeStamp(
+            RdfArchitectSource.parse("http://127.0.0.1:1/?dataset=nope"),
+            Duration.ofSeconds(2),
+            null));
+  }
+
+  @Test
+  public void resolvesABareDatasetNameAgainstTheConnectedInstance() {
+    RdfArchitectSource source = RdfArchitectSource.parse("cgmes-3.0", "http://host:3000/");
+
+    assertEquals("http://host:3000", source.baseUrl());
+    assertEquals("cgmes-3.0", source.dataset());
+    assertNull(source.snapshot());
+  }
+
+  @Test
+  public void rejectsABareDatasetNameWithoutAConnectedInstance() {
+    IllegalArgumentException e =
+        assertThrows(IllegalArgumentException.class, () -> RdfArchitectSource.parse("cgmes-3.0"));
+
+    assertTrue(e.getMessage(), e.getMessage().contains("no RDFArchitect instance is connected"));
   }
 
   @Test

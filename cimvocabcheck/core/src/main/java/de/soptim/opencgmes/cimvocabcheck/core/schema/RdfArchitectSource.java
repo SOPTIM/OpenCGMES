@@ -65,10 +65,38 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
    *     snapshot
    */
   public static RdfArchitectSource parse(String url) {
+    return parse(url, null);
+  }
+
+  /**
+   * Parses an RDFArchitect link, or a bare dataset name against a connected instance.
+   *
+   * <p>A value that is not a URL — {@code "cgmes-3.0"} — names a dataset of the instance an editor
+   * is connected to. That is how a workspace refers to the dataset being edited without pinning an
+   * instance URL into a config file, and it is the form that reads a *live* dataset.
+   *
+   * @param connectedBaseUrl the instance an editor is connected to, or {@code null} when none is
+   * @throws IllegalArgumentException if the value is a bare dataset name while nothing is
+   *     connected, or is a URL naming neither a dataset nor a snapshot
+   */
+  public static RdfArchitectSource parse(String url, String connectedBaseUrl) {
     Objects.requireNonNull(url, "url");
+    String value = url.trim();
+    if (!looksLikeUrl(value)) {
+      if (connectedBaseUrl == null || connectedBaseUrl.isBlank()) {
+        throw new IllegalArgumentException(
+            "\""
+                + value
+                + "\" names a dataset, but no RDFArchitect instance is connected — open the"
+                + " RDFArchitect view in the editor, or name the instance in full, e.g."
+                + " http://localhost:3000/?dataset="
+                + value);
+      }
+      return new RdfArchitectSource(stripTrailingSlashes(connectedBaseUrl.trim()), value, null);
+    }
     URI uri;
     try {
-      uri = new URI(url.trim());
+      uri = new URI(value);
     } catch (Exception e) {
       throw new IllegalArgumentException("not a valid RDFArchitect URL: " + url, e);
     }
@@ -88,17 +116,26 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
     return new RdfArchitectSource(baseOf(uri), dataset, snapshot);
   }
 
+  /** Whether a config value addresses an instance rather than naming a dataset of one. */
+  private static boolean looksLikeUrl(String value) {
+    return value.contains("://");
+  }
+
   /** The instance root: the URL without its deep-link path ({@code /mainpage}) and query. */
   private static String baseOf(URI uri) {
     String path = Optional.ofNullable(uri.getPath()).orElse("");
     if (path.endsWith("/mainpage")) {
       path = path.substring(0, path.length() - "/mainpage".length());
     }
-    while (path.endsWith("/")) {
-      path = path.substring(0, path.length() - 1);
+    return uri.getScheme() + "://" + uri.getRawAuthority() + stripTrailingSlashes(path);
+  }
+
+  private static String stripTrailingSlashes(String value) {
+    String stripped = value;
+    while (stripped.endsWith("/")) {
+      stripped = stripped.substring(0, stripped.length() - 1);
     }
-    String authority = uri.getRawAuthority();
-    return uri.getScheme() + "://" + authority + path;
+    return stripped;
   }
 
   private static String queryParam(String rawQuery, String name) {

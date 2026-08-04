@@ -83,6 +83,18 @@ final class SparqlWorkspaceService implements WorkspaceService {
    */
   static final String CMD_SCHEMA_INFO = "cimvocabcheck.schemaInfo";
 
+  /**
+   * Command id for connecting the RDFArchitect window an editor is showing. Arguments: {@code [url,
+   * sessionId]} — the instance and the session its embedded browser is using; passing no session
+   * disconnects. Returns {@code {"connected": <bool>, "url": ...}}.
+   *
+   * <p>RDFArchitect keeps one working copy per browser session and never publishes it, so this is
+   * what lets a workspace validate against a dataset <em>as it is being edited</em>: with a
+   * connection, {@code "rdfArchitect": "<dataset>"} in the config (or {@code # [rdfarchitect=...]}
+   * in a document) reads that session's datasets.
+   */
+  static final String CMD_CONNECT_RDFARCHITECT = "cimvocabcheck.connectRdfArchitect";
+
   private final SchemaManager schemaManager;
   private final SparqlTextDocumentService documentService;
   private final NotebookCommandHandler notebookCommandHandler;
@@ -144,6 +156,9 @@ final class SparqlWorkspaceService implements WorkspaceService {
     if (CMD_SCHEMA_INFO.equals(params.getCommand())) {
       return schemaInfo(params.getArguments());
     }
+    if (CMD_CONNECT_RDFARCHITECT.equals(params.getCommand())) {
+      return connectRdfArchitect(params.getArguments());
+    }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());
       return CompletableFuture.completedFuture(null);
@@ -166,6 +181,27 @@ final class SparqlWorkspaceService implements WorkspaceService {
       LOG.error("explainQuery failed: {}", e.getMessage(), e);
       return CompletableFuture.completedFuture(
           "# Error\nCould not explain query: " + e.getMessage() + "\n");
+    }
+  }
+
+  /**
+   * Connects (or clears) the RDFArchitect window an editor shows (see {@link
+   * #CMD_CONNECT_RDFARCHITECT}).
+   */
+  private CompletableFuture<Object> connectRdfArchitect(List<Object> args) {
+    try {
+      String url = stringArg(args, 0);
+      String sessionId = stringArg(args, 1);
+      schemaManager.connectRdfArchitect(url, sessionId);
+      return CompletableFuture.completedFuture(
+          Map.of(
+              "connected",
+              schemaManager.connectedRdfArchitect().isPresent(),
+              "url",
+              schemaManager.connectedRdfArchitect().orElse("")));
+    } catch (Exception e) {
+      LOG.error("connectRdfArchitect failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
     }
   }
 

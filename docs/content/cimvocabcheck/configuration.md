@@ -56,7 +56,7 @@ syntax-only mode.
 | --- | --- | --- | --- |
 | `schemasDirectory` | string | — | Directory of RDFS/profile files (`.rdf`, `.ttl`, `.owl`) |
 | `schemas` | string[] | — | Explicit list of RDFS/profile files |
-| `rdfArchitect` | string | — | Link to an RDFArchitect dataset or snapshot to take the schema from |
+| `rdfArchitect` | string | — | Dataset name, or link, of an RDFArchitect to take the schema from |
 | `strictness` | enum | `default` | How findings map to severities |
 | `namedGraphs` | object | — | Map graph IRIs / short names to profile IRIs |
 | `prefixes` | object | *(built-in set)* | PREFIX declarations injected into queries |
@@ -94,9 +94,27 @@ If you omit both, no schema is loaded and validation is syntax-only (unless a
 ### `rdfArchitect`
 
 Validate against the model as it is curated in a running
-[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) rather than against files on disk. The value
-is a link copied out of that application — the schema is read over its REST API, so no SPARQL
-endpoint and no access to its store are needed:
+[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) rather than against files on disk. The schema
+is read over its REST API, so no SPARQL endpoint and no access to its store are needed.
+
+**A dataset name** validates against that dataset **as you edit it** — the language server reads the
+very working copy shown in the editor's RDFArchitect view, so a class you add there is known to the
+next validation a few seconds later:
+
+```json
+{
+  "cimvocabcheck": {
+    "rdfArchitect": "cgmes-3.0"
+  }
+}
+```
+
+This is the form to use day to day. It needs the RDFArchitect view open in the IDE, which is what
+tells the language server *which* instance and session to read (see
+[live datasets](#live-datasets) below). Only the dataset name goes into the config — nothing
+instance-specific, nothing secret.
+
+**A link** pins a fixed source instead, and needs no editor:
 
 ```json
 {
@@ -106,15 +124,24 @@ endpoint and no access to its store are needed:
 }
 ```
 
-It takes precedence over `schemas`/`schemasDirectory`, and profile detection, named-graph mapping
-and typo-checking behave exactly as for files.
+Either way it takes precedence over `schemas`/`schemasDirectory`, and profile detection,
+named-graph mapping and typo-checking behave exactly as for files.
 
-:::tip Prefer a snapshot link
-RDFArchitect scopes datasets to the browser session, so `?dataset=<name>` is only readable by
-other clients when the instance is backed by a triple store. A snapshot (RDFArchitect's **Share**
-dialog) is loadable from any session and immutable — which is what you want from something queries
-are validated against. Note that in-memory snapshots do not survive a backend restart.
-:::
+#### Live datasets
+
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so a dataset is
+only readable by whoever holds that session. The IDE extensions hand the session of the view they
+embed to the language server, which then reads that dataset directly — no export, no snapshot, no
+save step. Consequences worth knowing:
+
+- The dataset must exist **in the window the editor shows**. Import it there (or use *Send Schema to
+  RDFArchitect*); a dataset in some other browser tab is invisible.
+- Changes are lost when the RDFArchitect instance restarts, exactly as they are for anything else
+  you edit in the browser without exporting.
+- Without a connected view, a bare dataset name cannot be resolved and CIMVocabCheck says so rather
+  than silently validating against nothing.
+- The **CLI cannot use this form** — it has no browser and therefore no session. For CI, point
+  `rdfArchitect` at a snapshot link, or use `schemas`/`schemasDirectory`.
 
 The same source works per document, without touching the config, via the
 [`# [rdfarchitect=...]`](/cimvocabcheck/endpoints) directive.
