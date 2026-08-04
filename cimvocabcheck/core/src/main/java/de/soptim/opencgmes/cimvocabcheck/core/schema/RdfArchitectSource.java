@@ -46,12 +46,38 @@ import java.util.Optional;
  */
 public record RdfArchitectSource(String baseUrl, String dataset, String snapshot) {
 
-  /** Validates that the source names something to read. */
+  /** How RDFArchitect names the dataset a loaded snapshot appears as. */
+  private static final String SNAPSHOT_PREFIX = "SNAPSHOT_";
+
+  /** Validates that the source names something to read, and recognises a snapshot by its name. */
   public RdfArchitectSource {
     Objects.requireNonNull(baseUrl, "baseUrl");
     if (dataset == null && snapshot == null) {
       throw new IllegalArgumentException("an RDFArchitect source needs a dataset or a snapshot");
     }
+    if (snapshot == null) {
+      snapshot = snapshotTokenOf(dataset);
+    }
+  }
+
+  /**
+   * The snapshot token embedded in a dataset name, or {@code null} when the name is not a loaded
+   * snapshot's.
+   *
+   * <p>RDFArchitect names a loaded snapshot {@code SNAPSHOT_<dataset>_<token>}, and that name is
+   * what a user sees in the address bar — so it is what they copy into a config. The name alone is
+   * useless to anyone else, because the dataset exists only in sessions that loaded the snapshot;
+   * recovering the token means the snapshot can simply be loaded instead of reported missing.
+   */
+  private static String snapshotTokenOf(String dataset) {
+    if (dataset == null || !dataset.startsWith(SNAPSHOT_PREFIX)) {
+      return null;
+    }
+    int tokenStart = dataset.lastIndexOf('_') + 1;
+    // "SNAPSHOT_<dataset>_<token>" — a name with nothing after the prefix has no token to take.
+    return tokenStart > SNAPSHOT_PREFIX.length() && tokenStart < dataset.length()
+        ? dataset.substring(tokenStart)
+        : null;
   }
 
   /**
@@ -87,10 +113,12 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
         throw new IllegalArgumentException(
             "\""
                 + value
-                + "\" names a dataset, but no RDFArchitect instance is connected — open the"
-                + " RDFArchitect view in the editor, or name the instance in full, e.g."
-                + " http://localhost:3000/?dataset="
-                + value);
+                + "\" names a dataset, but no RDFArchitect session is connected. That needs the"
+                + " RDFArchitect view open in the editor *and* an instance that reports its session"
+                + " to it (see the CIMNotebook docs on live datasets). Otherwise name the instance"
+                + " in full, e.g. http://localhost:3000/?dataset="
+                + value
+                + " — or, for a schema that should not change underneath you, a snapshot link.");
       }
       return new RdfArchitectSource(stripTrailingSlashes(connectedBaseUrl.trim()), value, null);
     }
