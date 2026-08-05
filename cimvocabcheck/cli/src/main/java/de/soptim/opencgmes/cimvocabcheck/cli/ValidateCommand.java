@@ -362,7 +362,11 @@ public class ValidateCommand implements Callable<Integer> {
             + " — "
             + es.schemaGraphNames().size()
             + " schema graph(s) detected.");
-    return new SchemaContext(es.index(), config, es.namedGraphScope(), false);
+    // A config that maps graphs to profiles itself means it, so that mapping wins over what was
+    // auto-detected — the precedence the language server applies to the same config, and the
+    // reason a pipeline and an editor agree on what a query says.
+    return new SchemaContext(
+        es.index(), config, config.hasNamedGraphs() ? null : es.namedGraphScope(), false);
   }
 
   /** Resolves the effective strictness: CLI flag → config file → {@code "default"}. */
