@@ -28,6 +28,13 @@ import {
     ServerOptions,
     TransportKind,
 } from "vscode-languageclient/node";
+import {
+    datasetNameFor,
+    localNameOf,
+    parseDefinitionHeader,
+    snapshotDatasetName,
+    termDeepLink,
+} from "./rdfArchitect";
 
 import { registerNotebookSerializers } from "./notebook/serializers";
 import { registerNotebookControllers } from "./notebook/controller";
@@ -158,6 +165,25 @@ function trustSystemCertificates(): void {
     }
 }
 
+/** The trust arguments the running language server was launched with. */
+let launchedTrustArgs: string[] = [];
+
+/**
+ * Whether a configuration change means the language server is now running with the wrong
+ * certificates — its trust arguments follow `cimnotebook.rdfArchitectUrl`, but a running JVM does
+ * not. Answering this rather than watching the setting keeps the reload prompt away from the
+ * ordinary case: pointing at `http://localhost:3000` changes nothing about trust.
+ */
+function trustArgsWentStale(e: vscode.ConfigurationChangeEvent): boolean {
+    if (!e.affectsConfiguration("cimnotebook.rdfArchitectUrl")) {
+        return false;
+    }
+    const extraArgs = vscode.workspace
+        .getConfiguration("cimnotebook")
+        .get<string[]>("javaArgs", []);
+    return systemTrustJavaArgs(extraArgs).join(" ") !== launchedTrustArgs.join(" ");
+}
+
 /**
  * Java arguments that make the language server trust the machine's certificates, since it runs in
  * its own JVM with its own store — the reason an RDFArchitect behind a company CA can work in the
@@ -166,16 +192,27 @@ function trustSystemCertificates(): void {
  * Nothing is added when the user configured a truststore themselves; theirs wins. On macOS there is
  * no equivalent that can be set safely from here, so the CA has to be added to the JDK's `cacerts`
  * (or a truststore named in `cimnotebook.javaArgs`).
+ *
+ * Only done for an RDFArchitect reached over `https`, because on Linux this *replaces* the JVM's
+ * trust store rather than adding to it: a distribution store that an administrator has pruned would
+ * take HTTPS SPARQL endpoints down with it, for users who never opened RDFArchitect at all.
  */
 function systemTrustJavaArgs(configured: string[]): string[] {
     if (configured.some((arg) => arg.startsWith("-Djavax.net.ssl.trustStore"))) {
         return [];
     }
+    const rdfArchitect = vscode.workspace
+        .getConfiguration("cimnotebook")
+        .get<string>("rdfArchitectUrl", "")
+        .trim();
+    if (!rdfArchitect.startsWith("https://")) {
+        return [];
+    }
     if (os.platform() === "win32") {
         return ["-Djavax.net.ssl.trustStoreType=Windows-ROOT"];
     }
-    // Distributions keep a Java view of the system store in sync with it, and it is a superset of
-    // the JDK's own list — so pointing at it adds the machine's CAs without dropping public roots.
+    // Distributions keep a Java view of the system store in sync with it, and on a stock
+    // installation it is a superset of the JDK's own list.
     const systemJavaStores = [
         "/etc/ssl/certs/java/cacerts", // Debian, Ubuntu (ca-certificates-java)
         "/etc/pki/java/cacerts", // Fedora, RHEL
@@ -243,7 +280,7 @@ function doActivate(context: vscode.ExtensionContext, connectionStore: Connectio
                 "cimnotebook.javaExecutable",
                 "cimnotebook.javaArgs",
             ];
-            if (keys.some((k) => e.affectsConfiguration(k))) {
+            if (keys.some((k) => e.affectsConfiguration(k)) || trustArgsWentStale(e)) {
                 vscode.window
                     .showInformationMessage(
                         "CIMNotebook: Settings changed — reload window to apply.",
@@ -507,11 +544,6 @@ async function pickProfile(iri: string, profiles: TermProfile[]): Promise<TermPr
     return picked?.profile;
 }
 
-/** The part of an IRI after its last `#` or `/`. */
-function localNameOf(iri: string): string {
-    return iri.split(/[#/]/).pop() || iri;
-}
-
 /** One profile a term is declared in, and the RDFArchitect graph holding that profile. */
 interface TermProfile {
     label: string;
@@ -553,9 +585,6 @@ async function rdfArchitectTerms(doc: vscode.TextDocument): Promise<RdfArchitect
     }
 }
 
-/** Marks the header line of a generated RDFArchitect definition document. */
-const RDFA_DEFINITION_MARKER = "#! rdfarchitect ";
-
 /**
  * Shows the term in the RDFArchitect panel whenever one of the language server's generated
  * definition documents is opened.
@@ -572,16 +601,9 @@ function openRdfArchitectFromDefinition(editor: vscode.TextEditor | undefined): 
     if (!doc || doc.lineCount === 0) {
         return;
     }
-    const header = doc.lineAt(0).text;
-    if (!header.startsWith(RDFA_DEFINITION_MARKER)) {
+    const fields = parseDefinitionHeader(doc.lineAt(0).text);
+    if (!fields) {
         return;
-    }
-    const fields = new Map<string, string>();
-    for (const pair of header.slice(RDFA_DEFINITION_MARKER.length).trim().split(" ")) {
-        const eq = pair.indexOf("=");
-        if (eq > 0) {
-            fields.set(pair.slice(0, eq), decodeURIComponent(pair.slice(eq + 1)));
-        }
     }
     const iri = fields.get("class");
     if (!iri) {
@@ -661,11 +683,14 @@ async function workspaceSchemaInfo(): Promise<
 }
 
 /**
- * Imports the schema files into RDFArchitect as a read-only dataset and returns the snapshot link
- * to open, plus the record of what was sent. The REST calls run in their own (fresh, empty) backend
- * session, held together by the session cookie; the snapshot is the cross-session bridge into the
- * embedded browser's session. Because every send starts a new session, the dataset is always built
- * from scratch — re-sending an updated schema needs no cleanup of the previous one.
+ * Imports the schema files into RDFArchitect and returns the link to open, plus the record of what
+ * was sent.
+ *
+ * Where they land depends on whether the panel's session is connected. With one, the REST calls run
+ * in that session and the dataset stays editable, so later edits are read live. Without one they
+ * run in a fresh, empty session of their own, and a read-only snapshot is the cross-session bridge
+ * into whatever session the panel gets. Either way the dataset is built from scratch, so re-sending
+ * an updated schema needs no cleanup of the previous one.
  */
 async function importSchemaAndSnapshot(
     base: string,
@@ -690,7 +715,7 @@ async function importSchemaAndSnapshot(
         snapshot = await api.createSnapshot(dataset);
         url.searchParams.set("snapshot", snapshot);
         // RDFArchitect loads a snapshot under SNAPSHOT_<dataset>_<token>; preselect it.
-        url.searchParams.set("dataset", `SNAPSHOT_${dataset}_${snapshot}`);
+        url.searchParams.set("dataset", snapshotDatasetName(dataset, snapshot));
     }
     // Sending the schema because a term could not be found: land on that term afterwards.
     if (termIri) {
@@ -708,23 +733,50 @@ async function importSchemaAndSnapshot(
     };
 }
 
-/** Dataset name for the imported schema: the config file's directory name, sanitised. */
-function datasetNameFor(configFile: string): string {
-    const dir = path.basename(path.dirname(configFile)).replace(/[^A-Za-z0-9._-]/g, "_");
-    return dir || "cimnotebook";
-}
-
 // ---- The RDFArchitect view's session ---------------------------------------------------------
 
 /** RDFArchitect's session cookie; its value is the session id the embedded app hands over. */
 const RDFA_SESSION_COOKIE = "RDFA_SESSION_ID";
 
-const SESSION_KEY = "cimnotebook.rdfArchitect.session";
+/** Where the connected instance is remembered; the session id belongs in secret storage. */
+const SESSION_URL_KEY = "cimnotebook.rdfArchitect.session.url";
 
 /** The RDFArchitect window this workspace is connected to. */
 interface RdfArchitectSession {
     url: string;
     id: string;
+}
+
+/**
+ * The secret-storage key for this workspace's session id.
+ *
+ * Secret storage is per extension, not per workspace, so the key carries the workspace — otherwise
+ * two windows on two projects would overwrite each other's session.
+ */
+function sessionSecretKey(): string {
+    const workspace =
+        vscode.workspace.workspaceFile?.toString() ??
+        vscode.workspace.workspaceFolders?.[0]?.uri.toString() ??
+        "";
+    return `cimnotebook.rdfArchitect.session:${workspace}`;
+}
+
+/** Remembers the connection: the instance in workspace state, the session id in secret storage. */
+async function rememberSession(session: RdfArchitectSession | undefined): Promise<void> {
+    if (!session) {
+        await extensionContext.workspaceState.update(SESSION_URL_KEY, undefined);
+        await extensionContext.secrets.delete(sessionSecretKey());
+        return;
+    }
+    await extensionContext.workspaceState.update(SESSION_URL_KEY, session.url);
+    await extensionContext.secrets.store(sessionSecretKey(), session.id);
+}
+
+/** What was remembered for this workspace, if the two halves are both still there. */
+async function rememberedSession(): Promise<RdfArchitectSession | undefined> {
+    const url = extensionContext.workspaceState.get<string>(SESSION_URL_KEY);
+    const id = url ? await extensionContext.secrets.get(sessionSecretKey()) : undefined;
+    return url && id ? { url, id } : undefined;
 }
 
 let connectedSession: RdfArchitectSession | undefined;
@@ -737,14 +789,14 @@ let connectionStatus: vscode.StatusBarItem | undefined;
  * against the model *as it is being edited* means reading that session. The embedded app reports
  * which session it uses (see {@link rdfArchitectHtml}), and this hands it to the server, which then
  * resolves `"rdfArchitect": "<dataset>"` against it. The id is a credential for that session: it
- * stays in workspace state and in the server's memory, and is never written to a config file.
+ * stays in secret storage and in the server's memory, and is never written to a config file.
  */
 async function connectRdfArchitectSession(url: string, id: string): Promise<void> {
     if (connectedSession?.url === url && connectedSession.id === id) {
         return;
     }
     connectedSession = { url, id };
-    await extensionContext.workspaceState.update(SESSION_KEY, connectedSession);
+    await rememberSession(connectedSession);
     await sendConnectionToServer(connectedSession);
     out.appendLine(`Connected to the RDFArchitect session at ${url}.`);
     updateConnectionStatus();
@@ -774,7 +826,7 @@ async function sendConnectionToServer(session: RdfArchitectSession | undefined):
  * the id names distinguishes the two: a different answer means the remembered one is gone.
  */
 async function restoreRdfArchitectSession(): Promise<void> {
-    const remembered = extensionContext.workspaceState.get<RdfArchitectSession>(SESSION_KEY);
+    const remembered = await rememberedSession();
     if (!remembered) {
         return;
     }
@@ -783,7 +835,7 @@ async function restoreRdfArchitectSession(): Promise<void> {
         await sendConnectionToServer(remembered);
         out.appendLine(`Reconnected to the RDFArchitect session at ${remembered.url}.`);
     } else {
-        await extensionContext.workspaceState.update(SESSION_KEY, undefined);
+        await rememberSession(undefined);
         out.appendLine(
             "The remembered RDFArchitect session is gone — open the panel to reconnect.",
         );
@@ -1045,20 +1097,6 @@ class RdfArchitectClient {
 }
 
 /** RDFArchitect's term deep link: {@code <base>/mainpage?class=<iri>} takes any schema term. */
-function termDeepLink(base: string, iri: string, dataset?: string, graph?: string): string {
-    const url = new URL(base);
-    url.pathname = `${url.pathname.replace(/\/+$/, "")}/mainpage`;
-    url.searchParams.set("class", iri);
-    // Narrowing the lookup is what pins the term to one profile; RDFArchitect otherwise opens
-    // whichever graph of whichever dataset it finds the term in first.
-    if (dataset) {
-        url.searchParams.set("dataset", dataset);
-    }
-    if (graph) {
-        url.searchParams.set("graph", graph);
-    }
-    return url.toString();
-}
 
 /**
  * Reveals the singleton RDFArchitect panel. With {@code navigate}, the embedded app is (re)loaded
@@ -1269,7 +1307,8 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
     const config = vscode.workspace.getConfiguration("cimnotebook");
     const javaExe = config.get<string>("javaExecutable", "java");
     const extraArgs = config.get<string[]>("javaArgs", []);
-    const args = [...systemTrustJavaArgs(extraArgs), ...extraArgs, "-jar", serverJar];
+    launchedTrustArgs = systemTrustJavaArgs(extraArgs);
+    const args = [...launchedTrustArgs, ...extraArgs, "-jar", serverJar];
 
     out.appendLine(`[launch] ${javaExe} ${args.join(" ")}`);
 
