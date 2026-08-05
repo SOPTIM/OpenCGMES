@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import de.soptim.opencgmes.cimvocabcheck.core.schema.HttpSparqlGraphSource;
 import java.io.StringWriter;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -135,7 +136,7 @@ final class EndpointDefinitionPeek {
         return Optional.empty();
       }
       String turtle = renderTurtle(graph, termIri);
-      Path file = writePeekFile(termIri, turtle, label);
+      Path file = writePeekFile(endpoint, termIri, turtle, label);
       int line = subjectLine(turtle, termIri);
       Location loc =
           new Location(
@@ -197,10 +198,13 @@ final class EndpointDefinitionPeek {
   /**
    * Writes the peek document, putting a profile's copy in a directory named after it — editors show
    * the containing directory next to the file name, so that is what tells two profiles' documents
-   * apart in the chooser.
+   * apart in the chooser — under one directory per endpoint, so the same term fetched from two of
+   * them does not end up in one file.
    */
-  private Path writePeekFile(String termIri, String turtle, String label) throws Exception {
-    Path dir = label == null ? cacheDir : cacheDir.resolve(slug(label));
+  private Path writePeekFile(String endpoint, String termIri, String turtle, String label)
+      throws Exception {
+    Path origin = cacheDir.resolve(endpointSlug(endpoint));
+    Path dir = label == null ? origin : origin.resolve(slug(label));
     Files.createDirectories(dir);
     String name = localName(termIri) + "-" + Integer.toHexString(termIri.hashCode()) + ".ttl";
     Path file = dir.resolve(name);
@@ -209,6 +213,24 @@ final class EndpointDefinitionPeek {
     Files.write(file, turtle.getBytes(StandardCharsets.UTF_8));
     file.toFile().setReadOnly();
     return file;
+  }
+
+  /** A readable, collision-free directory name for one endpoint. */
+  private static String endpointSlug(String endpoint) {
+    return slug(hostOf(endpoint)) + "-" + Integer.toHexString(endpoint.hashCode());
+  }
+
+  /** The host (and port) of a URL, or the whole value when it does not parse as one. */
+  static String hostOf(String url) {
+    try {
+      URI uri = URI.create(url);
+      return uri.getHost() == null
+          ? url
+          : uri.getHost() + (uri.getPort() < 0 ? "" : "-" + uri.getPort());
+    } catch (IllegalArgumentException e) {
+      LOG.debug("Not a parseable URL, using it as written: {}", url);
+      return url;
+    }
   }
 
   /** A profile label as a directory name: readable, and safe on every filesystem. */
