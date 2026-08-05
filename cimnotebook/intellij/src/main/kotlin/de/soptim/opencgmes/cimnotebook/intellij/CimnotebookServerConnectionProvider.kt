@@ -43,17 +43,27 @@ class CimnotebookServerConnectionProvider : LanguageServerFactory {
      *
      * macOS has no equivalent that can be set safely from here: add the CA to the JDK's `cacerts`
      * or name a truststore in the Java arguments setting.
+     *
+     * Only done for an RDFArchitect reached over `https`, because on Linux this *replaces* the
+     * JVM's trust store rather than adding to it: a distribution store that an administrator has
+     * pruned would take HTTPS SPARQL endpoints down with it, for users who never opened
+     * RDFArchitect at all. Windows-ROOT is additive in practice, but the same condition keeps the
+     * two platforms explainable as one rule.
      */
     private fun systemTrustArgs(configured: List<String>): List<String> {
         if (configured.any { it.startsWith("-Djavax.net.ssl.trustStore") }) {
+            return emptyList()
+        }
+        val instance = CimnotebookSettings.getInstance().rdfArchitectUrl.trim()
+        if (!instance.startsWith("https://")) {
             return emptyList()
         }
         val os = System.getProperty("os.name").orEmpty().lowercase()
         if (os.contains("win")) {
             return listOf("-Djavax.net.ssl.trustStoreType=Windows-ROOT")
         }
-        // Distributions keep a Java view of the system store in sync with it, and it is a superset
-        // of the JDK's own list — so this adds the machine's CAs without dropping public roots.
+        // Distributions keep a Java view of the system store in sync with it, and on a stock
+        // installation it is a superset of the JDK's own list.
         val systemJavaStores =
             listOf(
                 // Debian, Ubuntu (ca-certificates-java)
