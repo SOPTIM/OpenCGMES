@@ -489,14 +489,14 @@ final class SparqlTextDocumentService implements TextDocumentService {
             i++;
             continue;
           }
-          addTerm(terms, text, ln, i, gt + 1, i + 1, prefixes, schema);
+          addTerm(terms, src, ln, i, gt + 1, i + 1, prefixes, schema);
           i = gt + 1;
         } else if (isNameChar(c)) {
           int end = i;
           while (end < src.length() && isNameChar(src.charAt(end))) {
             end++;
           }
-          addTerm(terms, text, ln, i, end, i, prefixes, schema);
+          addTerm(terms, src, ln, i, end, i, prefixes, schema);
           i = end;
         } else {
           i++;
@@ -524,17 +524,20 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return -1;
   }
 
-  /** Resolves the token spanning {@code [start,end)} and keeps it if it names a schema term. */
+  /**
+   * Resolves the token spanning {@code [start,end)} of {@code src} — the text of line {@code line}
+   * — and keeps it if it names a schema term.
+   */
   private static void addTerm(
       List<TermRange> terms,
-      String text,
+      String src,
       int line,
       int start,
       int end,
       int resolveAt,
       PrefixMapping prefixes,
       ResolvedSchema schema) {
-    Node term = termAtPosition(text, line, resolveAt, prefixes);
+    Node term = termInLine(src, resolveAt, prefixes);
     if (term == null || !term.isURI()) {
       return;
     }
@@ -1654,7 +1657,16 @@ final class SparqlTextDocumentService implements TextDocumentService {
     if (line0 < 0 || line0 >= lines.length) {
       return null;
     }
-    String src = lines[line0];
+    return termInLine(lines[line0], col0, prefixes);
+  }
+
+  /**
+   * The same resolution against a line that has already been split out of the document.
+   *
+   * <p>Scanning a whole document for its terms resolves one token after another, and splitting the
+   * text again for each of them would make that scan quadratic in the document size.
+   */
+  private static Node termInLine(String src, int col0, PrefixMapping prefixes) {
     if (src.isEmpty() || col0 < 0) {
       return null;
     }
