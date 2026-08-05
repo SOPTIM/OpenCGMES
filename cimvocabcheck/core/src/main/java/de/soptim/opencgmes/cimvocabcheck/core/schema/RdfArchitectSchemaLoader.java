@@ -96,18 +96,18 @@ public final class RdfArchitectSchemaLoader {
   public static EndpointSchema load(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
     Objects.requireNonNull(timeout, "timeout");
-    Client client = clientFor(source, timeout, sessionId);
-
-    String dataset = resolveDataset(client, source);
-    List<String> graphs = client.listGraphs(dataset);
-    LOG.info("RDFArchitect dataset {} exposes {} graph(s)", dataset, graphs.size());
-
     Dataset local = DatasetFactory.createTxnMem();
-    for (String graph : graphs) {
-      String turtle = client.fetchGraph(dataset, graph);
-      Model model = ModelFactory.createDefaultModel();
-      RDFParser.create().source(new StringReader(turtle)).lang(Lang.TURTLE).parse(model);
-      local.addNamedModel(graph, model);
+    try (Client client = clientFor(source, timeout, sessionId)) {
+      String dataset = resolveDataset(client, source);
+      List<String> graphs = client.listGraphs(dataset);
+      LOG.info("RDFArchitect dataset {} exposes {} graph(s)", dataset, graphs.size());
+
+      for (String graph : graphs) {
+        String turtle = client.fetchGraph(dataset, graph);
+        Model model = ModelFactory.createDefaultModel();
+        RDFParser.create().source(new StringReader(turtle)).lang(Lang.TURTLE).parse(model);
+        local.addNamedModel(graph, model);
+      }
     }
     try (SparqlGraphSource graphSource = new DatasetSparqlGraphSource(local)) {
       return EndpointSchemaLoader.load(graphSource);
@@ -128,8 +128,7 @@ public final class RdfArchitectSchemaLoader {
    */
   public static String changeStamp(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
-    try {
-      Client client = clientFor(source, timeout, sessionId);
+    try (Client client = clientFor(source, timeout, sessionId)) {
       String dataset =
           source.snapshot() == null ? source.dataset() : resolveDataset(client, source);
       var stamp = new StringBuilder();
@@ -216,7 +215,7 @@ public final class RdfArchitectSchemaLoader {
    * The slice of RDFArchitect's REST API this needs. All calls share one session (the {@code
    * RDFA_SESSION_ID} cookie), which is what a loaded snapshot is attached to.
    */
-  private static final class Client {
+  private static final class Client implements AutoCloseable {
     private final String api;
     private final Duration timeout;
     private final HttpClient http;
@@ -231,6 +230,16 @@ public final class RdfArchitectSchemaLoader {
               .connectTimeout(timeout)
               .cookieHandler(new CookieManager())
               .build();
+    }
+
+    /**
+     * Releases the client's selector thread and executor. A live dataset is polled for changes
+     * every few seconds, so leaving them to the garbage collector would pile up threads for as long
+     * as the workspace is open.
+     */
+    @Override
+    public void close() {
+      http.close();
     }
 
     boolean borrowsSession() {
