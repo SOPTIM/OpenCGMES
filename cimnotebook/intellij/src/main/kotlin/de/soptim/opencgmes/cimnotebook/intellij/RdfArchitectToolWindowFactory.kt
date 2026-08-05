@@ -21,6 +21,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
@@ -67,7 +68,12 @@ class RdfArchitectToolWindowFactory :
                 OpenInBrowserAction(),
             ),
         )
-        RdfArchitectSessionBridge.restore(project)
+        // Asking the instance whether the remembered session is still there is a network call, and
+        // this runs on the EDT — an instance that is down would otherwise freeze the IDE for as
+        // long as the probe takes.
+        ApplicationManager.getApplication().executeOnPooledThread {
+            RdfArchitectSessionBridge.restore(project)
+        }
 
         // Opening the tool window is the moment to notice that RDFArchitect has no schema of this
         // project yet, or an outdated one. A term the user was navigating to is picked up so the

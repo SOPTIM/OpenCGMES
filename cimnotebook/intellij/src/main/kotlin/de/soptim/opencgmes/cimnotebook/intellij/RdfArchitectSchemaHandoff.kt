@@ -43,17 +43,21 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
  * Hands the workspace's configured schema to RDFArchitect and keeps track of what was handed over.
  *
- * The import runs in its own RDFArchitect session and reaches the tool window's browser session
- * through a snapshot; since every send starts a fresh session, the dataset is always built from
- * scratch and re-sending an updated schema needs no cleanup. What was sent is remembered per
- * project ([Handoff]) so the tool window can offer an import when nothing is over there yet, and an
- * update once the schema files have changed.
+ * Where the import lands depends on whether the tool window's session is connected. With one, it
+ * goes into that session and stays editable, so later edits are read live. Without one, the import
+ * runs in a fresh session of its own and reaches the browser through a read-only snapshot — the
+ * only bridge between two sessions. Either way the dataset is built from scratch, so re-sending an
+ * updated schema needs no cleanup.
+ *
+ * What was sent is remembered per project ([Handoff]) so the tool window can offer an import when
+ * nothing is over there yet, and an update once the schema files have changed.
  */
 object RdfArchitectSchemaHandoff {
     private val LOG = Logger.getInstance(RdfArchitectSchemaHandoff::class.java)
@@ -61,6 +65,9 @@ object RdfArchitectSchemaHandoff {
     private const val CMD_SCHEMA_INFO = "cimvocabcheck.schemaInfo"
     private const val HANDOFF_KEY = "cimnotebook.rdfArchitect.handoff"
     private const val OPT_OUT_KEY = "cimnotebook.rdfArchitect.handoff.optOut"
+
+    /** An instance that is gone must not hold a background task for the OS's connect timeout. */
+    private val PROBE_TIMEOUT: Duration = Duration.ofSeconds(10)
 
     /** What was last sent, to which instance. */
     data class Handoff(
@@ -109,7 +116,9 @@ object RdfArchitectSchemaHandoff {
                     // the one on screen — editable, and read live by the language server. Without
                     // one, a snapshot is still the only bridge into whatever session the view gets.
                     val session =
-                        RdfArchitectSessionBridge.connection()?.takeIf { it.url == base.trimEnd('/') }
+                        RdfArchitectSessionBridge
+                            .connection(project)
+                            ?.takeIf { it.url == base.trimEnd('/') }
                     val client = RdfArchitectClient(base, session?.id)
                     val dataset = datasetNameFor(info.configFile)
                     indicator.text = "Importing ${info.schemaFiles.size} schema file(s)…"
@@ -174,7 +183,7 @@ object RdfArchitectSchemaHandoff {
                 override fun run(indicator: ProgressIndicator) {
                     val info = requestSchemaInfo(project, null) ?: return
                     val previous = remembered(project)
-                    val live = previous?.takeIf { it.url == base && stillThere(base, it) }
+                    val live = previous?.takeIf { it.url == base && stillThere(project, base, it) }
                     if (live?.fingerprint == fingerprint(info.schemaFiles)) {
                         return
                     }
@@ -239,13 +248,16 @@ object RdfArchitectSchemaHandoff {
      * the connected view has to still be in that view's session.
      */
     private fun stillThere(
+        project: Project,
         base: String,
         handoff: Handoff,
     ): Boolean =
         runCatching {
             val session =
-                RdfArchitectSessionBridge.connection()?.takeIf { it.url == base.trimEnd('/') }
-            val builder = HttpRequest.newBuilder().GET()
+                RdfArchitectSessionBridge
+                    .connection(project)
+                    ?.takeIf { it.url == base.trimEnd('/') }
+            val builder = HttpRequest.newBuilder().timeout(PROBE_TIMEOUT).GET()
             if (handoff.snapshot != null) {
                 builder.uri(
                     URI.create(
@@ -260,8 +272,13 @@ object RdfArchitectSchemaHandoff {
                 builder.uri(URI.create(base.trimEnd('/') + "/api/datasets"))
                 builder.header("Cookie", "RDFA_SESSION_ID=" + session.id)
             }
+            // The IDE's trust store, like every other call to the instance: with the plain client a
+            // certificate from a private CA fails the handshake here, the probe answers "not
+            // there", and the import is offered again on every single open.
             val response =
-                HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString())
+                RdfArchitectSessionBridge
+                    .ideHttpClient()
+                    .send(builder.build(), HttpResponse.BodyHandlers.ofString())
             response.statusCode() < 400 &&
                 (handoff.snapshot != null || response.body().contains("\"" + handoff.dataset + "\""))
         }.getOrDefault(false)
@@ -322,7 +339,7 @@ object RdfArchitectSchemaHandoff {
         }
 
     /** Dataset name for the imported schema: the config file's directory name, sanitised. */
-    private fun datasetNameFor(configFile: String): String {
+    internal fun datasetNameFor(configFile: String): String {
         val dir =
             Path
                 .of(configFile)
@@ -338,7 +355,7 @@ object RdfArchitectSchemaHandoff {
      * own session, or the snapshot that bridges into it otherwise — RDFArchitect loads a snapshot
      * under `SNAPSHOT_<dataset>_<token>`. A [termIri] is forwarded so the app lands on that term.
      */
-    private fun datasetLink(
+    internal fun datasetLink(
         base: String,
         dataset: String,
         token: String?,
@@ -367,6 +384,7 @@ object RdfArchitectSchemaHandoff {
         private val http =
             HttpClient
                 .newBuilder()
+                .connectTimeout(PROBE_TIMEOUT)
                 .cookieHandler(CookieManager())
                 .sslContext(CertificateManager.getInstance().sslContext)
                 .build()
