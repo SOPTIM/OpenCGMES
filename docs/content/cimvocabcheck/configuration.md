@@ -142,7 +142,9 @@ save step. Consequences worth knowing:
   RDFArchitect*); a dataset in some other browser tab is invisible.
 - A name of the form `SNAPSHOT_<dataset>_<token>` — what RDFArchitect calls a loaded snapshot, and
   what you see in the address bar after opening one — is understood as that snapshot and loaded on
-  its own. It needs no connection and does not change, so it behaves like a snapshot link.
+  its own, rather than looked for in the session. It does not change, so it never has to be
+  re-imported; it still needs a connected view, though, because the name alone does not say which
+  instance holds the snapshot. Use the snapshot **link** where there is no editor, e.g. in CI.
 - "No RDFArchitect session is connected" means the view is open **and** the instance reports its
   session: an instance older than that support, or one whose deployment has not enabled the
   handshake, cannot answer. The editor's output log says which of the two it is.

@@ -182,8 +182,10 @@ The connection is remembered per project and restored on IDE start, so validatio
 without reopening the tool window — a backend session outlives the browser that created it, though
 not a restart of RDFArchitect itself. **Reconnect Session** on the tool window's toolbar re-reads it.
 
-The session id grants access to that session, so it stays in the project's properties and in the
-language server's memory — never in `opencgmes.jsonc`, which only ever holds the dataset name.
+The session id grants access to that session, so it is treated as a credential: it lives in the
+IDE's password safe and in the language server's memory, never in `opencgmes.jsonc`, which only ever
+holds the dataset name. The project's properties keep only the URL of the instance you were
+connected to.
 
 :::info An instance behind a private CA
 The plugin's own calls go through the IDE's certificate manager, so a certificate you accepted in
@@ -192,9 +194,11 @@ enough for them.
 
 The **language server runs in its own JVM** and does not share that trust, so the plugin points it
 at the machine's certificates when it can: the system root store on Windows, and
-`/etc/ssl/certs/java/cacerts` on Debian/Ubuntu, which the system keeps in sync. **macOS is the
-exception** — a JVM cannot be pointed at the Keychain safely from here, so add the CA to the JDK's
-`cacerts` or name a truststore under **Settings → Tools → CIMNotebook → Java arguments**:
+`/etc/ssl/certs/java/cacerts` on Debian/Ubuntu, which the system keeps in sync. That is done only
+when the RDFArchitect URL is an `https` one, since pointing the JVM at the system store *replaces*
+its own list. **macOS is the exception** — a JVM cannot be pointed at the Keychain safely from here,
+so add the CA to the JDK's `cacerts` or name a truststore under **Settings → Tools → CIMNotebook →
+Java arguments**:
 
 ```
 -Djavax.net.ssl.trustStore=/path/to/truststore.jks -Djavax.net.ssl.trustStorePassword=changeit
@@ -202,6 +206,8 @@ exception** — a JVM cannot be pointed at the Keychain safely from here, so add
 
 A truststore you configure always wins over the automatic one. If a handshake still fails, the
 language server says so in those terms instead of only surfacing a PKIX error.
+
+Changing any of these settings restarts the language server, so the new certificates apply at once.
 :::
 
 ## Settings

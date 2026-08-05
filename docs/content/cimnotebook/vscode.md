@@ -250,7 +250,7 @@ installed in the machine's store is used by all of them **without any configurat
 | --- | --- |
 | the **panel** (embedded browser) | uses the system store directly |
 | the **extension**'s REST calls | the system store is added to Node's list on activation (VS Code 1.100+ / Node 22.15+; honours `http.systemCertificates`) |
-| the **language server** (its own JVM) | Windows: the system root store is used; Debian/Ubuntu: `/etc/ssl/certs/java/cacerts`, which the system keeps in sync |
+| the **language server** (its own JVM) | Windows: the system root store is used; Debian/Ubuntu: `/etc/ssl/certs/java/cacerts`, which the system keeps in sync — done only when `cimnotebook.rdfArchitectUrl` is an `https` URL, since pointing the JVM at the system store *replaces* its own list |
 
 **macOS is the exception** — a JVM cannot be pointed at the Keychain safely from here, so add the CA
 to the JDK's `cacerts`, or name a truststore yourself:
@@ -264,6 +264,9 @@ to the JDK's `cacerts`, or name a truststore yourself:
 
 A truststore you configure always wins over the automatic one. If a handshake still fails, the
 language server says so in those terms rather than only reporting a PKIX error.
+
+The server's certificates are settled when it starts, so changing the RDFArchitect URL offers a
+window reload — take it, or the running server keeps the trust it was launched with.
 :::
 
 :::warning Requires the instance to allow the handshake
@@ -272,8 +275,10 @@ sets `PUBLIC_EMBED_SESSION_HANDSHAKE=true` (see RDFArchitect's admin guide). Wit
 datasets are unavailable and CIMNotebook falls back to snapshots. The IntelliJ plugin needs no such
 setting: its tool window is the plugin's own browser.
 
-The session id grants access to that session, so it stays in workspace state and in the language
-server's memory — never in `opencgmes.jsonc`, which only ever holds the dataset name.
+The session id grants access to that session, so it is treated as a credential: it lives in VS
+Code's secret storage (keyed by workspace) and in the language server's memory, never in
+`opencgmes.jsonc`, which only ever holds the dataset name. Workspace state keeps only the URL of
+the instance you were connected to.
 :::
 
 ### SPARQL Notebook support
