@@ -60,7 +60,7 @@
         },
         "cimvocabcheck": {
             "type": "object",
-            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when neither \"schemas\" nor \"schemasDirectory\" is set, no schema is loaded and validation is syntax-only (there is no bundled default schema).",
+            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when none of \"schemas\", \"schemasDirectory\" or \"rdfArchitect\" is set, no schema is loaded and validation is syntax-only (there is no bundled default schema).",
             "additionalProperties": false,
             "properties": {
                 "schemasDirectory": {
