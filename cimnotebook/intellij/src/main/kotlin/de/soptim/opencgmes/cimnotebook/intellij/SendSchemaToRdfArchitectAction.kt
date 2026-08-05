@@ -26,10 +26,10 @@ import com.redhat.devtools.lsp4ij.LSPIJUtils
 
 /**
  * "CIMNotebook: Send Schema to RDFArchitect". Asks the CIMLangServer for the workspace schema
- * files (`cimvocabcheck.schemaInfo`), imports them into a fresh RDFArchitect session as a
- * read-only dataset, snapshots that dataset, and opens the snapshot link in the RDFArchitect tool
- * window — the embedded browser session loads the snapshot and selects the dataset, so the
- * workspace schema is browsable without a manual import.
+ * files (`cimvocabcheck.schemaInfo`) and imports them into RDFArchitect, so the workspace schema is
+ * browsable there without a manual import: into the tool window's own session when it is connected,
+ * where the dataset stays editable and is read live, and otherwise as a read-only snapshot that the
+ * browser session loads.
  *
  * Available from Tools, from the RDFArchitect tool window's toolbar, and offered automatically
  * when that tool window opens (see [RdfArchitectSchemaHandoff]).
