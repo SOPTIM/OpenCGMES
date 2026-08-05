@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.jena.graph.Graph;
@@ -88,7 +89,7 @@ final class RdfArchitectDefinitionPeek {
   Optional<Location> locationFor(Node term, SchemaIndex index, VersionIri profile, Target target) {
     try {
       String turtle = render(term, index, profile, target);
-      Path file = write(term, turtle, target.profile());
+      Path file = write(term, turtle, target);
       int line = EndpointDefinitionPeek.subjectLine(turtle, term.getURI());
       return Optional.of(
           new Location(
@@ -226,9 +227,18 @@ final class RdfArchitectDefinitionPeek {
     }
   }
 
-  /** Writes the document, one directory per profile so the editor's chooser reads clearly. */
-  private Path write(Node term, String turtle, String profile) throws Exception {
-    Path dir = cacheDir.resolve(EndpointDefinitionPeek.slug(profile));
+  /**
+   * Writes the document, one directory per profile so the editor's chooser reads clearly — under
+   * one per instance and dataset, so two of them never collide.
+   *
+   * <p>The header of this document is what navigates the editor, so a file shared between two
+   * instances would send a stale tab to the wrong one. The instance is a directory rather than part
+   * of the file name because editors show a document by its name and its immediate parent: the
+   * profile is what the user needs to read there.
+   */
+  private Path write(Node term, String turtle, Target target) throws Exception {
+    Path dir =
+        cacheDir.resolve(originSlug(target)).resolve(EndpointDefinitionPeek.slug(target.profile()));
     Files.createDirectories(dir);
     String name =
         EndpointDefinitionPeek.localName(term.getURI())
@@ -240,5 +250,14 @@ final class RdfArchitectDefinitionPeek {
     Files.write(file, turtle.getBytes(StandardCharsets.UTF_8));
     file.toFile().setReadOnly();
     return file;
+  }
+
+  /** A readable, collision-free directory name for the instance and dataset a term came from. */
+  private static String originSlug(Target target) {
+    String host =
+        target.baseUrl() == null ? "instance" : EndpointDefinitionPeek.hostOf(target.baseUrl());
+    return EndpointDefinitionPeek.slug(host)
+        + "-"
+        + Integer.toHexString(Objects.hash(target.baseUrl(), target.dataset()));
   }
 }
