@@ -1099,8 +1099,15 @@ final class SchemaManager {
   private void loadSync(Path root, boolean quiet) {
     // Endpoint schemas and per-config schemas are cached for the session; drop them on reload so
     // a strictness change propagates and any transient load failures get retried.
-    endpointCache.clear();
-    failedEndpoints.clear();
+    //
+    // Not on a quiet reload, though: that one means a live RDFArchitect dataset moved, and an
+    // endpoint schema has nothing to do with it — refetching every one of them (and announcing it)
+    // each time somebody edits a class over there would be a lot of noise about nothing. A
+    // directive-backed RDFArchitect schema refreshes itself, see refetchDirectiveSchema.
+    if (!quiet) {
+      endpointCache.clear();
+      failedEndpoints.clear();
+    }
     workspaceSchemaCache.clear();
 
     Optional<Path> configFile = ConfigLoader.discoverFile(root);
