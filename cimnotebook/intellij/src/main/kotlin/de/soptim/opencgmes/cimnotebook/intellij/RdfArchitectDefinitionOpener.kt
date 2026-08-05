@@ -64,7 +64,7 @@ class RdfArchitectDefinitionOpener : FileEditorManagerListener {
     }
 
     /** The header's percent-encoded `key=value` pairs. */
-    private fun fields(header: String): Map<String, String> =
+    internal fun fields(header: String): Map<String, String> =
         header
             .trim()
             .split(' ')
