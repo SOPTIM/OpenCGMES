@@ -18,6 +18,8 @@
         "src/notebook/*.test.ts",
         "src/sidebar/configModel.ts",
         "src/sidebar/treeItems.ts",
-        "src/sidebar/*.test.ts"
+        "src/sidebar/*.test.ts",
+        "src/rdfArchitect.ts",
+        "src/test/**/*.ts"
     ]
 }
