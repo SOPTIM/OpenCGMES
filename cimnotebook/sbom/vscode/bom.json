@@ -14,7 +14,7 @@
           "type": "library",
           "name": "cyclonedx-library",
           "group": "@cyclonedx",
-          "version": "10.1.0",
+          "version": "10.2.0",
           "author": "Jan Kowalleck",
           "description": "Core functionality of CycloneDX for JavaScript (Node.js or WebBrowser).",
           "licenses": [
@@ -39,6 +39,12 @@
               "url": "https://github.com/CycloneDX/cyclonedx-javascript-library#readme",
               "type": "website",
               "comment": "as detected from PackageJson property \"homepage\""
+            }
+          ],
+          "properties": [
+            {
+              "name": "cdx:npm:package:constraint:engine:node",
+              "value": ">=20.18.0"
             }
           ]
         },
@@ -71,6 +77,16 @@
               "url": "https://github.com/CycloneDX/cyclonedx-node-npm#readme",
               "type": "website",
               "comment": "as detected from PackageJson property \"homepage\""
+            }
+          ],
+          "properties": [
+            {
+              "name": "cdx:npm:package:constraint:engine:node",
+              "value": ">=20.18.0"
+            },
+            {
+              "name": "cdx:npm:package:constraint:engine:npm",
+              "value": ">=9"
             }
           ]
         }
@@ -109,6 +125,14 @@
         }
       ],
       "properties": [
+        {
+          "name": "cdx:npm:package:constraint:engine:node",
+          "value": ">=20.18.1"
+        },
+        {
+          "name": "cdx:npm:package:constraint:engine:vscode",
+          "value": "^1.75.0"
+        },
         {
           "name": "cdx:npm:package:path",
           "value": ""
