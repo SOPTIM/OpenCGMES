@@ -66,7 +66,7 @@
         <ver.plugin.license>2.7.1</ver.plugin.license>
 
         <!-- Source license-header enforcement (mycila) -->
-        <ver.plugin.license-header>5.1.1</ver.plugin.license-header>
+        <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
 
         <!-- Directory holding the committed, drift-checked supply-chain artifacts.
              The CIMNotebook editor plugins keep their SBOMs under cimnotebook/sbom/{vscode,intellij}/. -->
