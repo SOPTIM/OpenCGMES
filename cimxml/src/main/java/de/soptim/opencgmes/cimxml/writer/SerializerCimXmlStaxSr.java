@@ -145,7 +145,7 @@ class SerializerCimXmlStaxSr {
       writeProperties(subjectNode);
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
-      throw new RuntimeException(e);
+      throw new RiotException(e);
     }
   }
 
@@ -157,7 +157,7 @@ class SerializerCimXmlStaxSr {
       writeProperties(subjectNode);
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
-      throw new RuntimeException(e);
+      throw new RiotException(e);
     }
   }
 
@@ -192,12 +192,12 @@ class SerializerCimXmlStaxSr {
         case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
             replaceUrnUuidWithHash(
                 propertyTriple.getObject().getURI())); // Section 7.2.3.10 Resource-Property element
-        default -> throw new IllegalStateException(
+        default -> throw new RiotException(
             "Unexpected property type: " + getPropertyType(propertyTriple.getObject()));
       }
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
-      throw new RuntimeException(e);
+      throw new RiotException(e);
     }
   }
 
