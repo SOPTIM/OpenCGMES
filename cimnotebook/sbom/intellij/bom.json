@@ -24,7 +24,7 @@
       "externalReferences" : [
         {
           "type" : "vcs",
-          "url" : "https://github.com/SOPTIM/OpenCGMES"
+          "url" : "https://github.com/SOPTIM/OpenCGMES.git"
         }
       ]
     }

@@ -1,5 +1,5 @@
 
-Lists of 38 third-party dependencies.
+Lists of 39 third-party dependencies.
      (Apache-2.0) aalto-xml (com.fasterxml:aalto-xml:1.4.0 - https://github.com/FasterXML/aalto-xml)
      (Apache-2.0) Apache Commons Codec (commons-codec:commons-codec:1.22.0 - https://commons.apache.org/proper/commons-codec/)
      (Apache-2.0) Apache Commons Collections (org.apache.commons:commons-collections4:4.5.0 - https://commons.apache.org/proper/commons-collections/)
@@ -37,4 +37,5 @@ Lists of 38 third-party dependencies.
      (Apache-2.0) Titanium JSON-LD 1.1 (JRE11) (com.apicatalog:titanium-json-ld:1.7.0 - https://github.com/filip26/titanium-json-ld)
      (Apache-2.0) Titanium RDF API (com.apicatalog:titanium-rdf-api:1.0.0 - https://github.com/filip26/titanium-rdf-api)
      (Apache-2.0) Titanium RDF N-QUADS (com.apicatalog:titanium-rdf-n-quads:1.0.2 - https://github.com/filip26/titanium-rdf-n-quads)
+     (BSD-3-Clause) TXW2 Runtime (org.glassfish.jaxb:txw2:4.0.6 - https://eclipse-ee4j.github.io/jaxb-ri/)
      (Apache-2.0) Woodstox (com.fasterxml.woodstox:woodstox-core:7.2.2 - https://github.com/FasterXML/woodstox)
