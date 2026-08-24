@@ -31,7 +31,7 @@ import org.apache.jena.riot.system.PrefixMap;
 /**
  * IEC 61970-552 CIMXML writer for OpenCGMES.
  *
- * <p> This writer creates a Common Information Model (CIM) XML file for a {@link CimDatasetGraph}
+ * <p>This writer creates a Common Information Model (CIM) XML file for a {@link CimDatasetGraph}
  * and writes it into a {@link Writer} or an {@link OutputStream}. It handles special features
  * unique to CIMXML such as:
  *
@@ -41,21 +41,27 @@ import org.apache.jena.riot.system.PrefixMap;
  *   <li>Support for FullModel and DifferenceModel structures</li>
  * </ul>
  * This implementation uses StAX via {@link XMLStreamWriter}.
- * <p>
- * Optionally, the output may also be sorted.
  *
- * @see <a
- * href="https://webstore.iec.ch/en/publication/25939">https://webstore.iec.ch/en/publication/25939</a>
+ * <p>Optionally, the output may also be sorted.
+ *
+ * @see <a href="https://webstore.iec.ch/en/publication/25939">https://webstore.iec.ch/en/publication/25939</a>
  */
-public class WriterCIMXML_StAX_SR {
+public class WriterCimXmlStaxSr {
 
-  public static XMLOutputFactory createXMLOutputFactory() {
+  /**
+   * Creates the {@link XMLOutputFactory} that provides the XMLStreamWriter used for serialization.
+   * By default, this is {@link com.fasterxml.aalto.stax.OutputFactoryImpl}, configured for speed.
+   * This may be overriden in subclasses.
+   *
+   * @return the {@link XMLOutputFactory} that provides the XMLStreamWriter used for serialization
+   */
+  public static XMLOutputFactory createXmlOutputFactory() {
     var factory = new com.fasterxml.aalto.stax.OutputFactoryImpl();
     factory.configureForSpeed();
     return factory;
   }
 
-  private static final XMLOutputFactory xmlOutputFactory = createXMLOutputFactory();
+  private static final XMLOutputFactory xmlOutputFactory = createXmlOutputFactory();
 
   /**
    * Writes CIMXML for the given CIM Dataset Graph to the given OutputStream.
@@ -121,7 +127,7 @@ public class WriterCIMXML_StAX_SR {
 
   private void serialize(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
-    var serializer = new SerializerCIMXML_StAX_SR(xmlStreamWriter, cimDatasetGraph,
+    var serializer = new SerializerCimXmlStaxSr(xmlStreamWriter, cimDatasetGraph,
         prefixMap,
         sorted);
     try {

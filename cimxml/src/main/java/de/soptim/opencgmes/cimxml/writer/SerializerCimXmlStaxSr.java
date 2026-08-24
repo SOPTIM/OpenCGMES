@@ -30,7 +30,7 @@ import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.system.PrefixMap;
 import org.apache.jena.vocabulary.RDF;
 
-public class SerializerCIMXML_StAX_SR {
+class SerializerCimXmlStaxSr {
 
   private static final String rdfUri = RDF.uri;
   private static final String cimModelDescriptionUri = "http://iec.ch/TC57/61970-552/ModelDescription/1#";
@@ -56,7 +56,7 @@ public class SerializerCIMXML_StAX_SR {
     RESOURCE_PROPERTY
   }
 
-  public SerializerCIMXML_StAX_SR(XMLStreamWriter xmlStreamWriter,
+  SerializerCimXmlStaxSr(XMLStreamWriter xmlStreamWriter,
       CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
     this.xmlStreamWriter = xmlStreamWriter;
@@ -192,6 +192,8 @@ public class SerializerCIMXML_StAX_SR {
         case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
             replaceUrnUuidWithHash(
                 propertyTriple.getObject().getURI())); // Section 7.2.3.10 Resource-Property element
+        default -> throw new IllegalStateException(
+            "Unexpected property type: " + getPropertyType(propertyTriple.getObject()));
       }
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {

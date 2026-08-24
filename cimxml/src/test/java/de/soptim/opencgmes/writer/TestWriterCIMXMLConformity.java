@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import de.soptim.opencgmes.cimxml.CimHeaderVocabulary;
 import de.soptim.opencgmes.cimxml.sparql.core.LinkedCimDatasetGraph;
-import de.soptim.opencgmes.cimxml.writer.WriterCIMXML_StAX_SR;
+import de.soptim.opencgmes.cimxml.writer.WriterCimXmlStaxSr;
 import java.io.ByteArrayOutputStream;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.NodeFactory;
@@ -88,7 +88,7 @@ public class TestWriterCIMXMLConformity {
           </cim:ClassA>
         </rdf:RDF>""";
 
-    final var writer = new WriterCIMXML_StAX_SR();
+    final var writer = new WriterCimXmlStaxSr();
     var byteArrayOutputStream = new ByteArrayOutputStream();
     writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
     assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
@@ -143,7 +143,7 @@ public class TestWriterCIMXMLConformity {
           </cim:ClassA>
         </rdf:RDF>""";
 
-    final var writer = new WriterCIMXML_StAX_SR();
+    final var writer = new WriterCimXmlStaxSr();
     var byteArrayOutputStream = new ByteArrayOutputStream();
     writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
     assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
@@ -247,7 +247,7 @@ public class TestWriterCIMXMLConformity {
           </dm:DifferenceModel>
         </rdf:RDF>""";
 
-    final var writer = new WriterCIMXML_StAX_SR();
+    final var writer = new WriterCimXmlStaxSr();
     var byteArrayOutputStream = new ByteArrayOutputStream();
     writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
     assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());

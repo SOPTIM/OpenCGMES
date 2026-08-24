@@ -3,8 +3,8 @@ package de.soptim.opencgmes.writer;
 import static org.junit.Assert.assertEquals;
 
 import de.soptim.opencgmes.cimxml.parser.ReaderCIMXML_StAX_SR;
-import de.soptim.opencgmes.cimxml.parser.system.StreamCIMXMLToDatasetGraph;
-import de.soptim.opencgmes.cimxml.writer.WriterCIMXML_StAX_SR;
+import de.soptim.opencgmes.cimxml.parser.system.StreamCimXmlToDatasetGraph;
+import de.soptim.opencgmes.cimxml.writer.WriterCimXmlStaxSr;
 import java.io.StringReader;
 import java.io.StringWriter;
 import org.junit.Test;
@@ -31,12 +31,12 @@ public class ParserWriterIntegrationTest {
         </rdf:RDF>""";
 
     final var parser = new ReaderCIMXML_StAX_SR();
-    final var streamRDF = new StreamCIMXMLToDatasetGraph();
+    final var streamRDF = new StreamCimXmlToDatasetGraph();
     parser.read(new StringReader(cimxmlInstanceData), streamRDF);
 
-    var cimDatasetGraph = streamRDF.getCIMDatasetGraph();
+    var cimDatasetGraph = streamRDF.getCimDatasetGraph();
 
-    final var writer = new WriterCIMXML_StAX_SR();
+    final var writer = new WriterCimXmlStaxSr();
     var stringWriter = new StringWriter();
     writer.write(stringWriter, cimDatasetGraph, null, true);
     assertEquals(cimxmlInstanceData, stringWriter.toString());
@@ -75,12 +75,12 @@ public class ParserWriterIntegrationTest {
         </rdf:RDF>""";
 
     final var parser = new ReaderCIMXML_StAX_SR();
-    final var streamRDF = new StreamCIMXMLToDatasetGraph();
+    final var streamRDF = new StreamCimXmlToDatasetGraph();
     parser.read(new StringReader(cimxmlInstanceData), streamRDF);
 
-    var cimDatasetGraph = streamRDF.getCIMDatasetGraph();
+    var cimDatasetGraph = streamRDF.getCimDatasetGraph();
 
-    final var writer = new WriterCIMXML_StAX_SR();
+    final var writer = new WriterCimXmlStaxSr();
     var stringWriter = new StringWriter();
     writer.write(stringWriter, cimDatasetGraph, null, true);
     assertEquals(cimxmlInstanceData, stringWriter.toString());
