@@ -50,8 +50,7 @@ public class WriterCimXmlStaxSr {
 
   /**
    * Creates the {@link XMLOutputFactory} that provides the XMLStreamWriter used for serialization.
-   * By default, this is {@link com.fasterxml.aalto.stax.OutputFactoryImpl}, configured for speed.
-   * This may be overriden in subclasses.
+   * This is {@link com.fasterxml.aalto.stax.OutputFactoryImpl}, configured for speed.
    *
    * @return the {@link XMLOutputFactory} that provides the XMLStreamWriter used for serialization
    */
@@ -89,6 +88,7 @@ public class WriterCimXmlStaxSr {
       var xmlStreamWriter = new IndentingXMLStreamWriter(
           xmlOutputFactory.createXMLStreamWriter(out));
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
+      xmlStreamWriter.close();
     } catch (XMLStreamException ex) {
       throw new RiotException("Failed to create the XMLStreamWriter", ex);
     }
@@ -120,6 +120,7 @@ public class WriterCimXmlStaxSr {
       var xmlStreamWriter = new IndentingXMLStreamWriter(
           xmlOutputFactory.createXMLStreamWriter(out));
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
+      xmlStreamWriter.close();
     } catch (XMLStreamException ex) {
       throw new RiotException("Failed to create the XMLStreamWriter", ex);
     }

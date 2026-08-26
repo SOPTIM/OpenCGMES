@@ -229,8 +229,10 @@ class SerializerCimXmlStaxSr {
     currentGraph = graph;
     xmlStreamWriter.writeStartElement(differenceModelNamespaceUri, graphName);
     xmlStreamWriter.writeAttribute(rdfUri, "parseType", "Statements");
-    writeDefinitionElements();
-    writeDescriptionElements();
+    if (graph != null) {
+      writeDefinitionElements();
+      writeDescriptionElements();
+    }
     xmlStreamWriter.writeEndElement();
   }
 
