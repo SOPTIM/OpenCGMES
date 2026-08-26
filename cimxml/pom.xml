@@ -75,7 +75,6 @@
         <ver.stax2-api>4.3.0</ver.stax2-api>
         <ver.aalto-xml>1.4.0</ver.aalto-xml>
         <ver.woodstox-core>7.2.2</ver.woodstox-core>
-        <ver.txw2>4.0.6</ver.txw2>
 
         <!-- Utilities -->
         <ver.commons-io>2.22.0</ver.commons-io>
@@ -138,12 +137,6 @@
             <groupId>com.fasterxml.woodstox</groupId>
             <artifactId>woodstox-core</artifactId>
             <version>${ver.woodstox-core}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.glassfish.jaxb</groupId>
-            <artifactId>txw2</artifactId>
-            <version>${ver.txw2}</version>
         </dependency>
 
         <!-- Utilities -->

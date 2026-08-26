@@ -18,7 +18,6 @@
 
 package de.soptim.opencgmes.cimxml.writer;
 
-import com.sun.xml.txw2.output.IndentingXMLStreamWriter;
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
 import java.io.OutputStream;
 import java.io.Writer;
@@ -27,6 +26,7 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.riot.system.PrefixMap;
+import org.codehaus.stax2.XMLStreamWriter2;
 
 /**
  * IEC 61970-552 CIMXML writer for OpenCGMES.
@@ -85,8 +85,8 @@ public class WriterCimXmlStaxSr {
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
     try {
-      var xmlStreamWriter = new IndentingXMLStreamWriter(
-          xmlOutputFactory.createXMLStreamWriter(out));
+      var xmlStreamWriter = new IndentingXmlStreamWriter(
+          (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out));
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
       xmlStreamWriter.close();
     } catch (XMLStreamException ex) {
@@ -117,8 +117,8 @@ public class WriterCimXmlStaxSr {
   public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
     try {
-      var xmlStreamWriter = new IndentingXMLStreamWriter(
-          xmlOutputFactory.createXMLStreamWriter(out));
+      var xmlStreamWriter = new IndentingXmlStreamWriter(
+          (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out));
       serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
       xmlStreamWriter.close();
     } catch (XMLStreamException ex) {

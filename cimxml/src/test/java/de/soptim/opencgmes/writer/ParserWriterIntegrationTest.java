@@ -33,7 +33,8 @@ public class ParserWriterIntegrationTest {
   public void fullModel_ParsingAndWritingYieldsSameResult() {
     final var cimxmlInstanceData = """
         <?xml version='1.0' encoding='UTF-8'?>
-        <?iec61970-552 version="2.0"?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#" xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#" xml:base="urn:uuid:">
+        <?iec61970-552 version="2.0"?>
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#" xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#" xml:base="urn:uuid:">
           <md:FullModel rdf:about="urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6">
             <md:Model.profile>http://example.org/MyCustom/1/1</md:Model.profile>
           </md:FullModel>
@@ -64,7 +65,8 @@ public class ParserWriterIntegrationTest {
   public void differenceModel_ParsingAndWritingYieldsSameResult() {
     final var cimxmlInstanceData = """
         <?xml version='1.0' encoding='UTF-8'?>
-        <?iec61970-552 version="2.0"?><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#" xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#" xmlns:dm="http://iec.ch/TC57/61970-552/DifferenceModel/1#" xml:base="urn:uuid:">
+        <?iec61970-552 version="2.0"?>
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#" xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#" xmlns:dm="http://iec.ch/TC57/61970-552/DifferenceModel/1#" xml:base="urn:uuid:">
           <dm:DifferenceModel rdf:about="urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6">
             <dm:preconditions rdf:parseType="Statements">
               <rdf:Description rdf:about="#_135c601e-bad4-4872-ba8f-b15baf91bd2f">

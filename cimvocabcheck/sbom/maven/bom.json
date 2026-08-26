@@ -2498,80 +2498,6 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.glassfish.jaxb/txw2@4.0.6?type=jar",
-      "publisher" : "Eclipse Foundation",
-      "group" : "org.glassfish.jaxb",
-      "name" : "txw2",
-      "version" : "4.0.6",
-      "description" : "TXW is a library that allows you to write XML documents.",
-      "scope" : "required",
-      "hashes" : [
-        {
-          "alg" : "MD5",
-          "content" : "0bf7070aee3bb53640d2ea6441e059fb"
-        },
-        {
-          "alg" : "SHA-1",
-          "content" : "4f4cd53b5ff9a2c5aa1211f15ed2569c57dfb044"
-        },
-        {
-          "alg" : "SHA-256",
-          "content" : "fcc749785412ef3806fde1ce70f93ef5a0065dcc47fe449bc871db0795cb11af"
-        },
-        {
-          "alg" : "SHA-512",
-          "content" : "47eb0e4b199bb12804da94cf8a81a1e652e8ca31af68b65d52f1a0cda6e1c9b41276e4bc1e4ea510f83ecccff9978ff8bd05a56c5b16a4181d8e0673d608b2c4"
-        },
-        {
-          "alg" : "SHA-384",
-          "content" : "a28256c538462ea28a37dc01b60cf6d4dcba6d54146bdc762fbf4a0426bbbd3555c20d3164508dc8860ad7e652f80cc1"
-        },
-        {
-          "alg" : "SHA3-384",
-          "content" : "d220fc81c28a004c31e4469e27cb0d5d9b0e358bcbd3c0989e4b0065e7c081464c7091b8553c98cc060934305d468aa5"
-        },
-        {
-          "alg" : "SHA3-256",
-          "content" : "de4b8f8a5fe13b14d7ac56a8e1ae705f2160a6e873a997b72827ba5f124f7907"
-        },
-        {
-          "alg" : "SHA3-512",
-          "content" : "ea807533e719e593d7c3e12bc5eba7c84cebf01c398c1ff92122578a04849cc64b7ce300142261475e8d8a35cfaeb53faddd68b905c0309a21d5f27479b98ed3"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "BSD-3-Clause"
-          }
-        }
-      ],
-      "purl" : "pkg:maven/org.glassfish.jaxb/txw2@4.0.6?type=jar",
-      "externalReferences" : [
-        {
-          "type" : "website",
-          "url" : "https://eclipse-ee4j.github.io/jaxb-ri/"
-        },
-        {
-          "type" : "distribution-intake",
-          "url" : "https://jakarta.oss.sonatype.org/service/local/staging/deploy/maven2/"
-        },
-        {
-          "type" : "issue-tracker",
-          "url" : "https://github.com/eclipse-ee4j/jaxb-ri/issues"
-        },
-        {
-          "type" : "mailing-list",
-          "url" : "https://accounts.eclipse.org/mailing-list/jaxb-impl-dev"
-        },
-        {
-          "type" : "vcs",
-          "url" : "https://github.com/eclipse-ee4j/jaxb-ri.git/jaxb-txw-parent/txw2"
-        }
-      ]
-    },
-    {
-      "type" : "library",
       "bom-ref" : "pkg:maven/org.glassfish/jakarta.json@2.0.1?type=jar",
       "publisher" : "Eclipse Foundation",
       "group" : "org.glassfish",
@@ -3038,7 +2964,6 @@
         "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
         "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar",
-        "pkg:maven/org.glassfish.jaxb/txw2@4.0.6?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
       ]
     },
@@ -3154,10 +3079,6 @@
       "dependsOn" : [
         "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@1.0.0?type=jar"
       ]
-    },
-    {
-      "ref" : "pkg:maven/org.glassfish.jaxb/txw2@4.0.6?type=jar",
-      "dependsOn" : []
     },
     {
       "ref" : "pkg:maven/org.glassfish/jakarta.json@2.0.1?type=jar",
