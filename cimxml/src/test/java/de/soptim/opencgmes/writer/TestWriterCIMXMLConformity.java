@@ -114,6 +114,77 @@ public class TestWriterCIMXMLConformity {
   }
 
   @Test
+  public void writeFullModelGraph_withCompoundProperty() {
+    var graph = GraphFactory.createDefaultGraph();
+    var compoundNode = NodeFactory.createBlankNode();
+    graph.add(
+        NodeFactory.createURI("urn:uuid:594bb6e5-8da5-45c2-892e-59a648f2f862"),
+        NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA")
+    );
+    graph.add(
+        NodeFactory.createURI("urn:uuid:594bb6e5-8da5-45c2-892e-59a648f2f862"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA.compoundProperty"),
+        compoundNode
+    );
+    graph.add(
+        compoundNode,
+        NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ExampleCompoundType")
+    );
+    graph.add(
+        compoundNode,
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ExampleCompoundType.textProperty"),
+        NodeFactory.createLiteralString("My Text A")
+    );
+    graph.add(
+        compoundNode,
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ExampleCompoundType.intProperty"),
+        NodeFactory.createLiteral("1234", null, XSDDatatype.XSDinteger)
+    );
+    var modelHeaderGraph = GraphFactory.createDefaultGraph();
+    modelHeaderGraph.add(
+        NodeFactory.createURI("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6"),
+        NodeFactory.createURI("http://iec.ch/TC57/61970-552/ModelDescription/1#Model.profile"),
+        NodeFactory.createLiteralString("http://example.org/MyCustom/1/1")
+    );
+    modelHeaderGraph.add(
+        NodeFactory.createURI("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6"),
+        NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        NodeFactory.createURI("http://iec.ch/TC57/61970-552/ModelDescription/1#FullModel")
+    );
+    var cimDatasetGraph = new LinkedCimDatasetGraph(graph);
+    cimDatasetGraph.addGraph(CimHeaderVocabulary.TYPE_FULL_MODEL, modelHeaderGraph);
+    PrefixMap prefixes = cimDatasetGraph.prefixes();
+    prefixes.add("cim", "http://iec.ch/TC57/CIM100#");
+    prefixes.add("md", "http://iec.ch/TC57/61970-552/ModelDescription/1#");
+    prefixes.add("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+    modelHeaderGraph.getPrefixMapping().setNsPrefixes(prefixes.getMapping());
+
+    final var cimxmlInstanceData = """
+        <?xml version='1.0' encoding='UTF-8'?>
+        <?iec61970-552 version="2.0"?>
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#" xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#" xml:base="urn:uuid:">
+          <md:FullModel rdf:about="urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6">
+            <md:Model.profile>http://example.org/MyCustom/1/1</md:Model.profile>
+          </md:FullModel>
+          <cim:ClassA rdf:about="#_594bb6e5-8da5-45c2-892e-59a648f2f862">
+            <cim:ClassA.compoundProperty>
+              <cim:ExampleCompoundType>
+                <cim:ExampleCompoundType.intProperty>1234</cim:ExampleCompoundType.intProperty>
+                <cim:ExampleCompoundType.textProperty>My Text A</cim:ExampleCompoundType.textProperty>
+              </cim:ExampleCompoundType>
+            </cim:ClassA.compoundProperty>
+          </cim:ClassA>
+        </rdf:RDF>""";
+
+    final var writer = new WriterCimXmlStaxSr();
+    var byteArrayOutputStream = new ByteArrayOutputStream();
+    writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
+    assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
+  }
+
+  @Test
   public void writeFullModelGraph_escapesXMLEntities() {
     var graph = GraphFactory.createDefaultGraph();
     graph.add(

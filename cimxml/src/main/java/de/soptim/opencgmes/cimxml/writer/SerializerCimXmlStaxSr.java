@@ -247,7 +247,8 @@ class SerializerCimXmlStaxSr {
   }
 
   private void writeDefinitionElements() {
-    var tripleStream = currentGraph.stream(Node.ANY, RDF.type.asNode(), Node.ANY);
+    var tripleStream = currentGraph.stream(Node.ANY, RDF.type.asNode(), Node.ANY)
+        .filter(triple -> triple.getSubject().isURI());
     if (sorted) {
       tripleStream = tripleStream.sorted(Comparator.<Triple, String>comparing(
           triple -> triple.getObject().getURI()
@@ -260,6 +261,7 @@ class SerializerCimXmlStaxSr {
     var subjectStream = currentGraph.stream()
         .map(Triple::getSubject)
         .distinct()
+        .filter(Node::isURI)
         .filter(node -> !currentGraph.contains(node, RDF.type.asNode(), Node.ANY));
     if (sorted) {
       subjectStream = subjectStream.sorted(Comparator.comparing(Node::getURI));
