@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/root/.m2 \
     cp cimvocabcheck/cli/target/cimvocabcheck-cli-*.jar /cli.jar
 
 # ---- Stage 2: slim runtime -------------------------------------------------------------------
-FROM eclipse-temurin:25.0.3_9-jre AS runtime
+FROM eclipse-temurin:25.0.4_7-jre AS runtime
 
 LABEL org.opencontainers.image.title="CIMVocabCheck CLI" \
       org.opencontainers.image.description="Validate SPARQL queries and SHACL shapes against CIM/CGMES schema profiles." \
