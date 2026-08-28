@@ -69,12 +69,12 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Main dependencies -->
-        <ver.jena>6.1.0</ver.jena>
+        <ver.jena>6.2.0</ver.jena>
 
         <!-- XML -->
         <ver.stax2-api>4.3.0</ver.stax2-api>
         <ver.aalto-xml>1.4.0</ver.aalto-xml>
-        <ver.woodstox-core>7.2.1</ver.woodstox-core>
+        <ver.woodstox-core>7.2.2</ver.woodstox-core>
 
         <!-- Utilities -->
         <ver.commons-io>2.22.0</ver.commons-io>
@@ -96,20 +96,20 @@
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
         <ver.plugin.central-publishing>0.11.0</ver.plugin.central-publishing>
-        <ver.plugin.license-header>5.0.0</ver.plugin.license-header>
+        <ver.plugin.license-header>5.1.1</ver.plugin.license-header>
 
         <!-- TODO REMOVE THIS -->
         <cimxml.license.skip>true</cimxml.license.skip>
 
         <!-- Static analysis plugins -->
-        <ver.plugin.spotbugs-maven-plugin>4.10.2.0</ver.plugin.spotbugs-maven-plugin>
+        <ver.plugin.spotbugs-maven-plugin>4.10.3.0</ver.plugin.spotbugs-maven-plugin>
         <ver.plugin.maven-checkstyle-plugin>3.6.0</ver.plugin.maven-checkstyle-plugin>
         <ver.plugin.maven-jxr-plugin>3.6.0</ver.plugin.maven-jxr-plugin>
-        <ver.plugin.cyclonedx-maven-plugin>2.9.2</ver.plugin.cyclonedx-maven-plugin>
+        <ver.plugin.cyclonedx-maven-plugin>2.9.3</ver.plugin.cyclonedx-maven-plugin>
         <ver.plugin.jacoco-maven-plugin>0.8.15</ver.plugin.jacoco-maven-plugin>
         <ver.plugin.maven-pmd-plugin>3.28.0</ver.plugin.maven-pmd-plugin>
         <ver.plugin.license-maven-plugin>2.7.1</ver.plugin.license-maven-plugin>
-        <ver.plugin.checkstyle>13.7.0</ver.plugin.checkstyle>
+        <ver.plugin.checkstyle>13.9.0</ver.plugin.checkstyle>
     </properties>
 
     <dependencies>

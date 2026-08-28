@@ -65,7 +65,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Main dependencies -->
-        <ver.jena>6.1.0</ver.jena>
+        <ver.jena>6.2.0</ver.jena>
         <ver.cimxml>0.0.0-SNAPSHOT</ver.cimxml>
         <ver.jackson>2.22.1</ver.jackson>
 
@@ -86,14 +86,14 @@
         <ver.plugin.exec>3.6.3</ver.plugin.exec>
 
         <!-- Static analysis / formatting plugins -->
-        <ver.plugin.spotless>3.8.0</ver.plugin.spotless>
+        <ver.plugin.spotless>3.9.0</ver.plugin.spotless>
         <ver.googleJavaFormat>1.35.0</ver.googleJavaFormat>
-        <ver.plugin.spotbugs>4.10.2.0</ver.plugin.spotbugs>
+        <ver.plugin.spotbugs>4.10.3.0</ver.plugin.spotbugs>
         <ver.plugin.checkstyle-plugin>3.6.0</ver.plugin.checkstyle-plugin>
-        <ver.checkstyle>13.7.0</ver.checkstyle>
+        <ver.checkstyle>13.9.0</ver.checkstyle>
         <ver.plugin.pmd>3.28.0</ver.plugin.pmd>
         <ver.plugin.jacoco>0.8.15</ver.plugin.jacoco>
-        <ver.plugin.license-header>5.0.0</ver.plugin.license-header>
+        <ver.plugin.license-header>5.1.1</ver.plugin.license-header>
 
         <!-- JaCoCo coverage floors (calibrated per module; raise as tests grow) -->
         <jacoco.min.instruction>0.40</jacoco.min.instruction>

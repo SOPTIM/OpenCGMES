@@ -17,10 +17,10 @@
  */
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.4.0"
-    id("org.jetbrains.intellij.platform") version "2.17.0"
-    id("org.cyclonedx.bom") version "3.2.4"
-    id("com.diffplug.spotless") version "8.8.0"
+    id("org.jetbrains.kotlin.jvm") version "2.4.10"
+    id("org.jetbrains.intellij.platform") version "2.18.1"
+    id("org.cyclonedx.bom") version "3.3.0"
+    id("com.diffplug.spotless") version "8.9.0"
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -117,6 +117,12 @@ dependencies {
         // Update lsp4ijVersion in gradle.properties to the latest available release.
         plugins("com.redhat.devtools.lsp4ij:${providers.gradleProperty("lsp4ijVersion").get()}")
     }
+    testImplementation("org.junit.jupiter:junit-jupiter:5.14.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 // ---------------------------------------------------------------------------
