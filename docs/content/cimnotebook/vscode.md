@@ -121,8 +121,9 @@ status-bar button and **CIMNotebook: Set Cell Endpoint…** pick the target, and
 
 The **CIMNotebook** icon in the activity bar opens three native, collapsible sections for
 the workspace's [`opencgmes.jsonc`](/cimvocabcheck/configuration): **Connections**,
-**Validation** (strictness, standard-vocabulary check, schemas directory, schema files),
-and **Notebook Execution** (query timeout, max rows). Each row shows its current value —
+**Validation** (strictness, standard-vocabulary check, schemas directory, schema files,
+[RDFArchitect model](#rdfarchitect-view)), and **Notebook Execution** (query timeout,
+max rows). Each row shows its current value —
 click a row to edit it with a QuickPick or input box, use the `+` button in a section's
 title bar (or on **Schema files**) to add an entry, and hover a row for inline edit /
 remove / set-default / credentials actions. Adding a schema file or a connection's data
