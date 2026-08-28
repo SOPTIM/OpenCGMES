@@ -94,14 +94,18 @@ object RdfArchitectSessionBridge {
     fun connection(project: Project): Connection? = project.getUserData(CONNECTION_KEY)
 
     /**
-     * Reads the session of [browser] once it has loaded [url] and hands it to the language server.
-     * Runs on every load, so navigating the view — or RDFArchitect handing out a new session —
-     * keeps the connection current.
+     * Reads the session of [browser] on every load and hands it to the language server, so
+     * navigating the view — or RDFArchitect handing out a new session — keeps the connection
+     * current.
+     *
+     * [base] is asked each time rather than passed as a value: the browser is reused when the
+     * configured instance changes, and a session reported under the previous instance is one the
+     * language server pairs with the wrong URL and then declines to use.
      */
     fun attach(
         project: Project,
         browser: JBCefBrowser,
-        url: String,
+        base: () -> String,
     ) {
         val query = JBCefJSQuery.create(browser as JBCefBrowserBase)
         query.addHandler { answer ->
@@ -112,14 +116,14 @@ object RdfArchitectSessionBridge {
 
                 answer.startsWith(ERROR_PREFIX) -> {
                     LOG.info(
-                        "RDFArchitect at $url did not answer which session it uses (" +
+                        "RDFArchitect at ${base()} did not answer which session it uses (" +
                             answer.removePrefix(ERROR_PREFIX) +
                             "); reading the session cookie instead.",
                     )
                 }
 
                 else -> {
-                    connect(project, url, answer)
+                    connect(project, base(), answer)
                 }
             }
             null
@@ -134,7 +138,7 @@ object RdfArchitectSessionBridge {
                     if (frame?.isMain != true) {
                         return
                     }
-                    readSessionCookie(project, browser, url)
+                    readSessionCookie(project, browser, base())
                     askTheApp(cefBrowser, query)
                 }
             },
