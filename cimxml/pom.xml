@@ -96,13 +96,13 @@
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
         <ver.plugin.central-publishing>0.11.0</ver.plugin.central-publishing>
-        <ver.plugin.license-header>5.1.1</ver.plugin.license-header>
+        <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
 
         <!-- TODO REMOVE THIS -->
         <cimxml.license.skip>true</cimxml.license.skip>
 
         <!-- Static analysis plugins -->
-        <ver.plugin.spotbugs-maven-plugin>4.10.3.0</ver.plugin.spotbugs-maven-plugin>
+        <ver.plugin.spotbugs-maven-plugin>4.10.4.0</ver.plugin.spotbugs-maven-plugin>
         <ver.plugin.maven-checkstyle-plugin>3.6.0</ver.plugin.maven-checkstyle-plugin>
         <ver.plugin.maven-jxr-plugin>3.6.0</ver.plugin.maven-jxr-plugin>
         <ver.plugin.cyclonedx-maven-plugin>2.9.3</ver.plugin.cyclonedx-maven-plugin>
