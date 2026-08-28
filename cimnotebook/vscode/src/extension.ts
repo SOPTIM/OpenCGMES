@@ -46,7 +46,7 @@ import { registerConfigTreeViews } from "./sidebar/treeViews";
 
 const CHANNEL = "CIMNotebook";
 
-/** The documents CIMNotebook validates: the language client's scope, and the term links' scope. */
+/** The documents CIMNotebook validates — the language client's scope. */
 const SCHEMA_DOCUMENTS = [
     { scheme: "file", language: "sparql" },
     { scheme: "file", language: "shacl" },
@@ -64,6 +64,11 @@ let client: LanguageClient | undefined;
 let out: vscode.LogOutputChannel;
 // Singleton RDFArchitect panel — reopening the command reveals it instead of stacking panels.
 let rdfArchitectPanel: vscode.WebviewPanel | undefined;
+// The instance the panel currently shows. The panel outlives the call that created it and can be
+// re-pointed at another instance, so its message handler has to read this rather than close over
+// the base it was created with — otherwise a session is reported under the wrong URL and the
+// language server, which pairs the two, declines to use it.
+let rdfArchitectPanelBase: string | undefined;
 // Kept for workspaceState, which remembers what was last sent to RDFArchitect.
 let extensionContext: vscode.ExtensionContext;
 
@@ -1116,11 +1121,13 @@ function showRdfArchitectPanel(
 ): void {
     if (rdfArchitectPanel) {
         if (navigate) {
+            rdfArchitectPanelBase = base;
             rdfArchitectPanel.webview.html = rdfArchitectHtml(url);
         }
         rdfArchitectPanel.reveal();
         return;
     }
+    rdfArchitectPanelBase = base;
     void offerSchemaSync(base, termIri);
     const panel = vscode.window.createWebviewPanel(
         "cimnotebook.rdfArchitect",
@@ -1139,13 +1146,14 @@ function showRdfArchitectPanel(
         } else if (msg.command === "sendSchema") {
             void sendSchemaToRdfArchitect();
         } else if (msg.command === "session" && msg.id) {
-            void connectRdfArchitectSession(base, msg.id);
+            void connectRdfArchitectSession(rdfArchitectPanelBase ?? base, msg.id);
         } else if (msg.command === "sessionUnavailable") {
-            void reportMissingSession(base);
+            void reportMissingSession(rdfArchitectPanelBase ?? base);
         }
     });
     panel.onDidDispose(() => {
         rdfArchitectPanel = undefined;
+        rdfArchitectPanelBase = undefined;
     });
     rdfArchitectPanel = panel;
 }

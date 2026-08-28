@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -79,9 +80,33 @@ public class RdfArchitectLiveDatasetTest {
     return ttl.toString();
   }
 
+  /** A minimal ENTSO-E RDFS profile — the schema the config switches over to below. */
+  private static final String SCHEMA_RDF =
+      """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+               xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+               xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+               xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#">
+        <rdf:Description rdf:about="http://entsoe.eu/TestExt#TestVersion.shortName">
+          <rdfs:domain rdf:resource="http://entsoe.eu/TestExt#TestVersion"/>
+          <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">EQ</cims:isFixed>
+        </rdf:Description>
+        <rdf:Description rdf:about="http://entsoe.eu/TestExt#TestVersion.entsoeURI">
+          <rdfs:domain rdf:resource="http://entsoe.eu/TestExt#TestVersion"/>
+          <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">http://example.org/TestProfile/1</cims:isFixed>
+        </rdf:Description>
+        <rdfs:Class rdf:about="http://iec.ch/TC57/2013/CIM-schema-cim16#Breaker">
+          <rdfs:label>Breaker</rdfs:label>
+        </rdfs:Class>
+      </rdf:RDF>
+      """;
+
   private HttpServer server;
   private String changeId = "";
   private final java.util.List<String> cookiesSeen = new java.util.ArrayList<>();
+  private final java.util.concurrent.atomic.AtomicInteger changeLogPolls =
+      new java.util.concurrent.atomic.AtomicInteger();
 
   @Before
   public void setUp() throws IOException {
@@ -117,6 +142,7 @@ public class RdfArchitectLiveDatasetTest {
     } else if (path.endsWith("/content")) {
       body = turtle;
     } else if (path.endsWith("/changes")) {
+      changeLogPolls.incrementAndGet();
       body = changeId.isEmpty() ? "[]" : "[{\"changeId\":\"" + changeId + "\"}]";
     } else {
       body = null;
@@ -273,6 +299,58 @@ public class RdfArchitectLiveDatasetTest {
       assertEquals(Optional.empty(), manager.connectedRdfArchitect());
     } finally {
       manager.shutdown();
+    }
+  }
+
+  /**
+   * A workspace that stops naming RDFArchitect must stop being polled for edits over there — the
+   * poll is armed per config, and only a reload can disarm it.
+   */
+  @Test
+  public void aConfigThatDropsRdfArchitectStopsBeingPolled() throws Exception {
+    Path workspace = java.nio.file.Files.createTempDirectory("rdfa-live");
+    Path config = workspace.resolve("opencgmes.jsonc");
+    Path schema = workspace.resolve("profile.rdf");
+    java.nio.file.Files.writeString(schema, SCHEMA_RDF);
+    java.nio.file.Files.writeString(
+        config, "{ \"cimvocabcheck\": { \"rdfArchitect\": \"" + DATASET + "\" } }");
+
+    SchemaManager manager = new SchemaManager();
+    try {
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      manager.loadAsync(workspace);
+      for (int i = 0; i < 100 && manager.getApi().isEmpty(); i++) {
+        Thread.sleep(50);
+      }
+      assertTrue(
+          "the workspace schema must come from RDFArchitect first", manager.getApi().isPresent());
+
+      // The user points the config at a schema file instead.
+      java.nio.file.Files.writeString(
+          config, "{ \"cimvocabcheck\": { \"schemas\": [\"profile.rdf\"] } }");
+      manager.reloadAsync();
+      for (int i = 0; i < 100; i++) {
+        Thread.sleep(50);
+        if (manager
+            .workspaceSchemaFor(workspace)
+            .map(ws -> ws.definitionIndex() != null)
+            .orElse(false)) {
+          break;
+        }
+      }
+
+      int polls = changeLogPolls.get();
+      for (int i = 0; i < 10; i++) {
+        Thread.sleep(20);
+        manager.workspaceSchemaFor(workspace);
+      }
+      assertEquals(
+          "nothing in RDFArchitect backs this workspace any more", polls, changeLogPolls.get());
+    } finally {
+      manager.shutdown();
+      java.nio.file.Files.deleteIfExists(schema);
+      java.nio.file.Files.deleteIfExists(config);
+      java.nio.file.Files.deleteIfExists(workspace);
     }
   }
 

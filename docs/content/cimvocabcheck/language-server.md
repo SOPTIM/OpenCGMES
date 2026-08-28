@@ -55,8 +55,8 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   [as it is edited](/cimvocabcheck/configuration#live-datasets); no arguments disconnects), and
   `cimvocabcheck.rdfArchitectTerms` (`[uri]` → the instance and dataset a document's schema comes
   from and the ranges of the terms it names, each with the profiles declaring it and the graph
-  holding each profile, or `null` when the schema comes from anywhere else; backs Ctrl+Click into
-  RDFArchitect, which a schema without source files cannot answer with a location).
+  holding each profile, or `null` when the schema comes from anywhere else; backs the editors'
+  **Open in RDFArchitect** action and its profile chooser).
 
 ## Configuration discovery
 

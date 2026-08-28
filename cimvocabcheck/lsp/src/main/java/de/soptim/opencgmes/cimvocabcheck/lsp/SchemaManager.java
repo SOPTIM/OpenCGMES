@@ -657,6 +657,9 @@ final class SchemaManager {
   /** Live sources behind cached schemas, so edits in RDFArchitect can be noticed. */
   private final Map<String, LiveSource> liveSources = new ConcurrentHashMap<>();
 
+  /** Document directory → the nearest config's {@code rdfArchitect} value ({@code ""} for none). */
+  private final Map<Path, String> rdfArchitectRefCache = new ConcurrentHashMap<>();
+
   /**
    * How long a live dataset is served from cache before its change log is checked again. Long
    * enough that a burst of keystrokes does not poll RDFArchitect, short enough that an edit made
@@ -773,20 +776,34 @@ final class SchemaManager {
     }
   }
 
-  /** The {@code rdfArchitect} value of the nearest config, or {@code null} when there is none. */
+  /**
+   * The {@code rdfArchitect} value of the nearest config, or {@code null} when there is none.
+   *
+   * <p>Cached per directory, because {@link #rdfArchitectRefFor} asks on every go-to-definition
+   * request — which both editors resolve while the user is merely hovering — and answering means
+   * walking up to the nearest {@code opencgmes.jsonc} and parsing it. The cache is dropped on every
+   * reload, i.e. whenever a config file changes.
+   */
   private String configuredRdfArchitect(Path docDir) {
     Path start = docDir != null ? docDir : workspaceRoot;
     if (start == null) {
       return null;
     }
-    Optional<Path> configFile = ConfigLoader.discoverFile(start);
+    String ref = rdfArchitectRefCache.computeIfAbsent(start, SchemaManager::readRdfArchitect);
+    return ref.isEmpty() ? null : ref;
+  }
+
+  /** The nearest config's {@code rdfArchitect} value, or {@code ""} for "none" (a cacheable no). */
+  private static String readRdfArchitect(Path docDir) {
+    Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
     if (configFile.isEmpty()) {
-      return null;
+      return "";
     }
     try {
-      return ConfigLoader.load(configFile.get()).rdfArchitect();
+      String ref = ConfigLoader.load(configFile.get()).rdfArchitect();
+      return ref == null ? "" : ref;
     } catch (Exception e) {
-      return null;
+      return "";
     }
   }
 
@@ -1109,6 +1126,7 @@ final class SchemaManager {
       failedEndpoints.clear();
     }
     workspaceSchemaCache.clear();
+    rdfArchitectRefCache.clear();
 
     Optional<Path> configFile = ConfigLoader.discoverFile(root);
     primaryConfigKey = configFile.map(Path::toString).orElse(null);
@@ -1165,6 +1183,9 @@ final class SchemaManager {
   private WorkspaceSchema buildSchemaForConfig(Path configFile, boolean quietLoad)
       throws Exception {
     Path base = configFile.toAbsolutePath().getParent();
+    // A config that no longer names RDFArchitect must stop being polled for edits; only
+    // buildSchemaFromRdfArchitect re-arms the entry, so dropping it here is what bounds that.
+    liveSources.remove(configLiveKey(configFile));
     CimvocabcheckConfig config = ConfigLoader.load(configFile);
     if (config.rdfArchitect() != null && !config.rdfArchitect().isBlank()) {
       return buildSchemaFromRdfArchitect(config, configFile, quietLoad);
