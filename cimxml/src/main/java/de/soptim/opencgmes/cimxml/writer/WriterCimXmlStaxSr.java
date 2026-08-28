@@ -25,6 +25,8 @@ import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.riot.RiotException;
+import org.apache.jena.riot.system.ErrorHandler;
+import org.apache.jena.riot.system.ErrorHandlerFactory;
 import org.apache.jena.riot.system.PrefixMap;
 import org.codehaus.stax2.XMLStreamWriter2;
 
@@ -61,6 +63,24 @@ public class WriterCimXmlStaxSr {
   }
 
   private static final XMLOutputFactory xmlOutputFactory = createXmlOutputFactory();
+
+  private final ErrorHandler errorHandler;
+
+  /**
+   * Creates a new WriterCimXmlStaxSr with the default error handler.
+   */
+  public WriterCimXmlStaxSr() {
+    this(ErrorHandlerFactory.errorHandlerStd);
+  }
+
+  /**
+   * Creates a new WriterCimXmlStaxSr with the given error handler.
+   *
+   * @param errorHandler the error handler used when writing
+   */
+  public WriterCimXmlStaxSr(ErrorHandler errorHandler) {
+    this.errorHandler = errorHandler;
+  }
 
   /**
    * Writes CIMXML for the given CIM Dataset Graph to the given OutputStream.
@@ -128,9 +148,12 @@ public class WriterCimXmlStaxSr {
 
   private void serialize(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap, boolean sorted) {
-    var serializer = new SerializerCimXmlStaxSr(xmlStreamWriter, cimDatasetGraph,
+    var serializer = new SerializerCimXmlStaxSr(
+        xmlStreamWriter,
+        cimDatasetGraph,
         prefixMap,
-        sorted);
+        sorted,
+        errorHandler);
     try {
       serializer.serialize();
     } catch (Exception e) {

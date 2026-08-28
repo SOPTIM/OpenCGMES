@@ -26,7 +26,7 @@ import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.Triple;
-import org.apache.jena.riot.RiotException;
+import org.apache.jena.riot.system.ErrorHandler;
 import org.apache.jena.riot.system.PrefixMap;
 import org.apache.jena.vocabulary.RDF;
 
@@ -46,6 +46,7 @@ class SerializerCimXmlStaxSr {
   private final CimDatasetGraph cimDatasetGraph;
   private final Map<String, String> prefixMap;
   private final boolean sorted;
+  private final ErrorHandler errorHandler;
 
   private boolean isDifferenceModel;
   private Graph currentGraph;
@@ -58,12 +59,15 @@ class SerializerCimXmlStaxSr {
 
   SerializerCimXmlStaxSr(XMLStreamWriter xmlStreamWriter,
       CimDatasetGraph cimDatasetGraph,
-      PrefixMap prefixMap, boolean sorted) {
+      PrefixMap prefixMap,
+      boolean sorted,
+      ErrorHandler errorHandler) {
     this.xmlStreamWriter = xmlStreamWriter;
     this.cimDatasetGraph = cimDatasetGraph;
     this.prefixMap =
         prefixMap == null ? cimDatasetGraph.prefixes().getMapping() : prefixMap.getMapping();
     this.sorted = sorted;
+    this.errorHandler = errorHandler;
   }
 
   void serialize() throws XMLStreamException {
@@ -72,30 +76,36 @@ class SerializerCimXmlStaxSr {
     } else if (cimDatasetGraph.isDifferenceModel()) {
       isDifferenceModel = true;
     } else {
-      throw new RiotException(
-          "Dataset must be either a FullModel or a DifferenceModel!"
-      );
+      error("Dataset must be either a FullModel or a DifferenceModel!");
     }
     verifyNamespacesAndSetPrefixes();
     serializeModel();
   }
 
   private void verifyNamespacesAndSetPrefixes() throws XMLStreamException {
-    if (!prefixMap.getOrDefault("rdf", "").equals(rdfUri)) {
-      throw new RiotException("The rdf prefix must be set correctly!");
-    }
-    if (!prefixMap.getOrDefault("md", "").equals(cimModelDescriptionUri)) {
-      throw new RiotException("The md prefix must be set correctly!");
-    }
-    if (isDifferenceModel && !prefixMap.getOrDefault("dm", "")
-        .equals(differenceModelNamespaceUri)) {
-      throw new RiotException("The dm prefix must be set correctly in a DifferenceModel!");
+    verifyNamespaceAndSetPrefix(rdfUri, "rdf");
+    verifyNamespaceAndSetPrefix(cimModelDescriptionUri, "md");
+    if (isDifferenceModel) {
+      verifyNamespaceAndSetPrefix(differenceModelNamespaceUri, "dm");
     }
     if (!prefixMap.containsKey("cim")) {
-      throw new RiotException("The cim prefix must be set!");
+      error("The cim prefix must be set!");
     }
     for (var entry : prefixMap.entrySet()) {
       xmlStreamWriter.setPrefix(entry.getKey(), entry.getValue());
+    }
+  }
+
+  private void verifyNamespaceAndSetPrefix(String namespaceUri, String defaultPrefix)
+      throws XMLStreamException {
+    if (prefixMap.containsValue(namespaceUri)) {
+      if (!prefixMap.getOrDefault(defaultPrefix, "").equals(namespaceUri)) {
+        warn("The prefix set for the namespace " + namespaceUri + "is not the default prefix.");
+      }
+    } else {
+      warn("The namespace " + namespaceUri + "is not set. "
+          + "Using the default prefix: " + defaultPrefix);
+      xmlStreamWriter.setPrefix(defaultPrefix, namespaceUri);
     }
   }
 
@@ -119,6 +129,7 @@ class SerializerCimXmlStaxSr {
       writeFullModelElement();
       currentGraph = cimDatasetGraph.getBody();
       writeDefinitionElements();
+      checkForElementsWithoutType();
     }
     xmlStreamWriter.writeEndElement();
   }
@@ -145,7 +156,7 @@ class SerializerCimXmlStaxSr {
       writeProperties(subjectNode);
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
-      throw new RiotException(e);
+      error(e.getMessage());
     }
   }
 
@@ -157,7 +168,7 @@ class SerializerCimXmlStaxSr {
       writeProperties(subjectNode);
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
-      throw new RiotException(e);
+      error(e.getMessage());
     }
   }
 
@@ -171,7 +182,7 @@ class SerializerCimXmlStaxSr {
       writeProperties(subjectNode);
       xmlStreamWriter.writeEndElement();
     } else {
-      throw new RiotException("A compound element is missing a type triple!");
+      error("A compound element is missing a type triple!");
     }
   }
 
@@ -192,12 +203,12 @@ class SerializerCimXmlStaxSr {
         case RESOURCE_PROPERTY -> xmlStreamWriter.writeAttribute(rdfUri, "resource",
             replaceUrnUuidWithHash(
                 propertyTriple.getObject().getURI())); // Section 7.2.3.10 Resource-Property element
-        default -> throw new RiotException(
-            "Unexpected property type: " + getPropertyType(propertyTriple.getObject()));
+        default ->
+            error("Unexpected property type: " + getPropertyType(propertyTriple.getObject()));
       }
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
-      throw new RiotException(e);
+      error(e.getMessage());
     }
   }
 
@@ -269,7 +280,26 @@ class SerializerCimXmlStaxSr {
     subjectStream.forEachOrdered(this::writeDescriptionElement);
   }
 
+  private void checkForElementsWithoutType() {
+    var containsNodeWithoutType = currentGraph.stream()
+        .map(Triple::getSubject)
+        .distinct()
+        .anyMatch(node -> !currentGraph.contains(node, RDF.type.asNode(), Node.ANY));
+    if (containsNodeWithoutType) {
+      warn("The graph contains nodes without an rdf:type triple."
+          + " This should not occur in a full model.");
+    }
+  }
+
   private static String replaceUrnUuidWithHash(String uri) {
     return uri.replace(baseUri, "#_");
+  }
+
+  private void warn(String message) {
+    errorHandler.warning(message, -1, -1);
+  }
+
+  private void error(String message) {
+    errorHandler.error(message, -1, -1);
   }
 }
