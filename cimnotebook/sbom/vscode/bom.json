@@ -184,8 +184,8 @@
     {
       "type": "library",
       "name": "brace-expansion",
-      "version": "5.0.7",
-      "bom-ref": "cimnotebook@0.0.0|brace-expansion@5.0.7",
+      "version": "5.0.9",
+      "bom-ref": "cimnotebook@0.0.0|brace-expansion@5.0.9",
       "licenses": [
         {
           "license": {
@@ -194,15 +194,15 @@
           }
         }
       ],
-      "purl": "pkg:npm/brace-expansion@5.0.7",
+      "purl": "pkg:npm/brace-expansion@5.0.9",
       "externalReferences": [
         {
-          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.7.tgz",
+          "url": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-5.0.9.tgz",
           "type": "distribution",
           "hashes": [
             {
               "alg": "SHA-512",
-              "content": "ee8172ef4dddc5f637fcd2f10b57e1d925024341fdae6018fb91290d57d78d44d3b3e1c4c11da761aa8bbfe196713b2e9b0c4f7e2cfa0b308d9305f0054c2a08"
+              "content": "49c43822ebc8105d533253fb66dfaf8c9ffff7394f6f64837315b13376e4f2ceade8619d27b28ed5d09c4e274e3c929e3d6df42c4ff6713ef00b23e1a3dfd6c6"
             }
           ],
           "comment": "as detected from npm-ls property \"resolved\" and property \"integrity\""
@@ -465,7 +465,7 @@
       "ref": "cimnotebook@0.0.0|balanced-match@4.0.4"
     },
     {
-      "ref": "cimnotebook@0.0.0|brace-expansion@5.0.7",
+      "ref": "cimnotebook@0.0.0|brace-expansion@5.0.9",
       "dependsOn": [
         "cimnotebook@0.0.0|balanced-match@4.0.4"
       ]
@@ -473,7 +473,7 @@
     {
       "ref": "cimnotebook@0.0.0|minimatch@10.2.5",
       "dependsOn": [
-        "cimnotebook@0.0.0|brace-expansion@5.0.7"
+        "cimnotebook@0.0.0|brace-expansion@5.0.9"
       ]
     },
     {
