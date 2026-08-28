@@ -306,7 +306,9 @@ Schema configuration itself lives in [`opencgmes.jsonc`](/cimvocabcheck/configur
 
 :::note Applying changes
 Changing a server-launch setting (`serverJar`, `javaExecutable`, `javaArgs`) requires a window
-reload — VS Code prompts you to reload when one changes.
+reload — VS Code prompts you to reload when one changes. Switching `rdfArchitectUrl` between an
+`http` and an `https` instance prompts too, because it changes the certificates the language
+server's JVM is launched with (see [Live datasets](#live-datasets)).
 :::
 
 The **CIMNotebook: Show Output** command opens the extension's output channel, the first place to

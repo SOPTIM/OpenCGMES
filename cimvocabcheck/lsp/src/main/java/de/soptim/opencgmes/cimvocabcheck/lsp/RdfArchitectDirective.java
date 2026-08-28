@@ -56,16 +56,4 @@ final class RdfArchitectDirective {
     Matcher m = PATTERN.matcher(text);
     return m.find() ? Optional.of(m.group(1).trim()) : Optional.empty();
   }
-
-  /**
-   * The schema source for a document: its RDFArchitect link (marked with {@link #SCHEME}) if it
-   * declares one, else its {@code # [endpoint=...]} value, else {@code null} for the workspace
-   * schema.
-   */
-  static String schemaSourceOf(String text) {
-    return parse(text)
-        .map(url -> SCHEME + url)
-        .or(() -> EndpointDirective.parse(text))
-        .orElse(null);
-  }
 }

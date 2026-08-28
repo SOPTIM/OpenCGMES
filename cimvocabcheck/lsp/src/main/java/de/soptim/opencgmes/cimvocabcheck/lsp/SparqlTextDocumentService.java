@@ -543,7 +543,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
     }
     SchemaIndex index = schema == null ? null : schema.api().schemaIndex();
     boolean accepted = index != null ? termKnown(index, term) : isModelTerm(term);
-    if (accepted && !localNameOf(term.getURI()).isEmpty()) {
+    if (accepted && hasLocalName(term.getURI())) {
       terms.add(new TermRange(line, start, end, term.getURI(), termProfiles(term, schema)));
     }
   }
@@ -581,10 +581,13 @@ final class SparqlTextDocumentService implements TextDocumentService {
         && !ExemptVocabulary.isOpenNamespace(term);
   }
 
-  /** The part of an IRI after its last {@code #} or {@code /}, empty when it has neither. */
-  private static String localNameOf(String iri) {
+  /**
+   * Whether an IRI ends in a name — a {@code #} or {@code /} with something after it. A token that
+   * does not is a namespace or an opaque identifier, never a term RDFArchitect could show.
+   */
+  private static boolean hasLocalName(String iri) {
     int sep = Math.max(iri.lastIndexOf('#'), iri.lastIndexOf('/'));
-    return sep >= 0 ? iri.substring(sep + 1) : "";
+    return sep >= 0 && sep + 1 < iri.length();
   }
 
   private Hover computeHover(HoverParams params) {

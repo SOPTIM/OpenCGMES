@@ -37,9 +37,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Tests the {@code # [rdfarchitect=...]} directive: how it is parsed, that it takes precedence over
- * SPARQL Notebook's {@code # [endpoint=...]}, and that {@link SchemaManager} loads the named model
- * from the instance.
+ * Tests the {@code # [rdfarchitect=...]} directive: how it is parsed, and that {@link
+ * SchemaManager} loads the named model from the instance. Its precedence over the {@code #
+ * [endpoint=...]} directives a document may also carry is covered by {@link
+ * RdfArchitectTermsCommandTest}.
  */
 public class RdfArchitectDirectiveTest {
 
@@ -111,29 +112,6 @@ public class RdfArchitectDirectiveTest {
   @Test
   public void ignoresADocumentWithoutTheDirective() {
     assertEquals(Optional.empty(), RdfArchitectDirective.parse("SELECT * WHERE { ?s ?p ?o }"));
-    assertNull(RdfArchitectDirective.schemaSourceOf("SELECT * WHERE { ?s ?p ?o }"));
-  }
-
-  @Test
-  public void fallsBackToTheEndpointDirective() {
-    assertEquals(
-        "https://example.org/query",
-        RdfArchitectDirective.schemaSourceOf("# [endpoint=https://example.org/query]\nSELECT *"));
-  }
-
-  @Test
-  public void winsOverTheEndpointDirective() {
-    // A notebook cell may need both: the endpoint runs the query, RDFArchitect supplies the schema.
-    String text =
-        """
-        # [endpoint=https://example.org/query]
-        # [rdfarchitect=http://localhost:3000/?snapshot=abc]
-        SELECT * WHERE { ?s ?p ?o }
-        """;
-
-    assertEquals(
-        RdfArchitectDirective.SCHEME + "http://localhost:3000/?snapshot=abc",
-        RdfArchitectDirective.schemaSourceOf(text));
   }
 
   @Test
