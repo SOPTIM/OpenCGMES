@@ -255,7 +255,9 @@ class RdfArchitectPanel(
         Disposer.register(toolWindow.disposable, created)
         // The tool window is our own browser, so its RDFArchitect session can be read directly and
         // handed to the language server — that is what makes live datasets readable.
-        RdfArchitectSessionBridge.attach(project, created, RdfArchitectToolWindowFactory.baseOf(url))
+        // baseOf() reads the configured instance, so the bridge follows a changed setting: the
+        // browser is reused across a URL change and would otherwise keep reporting the old one.
+        RdfArchitectSessionBridge.attach(project, created) { RdfArchitectToolWindowFactory.baseOf(url) }
         browser = created
         return created.component
     }

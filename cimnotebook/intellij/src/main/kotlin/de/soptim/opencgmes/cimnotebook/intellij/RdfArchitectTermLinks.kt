@@ -19,10 +19,8 @@ package de.soptim.opencgmes.cimnotebook.intellij
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -97,22 +95,9 @@ class RdfArchitectTermLinks(
 
     private val cache = ConcurrentHashMap<String, Entry>()
 
-    /** The term at [offset] and where to open it, or null when nothing there opens in RDFArchitect. */
-    fun termAt(
-        file: VirtualFile,
-        document: Document,
-        offset: Int,
-    ): Target? {
-        if (offset < 0 || offset > document.textLength) {
-            return null
-        }
-        val line = document.getLineNumber(offset)
-        return termAt(file, document.modificationStamp, line, offset - document.getLineStartOffset(line))
-    }
-
     /**
-     * The term at a line/column of the revision [stamp], for callers that read the position on the
-     * EDT and then look it up off it — the lookup can wait on the language server.
+     * The term at a line/column of the revision [stamp]. The position is read on the EDT and looked
+     * up off it, because the lookup can wait on the language server.
      */
     fun termAt(
         file: VirtualFile,
@@ -137,12 +122,6 @@ class RdfArchitectTermLinks(
     ): Terms? {
         val uri = LSPIJUtils.toUriAsString(file)
         cache[uri]?.let { if (it.stamp == stamp) return it.terms }
-        if (ApplicationManager.getApplication().isDispatchThread) {
-            // Ctrl+click can land here on the EDT; never block it. The refresh makes the answer
-            // available a moment later, and until then the last one for this file is used.
-            ApplicationManager.getApplication().executeOnPooledThread { store(uri, stamp) }
-            return cache[uri]?.terms
-        }
         return store(uri, stamp)
     }
 
