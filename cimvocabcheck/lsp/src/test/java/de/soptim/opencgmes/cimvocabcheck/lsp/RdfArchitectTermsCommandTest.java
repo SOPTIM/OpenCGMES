@@ -211,6 +211,29 @@ public class RdfArchitectTermsCommandTest {
     assertNull(run("file:///not/open.rq"));
   }
 
+  /**
+   * A cell may need both directives: {@code endpoint} runs the query, {@code rdfarchitect} says
+   * where the schema comes from. The more specific statement about the schema wins.
+   */
+  @Test
+  public void theRdfArchitectDirectiveWinsOverAnEndpointDirective() throws Exception {
+    String uri = "file:///queries/both.rq";
+    open(
+        uri,
+        "# [endpoint=http://127.0.0.1:1/query]\n"
+            + "# [rdfarchitect="
+            + INSTANCE
+            + "/?dataset=cgmes]\n"
+            + "PREFIX cim: <"
+            + CIM
+            + ">\nSELECT * WHERE { ?s a cim:ACLineSegment }\n");
+
+    Map<String, Object> result = run(uri);
+
+    assertEquals(INSTANCE, result.get("baseUrl"));
+    assertEquals(List.of(CIM + "ACLineSegment"), iris(terms(result)));
+  }
+
   @SuppressWarnings("unchecked")
   private static List<Map<String, Object>> terms(Map<String, Object> result) {
     return (List<Map<String, Object>>) result.get("terms");
