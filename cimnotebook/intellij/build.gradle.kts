@@ -19,8 +19,8 @@ plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.4.10"
     id("org.jetbrains.intellij.platform") version "2.18.1"
-    id("org.cyclonedx.bom") version "3.3.0"
-    id("com.diffplug.spotless") version "8.9.0"
+    id("org.cyclonedx.bom") version "3.4.1"
+    id("com.diffplug.spotless") version "8.10.1"
 }
 
 group = providers.gradleProperty("pluginGroup").get()
