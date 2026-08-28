@@ -26,6 +26,7 @@ import {
     connectionLabel,
     effectiveStandardVocabulary,
     numberSettingDescription,
+    rdfArchitectDescription,
     schemasDirectoryDescription,
     standardVocabularyDescription,
     standardVocabularyValueToWrite,
@@ -127,6 +128,28 @@ describe("strictness / standardVocabulary description and write-value mapping", 
             "not set (schema files below are used)",
         );
         assert.equal(schemasDirectoryDescription("profiles", 0), "profiles");
+    });
+
+    it("schemasDirectory says so when the model comes from RDFArchitect instead", () => {
+        assert.equal(
+            schemasDirectoryDescription(undefined, 0, "cgmes-3.0"),
+            "not set (the RDFArchitect model below is used)",
+        );
+        // Schema files win: they are what the config actually loads.
+        assert.equal(
+            schemasDirectoryDescription(undefined, 2, "cgmes-3.0"),
+            "not set (schema files below are used)",
+        );
+    });
+
+    it("the RDFArchitect row says whether the view has to be open for it", () => {
+        assert.equal(rdfArchitectDescription(undefined), "not set");
+        assert.equal(rdfArchitectDescription("  "), "not set");
+        assert.equal(rdfArchitectDescription("cgmes-3.0"), "cgmes-3.0 (dataset in the open view)");
+        assert.equal(
+            rdfArchitectDescription("http://localhost:3000/?snapshot=abc"),
+            "http://localhost:3000/?snapshot=abc (link)",
+        );
     });
 
     it("picking the schema-default value clears the field; anything else is written", () => {
