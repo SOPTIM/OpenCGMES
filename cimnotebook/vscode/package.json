@@ -255,6 +255,11 @@
                 "category": "CIMNotebook"
             },
             {
+                "command": "cimnotebook.config.editRdfArchitect",
+                "title": "Edit RDFArchitect Model",
+                "category": "CIMNotebook"
+            },
+            {
                 "command": "cimnotebook.config.addSchemaFile",
                 "title": "Add Schema File",
                 "category": "CIMNotebook",
@@ -380,6 +385,10 @@
                 },
                 {
                     "command": "cimnotebook.config.editSchemasDirectory",
+                    "when": "false"
+                },
+                {
+                    "command": "cimnotebook.config.editRdfArchitect",
                     "when": "false"
                 },
                 {
