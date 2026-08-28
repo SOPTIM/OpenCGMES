@@ -25,6 +25,7 @@ import de.soptim.opencgmes.cimvocabcheck.cli.output.JsonFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.TextFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.schema.SchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
+import de.soptim.opencgmes.cimvocabcheck.core.RuleSeverities;
 import de.soptim.opencgmes.cimvocabcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
@@ -184,11 +185,12 @@ public class ValidateCommand implements Callable<Integer> {
       requireValidStrictnessFlag(); // fail fast on a bad flag before loading anything
 
       SchemaContext schema = resolveSchema();
-      StrictnessLevel strictness = resolveStrictness(schema.config());
+      SeverityPolicy severities =
+          new SeverityPolicy(resolveStrictness(schema.config()), resolveRules(schema.config()));
       Map<Node, Collection<VersionIri>> namedGraphScope = buildNamedGraphScope(schema);
       SparqlValidationApi api = buildApi(schema);
 
-      List<FileResult> results = validateInputs(schema, api, namedGraphScope, strictness);
+      List<FileResult> results = validateInputs(schema, api, namedGraphScope, severities);
       writeResults(format, results);
 
       // Exit code: 1 if any file is invalid, otherwise 0.
@@ -325,6 +327,15 @@ public class ValidateCommand implements Callable<Integer> {
     }
   }
 
+  /** Resolves the config's per-check severity overrides. */
+  private RuleSeverities resolveRules(CimvocabcheckConfig config) {
+    try {
+      return config == null ? RuleSeverities.NONE : config.ruleSeverities();
+    } catch (IllegalArgumentException e) {
+      throw abortUsage(e.getMessage());
+    }
+  }
+
   /** Resolves the effective strictness: CLI flag → config file → {@code "default"}. */
   private StrictnessLevel resolveStrictness(CimvocabcheckConfig config) {
     String levelStr =
@@ -373,7 +384,7 @@ public class ValidateCommand implements Callable<Integer> {
       SchemaContext schema,
       SparqlValidationApi api,
       Map<Node, Collection<VersionIri>> namedGraphScope,
-      StrictnessLevel strictness) {
+      SeverityPolicy severities) {
 
     var results = new ArrayList<FileResult>();
     String stdinText = null;
@@ -393,7 +404,7 @@ public class ValidateCommand implements Callable<Integer> {
         System.err.println("Error reading " + source + ": " + e.getMessage());
         throw new AbortException(ExitCode.USAGE);
       }
-      results.add(validateOne(schema, api, namedGraphScope, strictness, input, source, text));
+      results.add(validateOne(schema, api, namedGraphScope, severities, input, source, text));
     }
     return results;
   }
@@ -402,24 +413,31 @@ public class ValidateCommand implements Callable<Integer> {
       SchemaContext schema,
       SparqlValidationApi api,
       Map<Node, Collection<VersionIri>> namedGraphScope,
-      StrictnessLevel strictness,
+      SeverityPolicy severities,
       String input,
       String source,
       String text) {
 
     if (schema.syntaxOnly()) {
       boolean checkStdVocab = schema.config() == null || schema.config().checkStandardVocabulary();
-      return applyStrictness(
-          validateSyntaxOnly(source, text, isTurtleFile(input), checkStdVocab), strictness);
+      return applySeverities(
+          validateSyntaxOnly(source, text, isTurtleFile(input), checkStdVocab), severities);
     }
     if (isTurtleFile(input)) {
-      return applyStrictness(validateShaclInput(api, source, text), strictness);
+      return applySeverities(validateShaclInput(api, source, text), severities);
     }
     SparqlValidationResult r = validateSparql(api, text, namedGraphScope);
-    List<SparqlValidationAnnotation> effective = strictness.apply(r.annotations());
+    List<SparqlValidationAnnotation> effective = severities.apply(r.annotations());
     boolean valid =
         effective.stream().noneMatch(a -> a.severity() == SparqlValidationSeverity.ERROR);
     return new FileResult(source, valid, effective);
+  }
+
+  /** The effective severity policy for this run: per-check overrides plus the strictness level. */
+  private record SeverityPolicy(StrictnessLevel strictness, RuleSeverities rules) {
+    List<SparqlValidationAnnotation> apply(List<SparqlValidationAnnotation> annotations) {
+      return rules.apply(annotations, strictness);
+    }
   }
 
   private void writeResults(Format format, List<FileResult> results) {
@@ -610,8 +628,8 @@ public class ValidateCommand implements Callable<Integer> {
     return Files.readString(Path.of(input), StandardCharsets.UTF_8);
   }
 
-  private static FileResult applyStrictness(FileResult r, StrictnessLevel level) {
-    List<SparqlValidationAnnotation> effective = level.apply(r.annotations());
+  private static FileResult applySeverities(FileResult r, SeverityPolicy severities) {
+    List<SparqlValidationAnnotation> effective = severities.apply(r.annotations());
     boolean valid =
         effective.stream().noneMatch(a -> a.severity() == SparqlValidationSeverity.ERROR);
     return new FileResult(r.source(), valid, effective);

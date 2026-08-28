@@ -20,6 +20,8 @@ package de.soptim.opencgmes.cimvocabcheck.core.analysis;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import org.apache.jena.graph.Node;
 import org.apache.jena.query.Query;
 import org.apache.jena.sparql.algebra.Op;
 
@@ -28,7 +30,8 @@ import org.apache.jena.sparql.algebra.Op;
  *
  * <p>The collections are de-duplicated value lists in source order. A {@code dynamicPredicate} flag
  * of {@code true} means at least one triple in the query has a variable predicate, which cannot be
- * validated statically.
+ * validated statically. {@code expressionVariables} holds the variables the query constrains in a
+ * {@code FILTER} / {@code BIND} expression or a {@code VALUES} block.
  */
 public record SparqlQueryAnalysis(
     Query query,
@@ -39,10 +42,11 @@ public record SparqlQueryAnalysis(
     List<GraphReference> graphs,
     List<PathChainReference> pathChains,
     List<ConstantReference> constants,
+    Set<Node> expressionVariables,
     boolean dynamicPredicate,
     boolean dynamicClass) {
 
-  /** Canonical constructor; validates required fields and defensively copies the lists. */
+  /** Canonical constructor; validates required fields and defensively copies the collections. */
   public SparqlQueryAnalysis {
     Objects.requireNonNull(query, "query");
     Objects.requireNonNull(algebra, "algebra");
@@ -52,5 +56,6 @@ public record SparqlQueryAnalysis(
     graphs = List.copyOf(graphs);
     pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
     constants = constants == null ? List.of() : List.copyOf(constants);
+    expressionVariables = expressionVariables == null ? Set.of() : Set.copyOf(expressionVariables);
   }
 }

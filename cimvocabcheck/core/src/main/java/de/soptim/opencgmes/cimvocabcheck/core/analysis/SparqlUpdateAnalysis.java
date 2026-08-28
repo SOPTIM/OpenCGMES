@@ -20,6 +20,8 @@ package de.soptim.opencgmes.cimvocabcheck.core.analysis;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import org.apache.jena.graph.Node;
 import org.apache.jena.update.UpdateRequest;
 
 /**
@@ -40,10 +42,11 @@ public record SparqlUpdateAnalysis(
     List<GraphReference> graphs,
     List<PathChainReference> pathChains,
     List<ConstantReference> constants,
+    Set<Node> expressionVariables,
     boolean dynamicPredicate,
     boolean dynamicClass) {
 
-  /** Canonical constructor; validates required fields and defensively copies the lists. */
+  /** Canonical constructor; validates required fields and defensively copies the collections. */
   public SparqlUpdateAnalysis {
     Objects.requireNonNull(updateRequest, "updateRequest");
     triples = List.copyOf(triples);
@@ -52,5 +55,6 @@ public record SparqlUpdateAnalysis(
     graphs = List.copyOf(graphs);
     pathChains = pathChains == null ? List.of() : List.copyOf(pathChains);
     constants = constants == null ? List.of() : List.copyOf(constants);
+    expressionVariables = expressionVariables == null ? Set.of() : Set.copyOf(expressionVariables);
   }
 }
