@@ -109,7 +109,7 @@
         <ver.plugin.jacoco-maven-plugin>0.8.15</ver.plugin.jacoco-maven-plugin>
         <ver.plugin.maven-pmd-plugin>3.28.0</ver.plugin.maven-pmd-plugin>
         <ver.plugin.license-maven-plugin>2.7.1</ver.plugin.license-maven-plugin>
-        <ver.plugin.checkstyle>14.0.0</ver.plugin.checkstyle>
+        <ver.plugin.checkstyle>14.1.0</ver.plugin.checkstyle>
     </properties>
 
     <dependencies>
