@@ -71,3 +71,7 @@ Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to submi
 
 This project adheres to a code of conduct adapted from the [Apache Foundation's Code of Conduct](https://www.apache.org/foundation/policies/conduct).
 We expect all contributors and users to follow these guidelines to ensure a welcoming and inclusive community.
+
+## Acknowledgements
+
+We would like to thank [Amprion GmbH](https://www.amprion.net/) for contributing the implementation of CIM XML serialization to this repository.
