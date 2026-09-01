@@ -90,7 +90,7 @@
         <ver.googleJavaFormat>1.35.0</ver.googleJavaFormat>
         <ver.plugin.spotbugs>4.10.4.0</ver.plugin.spotbugs>
         <ver.plugin.checkstyle-plugin>3.6.0</ver.plugin.checkstyle-plugin>
-        <ver.checkstyle>14.0.0</ver.checkstyle>
+        <ver.checkstyle>14.1.0</ver.checkstyle>
         <ver.plugin.pmd>3.28.0</ver.plugin.pmd>
         <ver.plugin.jacoco>0.8.15</ver.plugin.jacoco>
         <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
