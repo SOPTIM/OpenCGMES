@@ -44,11 +44,40 @@ import org.apache.jena.graph.Triple;
  * @param triple the Jena {@link Triple} (variables, URIs, blank nodes, literals)
  * @param graph enclosing {@code GRAPH <g>} node, or {@code null} for default-graph
  * @param scopeChain immutable ancestor path; first element is always {@code 0} (root)
+ * @param origin whether the triple matches data or produces it
  */
-public record TriplePatternReference(Triple triple, Node graph, List<Integer> scopeChain) {
+public record TriplePatternReference(
+    Triple triple, Node graph, List<Integer> scopeChain, Origin origin) {
 
-  /** Convenience constructor for root-scope triples (scopeChain = {@code [0]}). */
+  /** Whether a triple is matched against the data or produced by the query. */
+  public enum Origin {
+    /** A pattern matched against the data: a WHERE clause, or a {@code DELETE WHERE} body. */
+    PATTERN,
+    /**
+     * A triple produced by the query rather than matched: a {@code CONSTRUCT} template or an {@code
+     * INSERT}/{@code DELETE} template. Checks that reason about how a pattern <em>matches </em> —
+     * join behaviour, optionality — do not apply to these.
+     */
+    TEMPLATE
+  }
+
+  /** Canonical constructor; defaults a {@code null} origin to {@link Origin#PATTERN}. */
+  public TriplePatternReference {
+    origin = origin == null ? Origin.PATTERN : origin;
+  }
+
+  /** Convenience constructor for root-scope match patterns (scopeChain = {@code [0]}). */
   public TriplePatternReference(Triple triple, Node graph) {
-    this(triple, graph, List.of(0));
+    this(triple, graph, List.of(0), Origin.PATTERN);
+  }
+
+  /** Convenience constructor for match patterns in a known scope. */
+  public TriplePatternReference(Triple triple, Node graph, List<Integer> scopeChain) {
+    this(triple, graph, scopeChain, Origin.PATTERN);
+  }
+
+  /** Returns whether this triple is matched against the data (rather than produced by it). */
+  public boolean isPattern() {
+    return origin == Origin.PATTERN;
   }
 }
