@@ -168,6 +168,21 @@ public final class SourceLocator {
     return toLineColumn(query, best);
   }
 
+  /**
+   * Locates the first occurrence of a SPARQL variable in the query text, trying both the {@code
+   * ?name} and {@code $name} spellings. Returns {@link #UNKNOWN} when the variable cannot be found.
+   */
+  public static Location locateVariable(String query, String name) {
+    if (query == null || name == null || name.isEmpty()) {
+      return UNKNOWN;
+    }
+    var offsets = new ArrayList<Integer>();
+    collectAllWholeToken(query, "?" + name, offsets);
+    collectAllWholeToken(query, "$" + name, offsets);
+    offsets.sort(Integer::compare);
+    return offsets.isEmpty() ? UNKNOWN : toLineColumn(query, offsets.get(0));
+  }
+
   // ---- offset collection -----------------------------------------------------------------
 
   private static List<Integer> findAllTermOffsets(String query, Node term, PrefixMapping prefixes) {

@@ -156,7 +156,8 @@ public final class SparqlValidationApi {
   }
 
   /**
-   * Performs a schema-independent syntax check, returning only {@code SYNTAX_ERROR} annotations.
+   * Performs a schema-independent check: syntax, plus — for inputs that parse as a query — the
+   * (equally schema-independent) unused-variable analysis of {@link UnusedVariableCheck}.
    *
    * <p>Used as a fallback when no schema can be resolved (for example a {@code # [endpoint=...]} is
    * briefly unreachable) so that a cell containing broken SPARQL still gets squiggles rather than
@@ -165,8 +166,9 @@ public final class SparqlValidationApi {
    * {@code cim:} and friends without an explicit {@code PREFIX} line is not mis-reported as a
    * syntax error.
    *
-   * @return a result whose annotations are empty when the input parses as either a query or an
-   *     update, or hold a single {@code SYNTAX_ERROR} when neither parser accepts it
+   * @return a result whose annotations are empty when the input parses cleanly, hold {@code
+   *     PROJECTED_VARIABLE_UNBOUND}/{@code UNUSED_VARIABLE} warnings for a query with unused
+   *     variables, or hold a single {@code SYNTAX_ERROR} when neither parser accepts the input
    */
   public static SparqlValidationResult checkSyntaxOnly(String input) {
     Objects.requireNonNull(input, "input");
@@ -174,8 +176,15 @@ public final class SparqlValidationApi {
     SparqlQueryAnalyzer analyzer = new SparqlQueryAnalyzer();
     InvalidQueryException queryError;
     try {
-      analyzer.parse(inj.text());
-      return new SparqlValidationResult(input, null, List.of());
+      Query query = analyzer.parse(inj.text());
+      var warnings = UnusedVariableCheck.check(query, inj.text());
+      if (warnings.isEmpty()) {
+        return new SparqlValidationResult(input, null, List.of());
+      }
+      SparqlValidationResult raw = new SparqlValidationResult(inj.text(), null, warnings);
+      return inj.injectedLineCount() > 0
+          ? adjustLineNumbers(raw, input, inj.injectedLineCount())
+          : new SparqlValidationResult(input, null, warnings);
     } catch (InvalidQueryException e) {
       queryError = e; // remember the query error; it is more informative than the update one
     }
@@ -238,9 +247,11 @@ public final class SparqlValidationApi {
       Graph shapesGraph, boolean checkStandardVocabulary) {
     Objects.requireNonNull(shapesGraph, "shapesGraph");
     var extractor = new ShaclSparqlExtractor();
+    Set<String> exemptVars = shaclExemptVariableNames(shapesGraph);
     var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
     for (EmbeddedSparql q : extractor.extract(shapesGraph)) {
-      SparqlValidationResult r = checkSyntaxOnly(q.renderedQuery());
+      SparqlValidationResult r =
+          suppressShaclPreboundVariables(checkSyntaxOnly(q.renderedQuery()), exemptVars);
       embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
     }
     // The vocabulary-typo check is schema-independent (it consults only the bundled W3C
@@ -769,6 +780,7 @@ public final class SparqlValidationApi {
     // Embedded-SPARQL analysis: sh:select, sh:ask, sh:construct.
     // For each query, pass $this → sh:targetClass as a subject-type hint so that
     // domain/range checks fire correctly even when $this has no explicit rdf:type in the query.
+    Set<String> exemptVars = shaclExemptVariableNames(shapesGraph);
     var embeddedResults = new ArrayList<ShaclEmbeddedQueryResult>();
     for (EmbeddedSparql q : shaclExtractor.extract(shapesGraph)) {
       Map<Node, Set<Node>> hints =
@@ -776,11 +788,60 @@ public final class SparqlValidationApi {
               ? Map.of()
               : Map.of(org.apache.jena.sparql.core.Var.alloc("this"), q.targetClasses());
       var r = validator.validate(renderedQueryWithPath(q), scope, hints);
-      r = suppressImpliedType(r);
+      r = suppressShaclPreboundVariables(suppressImpliedType(r), exemptVars);
       embeddedResults.add(new ShaclEmbeddedQueryResult(q, r));
     }
 
     return new ShaclValidationResult(shapeAnnotations, embeddedResults);
+  }
+
+  /**
+   * Variables the SHACL engine pre-binds in embedded SPARQL constraints and validators ({@code
+   * $this}, {@code ?value}, …), plus the {@code $PATH} placeholder. They are legitimately projected
+   * or referenced without being bound in the query body, so the unused-variable warnings must not
+   * fire for them.
+   */
+  private static final Set<String> SHACL_PREBOUND_VARIABLES =
+      Set.of("this", "value", "PATH", "shapesGraph", "currentShape");
+
+  /**
+   * Returns the full set of variable names the unused-variable check must treat as pre-bound for
+   * {@code shapesGraph}: the fixed {@link #SHACL_PREBOUND_VARIABLES} plus every custom {@code
+   * sh:ConstraintComponent} parameter name declared in the graph itself (see {@link
+   * ShaclSparqlExtractor#collectConstraintParameterNames(Graph)}). Custom parameters are just as
+   * pre-bound as {@code $this} — a component declaring {@code sh:parameter [ sh:path ex:myList ]}
+   * legitimately references {@code $myList} in its SPARQL body without binding it there.
+   */
+  private static Set<String> shaclExemptVariableNames(Graph shapesGraph) {
+    var names = new LinkedHashSet<>(SHACL_PREBOUND_VARIABLES);
+    names.addAll(ShaclSparqlExtractor.collectConstraintParameterNames(shapesGraph));
+    return names;
+  }
+
+  /**
+   * Removes {@link SparqlValidationCode#PROJECTED_VARIABLE_UNBOUND} / {@link
+   * SparqlValidationCode#UNUSED_VARIABLE} annotations about SHACL pre-bound variables from an
+   * embedded-SPARQL result — e.g. {@code SELECT $this WHERE { FILTER NOT EXISTS { ... } }} is a
+   * perfectly valid constraint because the engine binds {@code $this} before evaluation.
+   *
+   * @param exemptNames the pre-bound variable names for the enclosing shapes graph, from {@link
+   *     #shaclExemptVariableNames(Graph)}
+   */
+  private static SparqlValidationResult suppressShaclPreboundVariables(
+      SparqlValidationResult r, Set<String> exemptNames) {
+    var filtered =
+        r.annotations().stream()
+            .filter(
+                a ->
+                    !((a.code() == SparqlValidationCode.PROJECTED_VARIABLE_UNBOUND
+                            || a.code() == SparqlValidationCode.UNUSED_VARIABLE)
+                        && a.term() != null
+                        && a.term().isVariable()
+                        && exemptNames.contains(a.term().getName())))
+            .toList();
+    return filtered.size() == r.annotations().size()
+        ? r
+        : new SparqlValidationResult(r.query(), r.queryPlan(), filtered);
   }
 
   /**

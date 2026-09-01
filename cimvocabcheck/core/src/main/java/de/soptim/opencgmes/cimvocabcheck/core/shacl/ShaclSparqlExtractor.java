@@ -82,6 +82,38 @@ public final class ShaclSparqlExtractor {
     return List.copyOf(out);
   }
 
+  /**
+   * Collects the local names of custom {@code sh:ConstraintComponent} parameters declared in {@code
+   * shapesGraph} via {@code sh:parameter [ sh:path ex:foo ]}, e.g. {@code "foo"}.
+   *
+   * <p>Per SHACL-SPARQL (§5.3), the SPARQL variable a constraint component's query body pre-binds
+   * for such a parameter is named after the local name of its {@code sh:path} — exactly like the
+   * built-in {@code $this} / {@code ?value}, but with an author-chosen name. A property shape's
+   * {@code $myList} is therefore a legitimate pre-bound reference, not an unbound/unused variable,
+   * whenever {@code myList} matches a declared parameter's local name anywhere in the shapes graph.
+   */
+  public static Set<String> collectConstraintParameterNames(Graph shapesGraph) {
+    var names = new LinkedHashSet<String>();
+    Iterator<Triple> it = shapesGraph.find(Node.ANY, Shacl.PARAMETER, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Node path = singleObject(shapesGraph, it.next().getObject(), Shacl.PATH);
+        if (path != null && path.isURI()) {
+          names.add(localName(path.getURI()));
+        }
+      }
+    } finally {
+      JenaIterators.closeQuietly(it);
+    }
+    return names;
+  }
+
+  /** Returns the local name of a URI (the part after the last {@code #} or {@code /}). */
+  private static String localName(String uri) {
+    int sep = Math.max(uri.lastIndexOf('#'), uri.lastIndexOf('/'));
+    return sep >= 0 ? uri.substring(sep + 1) : uri;
+  }
+
   private static void collectQueries(
       Graph g,
       Node predicate,

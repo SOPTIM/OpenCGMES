@@ -152,6 +152,7 @@ public final class SparqlQueryValidator {
             a.dynamicClass());
     List<SparqlValidationAnnotation> ann =
         validateReferences(refs, scope, a.query().getPrefixMapping(), originalText);
+    ann.addAll(UnusedVariableCheck.check(a.query(), originalText));
     return new SparqlValidationResult(originalText, plan, ann);
   }
 
