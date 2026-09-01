@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.List;
 import java.util.Optional;
 import org.junit.Test;
 
@@ -84,5 +85,23 @@ public class EndpointDirectiveTest {
   @Test
   public void absentForNullText() {
     assertTrue(EndpointDirective.parse(null).isEmpty());
+  }
+
+  @Test
+  public void parseAllReturnsEveryDirectiveInOrder() {
+    String text = "# [endpoint=./first.ttl]\n# [endpoint=./second.ttl]\nSELECT * {}";
+    assertEquals(List.of("./first.ttl", "./second.ttl"), EndpointDirective.parseAll(text));
+  }
+
+  @Test
+  public void parseAllKeepsGlobPatterns() {
+    String text = "# [endpoint=./rdf/{a,b}.ttl]\n# [endpoint=./rdf/*.ttl]\nSELECT * {}";
+    assertEquals(List.of("./rdf/{a,b}.ttl", "./rdf/*.ttl"), EndpointDirective.parseAll(text));
+  }
+
+  @Test
+  public void parseAllIsEmptyWithoutDirectives() {
+    assertEquals(List.of(), EndpointDirective.parseAll("SELECT * {}"));
+    assertEquals(List.of(), EndpointDirective.parseAll(null));
   }
 }

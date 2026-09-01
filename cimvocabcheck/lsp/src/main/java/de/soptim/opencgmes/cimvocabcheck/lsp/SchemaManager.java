@@ -28,12 +28,17 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.FileGlobs;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConfigLoader;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConnection;
 import de.soptim.opencgmes.cimvocabcheck.lsp.schema.SchemaLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -46,6 +51,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 import org.apache.jena.graph.Node;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.MessageType;
@@ -126,6 +133,13 @@ final class SchemaManager {
   /** How long a failed endpoint load is negatively cached before a retry is allowed. */
   private static final Duration FAILURE_TTL = Duration.ofSeconds(30);
 
+  /**
+   * Extensions a local {@code # [endpoint=...]} directive must have to be loaded as a schema.
+   * Anything else (a CIMXML {@code .xml} model, {@code .nt}/{@code .nq}/{@code .trig} data) is
+   * instance data for notebook execution, not a schema — see {@link #resolveSchema}.
+   */
+  private static final Set<String> SCHEMA_FILE_EXTENSIONS = Set.of("ttl", "rdf", "owl");
+
   /** Schemas loaded from a {@code # [endpoint=...]} directive, keyed by resolved source. */
   private final Map<String, ResolvedSchema> endpointCache = new ConcurrentHashMap<>();
 
@@ -191,24 +205,144 @@ final class SchemaManager {
   }
 
   /**
-   * Resolves the schema a document should be validated against.
-   *
-   * <p>When {@code endpoint} is {@code null}/blank, the document's workspace schema is used: the
-   * nearest {@code opencgmes.jsonc} above the document. When none is found (or it declares no
-   * schemas) the result is empty and the caller validates syntax-only. Otherwise the schema is
-   * loaded from the endpoint — a local {@code .ttl}/{@code .rdf}/{@code .owl} file or a remote
-   * SPARQL endpoint — and cached by resolved source.
+   * Resolves the schema a document should be validated against — {@link #schemaSourceOf} followed
+   * by {@link #resolveFrom}. Callers that also need to know <em>whether</em> the endpoint is a
+   * schema source (to tell a failed endpoint apart from one that never was one) should call the two
+   * separately.
    *
    * @param endpoint the {@code # [endpoint=...]} value, or {@code null} for the workspace schema
    * @param docDir the document's own directory, used for config discovery and relative endpoints
    */
   Optional<ResolvedSchema> resolveSchema(String endpoint, Path docDir) {
-    if (endpoint == null || endpoint.isBlank()) {
+    return resolveSchema(endpoint == null ? List.of() : List.of(endpoint), docDir);
+  }
+
+  /** {@link #resolveSchema(String, Path)} over all of a document's directives. */
+  Optional<ResolvedSchema> resolveSchema(List<String> endpoints, Path docDir) {
+    return resolveFrom(schemaSourceOf(endpoints, docDir), docDir);
+  }
+
+  /** Single-directive form of {@link #schemaSourceOf(List, Path)}. */
+  SchemaSource schemaSourceOf(String endpoint, Path docDir) {
+    return schemaSourceOf(endpoint == null ? List.of() : List.of(endpoint), docDir);
+  }
+
+  /**
+   * The source a document's endpoint directives load their schema from — a remote SPARQL endpoint
+   * URL or a union of local {@code .ttl}/{@code .rdf}/{@code .owl} files (several directives and
+   * glob patterns like {@code ./rdf/*.ttl} name multiple files) — or {@code null} when the
+   * directives name no schema at all and the document's workspace schema applies instead. That is
+   * the case for a blank directive, and for these notebook-specific ones:
+   *
+   * <ul>
+   *   <li><b>Instance data.</b> The same directive is also the cell's execution target, which may
+   *       be a CIMXML model or an {@code .nt}/{@code .nq}/{@code .trig} dump. Loading data as a
+   *       schema would turn every term in the cell into a false diagnostic. In a multi-file union,
+   *       instance-data files are skipped and only the schema files load.
+   *   <li><b>An unresolvable connection name.</b> Names with no matching {@code "cimnotebook"}
+   *       connection, or whose connection declares no remote URL, have no schema to offer.
+   *   <li><b>Conflicting directives.</b> Several directives are meaningful only as a union of
+   *       files; two URLs, two connection names, or a mix of kinds carry no single schema (the
+   *       client refuses to execute such cells for the same reason).
+   * </ul>
+   */
+  SchemaSource schemaSourceOf(List<String> endpoints, Path docDir) {
+    List<String> directives =
+        endpoints == null
+            ? List.of()
+            : endpoints.stream().filter(e -> e != null && !e.isBlank()).toList();
+    if (directives.isEmpty()) {
+      return null;
+    }
+    if (directives.size() == 1) {
+      String endpoint = directives.get(0);
+      if (isRemote(endpoint)) {
+        return SchemaSource.remote(endpoint);
+      }
+      if (looksLikeConnectionName(endpoint)) {
+        // Notebook cells may name a connection from the "cimnotebook" config section instead of a
+        // URL or file. Resolving it here keeps validation and execution agreeing on what the
+        // directive means: the schema loads from the connection's endpoint.
+        NotebookConnection connection =
+            NotebookConfigLoader.forDirectory(docDir).config().byName(endpoint);
+        return connection != null && connection.url() != null && isRemote(connection.url())
+            ? SchemaSource.remote(connection.url())
+            : null;
+      }
+    } else if (!directives.stream().allMatch(SchemaManager::looksLikeFile)) {
+      return null; // conflicting directives — see the javadoc
+    }
+    List<Path> schemaFiles = resolveSchemaFiles(directives, docDir);
+    return schemaFiles.isEmpty() ? null : SchemaSource.localFiles(schemaFiles);
+  }
+
+  /**
+   * Resolves file directives to the schema files they name: glob patterns expand to their matches,
+   * plain paths resolve as-is (existence is checked at load time so a missing file still warns),
+   * and non-schema files — instance data — are skipped.
+   */
+  private List<Path> resolveSchemaFiles(List<String> directives, Path docDir) {
+    var files = new LinkedHashSet<Path>();
+    for (String directive : directives) {
+      if (FileGlobs.isPattern(directive)) {
+        Path base = docDir != null ? docDir : workspaceRoot;
+        try {
+          FileGlobs.expand(directive, base).stream()
+              .filter(SchemaManager::isSchemaFile)
+              .forEach(files::add);
+        } catch (PatternSyntaxException e) {
+          LOG.debug("Ignoring invalid endpoint pattern {}: {}", directive, e.getMessage());
+        }
+        continue;
+      }
+      Path file = resolveLocalEndpoint(directive, docDir);
+      if (isSchemaFile(file)) {
+        files.add(file);
+      } else {
+        LOG.debug("Endpoint directive {} is not a schema file; using the workspace schema", file);
+      }
+    }
+    return List.copyOf(files);
+  }
+
+  /**
+   * Loads the schema from a {@link #schemaSourceOf} result, caching it by source; {@code null} —
+   * i.e. no schema source — falls back to the document's workspace schema (the nearest {@code
+   * opencgmes.jsonc} above it). Empty when nothing applies: no config, a config without schemas, or
+   * an endpoint that is still loading or failed — the caller then validates syntax-only.
+   */
+  Optional<ResolvedSchema> resolveFrom(SchemaSource source, Path docDir) {
+    if (source == null) {
       return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
     }
-    return isRemote(endpoint)
-        ? resolveRemote(endpoint)
-        : resolveLocal(resolveLocalEndpoint(endpoint, docDir));
+    return source.isRemote() ? resolveRemote(source.remoteUrl()) : resolveLocal(source.files());
+  }
+
+  /**
+   * Whether a directive could be a named connection: no path separators, no extension dot, no glob
+   * metacharacters. Only such directives pay for a config lookup; files virtually always have an
+   * extension, so "model.xml" never does, while "local-fuseki" does. (A connection whose name
+   * contains a dot or slash is not resolvable from a directive — documented limitation.)
+   */
+  private static boolean looksLikeConnectionName(String endpoint) {
+    return !endpoint.contains("/")
+        && !endpoint.contains("\\")
+        && !endpoint.contains(".")
+        && !FileGlobs.isPattern(endpoint);
+  }
+
+  /** Whether a directive is file-ish: not a remote URL and not a plausible connection name. */
+  private static boolean looksLikeFile(String endpoint) {
+    return !isRemote(endpoint) && !looksLikeConnectionName(endpoint);
+  }
+
+  /** Whether a local endpoint directive names a schema file (vs instance data — see above). */
+  private static boolean isSchemaFile(Path file) {
+    Path fileName = file.getFileName();
+    String name = fileName != null ? fileName.toString() : "";
+    int dot = name.lastIndexOf('.');
+    String extension = dot >= 0 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+    return SCHEMA_FILE_EXTENSIONS.contains(extension);
   }
 
   /**
@@ -316,9 +450,9 @@ final class SchemaManager {
     return base != null ? base.resolve(endpoint).normalize() : p.normalize();
   }
 
-  /** Loads a schema from a local file synchronously (fast); caches success and failure. */
-  private Optional<ResolvedSchema> resolveLocal(Path file) {
-    String key = file.toString();
+  /** Loads a schema from local files synchronously (fast); caches success and failure. */
+  private Optional<ResolvedSchema> resolveLocal(List<Path> files) {
+    String key = files.stream().map(Path::toString).collect(Collectors.joining("\n"));
     ResolvedSchema cached = endpointCache.get(key);
     if (cached != null) {
       return Optional.of(cached);
@@ -327,26 +461,37 @@ final class SchemaManager {
       return Optional.empty();
     }
     try {
-      if (!Files.isRegularFile(file)) {
-        fail(key, MessageType.Warning, "CIMVocabCheck: endpoint schema file not found: " + file);
+      List<Path> missing = files.stream().filter(f -> !Files.isRegularFile(f)).toList();
+      if (!missing.isEmpty()) {
+        fail(
+            key,
+            MessageType.Warning,
+            "CIMVocabCheck: endpoint schema file not found: " + describeFiles(missing));
         return Optional.empty();
       }
       // loadIndexWithSources (rather than loadIndex) keeps the VersionIri → Path mapping so a
       // DefinitionIndex can be built below — go-to-definition on a local-file endpoint must jump
       // into that real file, not fall back to the remote-only EndpointDefinitionPeek.
-      var loaded = CgmesSchemaLoader.fromFiles(List.of(file)).loadIndexWithSources();
+      var loaded = CgmesSchemaLoader.fromFiles(files).loadIndexWithSources();
       var defIndex = DefinitionIndex.build(loaded.index(), loaded.sourcePaths());
       ResolvedSchema schema = buildSchema(loaded.index(), Map.of(), defIndex);
       endpointCache.put(key, schema);
-      LOG.info("Loaded endpoint schema from file {}", file);
+      LOG.info("Loaded endpoint schema from {}", describeFiles(files));
       return Optional.of(schema);
     } catch (Exception e) {
       fail(
           key,
           MessageType.Error,
-          "CIMVocabCheck: failed to load schema from " + file + " — " + e.getMessage());
+          "CIMVocabCheck: failed to load schema from "
+              + describeFiles(files)
+              + " — "
+              + e.getMessage());
       return Optional.empty();
     }
+  }
+
+  private static String describeFiles(List<Path> files) {
+    return files.stream().map(Path::toString).collect(Collectors.joining(", "));
   }
 
   /**

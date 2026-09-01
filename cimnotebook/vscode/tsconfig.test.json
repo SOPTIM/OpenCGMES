@@ -1,0 +1,23 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "out-test",
+        "noEmit": false,
+        "sourceMap": false,
+        // Only "node": the format modules under test must stay importable without a
+        // running VS Code host — an accidental `import "vscode"` fails this build.
+        "types": ["node"]
+    },
+    "include": [
+        "src/notebook/cells.ts",
+        "src/notebook/markdown.ts",
+        "src/notebook/sparqlbook.ts",
+        "src/notebook/endpoint.ts",
+        "src/notebook/outputs.ts",
+        "src/notebook/relativizePath.ts",
+        "src/notebook/*.test.ts",
+        "src/sidebar/configModel.ts",
+        "src/sidebar/treeItems.ts",
+        "src/sidebar/*.test.ts"
+    ]
+}

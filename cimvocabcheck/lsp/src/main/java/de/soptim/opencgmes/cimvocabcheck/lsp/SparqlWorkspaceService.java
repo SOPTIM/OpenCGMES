@@ -24,6 +24,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.ConfigTemplate;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryExplanation;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.DidChangeConfigurationParams;
@@ -57,10 +58,24 @@ final class SparqlWorkspaceService implements WorkspaceService {
    */
   static final String CMD_CREATE_CONFIG = "cimvocabcheck.createConfig";
 
-  private final SchemaManager schemaManager;
+  /**
+   * Command id for the per-notebook default endpoint (see {@link NotebookDefaults}). The client
+   * sends {@code {"notebookUri": "...", "endpoint": "..."}} whenever the user picks a notebook
+   * default, and re-sends the notebook defaults it remembers when the server starts.
+   */
+  static final String CMD_SET_DEFAULT_ENDPOINT = "cimvocabcheck.notebook.setDefaultEndpoint";
 
-  SparqlWorkspaceService(SchemaManager schemaManager) {
+  private final SchemaManager schemaManager;
+  private final NotebookCommandHandler notebookCommandHandler;
+  private final NotebookDefaults notebookDefaults;
+
+  SparqlWorkspaceService(
+      SchemaManager schemaManager,
+      NotebookCommandHandler notebookCommandHandler,
+      NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
+    this.notebookCommandHandler = notebookCommandHandler;
+    this.notebookDefaults = notebookDefaults;
   }
 
   @Override
@@ -91,6 +106,16 @@ final class SparqlWorkspaceService implements WorkspaceService {
   public CompletableFuture<Object> executeCommand(ExecuteCommandParams params) {
     if (CMD_CREATE_CONFIG.equals(params.getCommand())) {
       return CompletableFuture.completedFuture(ConfigTemplate.defaultJson());
+    }
+    if (NotebookCommandHandler.CMD_EXECUTE.equals(params.getCommand())) {
+      return notebookCommandHandler.executeCommand(params.getArguments());
+    }
+    if (NotebookCommandHandler.CMD_LIST_CONNECTIONS.equals(params.getCommand())) {
+      return notebookCommandHandler.listConnections(params.getArguments());
+    }
+    if (CMD_SET_DEFAULT_ENDPOINT.equals(params.getCommand())) {
+      notebookDefaults.apply(params.getArguments());
+      return CompletableFuture.completedFuture(null);
     }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());

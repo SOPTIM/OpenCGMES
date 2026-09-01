@@ -2028,6 +2028,80 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.jena",
+      "name" : "jena-shacl",
+      "version" : "6.2.0",
+      "description" : "SHACL engine for Apache Jena",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "0432c3288a8277fa29b5478d6c231247"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "9c2faf2cee6b3f5b8e88028b146cc4e5970e0f5c"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "4ca38c60f3c4f0473368d51e01977ac8d1d257ba8c0eb493dcfac855b620d904"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "4c78c59503c09754362bcd4d03e40263a65b35b6e79b588548ace252cceac1f15f7c11ba91507f69b05731791efb619d3800923e08312075ac7858d4e42230f5"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "24f121c3e9a99d864f124f34607417b471e06e31021eaa4a93767cd0f9f1db571dff8d640cb94bef2728fd2bf6a329b1"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "13c15800d03fb35c03a621764d2b94f705aaee6cb85112e9a0dafa7109f836847ed242f3f80b7d2ae9e26acfe205a77b"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "ac16049afda3b87eaf1c42527cc1001ccd5d26d377e61b18a7b2a070d8cdd0c2"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "101517ecc3f42eb7ac6a439bc8928ab19f3194375634456b8f154b24de8ca013df35666ee684da39a6bd117f440b7f3dd88f2938f01fb98f72ac6e559b4f40ea"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jena.apache.org/jena-shacl/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://issues.apache.org/jira/browse/JENA"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://lists.apache.org/list.html?users@jena.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/jena.git/jena-shacl"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.logging.log4j",
@@ -2945,6 +3019,7 @@
       "dependsOn" : [
         "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.2?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
+        "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
         "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
@@ -3041,6 +3116,12 @@
     {
       "ref" : "pkg:maven/org.apache.jena/jena-langtag@6.2.0?type=jar",
       "dependsOn" : []
+    },
+    {
+      "ref" : "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+      "dependsOn" : [
+        "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar"
+      ]
     },
     {
       "ref" : "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",

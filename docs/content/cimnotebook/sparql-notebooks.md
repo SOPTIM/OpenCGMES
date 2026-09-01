@@ -5,11 +5,12 @@ sidebar_position: 4
 
 # SPARQL Notebooks
 
-In VS Code, CIMNotebook validates SPARQL **cells** inside
+In VS Code, CIMNotebook validates SPARQL **cells** inside notebook documents, not just
+`.rq` / `.sparql` files — both in CIMNotebook's own [CIM Notebooks](/cimnotebook/notebooks)
+and in third-party
 [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook)
-documents, not just `.rq` / `.sparql` files. Each cell is validated independently as you edit it,
-and a cell can name the schema it should be checked against with the SPARQL Notebook endpoint
-directive.
+documents. Each cell is validated independently as you edit it, and a cell can name the schema it
+should be checked against with the endpoint directive described below.
 
 :::note VS Code only
 SPARQL Notebook cell validation is a VS Code feature. The [IntelliJ plugin](/cimnotebook/intellij)
@@ -37,8 +38,22 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 The directive names **where the CGMES schema lives** — never live instance data. There are three
 cases:
 
-- **Local file** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for
-  that cell. Relative paths resolve against the notebook's own directory.
+- **Local file(s)** (`./relative/path.ttl`, `.rdf`, `.owl`) — the file is loaded as the schema for
+  that cell. Relative paths resolve against the notebook's own directory. Several directives — or a
+  glob pattern — load the **union** of the files, so one cell can validate against multiple
+  profiles at once:
+
+  ```sparql
+  # [endpoint=./schemas/cgmes-3.0/EquipmentCore.ttl]
+  # [endpoint=./schemas/cgmes-3.0/Topology.ttl]
+  ```
+
+  or, equivalently, with glob (`*`) and alternative (`{a,b}`) patterns:
+
+  ```sparql
+  # [endpoint=./schemas/cgmes-3.0/*.ttl]
+  # [endpoint=./schemas/cgmes-3.0/{EquipmentCore,Topology}.ttl]
+  ```
 - **Remote SPARQL endpoint** (`http(s)://…`) — CIMNotebook loads the schema from the endpoint
   itself, enumerating the named graphs that hold the CGMES profiles and reading them into the schema
   index. The schema is fetched in the background; diagnostics appear once it has loaded.

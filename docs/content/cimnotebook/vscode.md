@@ -92,11 +92,40 @@ Press `Ctrl+T` (`Cmd+T` on macOS) and type a CIM class or property name to navig
 term across the workspace. Matching is partial and case-insensitive — `aclineseg` matches
 `ACLineSegment`.
 
+### CIM Notebooks
+
+CIMNotebook opens git-friendly **markdown notebooks** (`*.cimnb.md`, or any `*.md` via
+_Open With…_) whose ` ```sparql ` / ` ```shacl ` code blocks become notebook cells,
+and reads/writes Zazuko's `.sparqlbook` format for interop. The command
+**CIMNotebook: Convert Notebook** switches a notebook between the two formats. Cells run
+against SPARQL endpoints, local RDF/CIMXML files, or named connections — the cell's
+status-bar button and **CIMNotebook: Set Cell Endpoint…** pick the target, and
+**CIMNotebook: Set/Clear Connection Credentials…** manage basic-auth secrets. See
+[CIM Notebooks](/cimnotebook/notebooks).
+
+### Configuration sidebar
+
+The **CIMNotebook** icon in the activity bar opens three native, collapsible sections for
+the workspace's [`opencgmes.jsonc`](/cimvocabcheck/configuration): **Connections**,
+**Validation** (strictness, standard-vocabulary check, schemas directory, schema files),
+and **Notebook Execution** (query timeout, max rows). Each row shows its current value —
+click a row to edit it with a QuickPick or input box, use the `+` button in a section's
+title bar (or on **Schema files**) to add an entry, and hover a row for inline edit /
+remove / set-default / credentials actions. Adding a schema file or a connection's data
+file offers fuzzy, search-as-you-type file matching over the workspace, with a
+**Browse…** fallback for files outside it. Every edit patches only the changed value
+through the same comment-preserving path edits as hand-editing, so the sidebar and manual
+changes to the file coexist. Without a config file yet, the sections show a **Create
+Config File** prompt instead. The sections follow the active document's _nearest_ config,
+the same discovery validation uses — the **Connections** section header shows which
+config file that is.
+
 ### SPARQL Notebook support
 
-CIMNotebook validates SPARQL **cells** inside
+CIMNotebook validates SPARQL **cells** inside notebook documents — its own CIM Notebooks as well
+as third-party
 [SPARQL Notebook](https://marketplace.visualstudio.com/items?itemName=Zazuko.sparql-notebook)
-documents, not just `.rq` / `.sparql` files. Each cell is validated independently, and a cell can
+documents — not just `.rq` / `.sparql` files. Each cell is validated independently, and a cell can
 declare its own schema with a `# [endpoint=...]` directive. See
 [SPARQL Notebooks](/cimnotebook/sparql-notebooks) for the full behaviour.
 
@@ -106,7 +135,7 @@ These editor-specific settings live in VS Code's settings (`settings.json` or th
 Schema configuration itself lives in [`opencgmes.jsonc`](/cimvocabcheck/configuration), not here.
 
 | Setting                      | Default     | Description                                                                                      |
-| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
 | `cimnotebook.serverJar`      | _(bundled)_ | Absolute path to `cimvocabcheck-lsp.jar`. Leave empty to use the JAR bundled with the extension. |
 | `cimnotebook.javaExecutable` | `java`      | Java executable used to launch the language server. Must be Java 21 or later.                    |
 | `cimnotebook.javaArgs`       | `[]`        | Extra JVM arguments passed before `-jar`, e.g. `["-Xmx512m"]`.                                   |

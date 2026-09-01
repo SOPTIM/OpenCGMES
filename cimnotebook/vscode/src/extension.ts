@@ -26,6 +26,14 @@ import {
     TransportKind,
 } from "vscode-languageclient/node";
 
+import { registerNotebookSerializers } from "./notebook/serializers";
+import { registerNotebookControllers } from "./notebook/controller";
+import { registerConvertCommand } from "./notebook/convert";
+import { ConnectionStore } from "./notebook/connections";
+import { registerEndpointCommands } from "./notebook/endpointCommands";
+import { registerCellStatusBar } from "./notebook/statusBar";
+import { registerConfigTreeViews } from "./sidebar/treeViews";
+
 const CHANNEL = "CIMNotebook";
 
 let client: LanguageClient | undefined;
@@ -55,8 +63,19 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand("cimnotebook.createConfig", createConfig),
     );
 
+    // Native CIM Notebooks (markdown + .sparqlbook formats; cells are validated through
+    // the vscode-notebook-cell entries of the LSP documentSelector below and executed
+    // via the server's cimvocabcheck.notebook.execute command).
+    registerNotebookSerializers(context);
+    const connectionStore = new ConnectionStore(context, () => client);
+    registerNotebookControllers(context, () => client, connectionStore);
+    registerConvertCommand(context);
+    registerEndpointCommands(context, connectionStore);
+    registerCellStatusBar(context, connectionStore);
+    registerConfigTreeViews(context, connectionStore);
+
     try {
-        doActivate(context);
+        doActivate(context, connectionStore);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`FATAL during activation: ${msg}`);
@@ -65,7 +84,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 }
 
-function doActivate(context: vscode.ExtensionContext): void {
+function doActivate(context: vscode.ExtensionContext, connectionStore: ConnectionStore): void {
     const serverJar = resolveServerJar(context);
     if (!serverJar) {
         const hint =
@@ -80,7 +99,17 @@ function doActivate(context: vscode.ExtensionContext): void {
     }
 
     client = buildClient(serverJar, context);
-    client.start();
+    client.start().then(
+        () => {
+            // The notebook defaults live in workspace state, so a freshly started server knows
+            // none of them — replay them, or directive-less cells would validate syntax-only.
+            void connectionStore.syncNotebookDefaults();
+        },
+        (err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            out.appendLine(`Language server failed to start: ${msg}`);
+        },
+    );
     out.appendLine("Language client started — waiting for server handshake.");
 
     // Offer a reload when the user changes launch settings.
@@ -112,8 +141,8 @@ export function deactivate(): Thenable<void> | undefined {
 }
 
 /**
- * Scaffolds an `opencgmes.jsonc` in the workspace root. CIMNotebook works without it (validating against
- * the bundled CGMES 3.0 schemas); the generated file is fully commented and exists for customisation.
+ * Scaffolds an `opencgmes.jsonc` in the workspace root. CIMNotebook works without it, but there is no
+ * bundled default schema, so validation stays syntax-only until the file points at CGMES profiles.
  * The template text comes from the language server's `cimvocabcheck.createConfig` command so the CLI and
  * editors stay in sync. A plain `opencgmes.json` (no comments) is also recognised by CIMNotebook — if one
  * already exists, it is treated as the existing config instead of creating a second `opencgmes.jsonc`

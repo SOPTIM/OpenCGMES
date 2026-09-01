@@ -25,7 +25,7 @@ import soptim from "./eslint-rules/index.mjs";
 
 export default tseslint.config(
     {
-        ignores: ["out/**", "dist/**", "node_modules/**", "server/**", "*.vsix"],
+        ignores: ["out/**", "out-test/**", "dist/**", "node_modules/**", "server/**", "*.vsix"],
     },
 
     // TypeScript extension sources: full recommended rule set + license header.

@@ -26,6 +26,12 @@ esbuild
         bundle: true,
         outfile: "out/extension.js",
         external: ["vscode"], // provided by VS Code at runtime — never bundle
+        // jsonc-parser's CJS entry is a UMD wrapper that passes `require` into its
+        // factory as a plain function parameter; esbuild cannot statically follow the
+        // factory's internal require("./impl/…") calls and leaves them in the bundle as
+        // runtime requires, which crash extension activation with "Cannot find module
+        // './impl/format'". Bundling its ESM build instead makes every import static.
+        alias: { "jsonc-parser": "jsonc-parser/lib/esm/main.js" },
         format: "cjs",
         platform: "node",
         target: "node20",

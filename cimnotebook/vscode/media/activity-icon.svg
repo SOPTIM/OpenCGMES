@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 112 112">
+  <!-- Activity-bar icon: VS Code uses the SVG's alpha channel as a mask, so this is the
+       CIMNotebook logo's checkmark-with-nodes motif on a transparent background (the
+       marketplace icon's filled canvas would mask to a solid square). -->
+  <path d="M22.22,61.26l23.05,23.05,46.1-52.69" fill="none" stroke="currentColor" stroke-width="13.17" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="19.04" cy="57.96" r="11.5" fill="currentColor"/>
+  <circle cx="45.27" cy="84.31" r="11.5" fill="currentColor"/>
+  <circle cx="91.37" cy="31.62" r="11.5" fill="currentColor"/>
+</svg>

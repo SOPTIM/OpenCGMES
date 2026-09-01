@@ -31,7 +31,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSparql;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
-import java.net.URI;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConfigLoader;
+import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConnection;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -96,6 +97,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
   private static final long DEBOUNCE_MS = 300;
 
   private final SchemaManager schemaManager;
+  private final NotebookDefaults notebookDefaults;
   private final AtomicReference<LanguageClient> client = new AtomicReference<>();
 
   /** Whether a document is validated as SPARQL or as SHACL/Turtle. */
@@ -128,8 +130,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
   private final EndpointDefinitionPeek endpointPeek =
       new EndpointDefinitionPeek(Duration.ofSeconds(15));
 
-  SparqlTextDocumentService(SchemaManager schemaManager) {
+  SparqlTextDocumentService(SchemaManager schemaManager, NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
+    this.notebookDefaults = notebookDefaults;
   }
 
   void setClient(LanguageClient client) {
@@ -218,9 +221,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
       // files. A local-file endpoint has a real source file to jump to, via the same
       // DefinitionIndex mechanism as a workspace schema; a remote SPARQL endpoint has none, so
       // the term's triples are fetched and opened as a generated read-only Turtle "peek" instead.
-      String endpoint = EndpointDirective.parse(text).orElse(null);
-      if (endpoint != null) {
-        var rsOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
+      Path docDir = documentDir(uri);
+      SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+      if (source != null) {
+        var rsOpt = schemaManager.resolveFrom(source, docDir);
         if (rsOpt.isEmpty() || !termKnown(rsOpt.get().api().schemaIndex(), term)) {
           return noDefinition();
         }
@@ -231,14 +235,15 @@ final class SparqlTextDocumentService implements TextDocumentService {
               .map(SparqlTextDocumentService::definitionAt)
               .orElseGet(SparqlTextDocumentService::noDefinition);
         }
+        // No DefinitionIndex means the schema came from a remote SPARQL endpoint.
         return endpointPeek
-            .locationFor(endpoint, term.getURI())
+            .locationFor(source.remoteUrl(), term.getURI())
             .map(SparqlTextDocumentService::definitionAt)
             .orElseGet(SparqlTextDocumentService::noDefinition);
       }
 
       // Workspace document: jump into the local RDFS source file.
-      var wsOpt = schemaManager.workspaceSchemaFor(documentDir(uri));
+      var wsOpt = schemaManager.workspaceSchemaFor(docDir);
       if (wsOpt.isEmpty() || wsOpt.get().definitionIndex() == null) {
         return noDefinition();
       }
@@ -333,17 +338,49 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
   /**
    * The schema index a document's IDE features (hover, completion, definition) should consult: the
-   * {@code # [endpoint=...]} schema when the document declares one and it has resolved, otherwise
-   * the document's workspace schema (nearest {@code opencgmes.jsonc}). Returns empty when no schema
-   * applies — no config / config without schemas, or an endpoint not yet available (still loading,
-   * or the load failed) — so the editor never shows information from the wrong (workspace) schema
-   * for an endpoint document.
+   * {@link #effectiveEndpoint} schema when one applies and has resolved, otherwise the document's
+   * workspace schema (nearest {@code opencgmes.jsonc}). Returns empty when no schema applies — no
+   * config / config without schemas, or an endpoint not yet available (still loading, or the load
+   * failed) — so the editor never shows information from the wrong (workspace) schema for an
+   * endpoint document.
    */
   private Optional<SchemaIndex> documentSchemaIndex(String uri, String text) {
-    String endpoint = EndpointDirective.parse(text).orElse(null);
     return schemaManager
-        .resolveSchema(endpoint, documentDir(uri))
+        .resolveSchema(effectiveEndpoints(uri, text), documentDir(uri))
         .map(rs -> rs.api().schemaIndex());
+  }
+
+  /**
+   * The endpoint(s) a document's schema comes from — several file directives (or a glob pattern)
+   * form a union of local files.
+   *
+   * <p>The precedence mirrors the one the VS Code client uses to pick a cell's <em>execution</em>
+   * target, so a cell validates against what it runs against:
+   *
+   * <ol>
+   *   <li>the document's own {@code # [endpoint=...]} directives;
+   *   <li>for notebook cells, the {@link NotebookDefaults notebook default} the client set;
+   *   <li>for notebook cells, the {@code "cimnotebook"} connection marked {@code "default": true}.
+   * </ol>
+   *
+   * <p>Returns an empty list when none applies — the document then uses its workspace schema. Only
+   * cells consult the notebook fallbacks: a stand-alone {@code .rq}/{@code .ttl} file is not part
+   * of a notebook and keeps its workspace schema.
+   */
+  private List<String> effectiveEndpoints(String uri, String text) {
+    List<String> directives = EndpointDirective.parseAll(text);
+    if (!directives.isEmpty() || !DocumentUris.isNotebookCell(uri)) {
+      return directives;
+    }
+    String notebookDefault = notebookDefaults.forCell(uri);
+    if (notebookDefault != null) {
+      return List.of(notebookDefault);
+    }
+    NotebookConnection defaultConnection =
+        NotebookConfigLoader.forDirectory(documentDir(uri)).config().defaultConnection();
+    return defaultConnection != null && defaultConnection.url() != null
+        ? List.of(defaultConnection.url())
+        : List.of();
   }
 
   // ---- Internal API ----------------------------------------------------------------------
@@ -383,16 +420,18 @@ final class SparqlTextDocumentService implements TextDocumentService {
       return;
     }
 
-    // A SPARQL Notebook cell may declare its schema source via "# [endpoint=...]"; otherwise the
-    // document's workspace schema (nearest opencgmes.jsonc) is used. With neither, validation is
-    // syntax-only — there is no bundled default schema.
-    String endpoint = EndpointDirective.parse(text).orElse(null);
-    var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
+    // A notebook cell may declare its schema source via "# [endpoint=...]" (or inherit one from the
+    // notebook default / the default connection); otherwise the document's workspace schema
+    // (nearest opencgmes.jsonc) is used. With neither, validation is syntax-only — there is no
+    // bundled default schema.
+    Path docDir = documentDir(uri);
+    SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+    var schemaOpt = schemaManager.resolveFrom(source, docDir);
     if (schemaOpt.isEmpty()) {
       // No schema resolved: an endpoint that failed / is still loading, or no config + no
       // endpoint. Fall back to a schema-independent syntax check so broken SPARQL still gets
       // squiggles; flag the endpoint case as an error (the others are the normal no-config state).
-      publishSyntaxOnly(uri, text, endpoint != null);
+      publishSyntaxOnly(uri, text, source != null);
       return;
     }
 
@@ -598,13 +637,14 @@ final class SparqlTextDocumentService implements TextDocumentService {
       return;
     }
 
-    String endpoint = EndpointDirective.parse(text).orElse(null);
-    var schemaOpt = schemaManager.resolveSchema(endpoint, documentDir(uri));
+    Path docDir = documentDir(uri);
+    SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+    var schemaOpt = schemaManager.resolveFrom(source, docDir);
     if (schemaOpt.isEmpty()) {
       // No schema resolved: an endpoint that failed / is still loading, or no config + no
       // endpoint. Fall back to a schema-independent check (Turtle parse, embedded-SPARQL
       // syntax, vocabulary typos); flag the endpoint case as an error.
-      publishShaclSyntaxOnly(uri, text, endpoint != null);
+      publishShaclSyntaxOnly(uri, text, source != null);
       return;
     }
     ResolvedSchema schema = schemaOpt.get();
@@ -970,31 +1010,12 @@ final class SparqlTextDocumentService implements TextDocumentService {
   }
 
   /**
-   * Best-effort parent directory of a document URI, used to resolve relative endpoint paths.
-   *
-   * <p>Handles both {@code file://} URIs and notebook cell URIs such as {@code
-   * vscode-notebook-cell:/path/to/notebook.sparqlbook#<cell-id>} — the fragment (cell id) is
-   * stripped so the notebook file's directory is returned.
+   * Best-effort parent directory of a document URI, used for config discovery and to resolve
+   * relative endpoint paths. Notebook cells resolve against the notebook file's directory — see
+   * {@link DocumentUris}.
    */
   static Path documentDir(String uri) {
-    try {
-      int hash = uri.indexOf('#');
-      String noFragment = hash >= 0 ? uri.substring(0, hash) : uri;
-      URI parsed = URI.create(noFragment);
-      if ("file".equalsIgnoreCase(parsed.getScheme())) {
-        return Path.of(parsed).getParent();
-      }
-      String p = parsed.getPath();
-      if (p == null || p.isBlank()) {
-        return null;
-      }
-      if (p.length() >= 3 && p.charAt(0) == '/' && p.charAt(2) == ':') {
-        p = p.substring(1);
-      }
-      return Path.of(p).getParent();
-    } catch (Exception e) {
-      return null;
-    }
+    return DocumentUris.dir(uri);
   }
 
   private static boolean isSparqlFile(String uri) {
