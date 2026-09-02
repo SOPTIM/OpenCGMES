@@ -376,11 +376,14 @@ final class SchemaManager {
    */
   Optional<WorkspaceSchema> workspaceSchemaFor(Path docDir) {
     if (docDir == null) {
-      if (primaryConfigKey == null) {
+      // Read once: a reload that finds no config clears the field, and a second read would then
+      // hand a null to Path.of.
+      String primary = primaryConfigKey;
+      if (primary == null) {
         return Optional.empty();
       }
-      checkForEdits(configLiveKey(Path.of(primaryConfigKey)));
-      retryRdfArchitectIfDue(primaryConfigKey);
+      checkForEdits(configLiveKey(Path.of(primary)));
+      retryRdfArchitectIfDue(primary);
       return primarySchema();
     }
     Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
@@ -551,7 +554,13 @@ final class SchemaManager {
       return;
     }
     try {
-      startRdfArchitectLoad(configKey, configFile, ConfigLoader.load(configFile), true);
+      CimvocabcheckConfig config = ConfigLoader.load(configFile);
+      // The config may have stopped naming RDFArchitect since the failure was recorded — the
+      // window between that edit and the reload that clears the failure. Loading it as an
+      // RDFArchitect schema anyway fails with an exception nothing is there to observe.
+      if (namesRdfArchitect(config)) {
+        startRdfArchitectLoad(configKey, configFile, config, true);
+      }
     } catch (Exception e) {
       LOG.debug("Could not retry the RDFArchitect schema of {}: {}", configKey, e.getMessage());
     }

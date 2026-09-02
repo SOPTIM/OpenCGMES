@@ -684,6 +684,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
   void shutdown() {
     scheduler.shutdownNow();
+    endpointPeek.shutdown();
   }
 
   // ---- Private ---------------------------------------------------------------------------
