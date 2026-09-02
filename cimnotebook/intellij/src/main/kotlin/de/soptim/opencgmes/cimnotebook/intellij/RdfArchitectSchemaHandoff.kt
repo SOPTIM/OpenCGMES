@@ -32,6 +32,7 @@ import com.intellij.util.net.ssl.CertificateManager
 import com.redhat.devtools.lsp4ij.LanguageServerManager
 import org.eclipse.lsp4j.ExecuteCommandParams
 import java.io.ByteArrayOutputStream
+import java.io.Closeable
 import java.io.IOException
 import java.net.CookieManager
 import java.net.URI
@@ -119,15 +120,16 @@ object RdfArchitectSchemaHandoff {
                         RdfArchitectSessionBridge
                             .connection(project)
                             ?.takeIf { it.url == base.trimEnd('/') }
-                    val client = RdfArchitectClient(base, session?.id)
                     val dataset = datasetNameFor(info.configFile)
-                    indicator.text = "Importing ${info.schemaFiles.size} schema file(s)…"
-                    client.importGraphs(dataset, info.schemaFiles.map(Path::of))
                     var token: String? = null
-                    if (session == null) {
-                        client.disableEditing(dataset)
-                        indicator.text = "Creating snapshot…"
-                        token = client.createSnapshot(dataset)
+                    RdfArchitectClient(base, session?.id).use { client ->
+                        indicator.text = "Importing ${info.schemaFiles.size} schema file(s)…"
+                        client.importGraphs(dataset, info.schemaFiles.map(Path::of))
+                        if (session == null) {
+                            client.disableEditing(dataset)
+                            indicator.text = "Creating snapshot…"
+                            token = client.createSnapshot(dataset)
+                        }
                     }
                     remember(
                         project,
@@ -275,10 +277,7 @@ object RdfArchitectSchemaHandoff {
             // The IDE's trust store, like every other call to the instance: with the plain client a
             // certificate from a private CA fails the handshake here, the probe answers "not
             // there", and the import is offered again on every single open.
-            val response =
-                RdfArchitectSessionBridge
-                    .ideHttpClient()
-                    .send(builder.build(), HttpResponse.BodyHandlers.ofString())
+            val response = RdfArchitectSessionBridge.probe(builder.build())
             response.statusCode() < 400 &&
                 (handoff.snapshot != null || response.body().contains("\"" + handoff.dataset + "\""))
         }.getOrDefault(false)
@@ -338,7 +337,14 @@ object RdfArchitectSchemaHandoff {
             }
         }
 
-    /** Dataset name for the imported schema: the config file's directory name, sanitised. */
+    /**
+     * Dataset name for the imported schema: the config file's directory name, sanitised.
+     *
+     * A relative path has no directory to name it after — the parent of `./opencgmes.jsonc` is
+     * `"."` — and a dataset called "." is not a name anybody asked for. The VS Code extension
+     * resolves the same case to the same fallback; the two must not disagree about what a
+     * workspace is called.
+     */
     internal fun datasetNameFor(configFile: String): String {
         val dir =
             Path
@@ -346,6 +352,7 @@ object RdfArchitectSchemaHandoff {
                 .parent
                 ?.fileName
                 ?.toString()
+                ?.takeUnless { it == "." || it == ".." }
                 ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
         return dir?.ifEmpty { null } ?: "cimnotebook"
     }
@@ -379,7 +386,7 @@ object RdfArchitectSchemaHandoff {
     private class RdfArchitectClient(
         base: String,
         private val sessionId: String? = null,
-    ) {
+    ) : Closeable {
         private val api = base.trimEnd('/') + "/api"
         private val http =
             HttpClient
@@ -388,6 +395,9 @@ object RdfArchitectSchemaHandoff {
                 .cookieHandler(CookieManager())
                 .sslContext(CertificateManager.getInstance().sslContext)
                 .build()
+
+        /** Releases the client's selector thread and executor rather than waiting for a collection. */
+        override fun close() = http.close()
 
         fun importGraphs(
             dataset: String,
@@ -476,6 +486,10 @@ object RdfArchitectSchemaHandoff {
             return out.toByteArray()
         }
 
-        private fun encode(segment: String): String = URLEncoder.encode(segment, StandardCharsets.UTF_8)
+        /**
+         * Percent-encoding for a *path* segment: [URLEncoder] writes form encoding, where a space
+         * is `+`, and a server percent-decodes a path segment — so `+` would stay a literal plus.
+         */
+        private fun encode(segment: String): String = URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20")
     }
 }

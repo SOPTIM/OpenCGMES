@@ -315,22 +315,33 @@ object RdfArchitectSessionBridge {
     }
 
     /**
-     * An HTTP client that trusts what the IDE trusts.
+     * Sends one request over a client that trusts what the IDE trusts, and releases that client
+     * again.
      *
      * An RDFArchitect behind a company CA is not trusted by the JVM's own store, and the plain
      * client would fail the handshake even though the user has already accepted the certificate in
      * the IDE. Going through the platform's [CertificateManager] uses the IDE's trust store — and
      * its "accept this certificate?" flow — instead of a private one nobody can see.
      *
-     * The connect timeout is not optional: an instance that is simply gone would otherwise hold its
-     * caller for as long as the operating system takes to give up on the connection.
+     * A client owns a selector thread and an executor, and these probes run on every project open,
+     * every tool-window open and every reconnect; left to the garbage collector, those threads pile
+     * up for as long as the IDE is open. The connect timeout is not optional either: an instance
+     * that is simply gone would otherwise hold its caller for as long as the operating system takes
+     * to give up on the connection.
      */
-    internal fun ideHttpClient(): HttpClient =
-        HttpClient
-            .newBuilder()
-            .connectTimeout(PROBE_TIMEOUT)
-            .sslContext(CertificateManager.getInstance().sslContext)
-            .build()
+    internal fun probe(request: HttpRequest): HttpResponse<String> {
+        val client =
+            HttpClient
+                .newBuilder()
+                .connectTimeout(PROBE_TIMEOUT)
+                .sslContext(CertificateManager.getInstance().sslContext)
+                .build()
+        try {
+            return client.send(request, HttpResponse.BodyHandlers.ofString())
+        } finally {
+            client.close()
+        }
+    }
 
     /** Whether the instance still knows this session — it answers with the caller's own id. */
     private fun isAlive(
@@ -346,7 +357,7 @@ object RdfArchitectSessionBridge {
                     .timeout(PROBE_TIMEOUT)
                     .GET()
                     .build()
-            val response = ideHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+            val response = probe(request)
             response.statusCode() < 400 && response.body().contains(id)
         }.getOrDefault(false)
 }

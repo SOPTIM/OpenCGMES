@@ -111,6 +111,14 @@ class RdfArchitectLinkTest {
     }
 
     @Test
+    fun `a relative path falls back to the same name the VS Code extension uses`() {
+        // The parent of "./opencgmes.jsonc" is ".", which is a legal dataset name and a useless
+        // one — and the two editors must not disagree about what a workspace is called.
+        assertEquals("cimnotebook", RdfArchitectSchemaHandoff.datasetNameFor("./opencgmes.jsonc"))
+        assertEquals("cimnotebook", RdfArchitectSchemaHandoff.datasetNameFor("../opencgmes.jsonc"))
+    }
+
+    @Test
     fun `the definition header is read as the language server writes it`() {
         val fields =
             RdfArchitectDefinitionOpener().fields(
