@@ -28,8 +28,16 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -67,6 +75,29 @@ final class EndpointDefinitionPeek {
   /** Cache of (endpoint + term IRI) → already-written peek location, stable for the session. */
   private final ConcurrentMap<String, Location> cache = new ConcurrentHashMap<>();
 
+  /**
+   * Pool for the per-profile fetches of one request.
+   *
+   * <p>A term declared in <em>k</em> profiles means <em>k</em> CONSTRUCTs, and go-to-definition is
+   * answered on the thread lsp4j reads messages on — run one after another they would add up to
+   * <em>k</em> × {@link #timeout} of a server that answers nothing else, on a path both editors
+   * walk while the user is merely Ctrl+hovering. Fetched together, the whole request costs one
+   * timeout at worst, whatever <em>k</em> is.
+   */
+  private final ExecutorService fetchers =
+      Executors.newFixedThreadPool(
+          4,
+          new ThreadFactory() {
+            private final AtomicInteger threadNum = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+              Thread t = new Thread(r, "endpoint-peek-" + threadNum.getAndIncrement());
+              t.setDaemon(true);
+              return t;
+            }
+          });
+
   EndpointDefinitionPeek(Duration timeout) {
     this.timeout = timeout;
     this.cacheDir = Path.of(System.getProperty("java.io.tmpdir"), "cimvocabcheck-endpoint-defs");
@@ -102,14 +133,62 @@ final class EndpointDefinitionPeek {
       return locationFor(endpoint, termIri).map(List::of).orElseGet(List::of);
     }
     var locations = new ArrayList<Location>();
-    for (ProfileGraph profile : profiles) {
-      peek(endpoint, termIri, profile.graph(), profile.label()).ifPresent(locations::add);
+    for (Optional<Location> found : fetchTogether(endpoint, termIri, profiles)) {
+      found.ifPresent(locations::add);
     }
     // Every per-profile fetch came back empty (a stale index, say) — the unscoped peek is still
     // better than reporting that the term has no definition at all.
     return locations.isEmpty()
         ? locationFor(endpoint, termIri).map(List::of).orElseGet(List::of)
         : List.copyOf(locations);
+  }
+
+  /**
+   * Peeks every profile at once, in the order the profiles were given, bounding the whole request
+   * by {@link #timeout} rather than by that many timeouts. A fetch that does not make it in time is
+   * dropped: an incomplete chooser beats a server that has stopped answering.
+   */
+  private List<Optional<Location>> fetchTogether(
+      String endpoint, String termIri, List<ProfileGraph> profiles) {
+    List<Callable<Optional<Location>>> tasks =
+        profiles.stream()
+            .map(
+                profile ->
+                    (Callable<Optional<Location>>)
+                        () -> peek(endpoint, termIri, profile.graph(), profile.label()))
+            .toList();
+    try {
+      var found = new ArrayList<Optional<Location>>(tasks.size());
+      for (Future<Optional<Location>> task :
+          fetchers.invokeAll(tasks, timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+        found.add(resultOf(task));
+      }
+      return found;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return List.of();
+    }
+  }
+
+  /** The outcome of one peek; a cancelled or failed one contributes no location. */
+  private static Optional<Location> resultOf(Future<Optional<Location>> task) {
+    if (task.isCancelled()) {
+      return Optional.empty();
+    }
+    try {
+      return task.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      return Optional.empty();
+    } catch (ExecutionException e) {
+      LOG.warn("Endpoint definition peek failed: {}", e.getCause().getMessage());
+      return Optional.empty();
+    }
+  }
+
+  /** Releases the fetch pool. */
+  void shutdown() {
+    fetchers.shutdownNow();
   }
 
   /**
