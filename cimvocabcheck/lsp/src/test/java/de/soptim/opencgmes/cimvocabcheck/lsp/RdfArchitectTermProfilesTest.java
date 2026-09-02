@@ -277,6 +277,42 @@ public class RdfArchitectTermProfilesTest {
             || locations.get(1).getUri().contains("CoreEquipment-EU"));
   }
 
+  /**
+   * Both editors resolve a Ctrl+Click target while the user is merely hovering, and again when they
+   * click, so requests for the same term overlap — and each one re-renders the document from the
+   * schema as it now stands. Racing on the file would answer some of them with nothing, which looks
+   * to the user like a Ctrl+Click that does not work.
+   */
+  @Test
+  public void answersOverlappingGoToDefinitionRequests() throws Exception {
+    terms(); // wait for the schema
+    var params =
+        new org.eclipse.lsp4j.DefinitionParams(
+            new org.eclipse.lsp4j.TextDocumentIdentifier(DOC_URI),
+            new org.eclipse.lsp4j.Position(2, QUERY.split("\n")[2].indexOf("cim:Breaker") + 5));
+
+    var pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+    try {
+      var answers = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+      for (int i = 0; i < 64; i++) {
+        answers.add(pool.submit(() -> documents.definition(params).get().getLeft().size()));
+      }
+      for (var answer : answers) {
+        assertEquals(
+            "every request must answer with both profiles",
+            Integer.valueOf(2),
+            answer.get(30, java.util.concurrent.TimeUnit.SECONDS));
+      }
+    } finally {
+      pool.shutdownNow();
+    }
+
+    for (var location : documents.definition(params).get().getLeft()) {
+      Path file = Path.of(java.net.URI.create(location.getUri()));
+      assertTrue("and the document must be whole", Files.readString(file).contains("Breaker"));
+    }
+  }
+
   @Test
   public void namesTheDatasetToOpenTermsIn() throws Exception {
     // The dataset is read live, so it is called the same in the window the editor embeds.

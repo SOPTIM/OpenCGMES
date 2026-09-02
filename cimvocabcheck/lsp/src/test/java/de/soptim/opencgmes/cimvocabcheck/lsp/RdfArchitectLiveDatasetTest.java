@@ -28,7 +28,6 @@ import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -104,6 +103,15 @@ public class RdfArchitectLiveDatasetTest {
 
   private HttpServer server;
   private String changeId = "";
+
+  /** Held requests: a test opens this to prove a caller was not waiting behind the instance. */
+  private volatile java.util.concurrent.CountDownLatch gate;
+
+  /** Whether the instance answers at all — an outage, as far as a caller can tell. */
+  private volatile boolean down;
+
+  private final java.util.concurrent.atomic.AtomicInteger requests =
+      new java.util.concurrent.atomic.AtomicInteger();
   private final java.util.List<String> cookiesSeen = new java.util.ArrayList<>();
   private final java.util.concurrent.atomic.AtomicInteger changeLogPolls =
       new java.util.concurrent.atomic.AtomicInteger();
@@ -111,6 +119,7 @@ public class RdfArchitectLiveDatasetTest {
   @Before
   public void setUp() throws IOException {
     SchemaManager.liveCheckInterval = Duration.ofMillis(50);
+    SchemaManager.failureTtl = Duration.ofMillis(100);
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     server.createContext("/api/", this::dispatch);
     server.start();
@@ -118,8 +127,12 @@ public class RdfArchitectLiveDatasetTest {
 
   @After
   public void tearDown() {
+    if (gate != null) {
+      gate.countDown();
+    }
     server.stop(0);
     SchemaManager.liveCheckInterval = Duration.ofSeconds(3);
+    SchemaManager.failureTtl = Duration.ofSeconds(30);
   }
 
   private String baseUrl() {
@@ -127,7 +140,23 @@ public class RdfArchitectLiveDatasetTest {
   }
 
   private void dispatch(HttpExchange exchange) throws IOException {
-    String path = URLDecoder.decode(exchange.getRequestURI().getPath(), StandardCharsets.UTF_8);
+    requests.incrementAndGet();
+    java.util.concurrent.CountDownLatch held = gate;
+    if (held != null) {
+      try {
+        held.await();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+    }
+    if (down) {
+      exchange.sendResponseHeaders(503, -1);
+      exchange.close();
+      return;
+    }
+    // getPath() is percent-decoded, which is all a server does to a path — decoding again would
+    // turn a form-encoded '+' back into a space and hide the difference between the two.
+    String path = exchange.getRequestURI().getPath();
     String cookie = exchange.getRequestHeaders().getFirst("Cookie");
     if (cookie != null) {
       cookiesSeen.add(cookie);
@@ -351,6 +380,87 @@ public class RdfArchitectLiveDatasetTest {
       java.nio.file.Files.deleteIfExists(schema);
       java.nio.file.Files.deleteIfExists(config);
       java.nio.file.Files.deleteIfExists(workspace);
+    }
+  }
+
+  /**
+   * A config below the workspace root is resolved on whichever thread asked for the schema — a
+   * validate, hover, completion or definition request. Reading RDFArchitect there would hold that
+   * thread for as long as the instance takes to answer, so the load has to happen elsewhere.
+   */
+  @Test(timeout = 60_000)
+  public void aNestedConfigReadsRdfArchitectOffTheRequestThread() throws Exception {
+    Path workspace = java.nio.file.Files.createTempDirectory("rdfa-nested");
+    Path nested = java.nio.file.Files.createDirectories(workspace.resolve("queries"));
+    java.nio.file.Files.writeString(
+        nested.resolve("opencgmes.jsonc"),
+        "{ \"cimvocabcheck\": { \"rdfArchitect\": \"" + DATASET + "\" } }");
+
+    SchemaManager manager = new SchemaManager();
+    try {
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      manager.loadAsync(workspace); // the root itself has no config
+
+      gate = new java.util.concurrent.CountDownLatch(1);
+      // Would block until the gate opens if the instance were read here.
+      assertTrue(
+          "a document must not wait for RDFArchitect to answer",
+          manager.workspaceSchemaFor(nested).isEmpty());
+      gate.countDown();
+      gate = null;
+
+      assertTrue("and the schema must still arrive", await(manager, nested));
+    } finally {
+      manager.shutdown();
+      deleteTree(workspace);
+    }
+  }
+
+  /**
+   * A file that fails to load fails the same way every time; an instance that cannot be reached
+   * does not. The workspace must come back on its own once it can be.
+   */
+  @Test(timeout = 60_000)
+  public void anInstanceThatComesBackIsPickedUpAgain() throws Exception {
+    Path workspace = java.nio.file.Files.createTempDirectory("rdfa-retry");
+    java.nio.file.Files.writeString(
+        workspace.resolve("opencgmes.jsonc"),
+        "{ \"cimvocabcheck\": { \"rdfArchitect\": \"" + DATASET + "\" } }");
+
+    SchemaManager manager = new SchemaManager();
+    try {
+      down = true;
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      manager.loadAsync(workspace);
+      for (int i = 0; i < 200 && requests.get() == 0; i++) {
+        Thread.sleep(20);
+      }
+      assertTrue("the failing load must have been attempted", requests.get() > 0);
+      assertTrue("and must have left no schema", manager.workspaceSchemaFor(workspace).isEmpty());
+
+      down = false;
+
+      assertTrue("the workspace must recover without being reloaded", await(manager, workspace));
+    } finally {
+      manager.shutdown();
+      deleteTree(workspace);
+    }
+  }
+
+  /** Asks for {@code docDir}'s schema until it is there, the way an editor keeps asking. */
+  private static boolean await(SchemaManager manager, Path docDir) throws InterruptedException {
+    for (int i = 0; i < 200; i++) {
+      if (manager.workspaceSchemaFor(docDir).isPresent()) {
+        return true;
+      }
+      Thread.sleep(50);
+    }
+    return false;
+  }
+
+  private static void deleteTree(Path root) throws IOException {
+    try (var paths = java.nio.file.Files.walk(root)) {
+      paths.sorted(java.util.Comparator.reverseOrder()).forEach(p -> p.toFile().delete());
     }
   }
 
