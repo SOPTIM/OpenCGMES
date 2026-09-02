@@ -78,11 +78,8 @@
                 },
                 "rdfArchitect": {
                     "type": "string",
-                    "description": "Take the schema from a running RDFArchitect instead of from files. A dataset name (e.g. \"cgmes-3.0\") validates against that dataset in the RDFArchitect view open in the editor, as you edit it \u2014 the view supplies the instance and its session. A link (a snapshot from RDFArchitect's Share dialog, or an instance URL with ?dataset=) pins a fixed source and needs no editor, which is the form to use in CI. Takes precedence over schemas/schemasDirectory.",
-                    "examples": [
-                        "cgmes-3.0",
-                        "http://localhost:3000/?snapshot=ffPKWuq2hw8WKBRn5VwEOA"
-                    ]
+                    "description": "Take the schema from a running RDFArchitect instead of from files. A dataset name (e.g. \"cgmes-3.0\") validates against that dataset in the RDFArchitect view open in the editor, as you edit it — the view supplies the instance and its session. A link (a snapshot from RDFArchitect's Share dialog, or an instance URL with ?dataset=) pins a fixed source and needs no editor, which is the form to use in CI. Takes precedence over schemas/schemasDirectory.",
+                    "examples": ["cgmes-3.0", "http://localhost:3000/?snapshot=ffPKWuq2hw8WKBRn5VwEOA"]
                 },
                 "namedGraphs": {
                     "type": "object",
@@ -99,13 +96,8 @@
                 },
                 "strictness": {
                     "type": "string",
-                    "description": "Controls which findings are reported and how their severities are mapped.\n\n\u2022 permissive \u2014 only unknown-term and syntax errors; semantic checks and hints are suppressed. Good for exploratory queries against an incomplete schema.\n\u2022 default \u2014 all checks, original severities. Only errors fail validation.\n\u2022 strict \u2014 all checks; warnings are promoted to errors. Recommended for CI.\n\u2022 pedantic \u2014 all checks; warnings and hints are promoted to errors.",
-                    "enum": [
-                        "permissive",
-                        "default",
-                        "strict",
-                        "pedantic"
-                    ],
+                    "description": "Controls which findings are reported and how their severities are mapped.\n\n• permissive — only unknown-term and syntax errors; semantic checks and hints are suppressed. Good for exploratory queries against an incomplete schema.\n• default — all checks, original severities. Only errors fail validation.\n• strict — all checks; warnings are promoted to errors. Recommended for CI.\n• pedantic — all checks; warnings and hints are promoted to errors.",
+                    "enum": ["permissive", "default", "strict", "pedantic"],
                     "default": "default"
                 },
                 "prefixes": {
@@ -118,11 +110,8 @@
                 },
                 "standardVocabulary": {
                     "type": "string",
-                    "description": "Controls checking of terms in the closed standard vocabularies (rdf, rdfs, owl, sh).\n\n\u2022 check \u2014 terms are validated against the official vocabularies, so typos like rdf:typ or sh:minCountt are reported as UNKNOWN_VOCABULARY_TERM errors (default).\n\u2022 ignore \u2014 terms in these namespaces are accepted without inspection (legacy behaviour).\n\nOpen annotation/datatype namespaces (xsd, dcterms, skos, \u2026) are always accepted regardless of this setting.",
-                    "enum": [
-                        "check",
-                        "ignore"
-                    ],
+                    "description": "Controls checking of terms in the closed standard vocabularies (rdf, rdfs, owl, sh).\n\n• check — terms are validated against the official vocabularies, so typos like rdf:typ or sh:minCountt are reported as UNKNOWN_VOCABULARY_TERM errors (default).\n• ignore — terms in these namespaces are accepted without inspection (legacy behaviour).\n\nOpen annotation/datatype namespaces (xsd, dcterms, skos, …) are always accepted regardless of this setting.",
+                    "enum": ["check", "ignore"],
                     "default": "check"
                 },
                 "cimNamespaces": {
@@ -130,12 +119,8 @@
                     "description": "Maps custom CIM namespace URIs to the built-in profile \"shape\" that matches their ontology conventions, so schema files/endpoint graphs using them can be parsed. Use this when a profile declares its terms under a namespace other than the standard http://iec.ch/TC57/CIM100# (or CIM version-specific equivalents).",
                     "additionalProperties": {
                         "type": "string",
-                        "description": "Profile shape to use for this namespace.\n\n\u2022 cim16 \u2014 legacy CGMES 2.4.15 style: cims:isFixed-based version IRIs.\n\u2022 cim17 \u2014 CGMES 3.0+ style: owl:versionIRI, dcat:keyword.\n\u2022 cim18 \u2014 like cim17, plus CIM18's DocumentHeader-based metadata.",
-                        "enum": [
-                            "cim16",
-                            "cim17",
-                            "cim18"
-                        ]
+                        "description": "Profile shape to use for this namespace.\n\n• cim16 — legacy CGMES 2.4.15 style: cims:isFixed-based version IRIs.\n• cim17 — CGMES 3.0+ style: owl:versionIRI, dcat:keyword.\n• cim18 — like cim17, plus CIM18's DocumentHeader-based metadata.",
+                        "enum": ["cim16", "cim17", "cim18"]
                     }
                 }
             }

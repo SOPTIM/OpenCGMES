@@ -46,19 +46,6 @@ import { registerConfigTreeViews } from "./sidebar/treeViews";
 
 const CHANNEL = "CIMNotebook";
 
-/** The documents CIMNotebook validates — the language client's scope. */
-const SCHEMA_DOCUMENTS = [
-    { scheme: "file", language: "sparql" },
-    { scheme: "file", language: "shacl" },
-    { scheme: "file", language: "turtle" },
-    { scheme: "file", pattern: "**/*.ttl" },
-    { scheme: "file", pattern: "**/*.shacl" },
-    // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
-    // under the vscode-notebook-cell scheme, validated per-cell by the server.
-    { scheme: "vscode-notebook-cell", language: "sparql" },
-    { scheme: "vscode-notebook-cell", language: "shacl" },
-];
-
 let client: LanguageClient | undefined;
 // Created at the very start of activate() so it always appears in the Output dropdown.
 let out: vscode.LogOutputChannel;
@@ -145,8 +132,14 @@ export function activate(context: vscode.ExtensionContext): void {
  * the system store) but not by Node, which ships its own list — the extension's REST calls would
  * fail where the panel works. Node exposes the OS store from v22.15, so no configuration and no
  * `NODE_EXTRA_CA_CERTS` are needed on those versions; where it is missing the calls behave as
- * before. VS Code's own `http.systemCertificates` setting is honoured, since a user who turned
- * system certificates off meant it.
+ * before.
+ *
+ * The default CA list is per *process*, and VS Code runs every extension of a window in one
+ * extension host — so this is the machine's certificates for all of them, not just for ours.
+ * Confining it would mean a per-request agent, and an agent means an HTTP library: `fetch` alone
+ * cannot carry one. It is kept because it only ever *adds* the certificates the operating system
+ * already vouches for, and because `http.systemCertificates` — which is what VS Code itself uses
+ * to decide the same question for its own requests — turns it off for a user who meant it.
  */
 function trustSystemCertificates(): void {
     if (!vscode.workspace.getConfiguration("http").get<boolean>("systemCertificates", true)) {
@@ -1341,7 +1334,17 @@ function buildClient(serverJar: string, context: vscode.ExtensionContext): Langu
     context.subscriptions.push(traceChannel);
 
     const clientOptions: LanguageClientOptions = {
-        documentSelector: SCHEMA_DOCUMENTS,
+        documentSelector: [
+            { scheme: "file", language: "sparql" },
+            { scheme: "file", language: "shacl" },
+            { scheme: "file", language: "turtle" },
+            { scheme: "file", pattern: "**/*.ttl" },
+            { scheme: "file", pattern: "**/*.shacl" },
+            // SPARQL Notebook (and any notebook) cells: forwarded as ordinary text documents
+            // under the vscode-notebook-cell scheme, validated per-cell by the server.
+            { scheme: "vscode-notebook-cell", language: "sparql" },
+            { scheme: "vscode-notebook-cell", language: "shacl" },
+        ],
         // Route all server output (stderr) into our output channel.
         outputChannel: out,
         synchronize: {

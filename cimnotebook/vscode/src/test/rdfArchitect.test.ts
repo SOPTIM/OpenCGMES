@@ -70,6 +70,8 @@ describe("datasetNameFor", () => {
 
     it("falls back when there is no directory to name it after", () => {
         assert.equal(datasetNameFor("opencgmes.jsonc"), "cimnotebook");
+        assert.equal(datasetNameFor("./opencgmes.jsonc"), "cimnotebook");
+        assert.equal(datasetNameFor("../opencgmes.jsonc"), "cimnotebook");
     });
 });
 
