@@ -340,6 +340,21 @@ public class ValidateCommand implements Callable<Integer> {
     EndpointSchema es;
     try {
       source = RdfArchitectSource.parse(config.rdfArchitect());
+    } catch (IllegalArgumentException e) {
+      // A bare dataset name is readable only through the session of an open RDFArchitect window,
+      // which is something an editor has and a pipeline never will. Saying "open the view" here
+      // would be advice this command cannot follow.
+      throw abortUsage(
+          "\""
+              + config.rdfArchitect()
+              + "\" names a dataset of an RDFArchitect session, and the CLI has no session to look"
+              + " in. Configure a link instead: a snapshot link from RDFArchitect's Share dialog"
+              + " (immutable, which is what a pipeline wants), or an instance URL such as"
+              + " http://localhost:3000/?dataset="
+              + config.rdfArchitect()
+              + " for a dataset the instance itself persists.");
+    }
+    try {
       es = RdfArchitectSchemaLoader.load(source, Duration.ofSeconds(30));
     } catch (RuntimeException e) {
       throw abortUsage(
