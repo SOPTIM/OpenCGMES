@@ -124,13 +124,19 @@ public final class RdfArchitectSchemaLoader {
    * dataset has been edited. Reading the per-graph change logs is far cheaper than exporting every
    * graph, so a live schema can be checked often and refetched only when it actually moved.
    *
-   * @return an opaque stamp, or {@code null} when the dataset cannot be read at all
+   * <p>A snapshot has none: it is immutable, so there is nothing to re-check — and asking would
+   * mean loading it into a session again on every poll.
+   *
+   * @return an opaque stamp, or {@code null} for a snapshot, or when the dataset cannot be read at
+   *     all
    */
   public static String changeStamp(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
+    if (source.snapshot() != null) {
+      return null;
+    }
     try (Client client = clientFor(source, timeout, sessionId)) {
-      String dataset =
-          source.snapshot() == null ? source.dataset() : resolveDataset(client, source);
+      String dataset = source.dataset();
       var stamp = new StringBuilder();
       for (String graph : client.listGraphs(dataset)) {
         stamp.append(graph).append('=').append(client.latestChangeId(dataset, graph)).append(';');
@@ -228,6 +234,9 @@ public final class RdfArchitectSchemaLoader {
       this.http =
           HttpClient.newBuilder()
               .connectTimeout(timeout)
+              // An instance behind a reverse proxy routinely redirects (http to https, a trailing
+              // slash); unfollowed, the redirect body would be parsed as the response.
+              .followRedirects(HttpClient.Redirect.NORMAL)
               .cookieHandler(new CookieManager())
               .build();
     }
@@ -318,7 +327,9 @@ public final class RdfArchitectSchemaLoader {
         throw new RdfArchitectException(
             "Could not reach RDFArchitect at " + api + path + ": " + e.getMessage(), e);
       }
-      if (response.statusCode() >= 400) {
+      // 3xx too: what is left after NORMAL followed what it could is a redirect nothing can
+      // follow (an https instance sending us to http, say), and its body is not the payload.
+      if (response.statusCode() >= 300) {
         throw new RdfArchitectException(
             "GET " + path + " → HTTP " + response.statusCode() + describe(response.body()));
       }
@@ -345,8 +356,14 @@ public final class RdfArchitectSchemaLoader {
       return trimmed.isEmpty() ? "" : " — " + trimmed.substring(0, Math.min(200, trimmed.length()));
     }
 
+    /**
+     * Percent-encoding for a <em>path</em> segment. {@link URLEncoder} writes form encoding, where
+     * a space is {@code +} — but a server percent-decodes a path segment, so {@code +} would stay a
+     * literal plus. Graphs are named after the files they were imported from, and those have spaces
+     * in them.
+     */
     private static String encode(String segment) {
-      return URLEncoder.encode(segment, StandardCharsets.UTF_8);
+      return URLEncoder.encode(segment, StandardCharsets.UTF_8).replace("+", "%20");
     }
   }
 }
