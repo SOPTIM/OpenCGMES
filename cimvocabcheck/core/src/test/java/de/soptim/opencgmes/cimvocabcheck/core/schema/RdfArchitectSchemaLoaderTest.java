@@ -32,7 +32,6 @@ import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSchemaLoader.Rd
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -82,6 +81,9 @@ public class RdfArchitectSchemaLoaderTest {
   private boolean snapshotLoaded;
   private String changeId = "";
 
+  /** The local part of the one graph the stub serves; a test gives it a space. */
+  private String suffix = "Equipment";
+
   /** The dataset a borrowed session can see, as opposed to the snapshot one. */
   private static final String LIVE_DATASET = "live";
 
@@ -102,7 +104,10 @@ public class RdfArchitectSchemaLoaderTest {
   }
 
   private void dispatch(HttpExchange exchange) throws IOException {
-    String path = URLDecoder.decode(exchange.getRequestURI().getPath(), StandardCharsets.UTF_8);
+    // getPath() is already percent-decoded, and that is all a server does to a path: a '+' in one
+    // stays a plus. Decoding again (URLDecoder) would turn it into a space and hide a form-encoded
+    // segment, which is exactly the bug graphsWithSpacesAreFetchedByName guards.
+    String path = exchange.getRequestURI().getPath();
     requested.add(path);
     String cookie = exchange.getRequestHeaders().getFirst("Cookie");
     if (cookie != null) {
@@ -121,8 +126,10 @@ public class RdfArchitectSchemaLoaderTest {
               : snapshotLoaded ? "[\"" + SNAPSHOT_DATASET + "\"]" : "[]";
       respond(exchange, 200, visible);
     } else if (path.endsWith("/graphs")) {
-      respond(exchange, 200, "[{\"prefix\":\"http://graph#\",\"suffix\":\"Equipment\"}]");
-    } else if (path.endsWith("/content")) {
+      respond(exchange, 200, "[{\"prefix\":\"http://graph#\",\"suffix\":\"" + suffix + "\"}]");
+    } else if (path.endsWith("/graphs/http://graph#" + suffix + "/content")) {
+      // The graph URI has to arrive exactly as it was served above: a form-encoded space would
+      // reach a server as a literal '+', and no graph is named that.
       respond(exchange, 200, TURTLE);
     } else if (path.endsWith("/changes")) {
       respond(exchange, 200, changeId.isEmpty() ? "[]" : "[{\"changeId\":\"" + changeId + "\"}]");
@@ -238,6 +245,83 @@ public class RdfArchitectSchemaLoaderTest {
             RdfArchitectSource.parse("http://127.0.0.1:1/?dataset=nope"),
             Duration.ofSeconds(2),
             null));
+  }
+
+  /**
+   * Graphs are named after the files they were imported from, so a space in one is ordinary. Form
+   * encoding would write it as {@code +}, which a server reads as a literal plus and cannot
+   * resolve.
+   */
+  @Test
+  public void graphsWithSpacesAreFetchedByName() {
+    suffix = "EQ Profile";
+
+    EndpointSchema schema =
+        RdfArchitectSchemaLoader.load(
+            RdfArchitectSource.parse(baseUrl() + "/?dataset=" + LIVE_DATASET),
+            Duration.ofSeconds(10),
+            SESSION);
+
+    assertTrue(schema.hasSchema());
+    assertEquals(List.of("http://graph#EQ Profile"), schema.schemaGraphNames());
+  }
+
+  @Test
+  public void aSnapshotIsNotPolledForChanges() {
+    // It is immutable, and asking would mean loading it into a session again on every poll.
+    assertNull(
+        RdfArchitectSchemaLoader.changeStamp(
+            RdfArchitectSource.parse(baseUrl() + "/?snapshot=" + TOKEN),
+            Duration.ofSeconds(10),
+            null));
+    assertTrue("nothing may be requested for a snapshot's stamp", requested.isEmpty());
+  }
+
+  /**
+   * An instance behind a reverse proxy: the API answers where the proxy points, not where asked.
+   */
+  @Test
+  public void followsARedirectToTheInstance() throws IOException {
+    HttpServer proxy = redirectingProxy(307);
+    try {
+      assertTrue(load(proxyUrl(proxy) + "/?snapshot=" + TOKEN).hasSchema());
+    } finally {
+      proxy.stop(0);
+    }
+  }
+
+  /** A 3xx nobody followed is still a redirect: reported as one, not parsed as the payload. */
+  @Test
+  public void reportsARedirectItCannotFollow() throws IOException {
+    HttpServer proxy = redirectingProxy(300);
+    try {
+      RdfArchitectException e =
+          assertThrows(
+              RdfArchitectException.class, () -> load(proxyUrl(proxy) + "/?snapshot=" + TOKEN));
+
+      assertTrue(e.getMessage(), e.getMessage().contains("HTTP 300"));
+    } finally {
+      proxy.stop(0);
+    }
+  }
+
+  private HttpServer redirectingProxy(int status) throws IOException {
+    HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    proxy.createContext(
+        "/api/",
+        exchange -> {
+          exchange
+              .getResponseHeaders()
+              .add("Location", baseUrl() + exchange.getRequestURI().toString());
+          exchange.sendResponseHeaders(status, -1);
+          exchange.close();
+        });
+    proxy.start();
+    return proxy;
+  }
+
+  private static String proxyUrl(HttpServer proxy) {
+    return "http://127.0.0.1:" + proxy.getAddress().getPort();
   }
 
   @Test
