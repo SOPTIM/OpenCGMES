@@ -22,10 +22,36 @@ import {
     RDFA_DEFINITION_MARKER,
     datasetNameFor,
     localNameOf,
+    normalizeBaseUrl,
     parseDefinitionHeader,
     snapshotDatasetName,
     termDeepLink,
 } from "../rdfArchitect";
+
+describe("normalizeBaseUrl", () => {
+    it("gives one spelling to the forms a base URL arrives in", () => {
+        // The setting as typed, new URL().toString() (which adds the slash), and the language
+        // server's own form (which strips it) must all compare equal.
+        const spellings = [
+            "http://localhost:3000",
+            "http://localhost:3000/",
+            "http://localhost:3000//",
+            new URL("http://localhost:3000").toString(),
+            "  http://localhost:3000/  ",
+        ];
+        for (const spelling of spellings) {
+            assert.equal(normalizeBaseUrl(spelling), "http://localhost:3000");
+        }
+    });
+
+    it("keeps a deployment path, without its trailing slash", () => {
+        assert.equal(normalizeBaseUrl("https://host/rdfa/"), "https://host/rdfa");
+    });
+
+    it("rejects something that is not a URL", () => {
+        assert.throws(() => normalizeBaseUrl("not a url"));
+    });
+});
 
 describe("termDeepLink", () => {
     it("addresses a term through the class parameter", () => {

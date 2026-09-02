@@ -30,6 +30,22 @@ import * as path from "path";
 export const RDFA_DEFINITION_MARKER = "#! rdfarchitect ";
 
 /**
+ * One spelling for one instance, so two base URLs can be compared.
+ *
+ * A base URL reaches the extension from three places that disagree about the trailing slash: the
+ * `cimnotebook.rdfArchitectUrl` setting as typed, `new URL(...).toString()` (which *adds* one to a
+ * bare origin), and the language server, whose `RdfArchitectSource` strips them. The session the
+ * embedded view reports is paired with one of those spellings and then compared against another —
+ * so without this, a connected session can go unrecognised and a schema meant for it is handed
+ * over as a read-only snapshot instead. Stripping trailing slashes matches what the server does.
+ *
+ * @throws TypeError if the value is not a URL
+ */
+export function normalizeBaseUrl(url: string): string {
+    return new URL(url.trim()).toString().replace(/\/+$/, "");
+}
+
+/**
  * RDFArchitect's deep link for a term. Every kind of term uses the `class` parameter: a class opens
  * itself, an attribute, association or enum entry opens the class declaring it.
  *
