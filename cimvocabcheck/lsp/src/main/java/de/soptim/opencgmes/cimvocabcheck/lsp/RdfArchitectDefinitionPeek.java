@@ -20,6 +20,8 @@ package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,6 +31,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
@@ -66,6 +70,14 @@ final class RdfArchitectDefinitionPeek {
   private static final String CIMS = "http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#";
 
   private final Path cacheDir;
+
+  /**
+   * The document last written to each path. Unlike an endpoint's, an RDFArchitect term is rendered
+   * from the live schema on every request — a change made over there has to show up — so the
+   * document cannot simply be cached. What can be skipped is rewriting an unchanged one, and both
+   * editors resolve a Ctrl+Click target on hover as well as on click.
+   */
+  private final ConcurrentMap<Path, String> written = new ConcurrentHashMap<>();
 
   RdfArchitectDefinitionPeek() {
     this.cacheDir =
@@ -246,9 +258,24 @@ final class RdfArchitectDefinitionPeek {
             + Integer.toHexString(term.getURI().hashCode())
             + ".ttl";
     Path file = dir.resolve(name);
-    file.toFile().setWritable(true);
-    Files.write(file, turtle.getBytes(StandardCharsets.UTF_8));
-    file.toFile().setReadOnly();
+    // Serialised per path: two requests for the same term (the editors send them concurrently)
+    // would otherwise race between the write and the read-only flag, and one of them would fail
+    // or read a half-written document.
+    written.compute(
+        file,
+        (path, previous) -> {
+          if (turtle.equals(previous) && Files.isRegularFile(path)) {
+            return previous;
+          }
+          try {
+            path.toFile().setWritable(true);
+            Files.write(path, turtle.getBytes(StandardCharsets.UTF_8));
+            path.toFile().setReadOnly();
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+          return turtle;
+        });
     return file;
   }
 
