@@ -26,12 +26,16 @@ plugins {
 group = providers.gradleProperty("pluginGroup").get()
 version = providers.gradleProperty("pluginVersion").get()
 
-// IntelliJ Platform 2024.2 (build 242) requires bytecode target 17.
-// The platform plugin internally sets jvmToolchain(17); we override it in afterEvaluate
-// so the build compiles with whatever JDK is installed (≥17), targeting Java 17 bytecode.
+// IntelliJ Platform 2024.2 (build 242) requires bytecode target 17, and 242 is the floor
+// because it is the first IDE with a bundled Java 21 runtime — so this compiles *against*
+// Java 21 and emits Java 17 bytecode. The platform plugin internally sets jvmToolchain(17),
+// which caps the API at 17 as well and hides every API the plugin may actually call (a
+// closeable HttpClient, say); we override it in afterEvaluate with whatever JDK is installed
+// (≥21). Machines with an older JDK too must not silently fall back to it: that compiles
+// here and fails on a CI runner that happens to have 21, or the other way round.
 afterEvaluate {
     val localJdk =
-        listOf(17, 21, 25, 26)
+        listOf(21, 25, 26)
             .firstOrNull { v ->
                 org.gradle.jvm.toolchain.JavaLanguageVersion.of(v).let { lv ->
                     try {
@@ -41,7 +45,7 @@ afterEvaluate {
                         false
                     }
                 }
-            } ?: 17
+            } ?: 21
 
     extensions.configure<JavaPluginExtension> {
         toolchain {
