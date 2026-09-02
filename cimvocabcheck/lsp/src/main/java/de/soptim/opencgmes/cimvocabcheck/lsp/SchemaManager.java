@@ -139,8 +139,11 @@ final class SchemaManager {
   /** Per-query timeout for fetching a schema from a remote SPARQL endpoint. */
   private static final Duration REMOTE_TIMEOUT = Duration.ofSeconds(30);
 
-  /** How long a failed endpoint load is negatively cached before a retry is allowed. */
-  private static final Duration FAILURE_TTL = Duration.ofSeconds(30);
+  /**
+   * How long a failed endpoint load is negatively cached before a retry is allowed. Shortened by
+   * tests.
+   */
+  static volatile Duration failureTtl = Duration.ofSeconds(30);
 
   /**
    * Extensions a local {@code # [endpoint=...]} directive must have to be loaded as a schema.
@@ -155,7 +158,7 @@ final class SchemaManager {
   /**
    * Endpoint sources whose load failed, mapped to the {@link System#nanoTime()} after which a retry
    * is allowed. A negative cache avoids re-fetching every keystroke, but it expires after {@link
-   * #FAILURE_TTL} so a transient outage doesn't disable the cell for the whole session.
+   * #failureTtl} so a transient outage doesn't disable the cell for the whole session.
    */
   private final Map<String, Long> failedEndpoints = new ConcurrentHashMap<>();
 
@@ -377,6 +380,7 @@ final class SchemaManager {
         return Optional.empty();
       }
       checkForEdits(configLiveKey(Path.of(primaryConfigKey)));
+      retryRdfArchitectIfDue(primaryConfigKey);
       return primarySchema();
     }
     Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
@@ -385,6 +389,7 @@ final class SchemaManager {
     }
     String key = configFile.get().toString();
     checkForEdits(configLiveKey(configFile.get()));
+    retryRdfArchitectIfDue(key);
     if (key.equals(primaryConfigKey)) {
       return primarySchema();
     }
@@ -466,10 +471,23 @@ final class SchemaManager {
             profileGraphsRef.get()));
   }
 
-  /** Builds (and notifies on failure) the schema for a non-primary config key. */
+  /**
+   * Builds (and notifies on failure) the schema for a non-primary config key.
+   *
+   * <p>Runs on whichever thread asked for the schema — an LSP request thread, for validation,
+   * hover, completion and definition alike. A config that names RDFArchitect is therefore loaded in
+   * the background instead: reading an instance that is slow or down would hold that thread for a
+   * full {@link #REMOTE_TIMEOUT} per request. The primary config avoids this by loading on the
+   * schema executor.
+   */
   private WorkspaceSchema buildForKey(String key) {
     try {
-      return buildSchemaForConfig(Path.of(key), false);
+      Path configFile = Path.of(key);
+      CimvocabcheckConfig config = ConfigLoader.load(configFile);
+      if (namesRdfArchitect(config)) {
+        return startRdfArchitectLoad(key, configFile, config, false);
+      }
+      return buildSchemaForConfig(configFile, config, false);
     } catch (Exception e) {
       LOG.error("Failed to load schema for {}: {}", key, e.getMessage(), e);
       notify(
@@ -479,6 +497,69 @@ final class SchemaManager {
       // the syntax-only fallback still respects "standardVocabulary": "ignore".
       return noSchemaWorkspace(readCheckStandardVocab(Path.of(key)));
     }
+  }
+
+  /**
+   * Kicks off a config's RDFArchitect load on the endpoint pool, and answers syntax-only until it
+   * lands — the open documents are revalidated then. A load already running, or one that failed
+   * within {@link #failureTtl}, is not repeated.
+   *
+   * @param quiet whether the load may announce itself; a retry does not
+   */
+  private WorkspaceSchema startRdfArchitectLoad(
+      String key, Path configFile, CimvocabcheckConfig config, boolean quiet) {
+    WorkspaceSchema pending = noSchemaWorkspace(config.checkStandardVocabulary());
+    String liveKey = configLiveKey(configFile);
+    if (isFailed(liveKey) || !inFlightEndpoints.add(liveKey)) {
+      return pending;
+    }
+    endpointExecutor.submit(
+        () -> {
+          try {
+            WorkspaceSchema loaded = buildSchemaFromRdfArchitect(config, configFile, quiet);
+            workspaceSchemaCache.put(key, loaded);
+            if (loaded.api() != null) {
+              fireOnLoaded();
+            }
+          } finally {
+            inFlightEndpoints.remove(liveKey);
+          }
+        });
+    return pending;
+  }
+
+  /**
+   * Retries a config's RDFArchitect load once its failure window has passed.
+   *
+   * <p>An instance that was briefly unreachable would otherwise leave the workspace syntax-only
+   * until the config file is edited or a window is connected — a file that fails to load is the
+   * same every time, but a network that fails is not. The retry is quiet: one report of an instance
+   * being down is news, one every {@link #failureTtl} is not.
+   */
+  private void retryRdfArchitectIfDue(String configKey) {
+    Path configFile = Path.of(configKey);
+    String liveKey = configLiveKey(configFile);
+    Long expiry = failedEndpoints.get(liveKey);
+    if (expiry == null
+        || expiry - System.nanoTime() > 0
+        || !failedEndpoints.remove(liveKey, expiry)) {
+      return;
+    }
+    LOG.info("Retrying the RDFArchitect schema of {}", configKey);
+    if (configKey.equals(primaryConfigKey)) {
+      reloadQuietlyAsync();
+      return;
+    }
+    try {
+      startRdfArchitectLoad(configKey, configFile, ConfigLoader.load(configFile), true);
+    } catch (Exception e) {
+      LOG.debug("Could not retry the RDFArchitect schema of {}: {}", configKey, e.getMessage());
+    }
+  }
+
+  /** Whether a config takes its schema from RDFArchitect rather than from files. */
+  private static boolean namesRdfArchitect(CimvocabcheckConfig config) {
+    return config.rdfArchitect() != null && !config.rdfArchitect().isBlank();
   }
 
   /** Best-effort read of a config's standard-vocabulary flag; defaults to {@code true} on error. */
@@ -826,10 +907,8 @@ final class SchemaManager {
    *     re-check
    */
   private String liveStampOf(RdfArchitectSource source, RdfArchitectConnection connection) {
-    return source.snapshot() != null
-        ? null
-        : RdfArchitectSchemaLoader.changeStamp(
-            source, REMOTE_TIMEOUT, sessionFor(source, connection));
+    return RdfArchitectSchemaLoader.changeStamp(
+        source, REMOTE_TIMEOUT, sessionFor(source, connection));
   }
 
   /**
@@ -1063,19 +1142,19 @@ final class SchemaManager {
   }
 
   /**
-   * Records {@code key} as failed until {@link #FAILURE_TTL} elapses.
+   * Records {@code key} as failed until {@link #failureTtl} elapses.
    *
    * @return {@code true} if this opens a fresh failure window (no live entry was present), so the
    *     caller should notify; {@code false} if a still-valid failure was already recorded.
    */
   private boolean markFailed(String key) {
-    long expiry = System.nanoTime() + FAILURE_TTL.toNanos();
+    long expiry = System.nanoTime() + failureTtl.toNanos();
     Long prev = failedEndpoints.put(key, expiry);
     return prev == null || prev - System.nanoTime() <= 0;
   }
 
   /**
-   * Returns whether {@code key}'s last failure is still within {@link #FAILURE_TTL}. An expired
+   * Returns whether {@code key}'s last failure is still within {@link #failureTtl}. An expired
    * entry is evicted so the next {@code resolveSchema} retries the load.
    */
   private boolean isFailed(String key) {
@@ -1133,7 +1212,7 @@ final class SchemaManager {
     try {
       WorkspaceSchema primary =
           configFile.isPresent()
-              ? buildSchemaForConfig(configFile.get(), quiet)
+              ? buildSchemaForConfig(configFile.get(), ConfigLoader.load(configFile.get()), quiet)
               : noSchemaWorkspace();
       apiRef.set(primary.api());
       levelRef.set(primary.level());
@@ -1180,14 +1259,13 @@ final class SchemaManager {
    * there is no bundled default. Config-relative schema paths resolve against the config's
    * directory.
    */
-  private WorkspaceSchema buildSchemaForConfig(Path configFile, boolean quietLoad)
-      throws Exception {
+  private WorkspaceSchema buildSchemaForConfig(
+      Path configFile, CimvocabcheckConfig config, boolean quietLoad) throws Exception {
     Path base = configFile.toAbsolutePath().getParent();
     // A config that no longer names RDFArchitect must stop being polled for edits; only
     // buildSchemaFromRdfArchitect re-arms the entry, so dropping it here is what bounds that.
     liveSources.remove(configLiveKey(configFile));
-    CimvocabcheckConfig config = ConfigLoader.load(configFile);
-    if (config.rdfArchitect() != null && !config.rdfArchitect().isBlank()) {
+    if (namesRdfArchitect(config)) {
       return buildSchemaFromRdfArchitect(config, configFile, quietLoad);
     }
     Optional<SchemaLoader.SchemaAndSources> loaded = SchemaLoader.loadWithSources(config, base);
@@ -1224,8 +1302,28 @@ final class SchemaManager {
       return noSchemaWorkspace(config.checkStandardVocabulary());
     }
     String stamp = liveStampOf(source, connection);
-    EndpointSchema es =
-        RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
+    EndpointSchema es;
+    try {
+      es = RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
+    } catch (RuntimeException e) {
+      // An instance that is momentarily unreachable must not take the rest of the config down
+      // with it, and must not stay down once it comes back — see retryRdfArchitectIfDue.
+      LOG.warn(
+          "Failed to load the schema from RDFArchitect {}: {}", source.describe(), e.getMessage());
+      String message =
+          "CIMVocabCheck: could not load the schema from RDFArchitect "
+              + source.describe()
+              + " — "
+              + e.getMessage()
+              + " — validating SPARQL syntax only until it answers again.";
+      liveSources.remove(configLiveKey(configFile));
+      if (quietLoad) {
+        markFailed(configLiveKey(configFile));
+      } else {
+        fail(configLiveKey(configFile), MessageType.Error, message);
+      }
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
     if (!es.hasSchema()) {
       notify(
           MessageType.Warning,

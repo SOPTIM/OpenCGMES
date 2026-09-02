@@ -152,6 +152,9 @@ save step. Consequences worth knowing:
   you edit in the browser without exporting.
 - Without a connected view, a bare dataset name cannot be resolved and CIMVocabCheck says so rather
   than silently validating against nothing.
+- An instance that cannot be reached does not take the workspace out for the session: queries are
+  checked for syntax only, the failure is reported once rather than on every attempt, and the schema
+  is loaded as soon as the instance answers again — no reload by hand.
 - The **CLI cannot use this form** — it has no browser and therefore no session. For CI, point
   `rdfArchitect` at a snapshot link, or use `schemas`/`schemasDirectory`.
 
