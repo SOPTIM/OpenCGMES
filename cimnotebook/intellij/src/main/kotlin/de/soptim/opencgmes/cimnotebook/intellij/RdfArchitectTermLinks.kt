@@ -130,6 +130,12 @@ class RdfArchitectTermLinks(
         stamp: Long,
     ): Terms? {
         val fetched = fetch(uri)
+        if (!worthCaching(fetched)) {
+            // Keyed by the document's revision, so a provisional answer would stand until the file
+            // is edited — long after the reason for it is gone.
+            cache.remove(uri)
+            return fetched
+        }
         if (cache.size > MAX_CACHED_DOCUMENTS) {
             cache.clear()
         }
@@ -292,6 +298,21 @@ class RdfArchitectTermLinks(
                 append(value.label)
                 append("  ${value.graph}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
             }
+        }
+
+        /**
+         * Whether an answer is settled enough to keep until the document changes.
+         *
+         * A null is a failed or timed-out request, not a verdict. An answer whose terms name no
+         * profile at all is the language server saying the schema had not loaded yet — cached, it
+         * would leave Ctrl+Click without its profile chooser for the rest of the document's
+         * revision. Both are one cheap round trip to ask again.
+         */
+        internal fun worthCaching(terms: Terms?): Boolean {
+            if (terms == null) {
+                return false
+            }
+            return terms.terms.isEmpty() || terms.terms.any { it.profiles.isNotEmpty() }
         }
 
         /** Must match the server id registered in plugin.xml. */

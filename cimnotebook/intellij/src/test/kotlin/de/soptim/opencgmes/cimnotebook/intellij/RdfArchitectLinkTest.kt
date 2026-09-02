@@ -18,6 +18,7 @@
 package de.soptim.opencgmes.cimnotebook.intellij
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -136,6 +137,36 @@ class RdfArchitectLinkTest {
         val fields = RdfArchitectDefinitionOpener().fields("class=urn%3Ax%23T")
         assertEquals("urn:x#T", fields["class"])
         assertNull(fields["base"])
+    }
+
+    @Test
+    fun `an answer produced before the schema loaded is not kept`() {
+        // The cache is keyed by the document's revision, so a provisional answer would stand until
+        // the file is edited. Terms with no profile mean the schema had not loaded yet.
+        val term = RdfArchitectTermLinks.Term(0, 0, 5, "urn:x#T", emptyList())
+        assertFalse(
+            RdfArchitectTermLinks.worthCaching(
+                RdfArchitectTermLinks.Terms("http://host:3000", "cgmes-3.0", listOf(term)),
+            ),
+        )
+        assertFalse(RdfArchitectTermLinks.worthCaching(null))
+    }
+
+    @Test
+    fun `a settled answer is kept`() {
+        val profile = RdfArchitectTermLinks.Profile("EQ/3.0", "EQ profile.rdf")
+        val term = RdfArchitectTermLinks.Term(0, 0, 5, "urn:x#T", listOf(profile))
+        assertTrue(
+            RdfArchitectTermLinks.worthCaching(
+                RdfArchitectTermLinks.Terms("http://host:3000", "cgmes-3.0", listOf(term)),
+            ),
+        )
+        // A document that simply names no term is an answer too, not a provisional one.
+        assertTrue(
+            RdfArchitectTermLinks.worthCaching(
+                RdfArchitectTermLinks.Terms("http://host:3000", null, emptyList()),
+            ),
+        )
     }
 
     @Test

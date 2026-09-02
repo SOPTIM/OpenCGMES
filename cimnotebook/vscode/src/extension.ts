@@ -31,6 +31,7 @@ import {
 import {
     datasetNameFor,
     localNameOf,
+    normalizeBaseUrl,
     parseDefinitionHeader,
     snapshotDatasetName,
     termDeepLink,
@@ -774,7 +775,21 @@ async function rememberSession(session: RdfArchitectSession | undefined): Promis
 async function rememberedSession(): Promise<RdfArchitectSession | undefined> {
     const url = extensionContext.workspaceState.get<string>(SESSION_URL_KEY);
     const id = url ? await extensionContext.secrets.get(sessionSecretKey()) : undefined;
-    return url && id ? { url, id } : undefined;
+    // Normalised on the way out too: a session remembered by an earlier build was filed under
+    // whichever spelling the panel happened to be opened with.
+    return url && id ? { url: tolerantBaseUrl(url), id } : undefined;
+}
+
+/**
+ * {@link normalizeBaseUrl}, but a value that is not a URL is passed through rather than thrown.
+ * Comparing two odd spellings of the same odd value still works; failing here would not.
+ */
+function tolerantBaseUrl(url: string): string {
+    try {
+        return normalizeBaseUrl(url);
+    } catch {
+        return url.trim().replace(/\/+$/, "");
+    }
 }
 
 let connectedSession: RdfArchitectSession | undefined;
@@ -1107,11 +1122,15 @@ class RdfArchitectClient {
  * @param termIri a term the user was navigating to, handed to the offer so an import can land there
  */
 function showRdfArchitectPanel(
-    base: string,
+    rawBase: string,
     url: string,
     navigate: boolean,
     termIri?: string,
 ): void {
+    // The single point where an instance becomes *this panel's* instance, and so the spelling the
+    // reported session is filed under. Callers hand in a base from three sources — the setting, the
+    // language server, a definition document's header — that disagree about the trailing slash.
+    const base = tolerantBaseUrl(rawBase);
     if (rdfArchitectPanel) {
         if (navigate) {
             rdfArchitectPanelBase = base;
@@ -1180,8 +1199,8 @@ async function resolveRdfArchitectUrl(): Promise<string | undefined> {
         await config.update("rdfArchitectUrl", url, vscode.ConfigurationTarget.Global);
     }
     try {
-        // Validates the URL and normalises away surprises like missing schemes.
-        return new URL(url).toString();
+        // Validates the URL and normalises it to the one spelling every base URL is compared in.
+        return normalizeBaseUrl(url);
     } catch {
         vscode.window.showErrorMessage(
             `CIMNotebook: invalid RDFArchitect URL "${url}" — fix the cimnotebook.rdfArchitectUrl setting.`,
@@ -1241,11 +1260,13 @@ function rdfArchitectHtml(url: string): string {
                 vscodeApi.postMessage({ command: "sessionUnavailable" });
                 return;
             }
-            if (!frame.contentWindow) {
-                return;
-            }
             sessionAsked++;
-            frame.contentWindow.postMessage({ type: "rdfa:session-request" }, appOrigin);
+            // The frame may have no window yet; that is a reason to come back, not to give up —
+            // returning here once would end the handshake for good, and silently, since the
+            // "unavailable" report is on the retry path too.
+            if (frame.contentWindow) {
+                frame.contentWindow.postMessage({ type: "rdfa:session-request" }, appOrigin);
+            }
             setTimeout(askForSession, 500);
         };
         window.addEventListener("message", event => {
