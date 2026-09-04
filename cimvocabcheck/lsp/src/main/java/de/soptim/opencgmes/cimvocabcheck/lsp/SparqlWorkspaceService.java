@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonPrimitive;
 import de.soptim.opencgmes.cimvocabcheck.core.ConfigTemplate;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
@@ -317,9 +318,21 @@ final class SparqlWorkspaceService implements WorkspaceService {
     return stringArg(args, 0);
   }
 
-  /** Command argument at {@code index} as a String, tolerating Gson and in-process forms. */
+  /**
+   * Command argument at {@code index} as a String, tolerating Gson and in-process forms.
+   *
+   * <p>An absent argument and a {@code null} one mean the same thing — "not given" — and both have
+   * to answer {@code null}. Over JSON-RPC a JSON {@code null} arrives as {@link JsonNull}, which is
+   * a {@link JsonElement} but not a primitive; without the check below it would fall through to
+   * {@code toString()} and become the four-character string {@code "null"}. A caller that spells
+   * "no session" as {@code [url, null]} rather than {@code [url]} would then connect to
+   * RDFArchitect with a session id of {@code "null"} instead of disconnecting.
+   */
   private static String stringArg(List<Object> args, int index) {
     Object arg = argAt(args, index);
+    if (arg instanceof JsonNull) {
+      return null;
+    }
     if (arg instanceof String s) {
       return s;
     }
