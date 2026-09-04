@@ -106,10 +106,6 @@ export function activate(context: vscode.ExtensionContext): void {
             openRdfArchitectExternal,
         ),
         vscode.commands.registerCommand("cimnotebook.openInRdfArchitect", openInRdfArchitect),
-        vscode.commands.registerCommand(
-            "cimnotebook.openTermInRdfArchitect",
-            openTermInRdfArchitect,
-        ),
         vscode.commands.registerCommand("cimnotebook.sendSchemaToRdfArchitect", () =>
             sendSchemaToRdfArchitect(),
         ),

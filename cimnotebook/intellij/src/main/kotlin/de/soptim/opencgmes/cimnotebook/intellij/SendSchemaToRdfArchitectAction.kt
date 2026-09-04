@@ -17,6 +17,7 @@
  */
 package de.soptim.opencgmes.cimnotebook.intellij
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -33,8 +34,19 @@ import com.redhat.devtools.lsp4ij.LSPIJUtils
  *
  * Available from Tools, from the RDFArchitect tool window's toolbar, and offered automatically
  * when that tool window opens (see [RdfArchitectSchemaHandoff]).
+ *
+ * The presentation is set here rather than left to `plugin.xml`, because the tool window builds its
+ * own instance for the title bar and only the one `ActionManager` creates is given the text and
+ * description declared there — an instance without them is a blank button with no tooltip. The
+ * menu entry keeps the longer, `CIMNotebook:`-prefixed wording from `plugin.xml`, which overrides
+ * these on that instance.
  */
-class SendSchemaToRdfArchitectAction : AnAction() {
+class SendSchemaToRdfArchitectAction :
+    AnAction(
+        "Send Schema",
+        "Import the workspace schema files into RDFArchitect",
+        AllIcons.Actions.Upload,
+    ) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
