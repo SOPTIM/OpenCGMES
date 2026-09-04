@@ -36,11 +36,9 @@ import org.cef.browser.CefFrame
 import org.cef.handler.CefLoadHandlerAdapter
 import org.eclipse.lsp4j.ExecuteCommandParams
 import java.net.URI
-import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -343,7 +341,15 @@ object RdfArchitectSessionBridge {
         }
     }
 
-    /** Whether the instance still knows this session — it answers with the caller's own id. */
+    /**
+     * Whether the instance still knows this session — it answers with the caller's own id.
+     *
+     * The id goes into the cookie exactly as it was read out of the browser, which is how every
+     * other caller sends it (the language server, the schema handoff, the VS Code extension).
+     * Encoding it here instead would address a session RDFArchitect has never heard of for any id
+     * containing a character that gets escaped, earn a fresh one in reply, and report a perfectly
+     * live session as gone on every project open.
+     */
     private fun isAlive(
         url: String,
         id: String,
@@ -353,7 +359,7 @@ object RdfArchitectSessionBridge {
                 HttpRequest
                     .newBuilder()
                     .uri(URI.create(url.trimEnd('/') + "/api/session"))
-                    .header("Cookie", "$SESSION_COOKIE=" + URLEncoder.encode(id, StandardCharsets.UTF_8))
+                    .header("Cookie", "$SESSION_COOKIE=$id")
                     .timeout(PROBE_TIMEOUT)
                     .GET()
                     .build()
