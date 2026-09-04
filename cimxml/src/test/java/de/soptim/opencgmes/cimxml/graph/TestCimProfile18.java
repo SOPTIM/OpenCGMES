@@ -25,6 +25,7 @@ import org.junit.Test;
 import java.io.StringReader;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TestCimProfile18 {
@@ -58,6 +59,47 @@ public class TestCimProfile18 {
 
         assertTrue(ontology.isHeaderProfile());
         assertEquals(CimProfile18.CIM_NAMESPACE, ontology.getCimNamespace());
+    }
+
+    /** CIM 18 profiles describe themselves the same way CIM 17 profiles do. */
+    @Test
+    public void readProfileMetadata() {
+        final var rdfxml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rdf:RDF
+              xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+              xmlns:cim="https://cim.ucaiug.io/ns#"
+              xmlns:dcat="http://www.w3.org/ns/dcat#"
+              xmlns:dcterms="http://purl.org/dc/terms/"
+              xmlns:owl="http://www.w3.org/2002/07/owl#"
+              xml:base="https://cim.ucaiug.io/ns" >
+            <rdf:Description rdf:about="http://example.org/test#Ontology">
+                <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#Ontology"/>
+                <dcat:keyword>TST</dcat:keyword>
+                <owl:versionIRI rdf:resource="http://example.org/TestProfile/2.0"/>
+                <owl:versionInfo xml:lang="en">2.0.0</owl:versionInfo>
+                <dcterms:title xml:lang="en">Test Vocabulary</dcterms:title>
+                <dcterms:description xml:lang="en">A vocabulary for exercising the metadata accessors.</dcterms:description>
+            </rdf:Description>
+            </rdf:RDF>
+            """;
+
+        var graph = GraphFactory.createGraphMem();
+
+        RDFParser.create()
+                .source(new StringReader(rdfxml))
+                .lang(org.apache.jena.riot.Lang.RDFXML)
+                .checking(false)
+                .parse(graph);
+
+        var metadata = CimProfile.wrap(graph).getMetadata();
+
+        assertEquals(CimProfile18.CIM_NAMESPACE, metadata.cimNamespace());
+        assertFalse(metadata.headerProfile());
+        assertEquals("TST", metadata.keyword());
+        assertEquals("Test Vocabulary", metadata.label());
+        assertEquals("A vocabulary for exercising the metadata accessors.", metadata.description());
+        assertEquals("2.0.0", metadata.versionInfo());
     }
 
 }
