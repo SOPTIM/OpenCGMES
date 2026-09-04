@@ -22,6 +22,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonPrimitive;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
@@ -332,6 +335,38 @@ public class RdfArchitectLiveDatasetTest {
   }
 
   /**
+   * A client that spells "no session" as an explicit JSON {@code null} disconnects, like one that
+   * simply leaves the argument off.
+   *
+   * <p>The two forms travel differently: lsp4j hands a JSON {@code null} over as {@link JsonNull},
+   * which is a {@code JsonElement} but not a primitive — read as a string it would become {@code
+   * "null"} and connect a session by that name. The in-process form the test above uses carries a
+   * Java {@code null} instead, so it cannot catch this.
+   */
+  @Test
+  public void aJsonNullSessionDisconnectsLikeAMissingOne() throws Exception {
+    SchemaManager manager = new SchemaManager();
+    try {
+      var workspace =
+          new SparqlWorkspaceService(
+              manager,
+              new SparqlTextDocumentService(manager, new NotebookDefaults()),
+              new NotebookCommandHandler(),
+              new NotebookDefaults());
+
+      Object connected =
+          runWire(workspace, new JsonPrimitive(baseUrl()), new JsonPrimitive(SESSION));
+      assertEquals(Map.of("connected", true, "url", baseUrl()), connected);
+
+      Object disconnected = runWire(workspace, new JsonPrimitive(baseUrl()), JsonNull.INSTANCE);
+      assertEquals(Map.of("connected", false, "url", ""), disconnected);
+      assertEquals(Optional.empty(), manager.connectedRdfArchitect());
+    } finally {
+      manager.shutdown();
+    }
+  }
+
+  /**
    * A workspace that stops naming RDFArchitect must stop being polled for edits over there — the
    * poll is armed per config, and only a reload can disarm it.
    */
@@ -465,6 +500,17 @@ public class RdfArchitectLiveDatasetTest {
   }
 
   private static Object run(SparqlWorkspaceService workspace, String... args)
+      throws ExecutionException, InterruptedException {
+    return workspace
+        .executeCommand(
+            new ExecuteCommandParams(
+                SparqlWorkspaceService.CMD_CONNECT_RDFARCHITECT,
+                java.util.Arrays.stream(args).map(a -> (Object) a).toList()))
+        .get();
+  }
+
+  /** The same command as {@link #run}, with the Gson elements lsp4j delivers over the wire. */
+  private static Object runWire(SparqlWorkspaceService workspace, JsonElement... args)
       throws ExecutionException, InterruptedException {
     return workspace
         .executeCommand(
