@@ -69,6 +69,10 @@ jobs:
         run: npm run compile
         working-directory: cimnotebook/vscode
 
+      - name: Unit tests
+        run: npm test
+        working-directory: cimnotebook/vscode
+
   # ---- VS Code extension build + artifact upload ---------------------------
   build-vsix:
     runs-on: ubuntu-latest
@@ -181,8 +185,10 @@ jobs:
         run: gradle spotlessCheck
         working-directory: cimnotebook/intellij
 
-      - name: Build IntelliJ plugin
-        run: gradle buildPlugin
+      # Separate invocation from spotlessCheck: :copyServerJar writes into a directory
+      # :spotlessKotlin reads, which Gradle rejects within one build.
+      - name: Test + build IntelliJ plugin
+        run: gradle test buildPlugin
         working-directory: cimnotebook/intellij
 
       - name: Upload IntelliJ plugin artifact

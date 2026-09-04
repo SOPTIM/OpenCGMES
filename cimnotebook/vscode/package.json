@@ -255,6 +255,11 @@
                 "category": "CIMNotebook"
             },
             {
+                "command": "cimnotebook.config.editRdfArchitect",
+                "title": "Edit RDFArchitect Model",
+                "category": "CIMNotebook"
+            },
+            {
                 "command": "cimnotebook.config.addSchemaFile",
                 "title": "Add Schema File",
                 "category": "CIMNotebook",
@@ -275,6 +280,31 @@
                 "command": "cimnotebook.config.editMaxRows",
                 "title": "Edit Max Rows",
                 "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.openRdfArchitect",
+                "title": "Open RDFArchitect",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.openRdfArchitectExternal",
+                "title": "Open RDFArchitect in Browser",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.openInRdfArchitect",
+                "title": "Open in RDFArchitect",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.sendSchemaToRdfArchitect",
+                "title": "Send Schema to RDFArchitect",
+                "category": "CIMNotebook"
+            },
+            {
+                "command": "cimnotebook.reconnectRdfArchitect",
+                "title": "Reconnect RDFArchitect Session",
+                "category": "CIMNotebook"
             }
         ],
         "menus": {
@@ -283,12 +313,26 @@
                     "command": "cimnotebook.explainQuery",
                     "when": "editorLangId == sparql",
                     "group": "cimnotebook@1"
+                },
+                {
+                    "command": "cimnotebook.openInRdfArchitect",
+                    "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle",
+                    "group": "cimnotebook@2"
+                },
+                {
+                    "command": "cimnotebook.sendSchemaToRdfArchitect",
+                    "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle",
+                    "group": "cimnotebook@3"
                 }
             ],
             "commandPalette": [
                 {
                     "command": "cimnotebook.explainQuery",
                     "when": "editorLangId == sparql"
+                },
+                {
+                    "command": "cimnotebook.openInRdfArchitect",
+                    "when": "editorLangId == sparql || editorLangId == shacl || editorLangId == turtle"
                 },
                 {
                     "command": "cimnotebook.createConfig"
@@ -344,6 +388,10 @@
                     "when": "false"
                 },
                 {
+                    "command": "cimnotebook.config.editRdfArchitect",
+                    "when": "false"
+                },
+                {
                     "command": "cimnotebook.config.addSchemaFile",
                     "when": "false"
                 },
@@ -358,6 +406,18 @@
                 {
                     "command": "cimnotebook.config.editMaxRows",
                     "when": "false"
+                },
+                {
+                    "command": "cimnotebook.openRdfArchitect"
+                },
+                {
+                    "command": "cimnotebook.openRdfArchitectExternal"
+                },
+                {
+                    "command": "cimnotebook.sendSchemaToRdfArchitect"
+                },
+                {
+                    "command": "cimnotebook.reconnectRdfArchitect"
                 }
             ],
             "view/title": [
@@ -447,6 +507,11 @@
                     },
                     "default": [],
                     "markdownDescription": "Additional JVM arguments passed before `-jar`, e.g. `[\"-Xmx512m\"]`."
+                },
+                "cimnotebook.rdfArchitectUrl": {
+                    "type": "string",
+                    "default": "",
+                    "markdownDescription": "URL of a running [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance (e.g. `http://localhost:3000`), shown by the **CIMNotebook: Open RDFArchitect** command. RDFArchitect is not bundled \u2014 point this at a local or hosted deployment."
                 },
                 "cimnotebook.trace.server": {
                     "type": "string",

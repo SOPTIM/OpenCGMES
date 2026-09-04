@@ -37,9 +37,13 @@ import org.apache.jena.graph.Node;
  *     backing source file to navigate to — a remote SPARQL endpoint, whose terms are instead
  *     resolved via {@link EndpointDefinitionPeek}. Non-null for the workspace schema and for a
  *     local-file {@code # [endpoint=...]} schema, both of which have a real file to jump to.
+ * @param profileGraphs profile version IRI → the named graph declaring it, for schemas read from a
+ *     graph store (an endpoint or RDFArchitect); empty for file-backed schemas, where {@code
+ *     definitionIndex} says where a profile lives instead
  */
 record ResolvedSchema(
     SparqlValidationApi api,
     StrictnessLevel strictness,
     Map<Node, Collection<VersionIri>> namedGraphScope,
-    DefinitionIndex definitionIndex) {}
+    DefinitionIndex definitionIndex,
+    Map<VersionIri, String> profileGraphs) {}

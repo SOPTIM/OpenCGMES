@@ -37,6 +37,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.CimvocabcheckConfig;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSource;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.EmbeddedSourceMapper;
 import de.soptim.opencgmes.cimvocabcheck.core.shacl.ShaclValidationResult;
@@ -255,7 +257,7 @@ public class ValidateCommand implements Callable<Integer> {
       throw abortUsage("failed to load schema from endpoint " + endpoint + " — " + e.getMessage());
     }
     if (!es.hasSchema()) {
-      String msg = describeNoSchema(endpoint, es);
+      String msg = describeNoSchema("endpoint " + endpoint, es);
       if (strictEndpoint) {
         throw abortUsage(msg + " (--strict-endpoint).");
       }
@@ -283,12 +285,11 @@ public class ValidateCommand implements Callable<Integer> {
    * unrecognized {@code cim} namespace — see the {@code cimNamespaces} setting in {@code
    * opencgmes.jsonc}).
    */
-  private static String describeNoSchema(String endpoint, EndpointSchema es) {
+  private static String describeNoSchema(String source, EndpointSchema es) {
     if (es.schemaGraphNames().isEmpty()) {
-      return "endpoint " + endpoint + " exposes no CIM schema graphs";
+      return source + " exposes no CIM schema graphs";
     }
-    return "endpoint "
-        + endpoint
+    return source
         + " exposes "
         + es.schemaGraphNames().size()
         + " schema graph(s), but none resolved to a registered CIM profile"
@@ -311,6 +312,9 @@ public class ValidateCommand implements Callable<Integer> {
         config = ConfigLoader.discover(Path.of(".")).orElse(null);
         base = Path.of(".").toAbsolutePath();
       }
+      if (config != null && config.rdfArchitect() != null && !config.rdfArchitect().isBlank()) {
+        return resolveSchemaFromRdfArchitect(config);
+      }
       RdfsSchemaIndex index =
           (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
       if (index == null) {
@@ -323,6 +327,61 @@ public class ValidateCommand implements Callable<Integer> {
     } catch (ConfigLoader.ConfigException | SchemaLoader.SchemaLoadException e) {
       throw abortUsage(e.getMessage());
     }
+  }
+
+  /**
+   * Loads the schema from the RDFArchitect instance the config names ({@code "rdfArchitect"}), so a
+   * pipeline can validate against the model as it is curated there. Honours {@code
+   * --strict-endpoint} the same way an endpoint schema does: an instance that holds no CIM profiles
+   * is a warning by default and a hard failure under the flag.
+   */
+  private SchemaContext resolveSchemaFromRdfArchitect(CimvocabcheckConfig config) {
+    RdfArchitectSource source;
+    EndpointSchema es;
+    try {
+      source = RdfArchitectSource.parse(config.rdfArchitect());
+    } catch (IllegalArgumentException e) {
+      // A bare dataset name is readable only through the session of an open RDFArchitect window,
+      // which is something an editor has and a pipeline never will. Saying "open the view" here
+      // would be advice this command cannot follow.
+      throw abortUsage(
+          "\""
+              + config.rdfArchitect()
+              + "\" names a dataset of an RDFArchitect session, and the CLI has no session to look"
+              + " in. Configure a link instead: a snapshot link from RDFArchitect's Share dialog"
+              + " (immutable, which is what a pipeline wants), or an instance URL such as"
+              + " http://localhost:3000/?dataset="
+              + config.rdfArchitect()
+              + " for a dataset the instance itself persists.");
+    }
+    try {
+      es = RdfArchitectSchemaLoader.load(source, Duration.ofSeconds(30));
+    } catch (RuntimeException e) {
+      throw abortUsage(
+          "failed to load schema from RDFArchitect "
+              + config.rdfArchitect()
+              + " — "
+              + e.getMessage());
+    }
+    if (!es.hasSchema()) {
+      String msg = describeNoSchema("RDFArchitect " + source.describe(), es);
+      if (strictEndpoint) {
+        throw abortUsage(msg + " (--strict-endpoint).");
+      }
+      System.err.println("Warning: " + msg + " — validating SPARQL syntax only.");
+      return SchemaContext.syntaxOnly(config);
+    }
+    System.err.println(
+        "Info: schema loaded from RDFArchitect "
+            + source.describe()
+            + " — "
+            + es.schemaGraphNames().size()
+            + " schema graph(s) detected.");
+    // A config that maps graphs to profiles itself means it, so that mapping wins over what was
+    // auto-detected — the precedence the language server applies to the same config, and the
+    // reason a pipeline and an editor agree on what a query says.
+    return new SchemaContext(
+        es.index(), config, config.hasNamedGraphs() ? null : es.namedGraphScope(), false);
   }
 
   /** Resolves the effective strictness: CLI flag → config file → {@code "default"}. */
