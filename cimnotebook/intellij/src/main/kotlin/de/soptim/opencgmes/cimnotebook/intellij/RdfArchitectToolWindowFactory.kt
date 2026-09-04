@@ -225,10 +225,21 @@ class RdfArchitectPanel(
         repaint()
     }
 
+    /**
+     * The browser the panel is actually showing.
+     *
+     * Clearing the instance URL swaps the browser out for the placeholder but keeps it around, so
+     * that configuring a URL again reuses it. Until then it is not on screen, and navigating it
+     * would be an invisible no-op where the caller expects to see the page — so as far as everyone
+     * else is concerned, there is no browser.
+     */
+    private val visibleBrowser: JBCefBrowser?
+        get() = if (shownUrl != null) browser else null
+
     /** Reloads the embedded page (no-op when the placeholder is showing). */
     fun reload() {
         refresh()
-        browser?.cefBrowser?.reload()
+        visibleBrowser?.cefBrowser?.reload()
     }
 
     /**
@@ -237,7 +248,7 @@ class RdfArchitectPanel(
      */
     fun openUrl(url: String) {
         refresh()
-        val embedded = browser
+        val embedded = visibleBrowser
         if (embedded != null) {
             embedded.loadURL(url)
         } else {
