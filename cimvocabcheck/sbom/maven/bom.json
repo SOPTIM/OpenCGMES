@@ -2910,6 +2910,73 @@
           "url" : "https://github.com/qos-ch/slf4j/slf4j-parent/slf4j-api"
         }
       ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar",
+      "publisher" : "QOS.ch",
+      "group" : "org.slf4j",
+      "name" : "slf4j-api",
+      "version" : "2.0.19",
+      "description" : "The slf4j API",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "1ca3a2acac3d5947b37d9b5536c55829"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "efad9817997b3a6ce9e058f92e612917a744c290"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "e91ff6d720609e7a194ffe758c3ed5c84e798617ae07b0a0f6a4fe229741b4bb"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "627253cf27192750fd5ff84622526ac04f6848829adccd807d485a971bb74e83e47539214a054b8c129f3608cbc6450f2076000ab075b44a1b2dc7b74f592857"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "ae23be04ee2e1c1315184c533190d44acb5f01d9a812dda81c928667401ad8e166e780f451d027a89b2d2dce94c61d02"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "03745b6475e8b9d85e0074ce0e0e6f94f3fead8eeaae857278a91f236b349dbfa5a0c1df3a6cdeea63d0d16a947ac5df"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "dfb417ec7e1febf8cdc4ac8b3eb495fe709caf163a98db0af9385b3ece464688"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "2225edddf8aac803c27b39872250dadc394da3facd2520fe50b50db86a3f0a571987291fd3d646ccb9a178890dbfdd385f1139e47e62ce0052f6834b448c2194"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "MIT",
+            "url" : "https://opensource.org/license/mit/"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "http://www.slf4j.org"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/qos-ch/slf4j/slf4j-parent/slf4j-api"
+        }
+      ]
     }
   ],
   "dependencies" : [
@@ -3002,7 +3069,7 @@
         "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
       ]
     },
     {
@@ -3011,7 +3078,7 @@
         "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.22.2?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
       ]
     },
     {
@@ -3023,7 +3090,7 @@
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
         "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
       ]
     },
     {
@@ -3138,7 +3205,7 @@
       "dependsOn" : [
         "pkg:maven/org.apache.logging.log4j/log4j-api@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
       ]
     },
     {
@@ -3181,6 +3248,10 @@
     },
     {
       "ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.18?type=jar",
+      "dependsOn" : []
+    },
+    {
+      "ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar",
       "dependsOn" : []
     }
   ]

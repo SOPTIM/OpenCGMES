@@ -70,15 +70,15 @@
         <ver.jackson>2.22.2</ver.jackson>
 
         <!-- Logging -->
-        <ver.slf4j>2.0.18</ver.slf4j>
+        <ver.slf4j>2.0.19</ver.slf4j>
         <ver.log4j2>2.26.1</ver.log4j2>
 
         <!-- Testing -->
         <ver.junit4>4.13.2</ver.junit4>
 
         <!-- Plugins -->
-        <ver.plugin.compiler>3.15.0</ver.plugin.compiler>
-        <ver.plugin.surefire>3.5.6</ver.plugin.surefire>
+        <ver.plugin.compiler>3.16.0</ver.plugin.compiler>
+        <ver.plugin.surefire>3.6.0</ver.plugin.surefire>
         <ver.plugin.source>3.4.0</ver.plugin.source>
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
@@ -86,9 +86,9 @@
         <ver.plugin.exec>3.6.3</ver.plugin.exec>
 
         <!-- Static analysis / formatting plugins -->
-        <ver.plugin.spotless>3.10.1</ver.plugin.spotless>
+        <ver.plugin.spotless>3.10.2</ver.plugin.spotless>
         <ver.googleJavaFormat>1.35.0</ver.googleJavaFormat>
-        <ver.plugin.spotbugs>4.10.4.0</ver.plugin.spotbugs>
+        <ver.plugin.spotbugs>4.10.4.1</ver.plugin.spotbugs>
         <ver.plugin.checkstyle-plugin>3.6.0</ver.plugin.checkstyle-plugin>
         <ver.checkstyle>14.1.0</ver.checkstyle>
         <ver.plugin.pmd>3.28.0</ver.plugin.pmd>
