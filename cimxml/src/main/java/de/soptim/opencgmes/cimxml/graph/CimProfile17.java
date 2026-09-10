@@ -45,6 +45,13 @@ public class CimProfile17 extends GraphWrapper implements CimProfile {
   protected static final Node PREDICATE_OWL_VERSION_INFO = NodeFactory.createURI(
       NS_OWL + "versionInfo");
 
+  /**
+   * A profile's own package is named "Package_{Profile}Profile"; the packages that merely group
+   * its classes are named after the class category, e.g. "Package_Domain".
+   */
+  protected static final String PACKAGE_INFIX = "Package_";
+  protected static final String PROFILE_POSTFIX = "Profile";
+
   private final boolean isHeaderProfile;
 
   /**
@@ -89,21 +96,42 @@ public class CimProfile17 extends GraphWrapper implements CimProfile {
       // CGMES v3.0 file header profiles do not have a keyword.
       return "FH"; // Use "FH" for compatibility with old CGMES 2.4.15 file header profiles.
     }
-    var iter = find(getOntology(), PREDICATE_DCAT_KEYWORD, Node.ANY);
-    return iter.hasNext() ? iter.next().getObject().getLiteralValue().toString() : null;
+    return CimProfile.literalOf(this, getOntologyNode(), PREDICATE_DCAT_KEYWORD);
   }
 
   @Override
   public Set<Node> getOwlVersionIris() {
-    return stream(getOntology(), PREDICATE_OWL_VERSION_IRI, Node.ANY)
+    var ontology = getOntologyNode();
+    if (ontology == null) {
+      return Set.of();
+    }
+    return stream(ontology, PREDICATE_OWL_VERSION_IRI, Node.ANY)
         .map(Triple::getObject)
         .collect(Collectors.toUnmodifiableSet());
   }
 
   @Override
   public String getOwlVersionInfo() {
-    var iter = find(getOntology(), PREDICATE_OWL_VERSION_INFO, Node.ANY);
-    return iter.hasNext() ? iter.next().getObject().getLiteralValue().toString() : null;
+    return CimProfile.literalOf(this, getOntologyNode(), PREDICATE_OWL_VERSION_INFO);
+  }
+
+  @Override
+  public Node getOntologyNode() {
+    return stream(Node.ANY, RDF.type.asNode(), CLASS_ONTOLOGY)
+        .map(Triple::getSubject)
+        .findFirst()
+        .orElse(null);
+  }
+
+  @Override
+  public Node getProfilePackage() {
+    return stream(Node.ANY, RDF.type.asNode(), TYPE_CLASS_CATEGORY)
+        .map(Triple::getSubject)
+        .filter(Node::isURI)
+        .filter(subject -> subject.getURI().contains(PACKAGE_INFIX))
+        .filter(subject -> subject.getURI().endsWith(PROFILE_POSTFIX))
+        .findFirst()
+        .orElse(null);
   }
 
   @Override

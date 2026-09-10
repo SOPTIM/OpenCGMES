@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.graph.Triple;
 import org.apache.jena.sparql.graph.GraphWrapper;
 import org.apache.jena.vocabulary.RDF;
 
@@ -44,6 +45,8 @@ public class CimProfile16 extends GraphWrapper implements CimProfile {
 
   static final Node PREDICATE_RDFS_DOMAIN = NodeFactory.createURI(NS_RDFS + "domain");
   static final Node PREDICATE_CIMS_IS_FIXED = NodeFactory.createURI(NS_CIMS + "isFixed");
+  static final Node PREDICATE_CIMS_BELONGS_TO_CATEGORY =
+      NodeFactory.createURI(NS_CIMS + "belongsToCategory");
 
   /**
    * Used in pre-2020 profiles where {@code cims:isFixed} is encoded as
@@ -170,7 +173,56 @@ public class CimProfile16 extends GraphWrapper implements CimProfile {
 
   @Override
   public String getOwlVersionInfo() {
-    return null;
+    return null; // CGMES 2.4.15 profiles carry no version info.
+  }
+
+  @Override
+  public String getIssued() {
+    return getProfilePropertyFixedTexts(get(), ".date").findFirst().orElse(null);
+  }
+
+  /**
+   * The profile's package, which is where a CGMES 2.4.15 profile keeps its label and description.
+   *
+   * <p>Reached from the "{Profile}Version" class through {@code cims:belongsToCategory}, so that
+   * the package is identified by what the profile says about it rather than by its name. File
+   * header profiles have no version class and are looked up by name instead.</p>
+   */
+  @Override
+  public Node getProfilePackage() {
+    var versionClass = getVersionClass(get());
+    if (versionClass != null) {
+      var category =
+          get().stream(versionClass, PREDICATE_CIMS_BELONGS_TO_CATEGORY, Node.ANY)
+              .map(Triple::getObject)
+              .filter(Node::isURI)
+              .findFirst();
+      if (category.isPresent()) {
+        return category.get();
+      }
+    }
+    return get().stream(Node.ANY, RDF.type.asNode(), TYPE_CLASS_CATEGORY)
+        .map(Triple::getSubject)
+        .filter(Node::isURI)
+        .filter(subject -> subject.getURI().endsWith(PACKAGE_FILE_HEADER_PROFILE))
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * The "{Profile}Version" class holding the profile's fixed metadata, found through the
+   * {@code rdfs:domain} of the properties that carry it.
+   *
+   * @param graph The graph to search in.
+   * @return The version class, or null if the graph has none.
+   */
+  static Node getVersionClass(Graph graph) {
+    return graph.stream(Node.ANY, PREDICATE_RDFS_DOMAIN, Node.ANY)
+        .map(Triple::getObject)
+        .filter(Node::isURI)
+        .filter(object -> object.getURI().endsWith(PROFILE_VERSION_POSTFIX))
+        .findFirst()
+        .orElse(null);
   }
 
   @Override

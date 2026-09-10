@@ -175,6 +175,7 @@ public class TestCimProfile16 {
 
         assertTrue(ontology.isHeaderProfile());
         assertEquals(CimProfile16.CIM_NAMESPACE, ontology.getCimNamespace());
+        assertEquals("FileHeaderProfile", ontology.getLabel());
     }
 
     /**
@@ -217,5 +218,81 @@ public class TestCimProfile16 {
         assertEquals(1, profile.getOwlVersionIris().size());
         assertEquals("http://example.org/TestProfile/1",
                 profile.getOwlVersionIris().iterator().next().getURI());
+
+        // Nothing declares a profile package here, so there is no name to report.
+        assertNull(profile.getProfilePackage());
+        assertNull(profile.getLabel());
+        assertNull(profile.getDescription());
+    }
+
+    /**
+     * A CGMES 2.4.15 profile has no ontology object, so its label and description come from the
+     * profile's package.  The package is reached from the version class through
+     * {@code cims:belongsToCategory} rather than by its name.
+     */
+    @Test
+    public void readProfileMetadata() {
+        final var rdfxml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rdf:RDF xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+                     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+                     xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+                     xml:base="http://example.org/test">
+              <rdf:Description rdf:about="#Package_TestProfile">
+                <rdfs:label xml:lang="en">TestProfile</rdfs:label>
+                <rdf:type rdf:resource="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#ClassCategory"/>
+                <rdfs:comment rdf:parseType="Literal">A profile for exercising the metadata accessors.</rdfs:comment>
+              </rdf:Description>
+              <rdf:Description rdf:about="#Package_Grouping">
+                <rdfs:label xml:lang="en">Grouping</rdfs:label>
+                <rdf:type rdf:resource="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#ClassCategory"/>
+              </rdf:Description>
+              <rdf:Description rdf:about="http://example.org/ext#TestVersion">
+                <rdfs:label xml:lang="en">TestVersion</rdfs:label>
+                <cims:belongsToCategory rdf:resource="#Package_TestProfile"/>
+                <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+              </rdf:Description>
+              <rdf:Description rdf:about="http://example.org/ext#TestVersion.shortName">
+                <rdfs:domain rdf:resource="http://example.org/ext#TestVersion"/>
+                <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">TST</cims:isFixed>
+              </rdf:Description>
+              <rdf:Description rdf:about="http://example.org/ext#TestVersion.entsoeURI">
+                <rdfs:domain rdf:resource="http://example.org/ext#TestVersion"/>
+                <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">http://example.org/TestProfile/1</cims:isFixed>
+              </rdf:Description>
+              <rdf:Description rdf:about="http://example.org/ext#TestVersion.date">
+                <rdfs:domain rdf:resource="http://example.org/ext#TestVersion"/>
+                <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2020-09-04</cims:isFixed>
+              </rdf:Description>
+            </rdf:RDF>
+            """;
+
+        var graph = GraphFactory.createGraphMem();
+        RDFParser.create()
+                .source(new StringReader(rdfxml))
+                .lang(org.apache.jena.riot.Lang.RDFXML)
+                .checking(false)
+                .parse(graph);
+
+        var profile = CimProfile.wrap(graph);
+
+        assertEquals("http://example.org/test#Package_TestProfile",
+                profile.getProfilePackage().getURI());
+        assertEquals("TestProfile", profile.getLabel());
+        assertEquals("A profile for exercising the metadata accessors.", profile.getDescription());
+        assertEquals("2020-09-04", profile.getIssued());
+        assertNull(profile.getOntologyNode());
+
+        var metadata = profile.getMetadata();
+
+        assertEquals(CimProfile16.CIM_NAMESPACE, metadata.cimNamespace());
+        assertFalse(metadata.headerProfile());
+        assertEquals("TST", metadata.keyword());
+        assertEquals("TestProfile", metadata.label());
+        assertEquals("A profile for exercising the metadata accessors.", metadata.description());
+        assertEquals(1, metadata.versionIris().size());
+        assertNull(metadata.versionInfo());
+        assertEquals("2020-09-04", metadata.issued());
     }
 }
