@@ -56,6 +56,7 @@ syntax-only mode.
 | --- | --- | --- | --- |
 | `schemasDirectory` | string | — | Directory of RDFS/profile files (`.rdf`, `.ttl`, `.owl`) |
 | `schemas` | string[] | — | Explicit list of RDFS/profile files |
+| `rdfArchitect` | string | — | Dataset name, or link, of an RDFArchitect to take the schema from |
 | `strictness` | enum | `default` | How findings map to severities |
 | `namedGraphs` | object | — | Map graph IRIs / short names to profile IRIs |
 | `prefixes` | object | *(built-in set)* | PREFIX declarations injected into queries |
@@ -89,6 +90,76 @@ Point at a directory or list individual files:
 
 If you omit both, no schema is loaded and validation is syntax-only (unless a
 [`# [endpoint=...]`](/cimvocabcheck/endpoints) directive supplies one).
+
+### `rdfArchitect`
+
+Validate against the model as it is curated in a running
+[RDFArchitect](https://github.com/SOPTIM/RDFArchitect) rather than against files on disk. The schema
+is read over its REST API, so no SPARQL endpoint and no access to its store are needed.
+
+**A dataset name** validates against that dataset **as you edit it** — the language server reads the
+very working copy shown in the editor's RDFArchitect view, so a class you add there is known to the
+next validation a few seconds later:
+
+```json
+{
+  "cimvocabcheck": {
+    "rdfArchitect": "cgmes-3.0"
+  }
+}
+```
+
+This is the form to use day to day. It needs the RDFArchitect view open in the IDE, which is what
+tells the language server *which* instance and session to read (see
+[live datasets](#live-datasets) below). Only the dataset name goes into the config — nothing
+instance-specific, nothing secret.
+
+**A link** pins a fixed source instead, and needs no editor:
+
+```json
+{
+  "cimvocabcheck": {
+    "rdfArchitect": "http://localhost:3000/?snapshot=ffPKWuq2hw8WKBRn5VwEOA"
+  }
+}
+```
+
+Either way it takes precedence over `schemas`/`schemasDirectory`, and profile detection,
+named-graph mapping and typo-checking behave exactly as for files. What does change is
+go-to-definition: there is no source file to open, so `Ctrl+Click` on a term goes to a read-only
+document rendered from the loaded schema — one per declaring profile — and opening it shows that
+term in the editor's RDFArchitect view
+([VS Code](/cimnotebook/vscode#go-to-definition), [IntelliJ](/cimnotebook/intellij#go-to-definition)).
+
+#### Live datasets
+
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so a dataset is
+only readable by whoever holds that session. The IDE extensions hand the session of the view they
+embed to the language server, which then reads that dataset directly — no export, no snapshot, no
+save step. Consequences worth knowing:
+
+- The dataset must exist **in the window the editor shows**. Import it there (or use *Send Schema to
+  RDFArchitect*); a dataset in some other browser tab is invisible.
+- A name of the form `SNAPSHOT_<dataset>_<token>` — what RDFArchitect calls a loaded snapshot, and
+  what you see in the address bar after opening one — is understood as that snapshot and loaded on
+  its own, rather than looked for in the session. It does not change, so it never has to be
+  re-imported; it still needs a connected view, though, because the name alone does not say which
+  instance holds the snapshot. Use the snapshot **link** where there is no editor, e.g. in CI.
+- "No RDFArchitect session is connected" means the view is open **and** the instance reports its
+  session: an instance older than that support, or one whose deployment has not enabled the
+  handshake, cannot answer. The editor's output log says which of the two it is.
+- Changes are lost when the RDFArchitect instance restarts, exactly as they are for anything else
+  you edit in the browser without exporting.
+- Without a connected view, a bare dataset name cannot be resolved and CIMVocabCheck says so rather
+  than silently validating against nothing.
+- An instance that cannot be reached does not take the workspace out for the session: queries are
+  checked for syntax only, the failure is reported once rather than on every attempt, and the schema
+  is loaded as soon as the instance answers again — no reload by hand.
+- The **CLI cannot use this form** — it has no browser and therefore no session. For CI, point
+  `rdfArchitect` at a snapshot link, or use `schemas`/`schemasDirectory`.
+
+The same source works per document, without touching the config, via the
+[`# [rdfarchitect=...]`](/cimvocabcheck/endpoints) directive.
 
 ### `strictness`
 

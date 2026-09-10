@@ -45,6 +45,8 @@ import org.apache.jena.graph.Node;
  *     that navigate the RDFS schema directly validate permissively instead of being reported as
  *     {@code GRAPH_NOT_CONFIGURED})
  * @param schemaGraphNames the named graphs identified as holding the schema
+ * @param profileGraphs profile version IRI → the schema graph declaring it, for navigating to a
+ *     term in a chosen profile; empty when no schema was resolved
  * @param unmatchedGraphs instance graphs whose terms matched no known profile
  * @param unresolvedReason when {@link #hasSchema()} is {@code false} and {@code schemaGraphNames}
  *     is non-empty, the reason none of them resolved to a CIM profile; {@code null} otherwise
@@ -55,6 +57,7 @@ public record EndpointSchema(
     RdfsSchemaIndex index,
     Map<Node, Collection<VersionIri>> namedGraphScope,
     List<String> schemaGraphNames,
+    Map<VersionIri, String> profileGraphs,
     List<Node> unmatchedGraphs,
     String unresolvedReason,
     SchemaLoadCode unresolvedCode) {
@@ -63,7 +66,13 @@ public record EndpointSchema(
   public EndpointSchema {
     namedGraphScope = Map.copyOf(namedGraphScope);
     schemaGraphNames = List.copyOf(schemaGraphNames);
+    profileGraphs = Map.copyOf(profileGraphs);
     unmatchedGraphs = List.copyOf(unmatchedGraphs);
+  }
+
+  /** The schema graph declaring {@code profile}, or {@code null} when it is not known. */
+  public String graphOf(VersionIri profile) {
+    return profileGraphs.get(profile);
   }
 
   /** Whether a usable schema was resolved from the endpoint. */
@@ -87,7 +96,7 @@ public record EndpointSchema(
    */
   public static EndpointSchema noSchema(
       List<String> schemaGraphNames, String reason, SchemaLoadCode code) {
-    return new EndpointSchema(null, Map.of(), schemaGraphNames, List.of(), reason, code);
+    return new EndpointSchema(null, Map.of(), schemaGraphNames, Map.of(), List.of(), reason, code);
   }
 
   /** An {@link EndpointSchema} carrying no schema, with no specific reason recorded. */

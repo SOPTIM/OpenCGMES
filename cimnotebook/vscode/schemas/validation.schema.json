@@ -60,7 +60,7 @@
         },
         "cimvocabcheck": {
             "type": "object",
-            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when neither \"schemas\" nor \"schemasDirectory\" is set, no schema is loaded and validation is syntax-only (there is no bundled default schema).",
+            "description": "CIMVocabCheck SPARQL/SHACL validation settings. All fields are optional; when none of \"schemas\", \"schemasDirectory\" or \"rdfArchitect\" is set, no schema is loaded and validation is syntax-only (there is no bundled default schema).",
             "additionalProperties": false,
             "properties": {
                 "schemasDirectory": {
@@ -75,6 +75,11 @@
                         "description": "Path to an RDFS profile file (.rdf, .ttl, or .owl), relative to this config file."
                     },
                     "minItems": 1
+                },
+                "rdfArchitect": {
+                    "type": "string",
+                    "description": "Take the schema from a running RDFArchitect instead of from files. A dataset name (e.g. \"cgmes-3.0\") validates against that dataset in the RDFArchitect view open in the editor, as you edit it — the view supplies the instance and its session. A link (a snapshot from RDFArchitect's Share dialog, or an instance URL with ?dataset=) pins a fixed source and needs no editor, which is the form to use in CI. Takes precedence over schemas/schemasDirectory.",
+                    "examples": ["cgmes-3.0", "http://localhost:3000/?snapshot=ffPKWuq2hw8WKBRn5VwEOA"]
                 },
                 "namedGraphs": {
                     "type": "object",

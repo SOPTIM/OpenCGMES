@@ -19,13 +19,16 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonPrimitive;
 import de.soptim.opencgmes.cimvocabcheck.core.ConfigTemplate;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryExplanation;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookCommandHandler;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.DidChangeConfigurationParams;
 import org.eclipse.lsp4j.DidChangeWatchedFilesParams;
@@ -65,15 +68,61 @@ final class SparqlWorkspaceService implements WorkspaceService {
    */
   static final String CMD_SET_DEFAULT_ENDPOINT = "cimvocabcheck.notebook.setDefaultEndpoint";
 
+  /**
+   * Command id for resolving the schema term under a cursor position. Arguments: {@code [uri, line,
+   * character]} (zero-based LSP position in an open document). Returns {@code {"iri": ...}} or
+   * {@code null} when no term is at the position. Editor integrations use this to link terms to
+   * external tools (e.g. "Open in RDFArchitect").
+   */
+  static final String CMD_TERM_INFO = "cimvocabcheck.termInfo";
+
+  /**
+   * Command id for resolving the workspace schema files that apply to a document. Arguments: {@code
+   * [uri]} (optional document URI; without it the workspace-root config is used). Returns {@code
+   * {"configFile": ..., "schemaFiles": [...]}} with absolute paths, or {@code null} when no config
+   * with schemas applies. Editor integrations use this to hand the schema to external tools (e.g.
+   * "Send Schema to RDFArchitect").
+   */
+  static final String CMD_SCHEMA_INFO = "cimvocabcheck.schemaInfo";
+
+  /**
+   * Command id for connecting the RDFArchitect window an editor is showing. Arguments: {@code [url,
+   * sessionId]} — the instance and the session its embedded browser is using; passing no session
+   * disconnects. Returns {@code {"connected": <bool>, "url": ...}}.
+   *
+   * <p>RDFArchitect keeps one working copy per browser session and never publishes it, so this is
+   * what lets a workspace validate against a dataset <em>as it is being edited</em>: with a
+   * connection, {@code "rdfArchitect": "<dataset>"} in the config (or {@code # [rdfarchitect=...]}
+   * in a document) reads that session's datasets.
+   */
+  static final String CMD_CONNECT_RDFARCHITECT = "cimvocabcheck.connectRdfArchitect";
+
+  /**
+   * Command id for the terms of a document that should navigate into RDFArchitect. Arguments:
+   * {@code [uri]}. Returns {@code null} unless the document's schema comes from RDFArchitect, else
+   * {@code {"baseUrl": ..., "dataset": ..., "terms": [{"line", "startCharacter", "endCharacter",
+   * "iri", "profiles": [{"label", "graph"}]}, ...]}}.
+   *
+   * <p>Such a document has no schema files to open, so go-to-definition has nothing to offer;
+   * editor integrations turn these ranges into links that open the term in their RDFArchitect view
+   * instead. The ranges are supplied ahead of the click, because both editors resolve a Ctrl+Click
+   * target while the user is merely hovering — the navigation has to hang off a link, not off the
+   * act of resolving one.
+   */
+  static final String CMD_RDFARCHITECT_TERMS = "cimvocabcheck.rdfArchitectTerms";
+
   private final SchemaManager schemaManager;
+  private final SparqlTextDocumentService documentService;
   private final NotebookCommandHandler notebookCommandHandler;
   private final NotebookDefaults notebookDefaults;
 
   SparqlWorkspaceService(
       SchemaManager schemaManager,
+      SparqlTextDocumentService documentService,
       NotebookCommandHandler notebookCommandHandler,
       NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
+    this.documentService = documentService;
     this.notebookCommandHandler = notebookCommandHandler;
     this.notebookDefaults = notebookDefaults;
   }
@@ -117,6 +166,18 @@ final class SparqlWorkspaceService implements WorkspaceService {
       notebookDefaults.apply(params.getArguments());
       return CompletableFuture.completedFuture(null);
     }
+    if (CMD_TERM_INFO.equals(params.getCommand())) {
+      return termInfo(params.getArguments());
+    }
+    if (CMD_SCHEMA_INFO.equals(params.getCommand())) {
+      return schemaInfo(params.getArguments());
+    }
+    if (CMD_CONNECT_RDFARCHITECT.equals(params.getCommand())) {
+      return connectRdfArchitect(params.getArguments());
+    }
+    if (CMD_RDFARCHITECT_TERMS.equals(params.getCommand())) {
+      return rdfArchitectTerms(params.getArguments());
+    }
     if (!CMD_EXPLAIN_QUERY.equals(params.getCommand())) {
       LOG.warn("Unknown command: {}", params.getCommand());
       return CompletableFuture.completedFuture(null);
@@ -143,24 +204,168 @@ final class SparqlWorkspaceService implements WorkspaceService {
   }
 
   /**
+   * Connects (or clears) the RDFArchitect window an editor shows (see {@link
+   * #CMD_CONNECT_RDFARCHITECT}).
+   */
+  private CompletableFuture<Object> connectRdfArchitect(List<Object> args) {
+    try {
+      String url = stringArg(args, 0);
+      String sessionId = stringArg(args, 1);
+      schemaManager.connectRdfArchitect(url, sessionId);
+      return CompletableFuture.completedFuture(
+          Map.of(
+              "connected",
+              schemaManager.connectedRdfArchitect().isPresent(),
+              "url",
+              schemaManager.connectedRdfArchitect().orElse("")));
+    } catch (Exception e) {
+      LOG.error("connectRdfArchitect failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
+  /** Resolves the term under a cursor position (see {@link #CMD_TERM_INFO}). */
+  private CompletableFuture<Object> termInfo(List<Object> args) {
+    try {
+      String uri = stringArg(args, 0);
+      Integer line = intArg(args, 1);
+      Integer character = intArg(args, 2);
+      if (uri == null || line == null || character == null) {
+        return CompletableFuture.completedFuture(null);
+      }
+      String iri = documentService.termIriAt(uri, line, character);
+      return CompletableFuture.completedFuture(iri == null ? null : Map.of("iri", iri));
+    } catch (Exception e) {
+      LOG.error("termInfo failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
+  /** Resolves a document's RDFArchitect-backed terms (see {@link #CMD_RDFARCHITECT_TERMS}). */
+  private CompletableFuture<Object> rdfArchitectTerms(List<Object> args) {
+    try {
+      String uri = stringArg(args, 0);
+      if (uri == null) {
+        return CompletableFuture.completedFuture(null);
+      }
+      return CompletableFuture.completedFuture(
+          documentService
+              .rdfArchitectTerms(uri)
+              .<Object>map(SparqlWorkspaceService::asMap)
+              .orElse(null));
+    } catch (Exception e) {
+      LOG.error("rdfArchitectTerms failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
+  /**
+   * The wire form of an {@code rdfArchitectTerms} answer. A {@code HashMap} rather than {@code
+   * Map.of}: the dataset is absent for a snapshot, and a null value is how that is said.
+   */
+  private static Map<String, Object> asMap(SparqlTextDocumentService.RdfArchitectTerms found) {
+    var result = new HashMap<String, Object>();
+    result.put("baseUrl", found.baseUrl());
+    result.put("dataset", found.dataset());
+    result.put(
+        "terms",
+        found.terms().stream()
+            .map(
+                term -> {
+                  var t = new HashMap<String, Object>();
+                  t.put("line", term.line());
+                  t.put("startCharacter", term.startCharacter());
+                  t.put("endCharacter", term.endCharacter());
+                  t.put("iri", term.iri());
+                  t.put(
+                      "profiles",
+                      term.profiles().stream()
+                          .map(p -> Map.of("label", p.label(), "graph", p.graph()))
+                          .toList());
+                  return t;
+                })
+            .toList());
+    return result;
+  }
+
+  /** Resolves the workspace schema files for a document (see {@link #CMD_SCHEMA_INFO}). */
+  private CompletableFuture<Object> schemaInfo(List<Object> args) {
+    try {
+      String uri = stringArg(args, 0);
+      var docDir = uri == null ? null : SparqlTextDocumentService.documentDir(uri);
+      return CompletableFuture.completedFuture(
+          schemaManager
+              .schemaFilesFor(docDir)
+              .<Object>map(
+                  sf ->
+                      Map.of(
+                          "configFile",
+                          sf.configFile().toAbsolutePath().toString(),
+                          "schemaFiles",
+                          sf.files().stream().map(p -> p.toAbsolutePath().toString()).toList()))
+              .orElse(null));
+    } catch (Exception e) {
+      LOG.error("schemaInfo failed: {}", e.getMessage(), e);
+      return CompletableFuture.completedFuture(null);
+    }
+  }
+
+  /**
    * Extracts the first command argument as a String. Over JSON-RPC, lsp4j delivers arguments as
    * Gson {@link JsonElement}s; a direct in-process call may pass a plain {@link String}.
    */
   private static String firstStringArg(List<Object> args) {
-    if (args == null || args.isEmpty()) {
+    return stringArg(args, 0);
+  }
+
+  /**
+   * Command argument at {@code index} as a String, tolerating Gson and in-process forms.
+   *
+   * <p>An absent argument and a {@code null} one mean the same thing — "not given" — and both have
+   * to answer {@code null}. Over JSON-RPC a JSON {@code null} arrives as {@link JsonNull}, which is
+   * a {@link JsonElement} but not a primitive; without the check below it would fall through to
+   * {@code toString()} and become the four-character string {@code "null"}. A caller that spells
+   * "no session" as {@code [url, null]} rather than {@code [url]} would then connect to
+   * RDFArchitect with a session id of {@code "null"} instead of disconnecting.
+   */
+  private static String stringArg(List<Object> args, int index) {
+    Object arg = argAt(args, index);
+    if (arg instanceof JsonNull) {
       return null;
     }
-    Object first = args.get(0);
-    if (first instanceof String s) {
+    if (arg instanceof String s) {
       return s;
     }
-    if (first instanceof JsonPrimitive p) {
+    if (arg instanceof JsonPrimitive p) {
       return p.getAsString();
     }
-    if (first instanceof JsonElement el && el.isJsonPrimitive()) {
+    if (arg instanceof JsonElement el && el.isJsonPrimitive()) {
       return el.getAsString();
     }
-    return first == null ? null : first.toString();
+    return arg == null ? null : arg.toString();
+  }
+
+  /** Command argument at {@code index} as an Integer, tolerating Gson and in-process forms. */
+  private static Integer intArg(List<Object> args, int index) {
+    Object arg = argAt(args, index);
+    if (arg instanceof Number n) {
+      return n.intValue();
+    }
+    if (arg instanceof JsonPrimitive p && p.isNumber()) {
+      return p.getAsInt();
+    }
+    if (arg instanceof JsonElement el && el.isJsonPrimitive()) {
+      try {
+        return el.getAsInt();
+      } catch (NumberFormatException e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  private static Object argAt(List<Object> args, int index) {
+    return args == null || args.size() <= index ? null : args.get(index);
   }
 
   @Override

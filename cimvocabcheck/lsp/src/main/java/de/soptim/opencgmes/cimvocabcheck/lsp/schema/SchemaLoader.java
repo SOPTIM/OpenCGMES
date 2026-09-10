@@ -73,6 +73,26 @@ public final class SchemaLoader {
     }
   }
 
+  /**
+   * Resolves the schema files a config declares — the explicit {@code schemas} list or the contents
+   * of {@code schemasDirectory} — without parsing them. Returns an empty list when the config
+   * declares no schemas. Paths resolve relative to {@code configBase}.
+   *
+   * @throws SchemaLoadException if the schemas directory does not exist or contains no schema files
+   */
+  public static List<Path> resolveSchemaFiles(CimvocabcheckConfig config, Path configBase)
+      throws SchemaLoadException {
+    Optional<CgmesSchemaLoader> loader = resolveLoader(config, configBase);
+    if (loader.isEmpty()) {
+      return List.of();
+    }
+    try {
+      return loader.get().resolveSchemaFiles();
+    } catch (CgmesSchemaLoader.SchemaLoadException e) {
+      throw new SchemaLoadException(e.getMessage(), e);
+    }
+  }
+
   // ---- Private ---------------------------------------------------------------------------
 
   private static Optional<CgmesSchemaLoader> resolveLoader(CimvocabcheckConfig config, Path base) {

@@ -17,13 +17,16 @@
  */
 package de.soptim.opencgmes.cimnotebook.intellij.settings
 
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.Configurable
+import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
+import com.redhat.devtools.lsp4ij.LanguageServerManager
 import javax.swing.JComponent
 import javax.swing.JPanel
 
@@ -33,6 +36,7 @@ class CimnotebookSettingsConfigurable : Configurable {
     private val serverJarField = TextFieldWithBrowseButton()
     private val javaExeField = JBTextField()
     private val javaArgsField = JBTextField()
+    private val rdfArchitectUrlField = JBTextField()
 
     override fun getDisplayName() = "CIMNotebook"
 
@@ -61,6 +65,7 @@ class CimnotebookSettingsConfigurable : Configurable {
                 .addLabeledComponent(JBLabel("Server JAR:"), serverJarField, 1, false)
                 .addLabeledComponent(JBLabel("Java executable:"), javaExeField, 1, false)
                 .addLabeledComponent(JBLabel("JVM arguments:"), javaArgsField, 1, false)
+                .addLabeledComponent(JBLabel("RDFArchitect URL:"), rdfArchitectUrlField, 1, false)
                 .addComponentFillVertically(JPanel(), 0)
                 .panel
 
@@ -72,14 +77,43 @@ class CimnotebookSettingsConfigurable : Configurable {
         val s = CimnotebookSettings.getInstance()
         return serverJarField.text.trim() != s.serverJar ||
             javaExeField.text.trim() != s.javaExecutable ||
-            javaArgsField.text.trim() != s.javaArgs
+            javaArgsField.text.trim() != s.javaArgs ||
+            rdfArchitectUrlField.text.trim() != s.rdfArchitectUrl
     }
 
+    /**
+     * Applies the settings and restarts the language server when one of them decides how it is
+     * launched — the JAR, the JVM, its arguments, or (through the certificates the server is
+     * pointed at) the RDFArchitect URL. A running JVM does not pick any of that up, and nothing
+     * about a schema that will not load points at a settings page the user has already left.
+     */
     override fun apply() {
+        val launchChanged = isModified
+        applySettings()
+        if (launchChanged) {
+            restartLanguageServers()
+        }
+    }
+
+    /** Restarts the CIMLangServer of every open project, if one is running at all. */
+    private fun restartLanguageServers() {
+        for (project in ProjectManager.getInstance().openProjects) {
+            runCatching {
+                val manager = LanguageServerManager.getInstance(project)
+                manager.stop(SERVER_ID)
+                manager.start(SERVER_ID)
+            }.onFailure {
+                LOG.info("Could not restart CIMLangServer in ${project.name}: ${it.message}")
+            }
+        }
+    }
+
+    private fun applySettings() {
         val s = CimnotebookSettings.getInstance()
         s.serverJar = serverJarField.text.trim()
         s.javaExecutable = javaExeField.text.trim()
         s.javaArgs = javaArgsField.text.trim()
+        s.rdfArchitectUrl = rdfArchitectUrlField.text.trim()
     }
 
     override fun reset() {
@@ -87,6 +121,14 @@ class CimnotebookSettingsConfigurable : Configurable {
         serverJarField.text = s.serverJar
         javaExeField.text = s.javaExecutable
         javaArgsField.text = s.javaArgs
+        rdfArchitectUrlField.text = s.rdfArchitectUrl
+    }
+
+    companion object {
+        private val LOG = Logger.getInstance(CimnotebookSettingsConfigurable::class.java)
+
+        /** Must match the server id registered in plugin.xml. */
+        private const val SERVER_ID = "cimvocabcheck-lsp"
     }
 
     override fun disposeUIResources() {

@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
+import de.soptim.opencgmes.cimvocabcheck.core.ExemptVocabulary;
 import de.soptim.opencgmes.cimvocabcheck.core.SourceLocator;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
@@ -130,6 +131,9 @@ final class SparqlTextDocumentService implements TextDocumentService {
   private final EndpointDefinitionPeek endpointPeek =
       new EndpointDefinitionPeek(Duration.ofSeconds(15));
 
+  /** Generates the same for terms of a model held in RDFArchitect, which has no source files. */
+  private final RdfArchitectDefinitionPeek rdfArchitectPeek = new RdfArchitectDefinitionPeek();
+
   SparqlTextDocumentService(SchemaManager schemaManager, NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
     this.notebookDefaults = notebookDefaults;
@@ -217,12 +221,21 @@ final class SparqlTextDocumentService implements TextDocumentService {
         return noDefinition();
       }
 
+      Path docDir = documentDir(uri);
+      SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+
+      // RDFArchitect document: the model lives in a browser session, so there is no file to jump
+      // to. The term is rendered as the loaded schema holds it, one document per declaring
+      // profile, and opening one is what shows the term in the editor's RDFArchitect view.
+      var rdfArchitect = schemaManager.rdfArchitectRefFor(source, docDir);
+      if (rdfArchitect.isPresent()) {
+        return definitionsAt(rdfArchitectDefinitions(term, source, docDir, rdfArchitect.get()));
+      }
+
       // Endpoint document: resolve against the endpoint schema, never the workspace/bundled
       // files. A local-file endpoint has a real source file to jump to, via the same
       // DefinitionIndex mechanism as a workspace schema; a remote SPARQL endpoint has none, so
       // the term's triples are fetched and opened as a generated read-only Turtle "peek" instead.
-      Path docDir = documentDir(uri);
-      SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
       if (source != null) {
         var rsOpt = schemaManager.resolveFrom(source, docDir);
         if (rsOpt.isEmpty() || !termKnown(rsOpt.get().api().schemaIndex(), term)) {
@@ -230,16 +243,11 @@ final class SparqlTextDocumentService implements TextDocumentService {
         }
         ResolvedSchema rs = rsOpt.get();
         if (rs.definitionIndex() != null) {
-          return rs.definitionIndex()
-              .locationOf(term)
-              .map(SparqlTextDocumentService::definitionAt)
-              .orElseGet(SparqlTextDocumentService::noDefinition);
+          return definitionsAt(rs.definitionIndex().locationsOf(term));
         }
         // No DefinitionIndex means the schema came from a remote SPARQL endpoint.
-        return endpointPeek
-            .locationFor(source.remoteUrl(), term.getURI())
-            .map(SparqlTextDocumentService::definitionAt)
-            .orElseGet(SparqlTextDocumentService::noDefinition);
+        return definitionsAt(
+            endpointPeek.locationsFor(source.remoteUrl(), term.getURI(), peekProfiles(term, rs)));
       }
 
       // Workspace document: jump into the local RDFS source file.
@@ -247,12 +255,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
       if (wsOpt.isEmpty() || wsOpt.get().definitionIndex() == null) {
         return noDefinition();
       }
-      return wsOpt
-          .get()
-          .definitionIndex()
-          .locationOf(term)
-          .map(SparqlTextDocumentService::definitionAt)
-          .orElseGet(SparqlTextDocumentService::noDefinition);
+      return definitionsAt(wsOpt.get().definitionIndex().locationsOf(term));
     } catch (Exception e) {
       LOG.error(
           "Definition error for {}: {}", params.getTextDocument().getUri(), e.getMessage(), e);
@@ -265,11 +268,42 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return CompletableFuture.completedFuture(Either.forLeft(List.of()));
   }
 
-  /** Wraps a single {@link Location} as the result of a {@code textDocument/definition} request. */
+  /**
+   * Wraps the declarations of a term as the result of a {@code textDocument/definition} request.
+   * More than one means the term is declared in more than one profile, and the editor offers the
+   * choice — VS Code as a peek list, IntelliJ as a "Choose Declaration" popup.
+   */
   private static CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>>
-      definitionAt(Location loc) {
+      definitionsAt(List<Location> locations) {
     return CompletableFuture.completedFuture(
-        Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(List.of(loc)));
+        Either.<List<? extends Location>, List<? extends LocationLink>>forLeft(locations));
+  }
+
+  /**
+   * The declarations of a term whose schema comes from RDFArchitect: one generated document per
+   * profile declaring it, or none when the schema has not loaded or does not know the term.
+   */
+  private List<Location> rdfArchitectDefinitions(
+      Node term, SchemaSource schemaSource, Path docDir, SchemaManager.RdfArchitectRef ref) {
+    ResolvedSchema schema = schemaManager.resolveFrom(schemaSource, docDir).orElse(null);
+    if (schema == null || !termKnown(schema.api().schemaIndex(), term)) {
+      return List.of();
+    }
+    String baseUrl = ref.source() == null ? null : ref.source().baseUrl();
+    String dataset = datasetOf(ref);
+    var locations = new ArrayList<Location>();
+    for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
+      var target =
+          new RdfArchitectDefinitionPeek.Target(
+              baseUrl,
+              dataset,
+              schema.profileGraphs().get(profile),
+              shortProfileIri(profile.iri()));
+      rdfArchitectPeek
+          .locationFor(term, schema.api().schemaIndex(), profile, target)
+          .ifPresent(locations::add);
+    }
+    return List.copyOf(locations);
   }
 
   /** Whether {@code term} is declared as a class, property, or enum member in the schema index. */
@@ -277,6 +311,30 @@ final class SparqlTextDocumentService implements TextDocumentService {
     return !index.findClass(term).isEmpty()
         || !index.findProperty(term).isEmpty()
         || !index.findEnumMember(term).isEmpty();
+  }
+
+  /**
+   * The profiles declaring {@code term}, in a stable order. A term is a class, a property, or an
+   * enumeration member — never more than one — so the three lookups concatenate cleanly.
+   */
+  private static List<VersionIri> declaringProfiles(SchemaIndex index, Node term) {
+    var profiles = new ArrayList<VersionIri>(index.findClass(term));
+    profiles.addAll(index.findProperty(term));
+    profiles.addAll(index.findEnumMember(term));
+    return DefinitionIndex.orderedProfiles(profiles);
+  }
+
+  /** The per-profile peek targets for an endpoint term, or empty when the graphs are unknown. */
+  private static List<EndpointDefinitionPeek.ProfileGraph> peekProfiles(
+      Node term, ResolvedSchema schema) {
+    var targets = new ArrayList<EndpointDefinitionPeek.ProfileGraph>();
+    for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
+      String graph = schema.profileGraphs().get(profile);
+      if (graph != null) {
+        targets.add(new EndpointDefinitionPeek.ProfileGraph(shortProfileIri(profile.iri()), graph));
+      }
+    }
+    return targets;
   }
 
   @Override
@@ -304,6 +362,232 @@ final class SparqlTextDocumentService implements TextDocumentService {
     int line = params.getPosition().getLine();
     int col = params.getPosition().getCharacter();
     return buildCompletionItems(text, line, col, indexOpt.get());
+  }
+
+  /**
+   * Full IRI of the schema term at the given position in an open document, or {@code null} when the
+   * document is not open or no term is under the cursor. Uses the same term extraction and prefix
+   * resolution as hover and go-to-definition. Backs the {@code cimvocabcheck.termInfo} workspace
+   * command, which editor integrations use to link a term to external tools (e.g. "Open in
+   * RDFArchitect").
+   */
+  String termIriAt(String uri, int line, int character) {
+    String text = documents.get(uri);
+    if (text == null) {
+      return null;
+    }
+    Node term = termAtPosition(text, line, character, extractPrefixes(text));
+    return term != null && term.isURI() ? term.getURI() : null;
+  }
+
+  /**
+   * A schema term named in a document, with the source range of the token that names it.
+   *
+   * @param line zero-based line
+   * @param startCharacter zero-based column of the token's first character
+   * @param endCharacter zero-based column just past the token's last character
+   * @param iri the full IRI the token resolves to
+   * @param profiles the profiles declaring the term, so the editor can offer the choice when there
+   *     is more than one; empty while the schema is still loading
+   */
+  record TermRange(
+      int line, int startCharacter, int endCharacter, String iri, List<TermProfile> profiles) {}
+
+  /**
+   * One profile a term is declared in, and the graph holding that profile in RDFArchitect.
+   *
+   * @param label how the profile should read in the editor's chooser
+   * @param graph the graph to open the term in
+   */
+  record TermProfile(String label, String graph) {}
+
+  /**
+   * The RDFArchitect instance behind a document, and the terms it names.
+   *
+   * @param baseUrl the instance to open terms in, or {@code null} when the config names a dataset
+   *     without saying where it lives — the editor knows which instance it is showing
+   * @param dataset the dataset to open terms in, or {@code null} when the schema is read from a
+   *     snapshot link — whose dataset is named differently in every session that loads it
+   */
+  record RdfArchitectTerms(String baseUrl, String dataset, List<TermRange> terms) {}
+
+  /**
+   * The terms of an open document that should navigate into RDFArchitect, or empty when the
+   * document's schema does not come from RDFArchitect at all.
+   *
+   * <p>Backs the {@code cimvocabcheck.rdfArchitectTerms} workspace command. A document validated
+   * against RDFArchitect has no schema files to jump to, so plain go-to-definition has nothing to
+   * offer; editor integrations turn these ranges into links that open the term in the RDFArchitect
+   * view instead.
+   *
+   * <p>Terms are filtered against the loaded schema where it is available, so a link only appears
+   * on something RDFArchitect can actually show. While the schema is still loading, every
+   * term-shaped token outside the standard vocabularies is offered instead — RDFArchitect answering
+   * "not found" is a better outcome than a document that has no links because it was opened a
+   * moment too early.
+   *
+   * <p>Each term also carries the profiles declaring it. A CIM term is routinely declared in
+   * several, and without saying which one to open, RDFArchitect shows whichever graph it happens to
+   * find the term in first.
+   */
+  Optional<RdfArchitectTerms> rdfArchitectTerms(String uri) {
+    String text = documents.get(uri);
+    if (text == null) {
+      return Optional.empty();
+    }
+    Path docDir = documentDir(uri);
+    SchemaSource schemaSource = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
+    var refOpt = schemaManager.rdfArchitectRefFor(schemaSource, docDir);
+    if (refOpt.isEmpty()) {
+      return Optional.empty();
+    }
+    SchemaManager.RdfArchitectRef ref = refOpt.get();
+    ResolvedSchema schema = schemaManager.resolveFrom(schemaSource, docDir).orElse(null);
+    String baseUrl = ref.source() == null ? null : ref.source().baseUrl();
+    return Optional.of(new RdfArchitectTerms(baseUrl, datasetOf(ref), schemaTermsIn(text, schema)));
+  }
+
+  /**
+   * The dataset a term should be opened in.
+   *
+   * <p>A bare name is what the panel's address bar shows, so it is the name to send back — that is
+   * true of a loaded snapshot's {@code SNAPSHOT_…} name too. A snapshot named by <em>link</em> is
+   * different: it becomes a differently-named dataset in every session that loads it, so there is
+   * no name worth sending and the graph alone pins the profile.
+   */
+  private static String datasetOf(SchemaManager.RdfArchitectRef ref) {
+    if (ref.source() == null) {
+      return ref.ref(); // unresolved, so a bare name — a URL would have parsed
+    }
+    boolean bareName = !ref.ref().contains("://");
+    return bareName || ref.source().snapshot() == null ? ref.source().dataset() : null;
+  }
+
+  /**
+   * Scans a document for the tokens that name a schema term: {@code <full IRI>} and {@code
+   * prefix:local} names whose prefix is declared. Prefix and base declarations are skipped — the
+   * IRI on such a line is a namespace, not a term.
+   *
+   * @param schema the schema to accept terms against and read their profiles from, or {@code null}
+   *     to accept every term-shaped token outside the standard vocabularies
+   */
+  static List<TermRange> schemaTermsIn(String text, ResolvedSchema schema) {
+    PrefixMapping prefixes = extractPrefixes(text);
+    List<TermRange> terms = new ArrayList<>();
+    String[] lines = text.split("\n", -1);
+    for (int ln = 0; ln < lines.length; ln++) {
+      String src = lines[ln];
+      if (DECLARATION_LINE.matcher(src).find()) {
+        continue;
+      }
+      int i = 0;
+      while (i < src.length()) {
+        char c = src.charAt(i);
+        if (c == '<') {
+          int gt = closingAngle(src, i);
+          if (gt < 0) { // a comparison operator, not an IRI
+            i++;
+            continue;
+          }
+          addTerm(terms, src, ln, i, gt + 1, i + 1, prefixes, schema);
+          i = gt + 1;
+        } else if (isNameChar(c)) {
+          int end = i;
+          while (end < src.length() && isNameChar(src.charAt(end))) {
+            end++;
+          }
+          addTerm(terms, src, ln, i, end, i, prefixes, schema);
+          i = end;
+        } else {
+          i++;
+        }
+      }
+    }
+    return terms;
+  }
+
+  /**
+   * The index of the {@code >} closing an IRI opened at {@code lt}, or {@code -1} when that {@code
+   * <} opens no IRI — the same rule {@link #termAtPosition} applies, so the two agree on what a
+   * {@code <} in {@code FILTER(?a < 5 && ?b > 3)} is.
+   */
+  private static int closingAngle(String src, int lt) {
+    for (int i = lt + 1; i < src.length(); i++) {
+      char c = src.charAt(i);
+      if (c == '>') {
+        return i;
+      }
+      if (Character.isWhitespace(c) || c == '<') {
+        return -1;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Resolves the token spanning {@code [start,end)} of {@code src} — the text of line {@code line}
+   * — and keeps it if it names a schema term.
+   */
+  private static void addTerm(
+      List<TermRange> terms,
+      String src,
+      int line,
+      int start,
+      int end,
+      int resolveAt,
+      PrefixMapping prefixes,
+      ResolvedSchema schema) {
+    Node term = termInLine(src, resolveAt, prefixes);
+    if (term == null || !term.isURI()) {
+      return;
+    }
+    SchemaIndex index = schema == null ? null : schema.api().schemaIndex();
+    boolean accepted = index != null ? termKnown(index, term) : isModelTerm(term);
+    if (accepted && hasLocalName(term.getURI())) {
+      terms.add(new TermRange(line, start, end, term.getURI(), termProfiles(term, schema)));
+    }
+  }
+
+  /**
+   * The profiles declaring {@code term} and the graph each lives in, or empty when the schema has
+   * not loaded (or came from somewhere with no graphs to name).
+   */
+  private static List<TermProfile> termProfiles(Node term, ResolvedSchema schema) {
+    if (schema == null || schema.profileGraphs().isEmpty()) {
+      return List.of();
+    }
+    var found = new ArrayList<TermProfile>();
+    for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
+      String graph = schema.profileGraphs().get(profile);
+      if (graph != null) {
+        found.add(new TermProfile(shortProfileIri(profile.iri()), graph));
+      }
+    }
+    return List.copyOf(found);
+  }
+
+  /** A prefix, base, or {@code @prefix} declaration, whose IRI names a namespace, not a term. */
+  private static final Pattern DECLARATION_LINE = Pattern.compile("(?i)^\\s*(@?prefix|@?base)\\b");
+
+  /**
+   * Whether a term could be part of a curated model, i.e. is neither in a closed standard
+   * vocabulary ({@code rdf}, {@code rdfs}, {@code owl}, {@code sh}) nor in an open annotation
+   * namespace ({@code xsd}, {@code dcterms}, …). Used only while the schema is loading; once it is
+   * loaded, membership in the schema itself is the test.
+   */
+  private static boolean isModelTerm(Node term) {
+    return !StandardVocabulary.isClosedNamespace(term)
+        && !StandardVocabulary.isXsdNamespace(term)
+        && !ExemptVocabulary.isOpenNamespace(term);
+  }
+
+  /**
+   * Whether an IRI ends in a name — a {@code #} or {@code /} with something after it. A token that
+   * does not is a namespace or an opaque identifier, never a term RDFArchitect could show.
+   */
+  private static boolean hasLocalName(String iri) {
+    int sep = Math.max(iri.lastIndexOf('#'), iri.lastIndexOf('/'));
+    return sep >= 0 && sep + 1 < iri.length();
   }
 
   private Hover computeHover(HoverParams params) {
@@ -354,8 +638,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * The endpoint(s) a document's schema comes from — several file directives (or a glob pattern)
    * form a union of local files.
    *
-   * <p>The precedence mirrors the one the VS Code client uses to pick a cell's <em>execution</em>
-   * target, so a cell validates against what it runs against:
+   * <p>A {@code # [rdfarchitect=...]} directive wins over everything: it is the more specific
+   * statement about where the <em>schema</em> comes from, while {@code endpoint} also says where
+   * queries run. Otherwise the precedence mirrors the one the VS Code client uses to pick a cell's
+   * <em>execution</em> target, so a cell validates against what it runs against:
    *
    * <ol>
    *   <li>the document's own {@code # [endpoint=...]} directives;
@@ -368,6 +654,10 @@ final class SparqlTextDocumentService implements TextDocumentService {
    * of a notebook and keeps its workspace schema.
    */
   private List<String> effectiveEndpoints(String uri, String text) {
+    Optional<String> rdfArchitect = RdfArchitectDirective.parse(text);
+    if (rdfArchitect.isPresent()) {
+      return List.of(RdfArchitectDirective.SCHEME + rdfArchitect.get());
+    }
     List<String> directives = EndpointDirective.parseAll(text);
     if (!directives.isEmpty() || !DocumentUris.isNotebookCell(uri)) {
       return directives;
@@ -394,6 +684,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
   void shutdown() {
     scheduler.shutdownNow();
+    endpointPeek.shutdown();
   }
 
   // ---- Private ---------------------------------------------------------------------------
@@ -1370,7 +1661,16 @@ final class SparqlTextDocumentService implements TextDocumentService {
     if (line0 < 0 || line0 >= lines.length) {
       return null;
     }
-    String src = lines[line0];
+    return termInLine(lines[line0], col0, prefixes);
+  }
+
+  /**
+   * The same resolution against a line that has already been split out of the document.
+   *
+   * <p>Scanning a whole document for its terms resolves one token after another, and splitting the
+   * text again for each of them would make that scan quadratic in the document size.
+   */
+  private static Node termInLine(String src, int col0, PrefixMapping prefixes) {
     if (src.isEmpty() || col0 < 0) {
       return null;
     }

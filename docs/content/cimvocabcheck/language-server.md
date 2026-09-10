@@ -37,11 +37,26 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   position after an enumeration-ranged property, the enumeration's members are offered (e.g.
   `cim:WindGenUnitKind.offshore`).
 - **Go-to-definition** — jump to a term's declaration in the source RDFS file (classes, properties,
-  and enumeration members).
+  and enumeration members). A term declared in several profiles reports one location per profile,
+  so the editor can offer the choice. A schema with no source files — a SPARQL endpoint, or a model
+  held in RDFArchitect — gets one read-only Turtle document generated per profile instead; the
+  RDFArchitect ones carry a header line the editors read to show the term in their RDFArchitect
+  view when the document is opened.
 - **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
   case-insensitive) name.
-- **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)) and
-  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)).
+- **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)),
+  `cimvocabcheck.createConfig` (generate [`opencgmes.jsonc`](/cimvocabcheck/configuration)),
+  `cimvocabcheck.termInfo` (`[uri, line, character]` → the full IRI of the schema term at a
+  position in an open document; backs the editors' **Open in RDFArchitect** action), and
+  `cimvocabcheck.schemaInfo` (`[uri?]` → the discovered config file and the schema files it
+  declares, as absolute paths; backs the editors' **Send Schema to RDFArchitect** action), and
+  `cimvocabcheck.connectRdfArchitect` (`[url, sessionId]` → connects the RDFArchitect window an
+  editor embeds, so a dataset named in the config is read from that session
+  [as it is edited](/cimvocabcheck/configuration#live-datasets); no arguments disconnects), and
+  `cimvocabcheck.rdfArchitectTerms` (`[uri]` → the instance and dataset a document's schema comes
+  from and the ranges of the terms it names, each with the profiles declaring it and the graph
+  holding each profile, or `null` when the schema comes from anywhere else; backs the editors'
+  **Open in RDFArchitect** action and its profile chooser).
 
 ## Configuration discovery
 
@@ -71,7 +86,7 @@ Launch it directly only for integration testing — normally an editor client st
 ## Integrating another editor
 
 Any LSP client can drive CIMLangServer. Point it at the launch command above, associate the
-SPARQL/SHACL file types, and (optionally) wire the two `executeCommand` ids. For a worked example of
+SPARQL/SHACL file types, and (optionally) wire the `executeCommand` ids. For a worked example of
 a client, see how [CIMNotebook](/cimnotebook/overview) does it for VS Code and IntelliJ.
 
 :::note Command id vs. UI id

@@ -128,9 +128,24 @@ public final class HttpSparqlGraphSource implements SparqlGraphSource {
    * "peek" for a schema term hosted on the endpoint.
    */
   public Graph fetchResource(String iri) {
+    return fetchResource(null, iri);
+  }
+
+  /**
+   * Fetches every triple that has {@code iri} as its subject in one named graph, or across all of
+   * them when {@code graphName} is {@code null}.
+   *
+   * <p>Scoping to a graph is what makes a per-profile "peek" possible: a CIM term is typically
+   * declared in several profiles, and the union of them says nothing about which profile
+   * contributed what.
+   */
+  public Graph fetchResource(String graphName, String iri) {
     ParameterizedSparqlString pss = new ParameterizedSparqlString();
     pss.setCommandText(CONSTRUCT_RESOURCE);
     pss.setIri("s", iri); // escapes the IRI safely and binds ?s to it
+    if (graphName != null) {
+      pss.setIri("g", graphName);
+    }
     try (QueryExecution qe = service(endpoint(), pss.toString())) {
       return qe.execConstruct().getGraph();
     }

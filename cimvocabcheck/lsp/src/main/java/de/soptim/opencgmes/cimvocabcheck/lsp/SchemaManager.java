@@ -27,6 +27,8 @@ import de.soptim.opencgmes.cimvocabcheck.core.config.CimvocabcheckConfig;
 import de.soptim.opencgmes.cimvocabcheck.core.config.ConfigLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchema;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.EndpointSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSchemaLoader;
+import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfArchitectSource;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.RdfsSchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.FileGlobs;
 import de.soptim.opencgmes.cimvocabcheck.lsp.notebook.NotebookConfigLoader;
@@ -40,6 +42,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +53,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -111,6 +115,11 @@ final class SchemaManager {
   private final AtomicReference<DefinitionIndex> defRef = new AtomicReference<>();
   private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef =
       new AtomicReference<>(Map.of());
+
+  /** Profile → schema graph of the primary workspace schema; empty for a file-backed one. */
+  private final AtomicReference<Map<VersionIri, String>> profileGraphsRef =
+      new AtomicReference<>(Map.of());
+
   private final AtomicBoolean checkStdVocabRef = new AtomicBoolean(true);
   private final List<Runnable> onLoadedCallbacks = new CopyOnWriteArrayList<>();
 
@@ -130,8 +139,11 @@ final class SchemaManager {
   /** Per-query timeout for fetching a schema from a remote SPARQL endpoint. */
   private static final Duration REMOTE_TIMEOUT = Duration.ofSeconds(30);
 
-  /** How long a failed endpoint load is negatively cached before a retry is allowed. */
-  private static final Duration FAILURE_TTL = Duration.ofSeconds(30);
+  /**
+   * How long a failed endpoint load is negatively cached before a retry is allowed. Shortened by
+   * tests.
+   */
+  static volatile Duration failureTtl = Duration.ofSeconds(30);
 
   /**
    * Extensions a local {@code # [endpoint=...]} directive must have to be loaded as a schema.
@@ -146,7 +158,7 @@ final class SchemaManager {
   /**
    * Endpoint sources whose load failed, mapped to the {@link System#nanoTime()} after which a retry
    * is allowed. A negative cache avoids re-fetching every keystroke, but it expires after {@link
-   * #FAILURE_TTL} so a transient outage doesn't disable the cell for the whole session.
+   * #failureTtl} so a transient outage doesn't disable the cell for the whole session.
    */
   private final Map<String, Long> failedEndpoints = new ConcurrentHashMap<>();
 
@@ -228,8 +240,9 @@ final class SchemaManager {
   }
 
   /**
-   * The source a document's endpoint directives load their schema from — a remote SPARQL endpoint
-   * URL or a union of local {@code .ttl}/{@code .rdf}/{@code .owl} files (several directives and
+   * The source a document's directives load their schema from — a model held in a running
+   * RDFArchitect (an {@link RdfArchitectDirective#SCHEME}-prefixed value), a remote SPARQL endpoint
+   * URL, or a union of local {@code .ttl}/{@code .rdf}/{@code .owl} files (several directives and
    * glob patterns like {@code ./rdf/*.ttl} name multiple files) — or {@code null} when the
    * directives name no schema at all and the document's workspace schema applies instead. That is
    * the case for a blank directive, and for these notebook-specific ones:
@@ -256,6 +269,9 @@ final class SchemaManager {
     }
     if (directives.size() == 1) {
       String endpoint = directives.get(0);
+      if (endpoint.startsWith(RdfArchitectDirective.SCHEME)) {
+        return SchemaSource.rdfArchitect(endpoint.substring(RdfArchitectDirective.SCHEME.length()));
+      }
       if (isRemote(endpoint)) {
         return SchemaSource.remote(endpoint);
       }
@@ -315,6 +331,10 @@ final class SchemaManager {
     if (source == null) {
       return workspaceSchemaFor(docDir).map(WorkspaceSchema::toResolvedSchema);
     }
+    if (source.isRdfArchitect()) {
+      String key = RdfArchitectDirective.SCHEME + source.rdfArchitect();
+      return resolveAsync(key, () -> loadRdfArchitect(key));
+    }
     return source.isRemote() ? resolveRemote(source.remoteUrl()) : resolveLocal(source.files());
   }
 
@@ -356,18 +376,63 @@ final class SchemaManager {
    */
   Optional<WorkspaceSchema> workspaceSchemaFor(Path docDir) {
     if (docDir == null) {
-      return primaryConfigKey == null ? Optional.empty() : primarySchema();
+      // Read once: a reload that finds no config clears the field, and a second read would then
+      // hand a null to Path.of.
+      String primary = primaryConfigKey;
+      if (primary == null) {
+        return Optional.empty();
+      }
+      checkForEdits(configLiveKey(Path.of(primary)));
+      retryRdfArchitectIfDue(primary);
+      return primarySchema();
     }
     Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
     if (configFile.isEmpty()) { // no config → syntax-only
       return Optional.empty();
     }
     String key = configFile.get().toString();
+    checkForEdits(configLiveKey(configFile.get()));
+    retryRdfArchitectIfDue(key);
     if (key.equals(primaryConfigKey)) {
       return primarySchema();
     }
     WorkspaceSchema ws = workspaceSchemaCache.computeIfAbsent(key, this::buildForKey);
     return ws.api() == null ? Optional.empty() : Optional.of(ws);
+  }
+
+  /**
+   * Result of {@link #schemaFilesFor(Path)}: the discovered config file and the schema files it
+   * declares.
+   */
+  record SchemaFiles(Path configFile, List<Path> files) {}
+
+  /**
+   * Resolves the schema files the nearest {@code opencgmes.jsonc} declares for {@code docDir}
+   * (falling back to the workspace root when {@code docDir} is {@code null}), without parsing them.
+   * Empty when no config is found, the config declares no schemas, or resolution fails. Editor
+   * integrations use this to hand the workspace schema to external tools (e.g. "Send Schema to
+   * RDFArchitect").
+   */
+  Optional<SchemaFiles> schemaFilesFor(Path docDir) {
+    Path start = docDir != null ? docDir : workspaceRoot;
+    if (start == null) {
+      return Optional.empty();
+    }
+    Optional<Path> configFile = ConfigLoader.discoverFile(start);
+    if (configFile.isEmpty()) {
+      return Optional.empty();
+    }
+    try {
+      List<Path> files =
+          SchemaLoader.resolveSchemaFiles(
+              ConfigLoader.load(configFile.get()), configFile.get().toAbsolutePath().getParent());
+      return files.isEmpty()
+          ? Optional.empty()
+          : Optional.of(new SchemaFiles(configFile.get(), files));
+    } catch (Exception e) {
+      LOG.warn("Could not resolve schema files for {}: {}", configFile.get(), e.getMessage());
+      return Optional.empty();
+    }
   }
 
   /**
@@ -401,13 +466,31 @@ final class SchemaManager {
     }
     return Optional.of(
         new WorkspaceSchema(
-            api, levelRef.get(), defRef.get(), namedGraphRef.get(), checkStdVocabRef.get()));
+            api,
+            levelRef.get(),
+            defRef.get(),
+            namedGraphRef.get(),
+            checkStdVocabRef.get(),
+            profileGraphsRef.get()));
   }
 
-  /** Builds (and notifies on failure) the schema for a non-primary config key. */
+  /**
+   * Builds (and notifies on failure) the schema for a non-primary config key.
+   *
+   * <p>Runs on whichever thread asked for the schema — an LSP request thread, for validation,
+   * hover, completion and definition alike. A config that names RDFArchitect is therefore loaded in
+   * the background instead: reading an instance that is slow or down would hold that thread for a
+   * full {@link #REMOTE_TIMEOUT} per request. The primary config avoids this by loading on the
+   * schema executor.
+   */
   private WorkspaceSchema buildForKey(String key) {
     try {
-      return buildSchemaForConfig(Path.of(key));
+      Path configFile = Path.of(key);
+      CimvocabcheckConfig config = ConfigLoader.load(configFile);
+      if (namesRdfArchitect(config)) {
+        return startRdfArchitectLoad(key, configFile, config, false);
+      }
+      return buildSchemaForConfig(configFile, config, false);
     } catch (Exception e) {
       LOG.error("Failed to load schema for {}: {}", key, e.getMessage(), e);
       notify(
@@ -417,6 +500,75 @@ final class SchemaManager {
       // the syntax-only fallback still respects "standardVocabulary": "ignore".
       return noSchemaWorkspace(readCheckStandardVocab(Path.of(key)));
     }
+  }
+
+  /**
+   * Kicks off a config's RDFArchitect load on the endpoint pool, and answers syntax-only until it
+   * lands — the open documents are revalidated then. A load already running, or one that failed
+   * within {@link #failureTtl}, is not repeated.
+   *
+   * @param quiet whether the load may announce itself; a retry does not
+   */
+  private WorkspaceSchema startRdfArchitectLoad(
+      String key, Path configFile, CimvocabcheckConfig config, boolean quiet) {
+    WorkspaceSchema pending = noSchemaWorkspace(config.checkStandardVocabulary());
+    String liveKey = configLiveKey(configFile);
+    if (isFailed(liveKey) || !inFlightEndpoints.add(liveKey)) {
+      return pending;
+    }
+    endpointExecutor.submit(
+        () -> {
+          try {
+            WorkspaceSchema loaded = buildSchemaFromRdfArchitect(config, configFile, quiet);
+            workspaceSchemaCache.put(key, loaded);
+            if (loaded.api() != null) {
+              fireOnLoaded();
+            }
+          } finally {
+            inFlightEndpoints.remove(liveKey);
+          }
+        });
+    return pending;
+  }
+
+  /**
+   * Retries a config's RDFArchitect load once its failure window has passed.
+   *
+   * <p>An instance that was briefly unreachable would otherwise leave the workspace syntax-only
+   * until the config file is edited or a window is connected — a file that fails to load is the
+   * same every time, but a network that fails is not. The retry is quiet: one report of an instance
+   * being down is news, one every {@link #failureTtl} is not.
+   */
+  private void retryRdfArchitectIfDue(String configKey) {
+    Path configFile = Path.of(configKey);
+    String liveKey = configLiveKey(configFile);
+    Long expiry = failedEndpoints.get(liveKey);
+    if (expiry == null
+        || expiry - System.nanoTime() > 0
+        || !failedEndpoints.remove(liveKey, expiry)) {
+      return;
+    }
+    LOG.info("Retrying the RDFArchitect schema of {}", configKey);
+    if (configKey.equals(primaryConfigKey)) {
+      reloadQuietlyAsync();
+      return;
+    }
+    try {
+      CimvocabcheckConfig config = ConfigLoader.load(configFile);
+      // The config may have stopped naming RDFArchitect since the failure was recorded — the
+      // window between that edit and the reload that clears the failure. Loading it as an
+      // RDFArchitect schema anyway fails with an exception nothing is there to observe.
+      if (namesRdfArchitect(config)) {
+        startRdfArchitectLoad(configKey, configFile, config, true);
+      }
+    } catch (Exception e) {
+      LOG.debug("Could not retry the RDFArchitect schema of {}: {}", configKey, e.getMessage());
+    }
+  }
+
+  /** Whether a config takes its schema from RDFArchitect rather than from files. */
+  private static boolean namesRdfArchitect(CimvocabcheckConfig config) {
+    return config.rdfArchitect() != null && !config.rdfArchitect().isBlank();
   }
 
   /** Best-effort read of a config's standard-vocabulary flag; defaults to {@code true} on error. */
@@ -501,18 +653,373 @@ final class SchemaManager {
    * schema lands. Returns empty until then.
    */
   private Optional<ResolvedSchema> resolveRemote(String endpoint) {
-    ResolvedSchema cached = endpointCache.get(endpoint);
+    return resolveAsync(endpoint, () -> loadRemoteEndpoint(endpoint));
+  }
+
+  /**
+   * Serves a network-backed schema from the cache, kicking off {@code load} the first time it is
+   * asked for. Returns empty until the load lands (open documents are revalidated then), and stays
+   * empty for a failure window afterwards so a keystroke cannot re-trigger a failing fetch.
+   */
+  private Optional<ResolvedSchema> resolveAsync(String key, Runnable load) {
+    ResolvedSchema cached = endpointCache.get(key);
     if (cached != null) {
+      checkForEdits(key);
       return Optional.of(cached);
     }
-    if (isFailed(endpoint)) {
+    if (isFailed(key)) {
       return Optional.empty();
     }
-    if (inFlightEndpoints.add(endpoint)) {
-      notify(MessageType.Info, "CIMVocabCheck: loading schema from endpoint " + endpoint + " …");
-      endpointExecutor.submit(() -> loadRemoteEndpoint(endpoint));
+    if (inFlightEndpoints.add(key)) {
+      notify(MessageType.Info, "CIMVocabCheck: loading schema from " + describeSource(key) + " …");
+      endpointExecutor.submit(load);
     }
     return Optional.empty();
+  }
+
+  /** Loads the schema for a {@code # [rdfarchitect=...]} document. */
+  private void loadRdfArchitect(String key) {
+    String url = rdfArchitectRefOf(key);
+    RdfArchitectConnection connection = rdfArchitect.get();
+    try {
+      RdfArchitectSource source =
+          RdfArchitectSource.parse(url, connection == null ? null : connection.url());
+      String stamp = liveStampOf(source, connection);
+      EndpointSchema es =
+          RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
+      if (!es.hasSchema()) {
+        markFailed(key);
+        notify(
+            MessageType.Warning,
+            "CIMVocabCheck: RDFArchitect "
+                + source.describe()
+                + " "
+                + describeNoSchema(es)
+                + " — validating SPARQL syntax only.");
+        return;
+      }
+      endpointCache.put(
+          key, buildSchema(es.index(), es.namedGraphScope(), null, es.profileGraphs()));
+      rememberLiveSource(key, source, connection, stamp, () -> refetchDirectiveSchema(key));
+      LOG.info(
+          "Loaded schema from RDFArchitect {} ({} schema graph(s))",
+          source.describe(),
+          es.schemaGraphNames().size());
+      notify(
+          MessageType.Info,
+          "CIMVocabCheck: schema loaded from RDFArchitect "
+              + source.describe()
+              + " — "
+              + es.schemaGraphNames().size()
+              + " schema graph(s).");
+      fireOnLoaded();
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to load schema from RDFArchitect {}: {}", url, e.getMessage());
+      fail(
+          key,
+          MessageType.Error,
+          "CIMVocabCheck: could not load the schema from RDFArchitect "
+              + url
+              + " — "
+              + e.getMessage());
+    } finally {
+      inFlightEndpoints.remove(key);
+    }
+  }
+
+  // ---- Live RDFArchitect datasets ----------------------------------------------------------
+
+  /**
+   * The RDFArchitect window an editor has connected, if any.
+   *
+   * <p>Datasets live in a browser session, so reading the model as it is being edited means
+   * borrowing that session: the embedded app hands its session id to the editor, the editor hands
+   * it here, and schema fetches carry it. Without a connection only snapshots and full URLs resolve
+   * — a bare dataset name has no instance to look in.
+   *
+   * @param url the instance's base URL
+   * @param sessionId the value of that window's session cookie
+   */
+  record RdfArchitectConnection(String url, String sessionId) {}
+
+  private final AtomicReference<RdfArchitectConnection> rdfArchitect = new AtomicReference<>();
+
+  /** Live sources behind cached schemas, so edits in RDFArchitect can be noticed. */
+  private final Map<String, LiveSource> liveSources = new ConcurrentHashMap<>();
+
+  /** Document directory → the nearest config's {@code rdfArchitect} value ({@code ""} for none). */
+  private final Map<Path, String> rdfArchitectRefCache = new ConcurrentHashMap<>();
+
+  /**
+   * How long a live dataset is served from cache before its change log is checked again. Long
+   * enough that a burst of keystrokes does not poll RDFArchitect, short enough that an edit made
+   * over there shows up while the user is still looking at the query. Shortened by tests.
+   */
+  static volatile Duration liveCheckInterval = Duration.ofSeconds(3);
+
+  /**
+   * A cached schema read from a live dataset, with the change stamp it had when it was read and the
+   * earliest time to look for edits again.
+   */
+  private static final class LiveSource {
+    private final RdfArchitectSource source;
+    private final RdfArchitectConnection connection;
+    private final Runnable onChanged;
+    private volatile String stamp;
+    private final AtomicLong nextCheckAt = new AtomicLong();
+
+    LiveSource(
+        RdfArchitectSource source,
+        RdfArchitectConnection connection,
+        String stamp,
+        Runnable onChanged) {
+      this.source = source;
+      this.connection = connection;
+      this.onChanged = onChanged;
+      this.stamp = stamp;
+      this.nextCheckAt.set(System.nanoTime() + liveCheckInterval.toNanos());
+    }
+
+    /** Whether it is time to look for edits again; claims the check when it is. */
+    boolean claimCheck() {
+      long due = nextCheckAt.get();
+      return due - System.nanoTime() <= 0
+          && nextCheckAt.compareAndSet(due, System.nanoTime() + liveCheckInterval.toNanos());
+    }
+  }
+
+  /**
+   * Connects (or, with a {@code null} session, disconnects) the RDFArchitect window an editor is
+   * showing. Everything read from RDFArchitect is dropped, since a different session sees different
+   * datasets, and open documents are revalidated against the new connection.
+   */
+  void connectRdfArchitect(String url, String sessionId) {
+    RdfArchitectConnection connection =
+        url == null || url.isBlank() || sessionId == null || sessionId.isBlank()
+            ? null
+            : new RdfArchitectConnection(stripTrailingSlash(url.trim()), sessionId.trim());
+    RdfArchitectConnection previous = rdfArchitect.getAndSet(connection);
+    if (Objects.equals(previous, connection)) {
+      return;
+    }
+    forgetRdfArchitectSchemas();
+    LOG.info(
+        "RDFArchitect connection {}",
+        connection == null ? "cleared" : "set to " + connection.url());
+    reloadAsync();
+    fireOnLoaded();
+  }
+
+  /** The connected instance's URL, or empty when no editor has connected one. */
+  Optional<String> connectedRdfArchitect() {
+    return Optional.ofNullable(rdfArchitect.get()).map(RdfArchitectConnection::url);
+  }
+
+  /**
+   * Where a document's schema comes from, when it comes from RDFArchitect.
+   *
+   * @param ref the reference as written, in the directive or the config
+   * @param source the instance and dataset it resolves to, or {@code null} when it cannot be
+   *     resolved here — a bare dataset name with no window connected names an instance only the
+   *     editor knows about
+   */
+  record RdfArchitectRef(String ref, RdfArchitectSource source) {}
+
+  /**
+   * Where a document's schema comes from when that is RDFArchitect, or empty when it comes from
+   * anywhere else — schema files, a SPARQL endpoint, or nothing at all.
+   *
+   * <p>Answered from the document's own directive and the nearest config alone, without waiting for
+   * (or triggering) a schema load: editor integrations ask this to decide whether a term should
+   * navigate into RDFArchitect, and that decision must not depend on how far a background load has
+   * got.
+   *
+   * <p>A reference that cannot be resolved to an instance still answers <em>yes</em>, with a null
+   * {@link RdfArchitectRef#source()}. Saying "not RDFArchitect" there would be wrong and, worse,
+   * invisible: the terms would simply stop being navigable, with nothing to explain why. The editor
+   * knows which instance it is showing and fills that gap in.
+   *
+   * @param schemaSource the document's schema source as {@link #schemaSourceOf} returns it, or
+   *     {@code null} when it declares none
+   * @param docDir the document's directory, for config discovery
+   */
+  Optional<RdfArchitectRef> rdfArchitectRefFor(SchemaSource schemaSource, Path docDir) {
+    String ref;
+    if (schemaSource != null && schemaSource.isRdfArchitect()) {
+      ref = schemaSource.rdfArchitect();
+    } else if (schemaSource != null) {
+      ref = null; // a plain "# [endpoint=...]" document: not RDFArchitect-backed
+    } else {
+      ref = configuredRdfArchitect(docDir);
+    }
+    if (ref == null || ref.isBlank()) {
+      return Optional.empty();
+    }
+    RdfArchitectConnection connection = rdfArchitect.get();
+    try {
+      String base = connection == null ? null : connection.url();
+      return Optional.of(new RdfArchitectRef(ref, RdfArchitectSource.parse(ref, base)));
+    } catch (IllegalArgumentException e) {
+      // A bare dataset name with no window connected: which instance holds it is the editor's to
+      // say, not ours.
+      return Optional.of(new RdfArchitectRef(ref, null));
+    }
+  }
+
+  /**
+   * The {@code rdfArchitect} value of the nearest config, or {@code null} when there is none.
+   *
+   * <p>Cached per directory, because {@link #rdfArchitectRefFor} asks on every go-to-definition
+   * request — which both editors resolve while the user is merely hovering — and answering means
+   * walking up to the nearest {@code opencgmes.jsonc} and parsing it. The cache is dropped on every
+   * reload, i.e. whenever a config file changes.
+   */
+  private String configuredRdfArchitect(Path docDir) {
+    Path start = docDir != null ? docDir : workspaceRoot;
+    if (start == null) {
+      return null;
+    }
+    String ref = rdfArchitectRefCache.computeIfAbsent(start, SchemaManager::readRdfArchitect);
+    return ref.isEmpty() ? null : ref;
+  }
+
+  /** The nearest config's {@code rdfArchitect} value, or {@code ""} for "none" (a cacheable no). */
+  private static String readRdfArchitect(Path docDir) {
+    Optional<Path> configFile = ConfigLoader.discoverFile(docDir);
+    if (configFile.isEmpty()) {
+      return "";
+    }
+    try {
+      String ref = ConfigLoader.load(configFile.get()).rdfArchitect();
+      return ref == null ? "" : ref;
+    } catch (Exception e) {
+      return "";
+    }
+  }
+
+  /** Drops everything read from RDFArchitect: another session holds different datasets. */
+  private void forgetRdfArchitectSchemas() {
+    liveSources.clear();
+    endpointCache.keySet().removeIf(key -> key.startsWith(RdfArchitectDirective.SCHEME));
+    failedEndpoints.keySet().removeIf(key -> key.startsWith(RdfArchitectDirective.SCHEME));
+    workspaceSchemaCache.clear();
+  }
+
+  /**
+   * The change stamp of a live source, read <em>before</em> its content is fetched.
+   *
+   * <p>Order matters: a stamp taken after the fetch would already include an edit made while the
+   * fetch was running, and that edit would then never be noticed. Taken before, such an edit merely
+   * costs one redundant refetch.
+   *
+   * @return the stamp, or {@code null} for a snapshot — it is immutable, so there is nothing to
+   *     re-check
+   */
+  private String liveStampOf(RdfArchitectSource source, RdfArchitectConnection connection) {
+    return RdfArchitectSchemaLoader.changeStamp(
+        source, REMOTE_TIMEOUT, sessionFor(source, connection));
+  }
+
+  /**
+   * The session to read {@code source} with: the connected one only when the source names the very
+   * instance that session belongs to.
+   *
+   * <p>A session id is a credential for one instance. A config may name another instance outright
+   * ({@code "rdfArchitect": "https://other/?dataset=x"}), and sending the editor's session there
+   * would hand it to a host that has no business seeing it — and could not use it anyway.
+   */
+  private static String sessionFor(RdfArchitectSource source, RdfArchitectConnection connection) {
+    return connection != null && connection.url().equals(source.baseUrl())
+        ? connection.sessionId()
+        : null;
+  }
+
+  /**
+   * Records what a cached RDFArchitect schema was read from, so edits to it can be noticed.
+   *
+   * @param stamp the change stamp from {@link #liveStampOf} taken before the content was read
+   * @param onChanged rebuilds that schema — refetching the one document source for a directive,
+   *     reloading the workspace for a config
+   */
+  private void rememberLiveSource(
+      String key,
+      RdfArchitectSource source,
+      RdfArchitectConnection connection,
+      String stamp,
+      Runnable onChanged) {
+    if (stamp == null) {
+      liveSources.remove(key);
+      return;
+    }
+    liveSources.put(key, new LiveSource(source, connection, stamp, onChanged));
+  }
+
+  /**
+   * Notices edits made in RDFArchitect since a live schema was read, without blocking the caller:
+   * the change log is polled at most every {@link #liveCheckInterval}, and only a stamp that
+   * actually moved triggers a refetch (and then a revalidation of the open documents).
+   */
+  private void checkForEdits(String key) {
+    LiveSource live = liveSources.get(key);
+    if (live == null || !live.claimCheck()) {
+      return;
+    }
+    endpointExecutor.submit(
+        () -> {
+          String stamp =
+              RdfArchitectSchemaLoader.changeStamp(
+                  live.source, REMOTE_TIMEOUT, sessionFor(live.source, live.connection));
+          if (stamp == null || stamp.equals(live.stamp)) {
+            return;
+          }
+          LOG.info("RDFArchitect {} changed — reloading the schema", live.source.describe());
+          live.stamp = stamp;
+          live.onChanged.run();
+        });
+  }
+
+  /** Cache key for the live source behind a config's schema. */
+  private static String configLiveKey(Path configFile) {
+    return "config:" + configFile;
+  }
+
+  /**
+   * Reloads the workspace schema without announcing it. A live RDFArchitect dataset reloads
+   * whenever someone edits the model, and a toast per edit would be noise rather than news.
+   */
+  private void reloadQuietlyAsync() {
+    Path root = workspaceRoot;
+    if (root != null) {
+      executor.submit(() -> loadSync(root, true));
+    }
+  }
+
+  /** Re-reads the schema of a {@code # [rdfarchitect=...]} document after an edit over there. */
+  private void refetchDirectiveSchema(String key) {
+    endpointCache.remove(key);
+    if (inFlightEndpoints.add(key)) {
+      loadRdfArchitect(key);
+    }
+  }
+
+  /** The reference behind an {@code rdfarchitect:} cache key. */
+  private static String rdfArchitectRefOf(String key) {
+    return key.substring(RdfArchitectDirective.SCHEME.length());
+  }
+
+  private static String stripTrailingSlash(String url) {
+    String stripped = url;
+    while (stripped.endsWith("/")) {
+      stripped = stripped.substring(0, stripped.length() - 1);
+    }
+    return stripped;
+  }
+
+  /** How a schema source reads in a user-facing message. */
+  private static String describeSource(String key) {
+    return key.startsWith(RdfArchitectDirective.SCHEME)
+        ? "RDFArchitect " + key.substring(RdfArchitectDirective.SCHEME.length())
+        : "endpoint " + key;
   }
 
   private void loadRemoteEndpoint(String endpoint) {
@@ -531,7 +1038,8 @@ final class SchemaManager {
                 + " — validating SPARQL syntax only.");
         return;
       }
-      ResolvedSchema schema = buildSchema(es.index(), es.namedGraphScope(), null);
+      ResolvedSchema schema =
+          buildSchema(es.index(), es.namedGraphScope(), null, es.profileGraphs());
       endpointCache.put(endpoint, schema);
       LOG.info(
           "Loaded schema from endpoint {} ({} instance graph(s) auto-mapped, {} unmatched, {}"
@@ -616,9 +1124,23 @@ final class SchemaManager {
       RdfsSchemaIndex index,
       Map<Node, Collection<VersionIri>> scope,
       DefinitionIndex definitionIndex) {
+    return buildSchema(index, scope, definitionIndex, Map.of());
+  }
+
+  /**
+   * Builds a {@link ResolvedSchema} from an index read out of a graph store.
+   *
+   * @param profileGraphs profile version IRI → the graph declaring it, so a term declared in
+   *     several profiles can be opened in the one the user picks
+   */
+  private ResolvedSchema buildSchema(
+      RdfsSchemaIndex index,
+      Map<Node, Collection<VersionIri>> scope,
+      DefinitionIndex definitionIndex,
+      Map<VersionIri, String> profileGraphs) {
     var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
     var api = new SparqlValidationApi(index, prefixes, checkStdVocabRef.get());
-    return new ResolvedSchema(api, levelRef.get(), scope, definitionIndex);
+    return new ResolvedSchema(api, levelRef.get(), scope, definitionIndex, profileGraphs);
   }
 
   /** Records an endpoint as failed (negative cache) and notifies once per failure window. */
@@ -629,19 +1151,19 @@ final class SchemaManager {
   }
 
   /**
-   * Records {@code key} as failed until {@link #FAILURE_TTL} elapses.
+   * Records {@code key} as failed until {@link #failureTtl} elapses.
    *
    * @return {@code true} if this opens a fresh failure window (no live entry was present), so the
    *     caller should notify; {@code false} if a still-valid failure was already recorded.
    */
   private boolean markFailed(String key) {
-    long expiry = System.nanoTime() + FAILURE_TTL.toNanos();
+    long expiry = System.nanoTime() + failureTtl.toNanos();
     Long prev = failedEndpoints.put(key, expiry);
     return prev == null || prev - System.nanoTime() <= 0;
   }
 
   /**
-   * Returns whether {@code key}'s last failure is still within {@link #FAILURE_TTL}. An expired
+   * Returns whether {@code key}'s last failure is still within {@link #failureTtl}. An expired
    * entry is evicted so the next {@code resolveSchema} retries the load.
    */
   private boolean isFailed(String key) {
@@ -676,37 +1198,56 @@ final class SchemaManager {
   // ---- Private ---------------------------------------------------------------------------
 
   private void loadSync(Path root) {
+    loadSync(root, false);
+  }
+
+  private void loadSync(Path root, boolean quiet) {
     // Endpoint schemas and per-config schemas are cached for the session; drop them on reload so
     // a strictness change propagates and any transient load failures get retried.
-    endpointCache.clear();
-    failedEndpoints.clear();
+    //
+    // Not on a quiet reload, though: that one means a live RDFArchitect dataset moved, and an
+    // endpoint schema has nothing to do with it — refetching every one of them (and announcing it)
+    // each time somebody edits a class over there would be a lot of noise about nothing. A
+    // directive-backed RDFArchitect schema refreshes itself, see refetchDirectiveSchema.
+    if (!quiet) {
+      endpointCache.clear();
+      failedEndpoints.clear();
+    }
     workspaceSchemaCache.clear();
+    rdfArchitectRefCache.clear();
 
     Optional<Path> configFile = ConfigLoader.discoverFile(root);
     primaryConfigKey = configFile.map(Path::toString).orElse(null);
     try {
       WorkspaceSchema primary =
-          configFile.isPresent() ? buildSchemaForConfig(configFile.get()) : noSchemaWorkspace();
+          configFile.isPresent()
+              ? buildSchemaForConfig(configFile.get(), ConfigLoader.load(configFile.get()), quiet)
+              : noSchemaWorkspace();
       apiRef.set(primary.api());
       levelRef.set(primary.level());
       defRef.set(primary.definitionIndex());
       namedGraphRef.set(primary.namedGraphScope());
       checkStdVocabRef.set(primary.checkStandardVocab());
+      profileGraphsRef.set(primary.profileGraphs());
 
       if (primary.api() == null) {
         LOG.info(
             "No schema configured under {} — syntax-only unless a # [endpoint=...] is used", root);
-        notify(
-            MessageType.Info,
-            "CIMVocabCheck: no schema configured — checking SPARQL/SHACL syntax "
-                + "only. Add \"schemas\" to opencgmes.jsonc, or a \"# [endpoint=...]\" directive, "
-                + "for schema-based validation.");
+        if (!quiet) {
+          notify(
+              MessageType.Info,
+              "CIMVocabCheck: no schema configured — checking SPARQL/SHACL syntax only. Add"
+                  + " \"schemas\" to opencgmes.jsonc, or a \"# [endpoint=...]\" directive, for"
+                  + " schema-based validation.");
+        }
       } else {
         LOG.info(
             "Schema loaded successfully from {} (strictness: {})",
             configFile.get(),
             primary.level());
-        notify(MessageType.Info, "CIMVocabCheck: schema loaded successfully.");
+        if (!quiet) {
+          notify(MessageType.Info, "CIMVocabCheck: schema loaded successfully.");
+        }
       }
       fireOnLoaded();
     } catch (Exception e) {
@@ -715,6 +1256,7 @@ final class SchemaManager {
       apiRef.set(null);
       defRef.set(null);
       namedGraphRef.set(Map.of());
+      profileGraphsRef.set(Map.of());
       // Preserve the config's standard-vocabulary flag so the syntax-only fallback honours it.
       checkStdVocabRef.set(configFile.map(SchemaManager::readCheckStandardVocab).orElse(true));
     }
@@ -726,9 +1268,15 @@ final class SchemaManager {
    * there is no bundled default. Config-relative schema paths resolve against the config's
    * directory.
    */
-  private WorkspaceSchema buildSchemaForConfig(Path configFile) throws Exception {
+  private WorkspaceSchema buildSchemaForConfig(
+      Path configFile, CimvocabcheckConfig config, boolean quietLoad) throws Exception {
     Path base = configFile.toAbsolutePath().getParent();
-    CimvocabcheckConfig config = ConfigLoader.load(configFile);
+    // A config that no longer names RDFArchitect must stop being polled for edits; only
+    // buildSchemaFromRdfArchitect re-arms the entry, so dropping it here is what bounds that.
+    liveSources.remove(configLiveKey(configFile));
+    if (namesRdfArchitect(config)) {
+      return buildSchemaFromRdfArchitect(config, configFile, quietLoad);
+    }
     Optional<SchemaLoader.SchemaAndSources> loaded = SchemaLoader.loadWithSources(config, base);
     if (loaded.isEmpty()) {
       // Config present but no schemas declared → syntax-only (unless documents use an endpoint).
@@ -736,6 +1284,97 @@ final class SchemaManager {
           null, parseLevel(config), null, Map.of(), config.checkStandardVocabulary());
     }
     return assemble(config, loaded.get());
+  }
+
+  /**
+   * Builds a {@link WorkspaceSchema} from the profiles held in an RDFArchitect instance ({@code
+   * "rdfArchitect"} in the config) instead of from schema files, so a workspace validates against
+   * the model as it is curated there.
+   *
+   * <p>This is a network load on the schema-loading thread, like the primary file load. A bare
+   * dataset name is read from the connected RDFArchitect window (see {@link #connectRdfArchitect}),
+   * so the workspace validates against the model as it is being edited; connecting or disconnecting
+   * rebuilds it. There is no definition index — the terms have no backing source file to jump to.
+   */
+  private WorkspaceSchema buildSchemaFromRdfArchitect(
+      CimvocabcheckConfig config, Path configFile, boolean quietLoad) {
+    RdfArchitectConnection connection = rdfArchitect.get();
+    RdfArchitectSource source;
+    try {
+      source =
+          RdfArchitectSource.parse(
+              config.rdfArchitect(), connection == null ? null : connection.url());
+    } catch (IllegalArgumentException e) {
+      // Typically: the config names a dataset but no editor has connected a window yet. Say so
+      // instead of silently validating against nothing.
+      notify(MessageType.Warning, "CIMVocabCheck: " + e.getMessage());
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    String stamp = liveStampOf(source, connection);
+    EndpointSchema es;
+    try {
+      es = RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
+    } catch (RuntimeException e) {
+      // An instance that is momentarily unreachable must not take the rest of the config down
+      // with it, and must not stay down once it comes back — see retryRdfArchitectIfDue.
+      LOG.warn(
+          "Failed to load the schema from RDFArchitect {}: {}", source.describe(), e.getMessage());
+      String message =
+          "CIMVocabCheck: could not load the schema from RDFArchitect "
+              + source.describe()
+              + " — "
+              + e.getMessage()
+              + " — validating SPARQL syntax only until it answers again.";
+      liveSources.remove(configLiveKey(configFile));
+      if (quietLoad) {
+        markFailed(configLiveKey(configFile));
+      } else {
+        fail(configLiveKey(configFile), MessageType.Error, message);
+      }
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    if (!es.hasSchema()) {
+      notify(
+          MessageType.Warning,
+          "CIMVocabCheck: RDFArchitect "
+              + source.describe()
+              + " "
+              + describeNoSchema(es)
+              + " — validating SPARQL syntax only.");
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    rememberLiveSource(
+        configLiveKey(configFile), source, connection, stamp, this::reloadQuietlyAsync);
+    LOG.info(
+        "Loaded schema from RDFArchitect {} ({} schema graph(s))",
+        source.describe(),
+        es.schemaGraphNames().size());
+    if (!quietLoad) {
+      notify(
+          MessageType.Info,
+          "CIMVocabCheck: schema loaded from RDFArchitect "
+              + source.describe()
+              + " — "
+              + es.schemaGraphNames().size()
+              + " schema graph(s).");
+    }
+    var prefixes =
+        config.prefixes() != null
+            ? config.prefixes()
+            : DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, es.index());
+    boolean checkStd = config.checkStandardVocabulary();
+    var scope =
+        config.hasNamedGraphs()
+            ? SparqlValidationApi.buildNamedGraphScope(
+                config.namedGraphs(), es.index(), msg -> LOG.warn("{}", msg))
+            : es.namedGraphScope();
+    return new WorkspaceSchema(
+        new SparqlValidationApi(es.index(), prefixes, checkStd),
+        parseLevel(config),
+        null,
+        scope,
+        checkStd,
+        es.profileGraphs());
   }
 
   /**

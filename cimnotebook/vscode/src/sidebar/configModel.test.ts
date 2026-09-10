@@ -57,6 +57,12 @@ describe("parseConfigModel", () => {
         ]);
     });
 
+    it("reads the RDFArchitect model the workspace validates against", () => {
+        const model = parseConfigModel('{ "cimvocabcheck": { "rdfArchitect": "cgmes-3.0" } }');
+        assert.equal(model.rdfArchitect, "cgmes-3.0");
+        assert.equal(parseConfigModel(CONFIG).rdfArchitect, undefined);
+    });
+
     it("tolerates comments, trailing commas, and garbage", () => {
         assert.deepEqual(parseConfigModel('{ /* c */ "cimvocabcheck": { }, }').schemas, undefined);
         assert.equal(parseConfigModel("not json").strictness, undefined);

@@ -22,10 +22,10 @@ import de.soptim.opencgmes.cimvocabcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.CgmesSchemaLoader.SchemaLoadException;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
@@ -87,17 +87,22 @@ public final class EndpointSchemaLoader {
     List<String> schemaGraphNames = source.listSchemaGraphs();
     LOG.info("Endpoint exposes {} schema graph(s)", schemaGraphNames.size());
 
-    var graphs = new ArrayList<Graph>(schemaGraphNames.size());
+    var graphs = new LinkedHashMap<String, Graph>();
     for (String name : schemaGraphNames) {
       Graph g = source.fetchGraph(name);
       if (!g.isEmpty()) {
-        graphs.add(g);
+        graphs.put(name, g);
       }
     }
 
     RdfsSchemaIndex index;
+    Map<VersionIri, String> profileGraphs;
     try {
-      index = CgmesSchemaLoader.indexFromGraphs(graphs);
+      // Named rather than anonymous: knowing which graph a profile came from is what lets a term
+      // declared in several profiles be opened in the one the user asks for.
+      CgmesSchemaLoader.IndexedGraphs indexed = CgmesSchemaLoader.indexFromNamedGraphs(graphs);
+      index = indexed.index();
+      profileGraphs = indexed.profileGraphs();
     } catch (SchemaLoadException e) {
       LOG.warn("No CIM schema could be built from the endpoint's graphs: {}", e.getMessage());
       return EndpointSchema.noSchema(schemaGraphNames, e.getMessage(), e.code().orElse(null));
@@ -118,6 +123,7 @@ public final class EndpointSchemaLoader {
         detected.scope().size(),
         detected.unmatched().size(),
         schemaGraphNames.size());
-    return new EndpointSchema(index, scope, schemaGraphNames, detected.unmatched(), null, null);
+    return new EndpointSchema(
+        index, scope, schemaGraphNames, profileGraphs, detected.unmatched(), null, null);
   }
 }
