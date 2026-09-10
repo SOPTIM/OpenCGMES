@@ -109,6 +109,15 @@
                     "enum": ["check", "ignore"],
                     "default": "check"
                 },
+                "rules": {
+                    "type": "object",
+                    "description": "Overrides the severity of individual checks, keyed by validation code (for example PROPERTY_MAY_BE_ABSENT or DATATYPE_MISMATCH).\n\nA code listed here keeps the configured severity regardless of \"strictness\" — it is neither promoted by \"strict\"/\"pedantic\" nor filtered out by \"permissive\".",
+                    "additionalProperties": {
+                        "type": "string",
+                        "description": "Severity for this check.\n\n• off — never report it.\n• info — report as a hint.\n• warn — report as a warning.\n• error — report as an error (fails validation).",
+                        "enum": ["off", "info", "warn", "error"]
+                    }
+                },
                 "cimNamespaces": {
                     "type": "object",
                     "description": "Maps custom CIM namespace URIs to the built-in profile \"shape\" that matches their ontology conventions, so schema files/endpoint graphs using them can be parsed. Use this when a profile declares its terms under a namespace other than the standard http://iec.ch/TC57/CIM100# (or CIM version-specific equivalents).",

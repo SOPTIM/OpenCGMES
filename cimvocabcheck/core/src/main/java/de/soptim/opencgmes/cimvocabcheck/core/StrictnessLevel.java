@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.core;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Controls which validation findings are reported and how their severities are mapped.
@@ -42,6 +43,9 @@ import java.util.Locale;
  *   <dd>All checks; both {@code WARN} and {@code INFO} annotations are promoted to {@code ERROR}.
  *       The most thorough gate: fails on every implied-type hint and dynamic-predicate notice.
  * </dl>
+ *
+ * <p>Codes whose severity the project configured explicitly under {@code "rules"} are exempt from
+ * all of the above — see {@link RuleSeverities}.
  */
 public enum StrictnessLevel {
   PERMISSIVE,
@@ -76,14 +80,27 @@ public enum StrictnessLevel {
    * or severity-promoted as documented above. The original list is not modified.
    */
   public List<SparqlValidationAnnotation> apply(List<SparqlValidationAnnotation> annotations) {
+    return apply(annotations, Set.of());
+  }
+
+  /**
+   * Applies this level, leaving annotations whose code is in {@code pinned} exactly as they are —
+   * neither promoted nor filtered. Used for codes whose severity the project configured explicitly
+   * (see {@link RuleSeverities}), which must win over the strictness level.
+   */
+  public List<SparqlValidationAnnotation> apply(
+      List<SparqlValidationAnnotation> annotations, Set<SparqlValidationCode> pinned) {
     return switch (this) {
-      case PERMISSIVE -> annotations.stream().filter(a -> isStructural(a.code())).toList();
+      case PERMISSIVE ->
+          annotations.stream()
+              .filter(a -> isStructural(a.code()) || pinned.contains(a.code()))
+              .toList();
       case DEFAULT -> List.copyOf(annotations);
       case STRICT ->
           annotations.stream()
               .map(
                   a ->
-                      a.severity() == SparqlValidationSeverity.WARN
+                      a.severity() == SparqlValidationSeverity.WARN && !pinned.contains(a.code())
                           ? a.withSeverity(SparqlValidationSeverity.ERROR)
                           : a)
               .toList();
@@ -91,7 +108,7 @@ public enum StrictnessLevel {
           annotations.stream()
               .map(
                   a ->
-                      a.severity() != SparqlValidationSeverity.ERROR
+                      a.severity() != SparqlValidationSeverity.ERROR && !pinned.contains(a.code())
                           ? a.withSeverity(SparqlValidationSeverity.ERROR)
                           : a)
               .toList();
