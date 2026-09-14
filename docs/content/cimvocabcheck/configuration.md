@@ -56,7 +56,7 @@ syntax-only mode.
 | --- | --- | --- | --- |
 | `schemasDirectory` | string | — | Directory of RDFS/profile files (`.rdf`, `.ttl`, `.owl`) |
 | `schemas` | string[] | — | Explicit list of RDFS/profile files |
-| `rdfArchitect` | string | — | Dataset name, or link, of an RDFArchitect to take the schema from |
+| `rdfArchitect` | string | — | Workspace name, or link, of an RDFArchitect to take the schema from |
 | `strictness` | enum | `default` | How findings map to severities |
 | `namedGraphs` | object | — | Map graph IRIs / short names to profile IRIs |
 | `prefixes` | object | *(built-in set)* | PREFIX declarations injected into queries |
@@ -97,7 +97,7 @@ Validate against the model as it is curated in a running
 [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) rather than against files on disk. The schema
 is read over its REST API, so no SPARQL endpoint and no access to its store are needed.
 
-**A dataset name** validates against that dataset **as you edit it** — the language server reads the
+**A workspace name** validates against that workspace **as you edit it** — the language server reads the
 very working copy shown in the editor's RDFArchitect view, so a class you add there is known to the
 next validation a few seconds later:
 
@@ -111,7 +111,7 @@ next validation a few seconds later:
 
 This is the form to use day to day. It needs the RDFArchitect view open in the IDE, which is what
 tells the language server *which* instance and session to read (see
-[live datasets](#live-datasets) below). Only the dataset name goes into the config — nothing
+[live workspaces](#live-workspaces) below). Only the workspace name goes into the config — nothing
 instance-specific, nothing secret.
 
 **A link** pins a fixed source instead, and needs no editor:
@@ -131,16 +131,16 @@ document rendered from the loaded schema — one per declaring profile — and o
 term in the editor's RDFArchitect view
 ([VS Code](/cimnotebook/vscode#go-to-definition), [IntelliJ](/cimnotebook/intellij#go-to-definition)).
 
-#### Live datasets
+#### Live workspaces
 
-RDFArchitect keeps one working copy **per browser session** and never publishes it, so a dataset is
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so a workspace is
 only readable by whoever holds that session. The IDE extensions hand the session of the view they
-embed to the language server, which then reads that dataset directly — no export, no snapshot, no
+embed to the language server, which then reads that workspace directly — no export, no snapshot, no
 save step. Consequences worth knowing:
 
-- The dataset must exist **in the window the editor shows**. Import it there (or use *Send Schema to
-  RDFArchitect*); a dataset in some other browser tab is invisible.
-- A name of the form `SNAPSHOT_<dataset>_<token>` — what RDFArchitect calls a loaded snapshot, and
+- The workspace must exist **in the window the editor shows**. Import it there (or use *Send Schema to
+  RDFArchitect*); a workspace in some other browser tab is invisible.
+- A name of the form `SNAPSHOT_<workspace>_<token>` — what RDFArchitect calls a loaded snapshot, and
   what you see in the address bar after opening one — is understood as that snapshot and loaded on
   its own, rather than looked for in the session. It does not change, so it never has to be
   re-imported; it still needs a connected view, though, because the name alone does not say which
@@ -150,7 +150,7 @@ save step. Consequences worth knowing:
   handshake, cannot answer. The editor's output log says which of the two it is.
 - Changes are lost when the RDFArchitect instance restarts, exactly as they are for anything else
   you edit in the browser without exporting.
-- Without a connected view, a bare dataset name cannot be resolved and CIMVocabCheck says so rather
+- Without a connected view, a bare workspace name cannot be resolved and CIMVocabCheck says so rather
   than silently validating against nothing.
 - An instance that cannot be reached does not take the workspace out for the session: queries are
   checked for syntax only, the failure is reported once rather than on every attempt, and the schema

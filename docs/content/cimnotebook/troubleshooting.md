@@ -87,12 +87,12 @@ built the JAR yourself.
 
 ## RDFArchitect: `rdfArchitect` / `# [rdfarchitect=...]` seems ignored
 
-A **dataset name** is only resolvable while the editor's RDFArchitect view is connected — it is what
-says which instance, and which session, holds that dataset. Open the RDFArchitect panel (VS Code) or
+A **workspace name** is only resolvable while the editor's RDFArchitect view is connected — it is what
+says which instance, and which session, holds that workspace. Open the RDFArchitect panel (VS Code) or
 tool window (IntelliJ) once; the connection is then remembered and restored when the workspace is
 reopened. VS Code shows the state in the status bar. A **snapshot or instance link** needs no
 connection at all, and is the form to use in CI. See
-[live datasets](/cimvocabcheck/configuration#live-datasets).
+[live workspaces](/cimvocabcheck/configuration#live-workspaces).
 
 ## See also
 

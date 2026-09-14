@@ -87,7 +87,7 @@ A CIM term is usually declared in **several profiles**. All of them are offered,
 For a schema loaded from a SPARQL endpoint, where there is no source file, each profile's triples
 are fetched and opened as a generated read-only Turtle document.
 
-When the schema comes from [RDFArchitect](#live-datasets) there are no schema files either, so the
+When the schema comes from [RDFArchitect](#live-workspaces) there are no schema files either, so the
 term is rendered from the loaded schema into a read-only document — one per profile, as above — and
 **opening it also shows the term in the RDFArchitect tool window**: a class opens itself, an
 attribute, association or enum entry opens the class that declares it, with the row highlighted.
@@ -138,8 +138,8 @@ Jumping to a property requires an RDFArchitect that supports property deep links
 
 The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks
 the language server for the workspace's configured schema files (the `opencgmes.jsonc`
-`schemas`/`schemasDirectory`), imports them into RDFArchitect as a dataset, and opens the result
-in the tool window. The dataset is named after the config file's
+`schemas`/`schemasDirectory`), imports them into RDFArchitect as a workspace, and opens the result
+in the tool window. The workspace is named after the config file's
 directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
 manual import. It is available from **Tools** and from the RDFArchitect tool window's toolbar.
 
@@ -160,18 +160,18 @@ The dialog's third button, **Never for This Project**, is remembered in the proj
 so a project you always import by hand stays quiet. When the offer follows an **Open in
 RDFArchitect** that could not find its term, the import lands on that term afterwards.
 
-Re-sending is safe: the dataset is rebuilt from its files rather than merged into the previous one.
+Re-sending is safe: the workspace is rebuilt from its files rather than merged into the previous one.
 Note that the changed-schema check compares the *files on disk* with what was last sent, so it asks
 about edits made **here**, never about edits made in RDFArchitect — those are not a reason to
 re-import, and with a connected session they are picked up live anyway.
 
-### Live datasets
+### Live workspaces
 
-RDFArchitect keeps one working copy **per browser session** and never publishes it, so the datasets
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so the workspaces
 in the tool window are invisible to anything outside that session. The plugin bridges this: the tool
 window is its own JCEF browser, so the plugin reads that session directly and hands it to the
-language server. `"rdfArchitect": "<dataset>"` in
-[`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then validates against that dataset
+language server. `"rdfArchitect": "<workspace>"` in
+[`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then validates against that workspace
 **as you edit it** — add a class in the tool window and the next validation knows it. No setting on
 the RDFArchitect side is needed (unlike the VS Code webview, which is a third-party iframe).
 
@@ -184,7 +184,7 @@ not a restart of RDFArchitect itself. **Reconnect Session** on the tool window's
 
 The session id grants access to that session, so it is treated as a credential: it lives in the
 IDE's password safe and in the language server's memory, never in `opencgmes.jsonc`, which only ever
-holds the dataset name. The project's properties keep only the URL of the instance you were
+holds the workspace name. The project's properties keep only the URL of the instance you were
 connected to.
 
 :::info An instance behind a private CA

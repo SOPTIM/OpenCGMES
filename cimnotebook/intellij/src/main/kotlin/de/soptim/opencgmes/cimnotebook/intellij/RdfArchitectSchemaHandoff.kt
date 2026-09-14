@@ -341,7 +341,7 @@ object RdfArchitectSchemaHandoff {
      * Dataset name for the imported schema: the config file's directory name, sanitised.
      *
      * A relative path has no directory to name it after — the parent of `./opencgmes.jsonc` is
-     * `"."` — and a dataset called "." is not a name anybody asked for. The VS Code extension
+     * `"."` — and a workspace called "." is not a name anybody asked for. The VS Code extension
      * resolves the same case to the same fallback; the two must not disagree about what a
      * workspace is called.
      */

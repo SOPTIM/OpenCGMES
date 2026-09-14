@@ -128,7 +128,7 @@ final class RdfArchitectDefinitionPeek {
     }
     out.append('\n');
     if (target.dataset() != null) {
-      out.append("# dataset: ").append(target.dataset()).append('\n');
+      out.append("# workspace: ").append(target.dataset()).append('\n');
     }
     out.append("#\n# Read-only: this is the schema as loaded for validation, rendered here.\n");
     out.append("# Edit the model in RDFArchitect; the change is picked up automatically.\n\n");

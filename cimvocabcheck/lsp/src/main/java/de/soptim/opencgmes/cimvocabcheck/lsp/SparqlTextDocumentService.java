@@ -404,7 +404,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
   /**
    * The RDFArchitect instance behind a document, and the terms it names.
    *
-   * @param baseUrl the instance to open terms in, or {@code null} when the config names a dataset
+   * @param baseUrl the instance to open terms in, or {@code null} when the config names a workspace
    *     without saying where it lives — the editor knows which instance it is showing
    * @param dataset the dataset to open terms in, or {@code null} when the schema is read from a
    *     snapshot link — whose dataset is named differently in every session that loads it

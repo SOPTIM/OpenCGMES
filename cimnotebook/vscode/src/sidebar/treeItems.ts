@@ -183,7 +183,9 @@ export function rdfArchitectDescription(value: string | undefined): string {
     if (!trimmed) {
         return "not set";
     }
-    return trimmed.includes("://") ? `${trimmed} (link)` : `${trimmed} (dataset in the open view)`;
+    return trimmed.includes("://")
+        ? `${trimmed} (link)`
+        : `${trimmed} (workspace in the open view)`;
 }
 
 /** Selecting the schema's own default value clears the field, keeping the file minimal. */

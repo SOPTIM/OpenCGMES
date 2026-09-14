@@ -93,7 +93,7 @@ A CIM term is usually declared in **several profiles**. All of them are offered:
 peek list, and you pick the profile you meant. The list is ordered by profile version IRI, so the
 same one is on top every time.
 
-When the schema comes from [RDFArchitect](#live-datasets) there are no schema files either, so the
+When the schema comes from [RDFArchitect](#live-workspaces) there are no schema files either, so the
 term is rendered from the loaded schema into a read-only document — one per profile, as above — and
 **opening it also shows the term in the RDFArchitect panel**: a class opens itself, an attribute,
 association or enum entry opens the class that declares it, with the row highlighted. The panel
@@ -172,8 +172,8 @@ Jumping to a property requires an RDFArchitect that supports property deep links
 
 The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks the
 language server for the workspace's configured schema files (the `opencgmes.jsonc`
-`schemas`/`schemasDirectory`), imports them into RDFArchitect as a dataset, and opens the result
-in the panel. The dataset is named after the config file's
+`schemas`/`schemasDirectory`), imports them into RDFArchitect as a workspace, and opens the result
+in the panel. The workspace is named after the config file's
 directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
 manual import. It sits in the editor's right-click menu next to **Open in RDFArchitect**, on the
 panel's toolbar as **Send Schema**, and in the command palette.
@@ -195,7 +195,7 @@ Both prompts offer **Not now** and **Never for this workspace**; the latter is r
 workspace state, so a workspace you always import by hand stays quiet. When the offer follows an
 **Open in RDFArchitect** that could not find its term, the import lands on that term afterwards.
 
-Re-sending is safe: the dataset is rebuilt from its files rather than merged into the previous one.
+Re-sending is safe: the workspace is rebuilt from its files rather than merged into the previous one.
 Note that the changed-schema check compares the *files on disk* with what was last sent, so it asks
 about edits made **here**, never about edits made in RDFArchitect — those are not a reason to
 re-import, and with a connected session they are picked up live anyway.
@@ -226,13 +226,13 @@ toolbar) instead of the embedded panel. The IntelliJ tool window is unaffected: 
 as a top-level document, not an iframe.
 :::
 
-### Live datasets
+### Live workspaces
 
-RDFArchitect keeps one working copy **per browser session** and never publishes it, so the datasets
+RDFArchitect keeps one working copy **per browser session** and never publishes it, so the workspaces
 in the panel are invisible to anything outside that session. CIMNotebook bridges this: the embedded
 app reports which session it uses, the extension hands that to the language server, and
-`"rdfArchitect": "<dataset>"` in [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then
-validates against that dataset **as you edit it** — add a class in the panel and the next validation
+`"rdfArchitect": "<workspace>"` in [`opencgmes.jsonc`](/cimvocabcheck/configuration#rdfarchitect) then
+validates against that workspace **as you edit it** — add a class in the panel and the next validation
 knows it.
 
 Reading the model from RDFArchitect also changes what `Ctrl+Click` does: with no schema files to
@@ -273,12 +273,12 @@ window reload — take it, or the running server keeps the trust it was launched
 :::warning Requires the instance to allow the handshake
 A VS Code webview is a third-party iframe, so the app only reveals its session when the deployment
 sets `PUBLIC_EMBED_SESSION_HANDSHAKE=true` (see RDFArchitect's admin guide). Without it, live
-datasets are unavailable and CIMNotebook falls back to snapshots. The IntelliJ plugin needs no such
+workspaces are unavailable and CIMNotebook falls back to snapshots. The IntelliJ plugin needs no such
 setting: its tool window is the plugin's own browser.
 
 The session id grants access to that session, so it is treated as a credential: it lives in VS
 Code's secret storage (keyed by workspace) and in the language server's memory, never in
-`opencgmes.jsonc`, which only ever holds the dataset name. Workspace state keeps only the URL of
+`opencgmes.jsonc`, which only ever holds the workspace name. Workspace state keeps only the URL of
 the instance you were connected to.
 :::
 
@@ -308,7 +308,7 @@ Schema configuration itself lives in [`opencgmes.jsonc`](/cimvocabcheck/configur
 Changing a server-launch setting (`serverJar`, `javaExecutable`, `javaArgs`) requires a window
 reload — VS Code prompts you to reload when one changes. Switching `rdfArchitectUrl` between an
 `http` and an `https` instance prompts too, because it changes the certificates the language
-server's JVM is launched with (see [Live datasets](#live-datasets)).
+server's JVM is launched with (see [Live workspaces](#live-workspaces)).
 :::
 
 The **CIMNotebook: Show Output** command opens the extension's output channel, the first place to

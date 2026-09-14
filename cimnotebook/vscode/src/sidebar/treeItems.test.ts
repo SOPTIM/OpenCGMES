@@ -145,7 +145,10 @@ describe("strictness / standardVocabulary description and write-value mapping", 
     it("the RDFArchitect row says whether the view has to be open for it", () => {
         assert.equal(rdfArchitectDescription(undefined), "not set");
         assert.equal(rdfArchitectDescription("  "), "not set");
-        assert.equal(rdfArchitectDescription("cgmes-3.0"), "cgmes-3.0 (dataset in the open view)");
+        assert.equal(
+            rdfArchitectDescription("cgmes-3.0"),
+            "cgmes-3.0 (workspace in the open view)",
+        );
         assert.equal(
             rdfArchitectDescription("http://localhost:3000/?snapshot=abc"),
             "http://localhost:3000/?snapshot=abc (link)",

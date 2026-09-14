@@ -92,8 +92,8 @@ final class SparqlWorkspaceService implements WorkspaceService {
    *
    * <p>RDFArchitect keeps one working copy per browser session and never publishes it, so this is
    * what lets a workspace validate against a dataset <em>as it is being edited</em>: with a
-   * connection, {@code "rdfArchitect": "<dataset>"} in the config (or {@code # [rdfarchitect=...]}
-   * in a document) reads that session's datasets.
+   * connection, {@code "rdfArchitect": "<workspace>"} in the config (or {@code #
+   * [rdfarchitect=...]} in a document) reads that session's datasets.
    */
   static final String CMD_CONNECT_RDFARCHITECT = "cimvocabcheck.connectRdfArchitect";
 

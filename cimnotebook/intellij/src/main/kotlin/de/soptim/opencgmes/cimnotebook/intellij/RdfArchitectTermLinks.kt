@@ -69,7 +69,7 @@ class RdfArchitectTermLinks(
     /**
      * A document's terms and the RDFArchitect instance its schema comes from.
      *
-     * @param baseUrl null when the config names a dataset without saying which instance holds it —
+     * @param baseUrl null when the config names a workspace without saying which instance holds it —
      *   the tool window's configured URL answers that
      * @param dataset the dataset to open terms in, or null when the schema is a snapshot link —
      *   which every session that loads it names differently
