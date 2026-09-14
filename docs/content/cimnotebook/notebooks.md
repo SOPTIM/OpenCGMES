@@ -267,6 +267,12 @@ graphs). A target that carries no schema — a CIMXML model, an `.nt` dump — k
 workspace schema from `opencgmes.jsonc` instead, since instance data would only produce
 false diagnostics.
 
+The one directive that overrides all three is
+[`# [rdfarchitect=...]`](/cimvocabcheck/endpoints#from-rdfarchitect): it says where the
+_schema_ comes from and nothing about where the query runs, so a cell can carry both and
+keep running against its endpoint while being validated against the model held in
+RDFArchitect.
+
 ### Credentials
 
 Connections with `"authType": "basic"` prompt once for username and password on first

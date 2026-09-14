@@ -45,9 +45,10 @@
             <li><b>Real-time diagnostics</b> — unknown classes and properties, typos in the standard vocabularies (<code>rdf</code>/<code>rdfs</code>/<code>owl</code>/<code>sh</code>), domain/range mismatches, datatype conflicts, invalid enumeration values, and contradictory SHACL constraints. Full catalogue: <a href="https://opencgmes.soptim.de/cimvocabcheck/validation-checks">validation checks</a>.</li>
             <li><b>Hover documentation</b> — the full IRI, <code>rdfs:label</code> / <code>rdfs:comment</code>, domain/range, and source profile for any CIM term (e.g. <code>cim:ACLineSegment</code>).</li>
             <li><b>Auto-completion</b> — type <code>:</code> after a prefix such as <code>cim:</code> for class and property suggestions; enumeration members are suggested in object position, and standard-vocabulary prefixes (<code>rdf:</code>, <code>rdfs:</code>, <code>owl:</code>, <code>sh:</code>) complete too.</li>
-            <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file.</li>
+            <li><b>Go to definition</b> — Ctrl+Click / Cmd+Click a CIM term to jump to its declaration in the profile file, choosing between profiles when it is declared in several; when the schema comes from RDFArchitect there is no such file, so the term is rendered from the loaded schema into a read-only document — and opening it shows the term in the RDFArchitect tool window.</li>
             <li><b>Workspace symbol search</b> — press Ctrl+Alt+Shift+N (Go to Symbol) and type a term name to find any schema term.</li>
             <li><b>Explain Query</b> — right-click a SPARQL query for its Jena-style static algebra plan (original and optimized), computed without executing anything.</li>
+            <li><b>RDFArchitect tool window</b> — embed a running <a href="https://github.com/SOPTIM/RDFArchitect">RDFArchitect</a> instance (SOPTIM's open-source RDFS/CIM schema editor) in the IDE to browse and edit schema diagrams next to your queries. Right-click a CIM term and choose <b>Open in RDFArchitect</b> to jump straight to that class, or run <b>Tools → CIMNotebook: Send Schema to RDFArchitect</b> to import the workspace schema into the view — no manual import needed. Configure the instance URL under <b>Settings → Tools → CIMNotebook</b>.</li>
         </ul>
 
         <h3>Requirements</h3>
@@ -77,6 +78,7 @@
             <li><b>Server JAR</b> — leave empty to use the JAR bundled with the plugin, or point to your own <code>cimvocabcheck-lsp.jar</code>.</li>
             <li><b>Java executable</b> — leave empty to use the IDE's runtime, or set a path to a Java 21+ executable.</li>
             <li><b>JVM arguments</b> — extra arguments passed before <code>-jar</code>, e.g. <code>-Xmx512m</code>.</li>
+            <li><b>RDFArchitect URL</b> — URL of a running RDFArchitect instance (local or hosted; not bundled) shown in the RDFArchitect tool window.</li>
         </ul>
 
         <h3>Validation configuration</h3>
@@ -151,6 +153,16 @@
             language="SHACL"
             implementationClass="de.soptim.opencgmes.cimnotebook.intellij.CimnotebookSyntaxHighlighterFactory"/>
 
+        <!-- ── RDFArchitect tool window (JCEF-embedded external instance) ── -->
+        <toolWindow id="RDFArchitect"
+                    anchor="right"
+                    icon="AllIcons.Toolwindows.WebToolWindow"
+                    factoryClass="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectToolWindowFactory"/>
+
+        <!-- ── Reconnect the remembered RDFArchitect session on project open ── -->
+        <postStartupActivity
+            implementation="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectSessionRestore"/>
+
         <!-- ── Settings page under Settings > Tools > CIMNotebook ───────────── -->
         <applicationConfigurable
             parentId="tools"
@@ -160,6 +172,14 @@
 
     </extensions>
 
+    <projectListeners>
+        <!-- Ctrl+Click on a term of an RDFArchitect-held model goes to a document the language
+             server renders (there are no schema files); opening one shows the term in the tool
+             window. -->
+        <listener class="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectDefinitionOpener"
+                  topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </projectListeners>
+
     <actions>
         <!-- ── Explain Query (static algebra plan) ───────────────────────── -->
         <action id="de.soptim.opencgmes.cimnotebook.explainQuery"
@@ -167,6 +187,30 @@
                 text="Explain Query (Algebra Plan)"
                 description="Show the static SPARQL algebra plan for the current query, like arq --explain.">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- ── Open in RDFArchitect (class deep link from the editor) ─────── -->
+        <action id="de.soptim.opencgmes.cimnotebook.openInRdfArchitect"
+                class="de.soptim.opencgmes.cimnotebook.intellij.OpenInRdfArchitectAction"
+                text="Open in RDFArchitect"
+                description="Open the schema class under the caret in the RDFArchitect tool window.">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- ── Open RDFArchitect (tool window) ────────────────────────────── -->
+        <action id="de.soptim.opencgmes.cimnotebook.openRdfArchitect"
+                class="de.soptim.opencgmes.cimnotebook.intellij.OpenRdfArchitectAction"
+                text="CIMNotebook: Open RDFArchitect"
+                description="Open the RDFArchitect schema editor tool window (requires a configured RDFArchitect instance URL).">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+
+        <!-- ── Send Schema to RDFArchitect (import + snapshot handoff) ────── -->
+        <action id="de.soptim.opencgmes.cimnotebook.sendSchemaToRdfArchitect"
+                class="de.soptim.opencgmes.cimnotebook.intellij.SendSchemaToRdfArchitectAction"
+                text="CIMNotebook: Send Schema to RDFArchitect"
+                description="Import the workspace schema files into RDFArchitect and open them (editable in a connected session, read-only otherwise).">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
 
         <!-- ── Create Config File (opencgmes.jsonc) ───────────────────────── -->
