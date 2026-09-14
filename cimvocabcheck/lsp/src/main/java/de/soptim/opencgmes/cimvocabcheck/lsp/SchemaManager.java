@@ -1305,7 +1305,7 @@ final class SchemaManager {
           RdfArchitectSource.parse(
               config.rdfArchitect(), connection == null ? null : connection.url());
     } catch (IllegalArgumentException e) {
-      // Typically: the config names a dataset but no editor has connected a window yet. Say so
+      // Typically: the config names a workspace but no editor has connected a window yet. Say so
       // instead of silently validating against nothing.
       notify(MessageType.Warning, "CIMVocabCheck: " + e.getMessage());
       return noSchemaWorkspace(config.checkStandardVocabulary());

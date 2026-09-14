@@ -143,7 +143,7 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 ## From RDFArchitect
 
 A [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) instance can be the schema source directly,
-with its own directive. Name a **dataset** of the RDFArchitect view open in your IDE to validate
+with its own directive. Name a **workspace** of the RDFArchitect view open in your IDE to validate
 against it *as you edit it*:
 
 ```sparql
@@ -160,7 +160,7 @@ SELECT * WHERE { ?s a cim:ACLineSegment }
 ```
 
 The graphs are exported over RDFArchitect's REST API and then run through exactly the pipeline above,
-so profile detection and per-graph scoping work the same way. A live dataset is re-read when its
+so profile detection and per-graph scoping work the same way. A live workspace is re-read when its
 change log moves, so an edit made in the view reaches the next validation without a reload; the
 change log is polled at most every few seconds, so a burst of typing costs one small request.
 
@@ -175,11 +175,11 @@ break execution. A cell can carry both — `endpoint` runs the query, `rdfarchit
 schema — in which case `rdfarchitect` wins for validation. The same source can be set once for a
 whole workspace with [`rdfArchitect`](/cimvocabcheck/configuration#rdfarchitect) in the config.
 
-:::note Session-scoped datasets
-RDFArchitect keeps one working copy per browser session and never publishes it. A dataset is
-therefore readable only by whoever holds that session — which is why a bare dataset name needs the
+:::note Session-scoped workspaces
+RDFArchitect keeps one working copy per browser session and never publishes it. A workspace is
+therefore readable only by whoever holds that session — which is why a bare workspace name needs the
 RDFArchitect view open in the IDE: the extension hands that session to the language server. See
-[live datasets](/cimvocabcheck/configuration#live-datasets) for what follows from that, including
+[live workspaces](/cimvocabcheck/configuration#live-workspaces) for what follows from that, including
 why the CLI can only use snapshot links.
 :::
 

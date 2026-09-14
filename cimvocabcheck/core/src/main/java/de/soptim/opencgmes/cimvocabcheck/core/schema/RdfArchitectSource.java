@@ -56,7 +56,7 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
   public RdfArchitectSource {
     Objects.requireNonNull(baseUrl, "baseUrl");
     if (dataset == null && snapshot == null) {
-      throw new IllegalArgumentException("an RDFArchitect source needs a dataset or a snapshot");
+      throw new IllegalArgumentException("an RDFArchitect source needs a workspace or a snapshot");
     }
     if (snapshot == null) {
       // A dataset named the way a loaded snapshot is *is* that snapshot.
@@ -82,7 +82,7 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
       return null;
     }
     // The token is taken by length, not by splitting on '_': both it and the dataset name it is
-    // appended to may contain underscores, so no separator in "SNAPSHOT_<dataset>_<token>" can be
+    // appended to may contain underscores, so no separator in "SNAPSHOT_<workspace>_<token>" can be
     // told apart from one inside the parts.
     int start = dataset.length() - TOKEN_LENGTH;
     if (start <= SNAPSHOT_PREFIX.length() || dataset.charAt(start - 1) != '_') {
@@ -112,7 +112,7 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
    * /mainpage} deep link, or the bare instance URL with a {@code dataset} or {@code snapshot} query
    * parameter.
    *
-   * @throws IllegalArgumentException if the URL is malformed or names neither a dataset nor a
+   * @throws IllegalArgumentException if the URL is malformed or names neither a workspace nor a
    *     snapshot
    */
   public static RdfArchitectSource parse(String url) {
@@ -120,15 +120,15 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
   }
 
   /**
-   * Parses an RDFArchitect link, or a bare dataset name against a connected instance.
+   * Parses an RDFArchitect link, or a bare workspace name against a connected instance.
    *
-   * <p>A value that is not a URL — {@code "cgmes-3.0"} — names a dataset of the instance an editor
-   * is connected to. That is how a workspace refers to the dataset being edited without pinning an
-   * instance URL into a config file, and it is the form that reads a *live* dataset.
+   * <p>A value that is not a URL — {@code "cgmes-3.0"} — names a workspace of the instance an
+   * editor is connected to. That is how a config file refers to the workspace being edited without
+   * pinning an instance URL into it, and it is the form that reads a *live* workspace.
    *
    * @param connectedBaseUrl the instance an editor is connected to, or {@code null} when none is
-   * @throws IllegalArgumentException if the value is a bare dataset name while nothing is
-   *     connected, or is a URL naming neither a dataset nor a snapshot
+   * @throws IllegalArgumentException if the value is a bare workspace name while nothing is
+   *     connected, or is a URL naming neither a workspace nor a snapshot
    */
   public static RdfArchitectSource parse(String url, String connectedBaseUrl) {
     Objects.requireNonNull(url, "url");
@@ -138,10 +138,10 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
         throw new IllegalArgumentException(
             "\""
                 + value
-                + "\" names a dataset, but no RDFArchitect session is connected. That needs the"
+                + "\" names a workspace, but no RDFArchitect session is connected. That needs the"
                 + " RDFArchitect view open in the editor *and* an instance that reports its session"
-                + " to it (see the CIMNotebook docs on live datasets). Otherwise name the instance"
-                + " in full, e.g. http://localhost:3000/?dataset="
+                + " to it (see the CIMNotebook docs on live workspaces). Otherwise name the"
+                + " instance in full, e.g. http://localhost:3000/?dataset="
                 + value
                 + " — or, for a schema that should not change underneath you, a snapshot link.");
       }
@@ -162,7 +162,7 @@ public record RdfArchitectSource(String baseUrl, String dataset, String snapshot
     String dataset = queryParam(uri.getRawQuery(), "dataset");
     if (snapshot == null && dataset == null) {
       throw new IllegalArgumentException(
-          "RDFArchitect URL names neither a dataset nor a snapshot — copy a snapshot link from"
+          "RDFArchitect URL names neither a workspace nor a snapshot — copy a snapshot link from"
               + " RDFArchitect's Share dialog, or append ?dataset=<name>: "
               + url);
     }

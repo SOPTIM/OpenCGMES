@@ -547,7 +547,7 @@ interface TermProfile {
 
 /** A document's terms and the RDFArchitect instance its schema comes from. */
 interface RdfArchitectTerms {
-    /** Absent when the config names a dataset without saying which instance holds it. */
+    /** Absent when the config names a workspace without saying which instance holds it. */
     baseUrl?: string | null;
     /** Absent when the schema is a snapshot link, which every session names differently. */
     dataset?: string | null;
@@ -797,7 +797,7 @@ let connectionStatus: vscode.StatusBarItem | undefined;
  * Datasets in RDFArchitect belong to a browser session and are never published, so validating
  * against the model *as it is being edited* means reading that session. The embedded app reports
  * which session it uses (see {@link rdfArchitectHtml}), and this hands it to the server, which then
- * resolves `"rdfArchitect": "<dataset>"` against it. The id is a credential for that session: it
+ * resolves `"rdfArchitect": "<workspace>"` against it. The id is a credential for that session: it
  * stays in secret storage and in the server's memory, and is never written to a config file.
  */
 async function connectRdfArchitectSession(url: string, id: string): Promise<void> {
@@ -888,7 +888,7 @@ async function reportMissingSession(base: string): Promise<void> {
             ? "the instance did not report its session to the panel — its deployment has to set " +
               "PUBLIC_EMBED_SESSION_HANDSHAKE=true for an embedded view to ask"
             : `the instance answered ${res.status} for /api/session — it is likely older than ` +
-              "live-dataset support";
+              "live-workspace support";
     } catch (err) {
         reason = `the instance could not be reached: ${err instanceof Error ? err.message : err}`;
     }
@@ -896,7 +896,7 @@ async function reportMissingSession(base: string): Promise<void> {
     if (connectionStatus) {
         connectionStatus.tooltip =
             `No live session from ${base}.\n${reason}.\n` +
-            "A dataset named in opencgmes.jsonc cannot be read; a snapshot link still works.";
+            "A workspace named in opencgmes.jsonc cannot be read; a snapshot link still works.";
     }
 }
 
@@ -909,7 +909,7 @@ async function reconnectRdfArchitect(): Promise<void> {
     }
 }
 
-/** A quiet indicator of whether live datasets can be read, with the reconnect command behind it. */
+/** A quiet indicator of whether live workspaces can be read, with the reconnect command behind it. */
 function updateConnectionStatus(): void {
     if (!connectionStatus) {
         connectionStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -919,12 +919,12 @@ function updateConnectionStatus(): void {
     if (connectedSession) {
         connectionStatus.text = "$(plug) RDFArchitect";
         connectionStatus.tooltip =
-            `Reading live datasets from ${connectedSession.url}.\n` +
+            `Reading live workspaces from ${connectedSession.url}.\n` +
             "Click to reconnect (e.g. after restarting RDFArchitect).";
     } else {
         connectionStatus.text = "$(debug-disconnect) RDFArchitect";
         connectionStatus.tooltip =
-            "Not connected — a dataset named in opencgmes.jsonc cannot be read.\n" +
+            "Not connected — a workspace named in opencgmes.jsonc cannot be read.\n" +
             "Click to connect by opening the RDFArchitect panel.";
     }
     connectionStatus.show();
