@@ -167,15 +167,19 @@ public class RdfArchitectLiveDatasetTest {
     boolean connected = SESSION.equals(cookieValue(cookie));
     String body;
     if (path.equals("/api/datasets")) {
-      // Without the connected session there is nothing to see — datasets live in a session.
-      body = connected ? "[\"" + DATASET + "\"]" : "[]";
+      // Without the connected session there is nothing to see — workspaces live in a session.
+      body =
+          connected ? "[{\"name\":\"" + DATASET + "\",\"prefixes\":[],\"readOnly\":false}]" : "[]";
     } else if (path.endsWith("/graphs")) {
-      body = "[{\"prefix\":\"http://graph#\",\"suffix\":\"EQ\"}]";
+      body = "[{\"keyword\":\"EQ\",\"uri\":{\"prefix\":\"http://graph#\",\"suffix\":\"EQ\"}}]";
     } else if (path.endsWith("/content")) {
       body = turtle;
     } else if (path.endsWith("/changes")) {
       changeLogPolls.incrementAndGet();
-      body = changeId.isEmpty() ? "[]" : "[{\"changeId\":\"" + changeId + "\"}]";
+      body =
+          "{\"undoHistory\":["
+              + (changeId.isEmpty() ? "" : "{\"changeId\":\"" + changeId + "\"}")
+              + "],\"redoHistory\":[]}";
     } else {
       body = null;
     }
