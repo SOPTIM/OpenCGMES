@@ -135,15 +135,15 @@ public class RdfArchitectTermProfilesTest {
     String path = URLDecoder.decode(exchange.getRequestURI().getPath(), StandardCharsets.UTF_8);
     String body;
     if (path.equals("/api/datasets")) {
-      body = "[\"" + DATASET + "\"]";
+      body = "[{\"name\":\"" + DATASET + "\",\"prefixes\":[],\"readOnly\":false}]";
     } else if (path.endsWith("/graphs")) {
       body =
-          "[{\"prefix\":\"http://graph#\",\"suffix\":\"EQ\"},"
-              + "{\"prefix\":\"http://graph#\",\"suffix\":\"TP\"}]";
+          "[{\"keyword\":\"EQ\",\"uri\":{\"prefix\":\"http://graph#\",\"suffix\":\"EQ\"}},"
+              + "{\"keyword\":\"TP\",\"uri\":{\"prefix\":\"http://graph#\",\"suffix\":\"TP\"}}]";
     } else if (path.endsWith("/content")) {
       body = GRAPHS.get(graphOf(path));
     } else if (path.endsWith("/changes")) {
-      body = "[]";
+      body = "{\"undoHistory\":[],\"redoHistory\":[]}";
     } else {
       body = null;
     }

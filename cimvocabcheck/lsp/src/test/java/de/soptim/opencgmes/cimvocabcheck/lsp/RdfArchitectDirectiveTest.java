@@ -87,9 +87,10 @@ public class RdfArchitectDirectiveTest {
     String body =
         switch (path) {
           case "/api/snapshots/" + TOKEN -> "loaded";
-          case "/api/datasets" -> "[\"" + DATASET + "\"]";
+          case "/api/datasets" ->
+              "[{\"name\":\"" + DATASET + "\",\"prefixes\":[],\"readOnly\":false}]";
           case "/api/datasets/" + DATASET + "/graphs" ->
-              "[{\"prefix\":\"http://graph#\",\"suffix\":\"EQ\"}]";
+              "[{\"keyword\":\"EQ\",\"uri\":{\"prefix\":\"http://graph#\",\"suffix\":\"EQ\"}}]";
           case "/api/datasets/" + DATASET + "/graphs/" + GRAPH + "/content" -> TURTLE;
           default -> null;
         };

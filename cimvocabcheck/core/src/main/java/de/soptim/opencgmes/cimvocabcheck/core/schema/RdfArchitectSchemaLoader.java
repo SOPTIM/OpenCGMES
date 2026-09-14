@@ -49,14 +49,14 @@ import org.slf4j.LoggerFactory;
  * validate against the model as it is curated there instead of against files on disk.
  *
  * <p>The instance is read over its REST API — no SPARQL endpoint and no direct access to its store
- * are needed. Each graph of the dataset is exported as Turtle into an in-memory dataset, which is
+ * are needed. Each graph of the workspace is exported as Turtle into an in-memory dataset, which is
  * then handed to {@link EndpointSchemaLoader}; profile detection, named-graph mapping and the
  * schema index are therefore exactly the same as for a SPARQL endpoint.
  *
- * <p>Datasets in RDFArchitect belong to a browser session. This loader gets its own session, so a
+ * <p>Workspaces in RDFArchitect belong to a browser session. This loader gets its own session, so a
  * {@link RdfArchitectSource#snapshot() snapshot} — which any session can load — always works, while
- * a plain {@link RdfArchitectSource#dataset() dataset} is only visible when the instance is backed
- * by a triple store that persists datasets beyond a session.
+ * a plain {@link RdfArchitectSource#dataset() workspace} is only visible when the instance is
+ * backed by a triple store that persists workspaces beyond a session.
  */
 public final class RdfArchitectSchemaLoader {
 
@@ -73,7 +73,7 @@ public final class RdfArchitectSchemaLoader {
    *
    * @param timeout per-request timeout
    * @throws RdfArchitectException when the instance cannot be reached or does not hold the
-   *     requested dataset
+   *     requested workspace
    */
   public static EndpointSchema load(RdfArchitectSource source, Duration timeout) {
     return load(source, timeout, null);
@@ -82,28 +82,28 @@ public final class RdfArchitectSchemaLoader {
   /**
    * Loads the schema addressed by {@code source}, optionally borrowing a browser's session.
    *
-   * <p>With a {@code sessionId}, the datasets read are the ones that session is editing — the
+   * <p>With a {@code sessionId}, the workspaces read are the ones that session is editing — the
    * working copy behind an open RDFArchitect window, unsaved changes included. That is the only way
-   * to see a dataset live: RDFArchitect keeps one working copy per session and never publishes it.
-   * A snapshot needs no session and is deliberately never loaded into a borrowed one, because doing
-   * so would add a dataset to somebody's open editor.
+   * to see a workspace live: RDFArchitect keeps one working copy per session and never publishes
+   * it. A snapshot needs no session and is deliberately never loaded into a borrowed one, because
+   * doing so would add a workspace to somebody's open editor.
    *
    * @param sessionId the value of that session's {@code RDFA_SESSION_ID} cookie, or {@code null}
    * @param timeout per-request timeout
    * @throws RdfArchitectException when the instance cannot be reached or does not hold the
-   *     requested dataset
+   *     requested workspace
    */
   public static EndpointSchema load(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
     Objects.requireNonNull(timeout, "timeout");
     Dataset local = DatasetFactory.createTxnMem();
     try (Client client = clientFor(source, timeout, sessionId)) {
-      String dataset = resolveDataset(client, source);
-      List<String> graphs = client.listGraphs(dataset);
-      LOG.info("RDFArchitect dataset {} exposes {} graph(s)", dataset, graphs.size());
+      String workspace = resolveWorkspace(client, source);
+      List<String> graphs = client.listGraphs(workspace);
+      LOG.info("RDFArchitect workspace {} exposes {} graph(s)", workspace, graphs.size());
 
       for (String graph : graphs) {
-        String turtle = client.fetchGraph(dataset, graph);
+        String turtle = client.fetchGraph(workspace, graph);
         Model model = ModelFactory.createDefaultModel();
         RDFParser.create().source(new StringReader(turtle)).lang(Lang.TURTLE).parse(model);
         local.addNamedModel(graph, model);
@@ -120,15 +120,15 @@ public final class RdfArchitectSchemaLoader {
   }
 
   /**
-   * A change stamp for the dataset behind {@code source}: it differs whenever a graph of that
-   * dataset has been edited. Reading the per-graph change logs is far cheaper than exporting every
-   * graph, so a live schema can be checked often and refetched only when it actually moved.
+   * A change stamp for the workspace behind {@code source}: it differs whenever a graph of that
+   * workspace has been edited. Reading the per-graph change logs is far cheaper than exporting
+   * every graph, so a live schema can be checked often and refetched only when it actually moved.
    *
    * <p>A snapshot has none: it is immutable, so there is nothing to re-check — and asking would
    * mean loading it into a session again on every poll.
    *
-   * @return an opaque stamp, or {@code null} for a snapshot, or when the dataset cannot be read at
-   *     all
+   * @return an opaque stamp, or {@code null} for a snapshot, or when the workspace cannot be read
+   *     at all
    */
   public static String changeStamp(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
@@ -136,10 +136,10 @@ public final class RdfArchitectSchemaLoader {
       return null;
     }
     try (Client client = clientFor(source, timeout, sessionId)) {
-      String dataset = source.dataset();
+      String workspace = source.dataset();
       var stamp = new StringBuilder();
-      for (String graph : client.listGraphs(dataset)) {
-        stamp.append(graph).append('=').append(client.latestChangeId(dataset, graph)).append(';');
+      for (String graph : client.listGraphs(workspace)) {
+        stamp.append(graph).append('=').append(client.latestChangeId(workspace, graph)).append(';');
       }
       return stamp.toString();
     } catch (RuntimeException e) {
@@ -158,22 +158,22 @@ public final class RdfArchitectSchemaLoader {
   }
 
   /**
-   * The dataset to read: a snapshot is loaded into this loader's session first, which is what makes
-   * it readable at all, and then names the dataset {@code SNAPSHOT_<name>_<token>}.
+   * The workspace to read: a snapshot is loaded into this loader's session first, which is what
+   * makes it readable at all, and then names the workspace {@code SNAPSHOT_<name>_<token>}.
    */
-  private static String resolveDataset(Client client, RdfArchitectSource source) {
+  private static String resolveWorkspace(Client client, RdfArchitectSource source) {
     if (source.snapshot() == null) {
-      List<String> datasets = client.listDatasets();
-      if (!datasets.contains(source.dataset())) {
+      List<String> workspaces = client.listWorkspaces();
+      if (!workspaces.contains(source.dataset())) {
         throw new RdfArchitectException(
-            "RDFArchitect has no dataset \""
+            "RDFArchitect has no workspace \""
                 + source.dataset()
                 + "\" in "
                 + (client.borrowsSession() ? "the connected session" : "a fresh session")
-                + (datasets.isEmpty()
-                    ? " (it exposes none — datasets belong to a session, so import the schema in"
+                + (workspaces.isEmpty()
+                    ? " (it exposes none — workspaces belong to a session, so import the schema in"
                         + " the connected window, or address a snapshot instead)"
-                    : "; it exposes " + datasets));
+                    : "; it exposes " + workspaces));
       }
       return source.dataset();
     }
@@ -182,7 +182,7 @@ public final class RdfArchitectSchemaLoader {
       return source.dataset();
     }
     String suffix = "_" + source.snapshot();
-    return client.listDatasets().stream()
+    return client.listWorkspaces().stream()
         .filter(name -> name.endsWith(suffix))
         .findFirst()
         .orElseThrow(
@@ -190,7 +190,7 @@ public final class RdfArchitectSchemaLoader {
                 new RdfArchitectException(
                     "RDFArchitect loaded snapshot "
                         + source.snapshot()
-                        + " but exposes no dataset for it"));
+                        + " but exposes no workspace for it"));
   }
 
   /** Signals that an RDFArchitect instance could not be read. */
@@ -242,7 +242,7 @@ public final class RdfArchitectSchemaLoader {
     }
 
     /**
-     * Releases the client's selector thread and executor. A live dataset is polled for changes
+     * Releases the client's selector thread and executor. A live workspace is polled for changes
      * every few seconds, so leaving them to the garbage collector would pile up threads for as long
      * as the workspace is open.
      */
@@ -256,13 +256,16 @@ public final class RdfArchitectSchemaLoader {
     }
 
     /** The id of the newest change of a graph, or {@code ""} when it has none yet. */
-    String latestChangeId(String dataset, String graph) {
+    String latestChangeId(String workspace, String graph) {
       JsonNode changes =
           readJson(
               get(
-                  "/datasets/" + encode(dataset) + "/graphs/" + encode(graph) + "/changes",
+                  "/datasets/" + encode(workspace) + "/graphs/" + encode(graph) + "/changes",
                   "application/json"));
-      JsonNode newest = changes.isArray() && !changes.isEmpty() ? changes.get(0) : null;
+      // The API used to serve the log as a bare array; it now wraps it in
+      // {undoHistory, redoHistory}, newest entry first.
+      JsonNode history = changes.isArray() ? changes : changes.path("undoHistory");
+      JsonNode newest = history.isArray() && !history.isEmpty() ? history.get(0) : null;
       return newest == null ? "" : newest.path("changeId").asText("");
     }
 
@@ -270,28 +273,45 @@ public final class RdfArchitectSchemaLoader {
       get("/snapshots/" + encode(token), "text/plain");
     }
 
-    List<String> listDatasets() {
+    /**
+     * Workspace names. The endpoint keeps its {@code /datasets} spelling, and serves each workspace
+     * as a {@code {name, prefixes, readOnly}} object — older instances served bare strings.
+     */
+    List<String> listWorkspaces() {
       var names = new ArrayList<String>();
-      readJson(get("/datasets", "application/json")).forEach(node -> names.add(node.asText()));
+      readJson(get("/datasets", "application/json"))
+          .forEach(
+              node -> names.add(node.isTextual() ? node.asText() : node.path("name").asText("")));
       return names;
     }
 
-    /** Graph URIs of a dataset; the API serves them as {@code {prefix, suffix}} objects. */
-    List<String> listGraphs(String dataset) {
+    /** Graph URIs of a workspace. */
+    List<String> listGraphs(String workspace) {
       var uris = new ArrayList<String>();
-      readJson(get("/datasets/" + encode(dataset) + "/graphs", "application/json"))
-          .forEach(
-              node ->
-                  uris.add(
-                      node.isTextual()
-                          ? node.asText()
-                          : node.path("prefix").asText("") + node.path("suffix").asText("")));
+      readJson(get("/datasets/" + encode(workspace) + "/graphs", "application/json"))
+          .forEach(node -> uris.add(graphUri(node)));
       return uris;
     }
 
-    String fetchGraph(String dataset, String graph) {
+    /**
+     * The URI of one entry of the graph listing. The API now serves {@code {keyword, uri}} objects
+     * and nests the URI a level down; older instances put {@code {prefix, suffix}} at the top, and
+     * either shape may spell the URI as a plain string.
+     */
+    private static String graphUri(JsonNode node) {
+      if (node.isTextual()) {
+        return node.asText();
+      }
+      JsonNode uri = node.has("uri") ? node.path("uri") : node;
+      return uri.isTextual()
+          ? uri.asText()
+          : uri.path("prefix").asText("") + uri.path("suffix").asText("");
+    }
+
+    String fetchGraph(String workspace, String graph) {
       return get(
-          "/datasets/" + encode(dataset) + "/graphs/" + encode(graph) + "/content", "text/turtle");
+          "/datasets/" + encode(workspace) + "/graphs/" + encode(graph) + "/content",
+          "text/turtle");
     }
 
     private JsonNode readJson(String body) {
@@ -311,7 +331,7 @@ public final class RdfArchitectSchemaLoader {
               .header("Accept", accept)
               .GET();
       if (sessionId != null) {
-        // Borrowing the browser's session is what makes its live datasets readable.
+        // Borrowing the browser's session is what makes its live workspaces readable.
         builder.header("Cookie", SESSION_COOKIE + "=" + sessionId);
       }
       HttpRequest request = builder.build();

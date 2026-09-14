@@ -42,8 +42,12 @@ import org.junit.Test;
 
 /**
  * Tests the RDFArchitect schema source against a stub of its REST API, wired to the shapes the real
- * one serves: graph lists as {@code {prefix, suffix}} objects, graph content as Turtle, and
- * datasets that only appear once their snapshot has been loaded into the session.
+ * one serves: workspaces as {@code {name, prefixes, readOnly}} objects, graph lists as {@code
+ * {keyword, uri}} objects, a change log as {@code {undoHistory, redoHistory}}, graph content as
+ * Turtle, and workspaces that only appear once their snapshot has been loaded into the session.
+ *
+ * <p>Older instances served the first three as bare strings, top-level {@code {prefix, suffix}}
+ * pairs and a bare array; {@link #readsTheShapesOlderInstancesServe()} holds the loader to both.
  */
 public class RdfArchitectSchemaLoaderTest {
 
@@ -84,8 +88,11 @@ public class RdfArchitectSchemaLoaderTest {
   /** The local part of the one graph the stub serves; a test gives it a space. */
   private String suffix = "Equipment";
 
-  /** The dataset a borrowed session can see, as opposed to the snapshot one. */
+  /** The workspace a borrowed session can see, as opposed to the snapshot one. */
   private static final String LIVE_DATASET = "live";
+
+  /** Serve the shapes RDFArchitect used before workspaces became objects. */
+  private boolean legacyShapes;
 
   @Before
   public void setUp() throws IOException {
@@ -113,29 +120,47 @@ public class RdfArchitectSchemaLoaderTest {
     if (cookie != null) {
       cookies.add(cookie);
     }
-    // A borrowed session sees the live dataset; a session of the loader's own sees only what it
+    // A borrowed session sees the live workspace; a session of the loader's own sees only what it
     // loaded itself — which is how the real backend behaves.
     boolean borrowed = cookie != null && cookie.contains(SESSION);
     if (path.equals("/api/snapshots/" + TOKEN)) {
       snapshotLoaded = true;
       respond(exchange, 200, "loaded");
     } else if (path.equals("/api/datasets")) {
-      String visible =
-          borrowed
-              ? "[\"" + LIVE_DATASET + "\"]"
-              : snapshotLoaded ? "[\"" + SNAPSHOT_DATASET + "\"]" : "[]";
-      respond(exchange, 200, visible);
+      String name = borrowed ? LIVE_DATASET : snapshotLoaded ? SNAPSHOT_DATASET : null;
+      respond(exchange, 200, name == null ? "[]" : workspaceListing(name));
     } else if (path.endsWith("/graphs")) {
-      respond(exchange, 200, "[{\"prefix\":\"http://graph#\",\"suffix\":\"" + suffix + "\"}]");
+      respond(exchange, 200, graphListing());
     } else if (path.endsWith("/graphs/http://graph#" + suffix + "/content")) {
       // The graph URI has to arrive exactly as it was served above: a form-encoded space would
       // reach a server as a literal '+', and no graph is named that.
       respond(exchange, 200, TURTLE);
     } else if (path.endsWith("/changes")) {
-      respond(exchange, 200, changeId.isEmpty() ? "[]" : "[{\"changeId\":\"" + changeId + "\"}]");
+      respond(exchange, 200, changeLog());
     } else {
       respond(exchange, 404, "");
     }
+  }
+
+  /** The workspace listing: objects with a {@code name}, or bare strings on an older instance. */
+  private String workspaceListing(String name) {
+    return legacyShapes
+        ? "[\"" + name + "\"]"
+        : "[{\"name\":\"" + name + "\",\"prefixes\":[],\"readOnly\":false}]";
+  }
+
+  /** The graph listing: the URI nested under {@code uri}, or at the top level on an older one. */
+  private String graphListing() {
+    String uri = "\"prefix\":\"http://graph#\",\"suffix\":\"" + suffix + "\"";
+    return legacyShapes ? "[{" + uri + "}]" : "[{\"keyword\":\"EQ\",\"uri\":{" + uri + "}}]";
+  }
+
+  /** The change log: wrapped in {@code undoHistory}, or a bare array on an older instance. */
+  private String changeLog() {
+    String entries = changeId.isEmpty() ? "" : "{\"changeId\":\"" + changeId + "\"}";
+    return legacyShapes
+        ? "[" + entries + "]"
+        : "{\"undoHistory\":[" + entries + "],\"redoHistory\":[]}";
   }
 
   private static void respond(HttpExchange exchange, int status, String body) throws IOException {
@@ -175,12 +200,53 @@ public class RdfArchitectSchemaLoaderTest {
   }
 
   @Test
-  public void reportsADatasetTheSessionCannotSee() {
+  public void reportsAWorkspaceTheSessionCannotSee() {
     RdfArchitectException e =
         assertThrows(
             RdfArchitectException.class, () -> load(baseUrl() + "/?dataset=not-in-this-session"));
 
-    assertTrue(e.getMessage(), e.getMessage().contains("datasets belong to a session"));
+    assertTrue(e.getMessage(), e.getMessage().contains("workspaces belong to a session"));
+  }
+
+  /**
+   * A workspace the instance does list is named in the error, which only works if the listing was
+   * understood: read as bare strings, a list of objects collapses to empty names and the message
+   * reports the instance as exposing nothing.
+   */
+  @Test
+  public void namesTheWorkspacesTheSessionCanSee() {
+    RdfArchitectException e =
+        assertThrows(
+            RdfArchitectException.class,
+            () ->
+                RdfArchitectSchemaLoader.load(
+                    RdfArchitectSource.parse(baseUrl() + "/?dataset=not-the-live-one"),
+                    Duration.ofSeconds(10),
+                    SESSION));
+
+    assertTrue(e.getMessage(), e.getMessage().contains("[" + LIVE_DATASET + "]"));
+  }
+
+  /**
+   * The listings grew objects around what used to be plain values. The loader still reads the older
+   * shapes, so an extension keeps working against an instance that has not been updated yet.
+   */
+  @Test
+  public void readsTheShapesOlderInstancesServe() {
+    legacyShapes = true;
+    var source = RdfArchitectSource.parse(baseUrl() + "/?dataset=" + LIVE_DATASET);
+
+    EndpointSchema schema = RdfArchitectSchemaLoader.load(source, Duration.ofSeconds(10), SESSION);
+
+    assertTrue(schema.hasSchema());
+    assertEquals(List.of(GRAPH), schema.schemaGraphNames());
+
+    String before = RdfArchitectSchemaLoader.changeStamp(source, Duration.ofSeconds(10), SESSION);
+    changeId = "9f1c1c1e-0000-4000-8000-000000000002";
+    assertNotEquals(
+        "an edit must move the stamp on an older instance too",
+        before,
+        RdfArchitectSchemaLoader.changeStamp(source, Duration.ofSeconds(10), SESSION));
   }
 
   @Test
