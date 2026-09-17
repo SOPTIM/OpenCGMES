@@ -20,6 +20,12 @@
   Copyright © 2004 World Wide Web Consortium
   Used under W3C Software License for testing purposes only
 -->
+<!--
+  This module includes the ENTSO-E Application Profiles Library (v1.1.1) as a
+  Git submodule for testing purposes only.
+  Licensed under the Apache License, Version 2.0
+  https://github.com/entsoe/application-profiles-library
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
