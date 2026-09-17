@@ -18,10 +18,13 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
+import de.soptim.opencgmes.cimvocabcheck.core.RuleSeverities;
+import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import org.apache.jena.graph.Node;
 
@@ -33,6 +36,7 @@ import org.apache.jena.graph.Node;
  * {@code # [endpoint=...]} directive are both represented uniformly here so the validation path
  * does not care where the schema came from.
  *
+ * @param rules the config's per-check severity overrides; applied before {@code strictness}
  * @param definitionIndex go-to-definition source index, or {@code null} when the schema has no
  *     backing source file to navigate to — a remote SPARQL endpoint, whose terms are instead
  *     resolved via {@link EndpointDefinitionPeek}. Non-null for the workspace schema and for a
@@ -41,5 +45,20 @@ import org.apache.jena.graph.Node;
 record ResolvedSchema(
     SparqlValidationApi api,
     StrictnessLevel strictness,
+    RuleSeverities rules,
     Map<Node, Collection<VersionIri>> namedGraphScope,
-    DefinitionIndex definitionIndex) {}
+    DefinitionIndex definitionIndex) {
+
+  /** Canonical constructor; defaults {@code rules} to {@link RuleSeverities#NONE}. */
+  ResolvedSchema {
+    rules = rules == null ? RuleSeverities.NONE : rules;
+  }
+
+  /**
+   * Applies this document's severity policy — per-check overrides first, then the strictness level
+   * — to raw validation findings.
+   */
+  List<SparqlValidationAnnotation> effective(List<SparqlValidationAnnotation> annotations) {
+    return rules.apply(annotations, strictness);
+  }
+}

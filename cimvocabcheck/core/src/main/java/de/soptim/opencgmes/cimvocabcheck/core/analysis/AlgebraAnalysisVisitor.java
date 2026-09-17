@@ -111,6 +111,7 @@ public final class AlgebraAnalysisVisitor {
   private final Set<Node> seenGraphBlocks = new LinkedHashSet<>();
   private final List<PathChainReference> pathChains = new ArrayList<>();
   private final Deque<Node> graphStack = new ArrayDeque<>();
+  private final Set<Node> expressionVariables = new LinkedHashSet<>();
 
   /**
    * Constant IRIs used in expression positions (FILTER / VALUES / BIND), mapped to the single query
@@ -121,6 +122,9 @@ public final class AlgebraAnalysisVisitor {
 
   private boolean dynamicPredicate;
   private boolean dynamicClass;
+
+  /** Origin stamped onto triples currently being visited; see {@link #walkQuads}. */
+  private TriplePatternReference.Origin currentOrigin = TriplePatternReference.Origin.PATTERN;
 
   /** Full ancestor chain for triples currently being visited. Root = [0]. */
   private List<Integer> currentScopeChain = List.of(0);
@@ -166,6 +170,14 @@ public final class AlgebraAnalysisVisitor {
   /** Simple forward-only property-path chains (length >= 2). */
   public List<PathChainReference> pathChains() {
     return pathChains;
+  }
+
+  /**
+   * Variables that appear in a {@code FILTER} / {@code BIND} expression or a {@code VALUES} block —
+   * i.e. variables the query constrains beyond merely binding them in a triple pattern.
+   */
+  public Set<Node> expressionVariables() {
+    return expressionVariables;
   }
 
   /** Constant IRIs collected from FILTER / VALUES / BIND expression positions. */
@@ -312,6 +324,27 @@ public final class AlgebraAnalysisVisitor {
    * not inside an explicit {@code GRAPH} block are attributed to the right graph.
    */
   public void walkQuads(Iterable<Quad> quads, Node defaultGraph) {
+    walkQuads(quads, defaultGraph, TriplePatternReference.Origin.PATTERN);
+  }
+
+  /**
+   * Like {@link #walkQuads(Iterable, Node)} but stamps the collected triples with {@code origin}.
+   * Pass {@link TriplePatternReference.Origin#TEMPLATE} for quads the query <em>produces</em> — a
+   * {@code CONSTRUCT} template or an {@code INSERT}/{@code DELETE} template — so checks that reason
+   * about match behaviour can skip them.
+   */
+  public void walkQuads(
+      Iterable<Quad> quads, Node defaultGraph, TriplePatternReference.Origin origin) {
+    TriplePatternReference.Origin saved = currentOrigin;
+    currentOrigin = origin;
+    try {
+      walkQuadsInCurrentOrigin(quads, defaultGraph);
+    } finally {
+      currentOrigin = saved;
+    }
+  }
+
+  private void walkQuadsInCurrentOrigin(Iterable<Quad> quads, Node defaultGraph) {
     for (Quad q : quads) {
       Node g = q.getGraph();
       Node effectiveGraph;
@@ -336,7 +369,7 @@ public final class AlgebraAnalysisVisitor {
   }
 
   void processTriple(Triple t, Node graph) {
-    triples.add(new TriplePatternReference(t, graph, currentScopeChain));
+    triples.add(new TriplePatternReference(t, graph, currentScopeChain, currentOrigin));
     Node p = t.getPredicate();
     if (p.isURI()) {
       if (RDF_TYPE.equals(p)) {
@@ -368,7 +401,8 @@ public final class AlgebraAnalysisVisitor {
                 tp.getPredicate() == null ? PATH_PRED_PLACEHOLDER : tp.getPredicate(),
                 tp.getObject()),
             graph,
-            currentScopeChain));
+            currentScopeChain,
+            currentOrigin));
     collectPathUris(tp.getPath(), graph);
 
     // Also attempt to extract a simple forward chain (e.g. p1/p2/p3) for path-chain checks.
@@ -460,6 +494,12 @@ public final class AlgebraAnalysisVisitor {
           }
 
           @Override
+          public void visit(ExprVar var) {
+            // The query constrains this variable beyond merely binding it in a triple pattern.
+            expressionVariables.add(var.getAsNode());
+          }
+
+          @Override
           public void visit(ExprFunction2 func) {
             // Equality against a variable: FILTER(?var = <const>) — capture the variable context.
             if (func instanceof E_Equals) {
@@ -497,6 +537,7 @@ public final class AlgebraAnalysisVisitor {
       Iterator<Var> vars = binding.vars();
       while (vars.hasNext()) {
         Var v = vars.next();
+        expressionVariables.add(v);
         noteComparison(binding.get(v), v);
       }
     }
