@@ -89,36 +89,57 @@ exists. The cimnotebook release resolves the bundled cimvocabcheck version with
 ## Deployment environments and credentials
 
 Every job that pushes to a registry outside GitHub runs in its own **GitHub environment**, so each
-credential is scoped to the single job that needs it and can carry its own required reviewers,
-wait timer or branch/tag restriction.
+credential is scoped to the single job that needs it and the environment can carry its own
+required reviewers, wait timer or tag restriction.
 
-| Environment | Used by | Secrets |
+| Environment | Publishes | Authentication |
 | --- | --- | --- |
-| `Maven Central Deployment` | `cimvocabcheck-core`, `cimxml` | `CENTRAL_PORTAL_USERNAME`, `CENTRAL_PORTAL_PASSWORD`, `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE` |
-| `PyPI Deployment` | `cimvocabcheck` (Python) | `PYPI_API_TOKEN` |
-| `NuGet Deployment` | `Soptim.CimVocabCheck` | `NUGET_API_KEY` |
-| `crates.io Deployment` | `cimvocabcheck` (Rust) | `CARGO_REGISTRY_TOKEN` |
+| `Maven Central Deployment` | `cimvocabcheck-core`, `cimxml` | secrets: `CENTRAL_PORTAL_USERNAME`, `CENTRAL_PORTAL_PASSWORD`, `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE` |
+| `PyPI Deployment` | `cimvocabcheck` (Python) | **OIDC trusted publishing** — no stored credential |
+| `NuGet Deployment` | `Soptim.CimVocabCheck` | **OIDC trusted publishing** — plus the `NUGET_USER` variable |
+| `crates.io Deployment` | `cimvocabcheck` (Rust) | **OIDC trusted publishing** — no stored credential |
 
-Each job starts by asserting its secrets are present, so a missing credential fails immediately
-with a named variable instead of part-way through an upload. GitHub Packages and GHCR need no
-environment — they use the workflow's own `GITHUB_TOKEN`.
+GitHub Packages and GHCR need no environment — they use the workflow's own `GITHUB_TOKEN`.
 
 Requiring a reviewer on these environments turns a tag push into a two-step release: the build
-and the tests run, then the publish waits for approval. That is worth doing, because none of the
-three registries lets you take a published version back.
+and the tests run, then the publish waits for approval. That is worth doing, because none of
+these registries lets you take a published version back.
+
+### Trusted publishing
+
+The three binding registries use **OIDC trusted publishing**: the job proves its identity to the
+registry with a short-lived GitHub-issued token and receives a credential that expires in
+minutes. Nothing long-lived is stored in the repository, so there is no token to rotate, leak or
+scope wrongly. Each job therefore declares `permissions: id-token: write` — and repeats
+`contents: read`, because job-level permissions *replace* the workflow default rather than adding
+to it.
+
+The **environment name is part of the published identity**. Each registry's policy is registered
+against the repository, the workflow file *and* the environment, so a run from a different
+workflow — or the same workflow outside that environment — cannot mint a credential.
+
+Register one policy per registry, all pointing at `cimvocabcheck-release.yml`:
+
+| Registry | Where | What to enter |
+| --- | --- | --- |
+| PyPI | project → Publishing | owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `PyPI Deployment` |
+| NuGet.org | account → Trusted Publishing | package `Soptim.CimVocabCheck`, repository `SOPTIM/OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `NuGet Deployment` |
+| crates.io | crate → Settings → Trusted Publishing | repository `SOPTIM/OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `crates.io Deployment` |
+
+NuGet additionally needs the repository (or environment) **variable** `NUGET_USER`, the
+nuget.org account that owns the policy. It is not a credential; the job checks it is set so a
+missing value fails by name rather than inside the token exchange.
+
+For a package that does not exist yet, PyPI and crates.io both support a *pending* publisher, so
+the first release can be the one that creates it.
 
 :::note Binding releases re-test before they publish
 Each binding job rebuilds the CLI fat JAR **from the tag being released** and runs that binding's
 suite against it before uploading anything. A tag can point at a commit CI never saw. The
-publish steps are also idempotent — `twine --skip-existing`, `dotnet nuget push --skip-duplicate`,
-and a crates.io version probe — so re-running a release that failed half way is safe.
-:::
-
-:::tip Trusted publishing instead of tokens
-PyPI, NuGet and crates.io all support OIDC trusted publishing, which replaces the stored token
-with a short-lived credential minted per run. Switching means registering this repository and
-workflow with each registry and adding `permissions: id-token: write` to the job. The environment
-split above stays exactly as it is.
+publish steps are also idempotent — `skip-existing` on PyPI, `--skip-duplicate` on NuGet, and a
+crates.io version probe that also avoids minting a credential when there is nothing to push — so
+re-running a release that failed half way is safe. PyPI uploads additionally carry
+[PEP 740](https://peps.python.org/pep-0740/) attestations, which trusted publishing signs.
 :::
 
 ## Versioning

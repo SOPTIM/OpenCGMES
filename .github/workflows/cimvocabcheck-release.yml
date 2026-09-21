@@ -199,10 +199,20 @@ jobs:
             "cimvocabcheck/lsp/target/cimvocabcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
 
   # ---- Language bindings ---------------------------------------------------
-  # One job and one GitHub environment per registry, so each token is scoped to the single job
-  # that needs it and a reviewer can be required on the environment before anything leaves the
-  # repository. They depend only on validate-tag: a binding ships no Java, so it is not blocked
-  # by a Maven Central outage — same reasoning as the Docker image job.
+  # One job and one GitHub environment per registry. All three use OIDC trusted publishing:
+  # the job proves its identity to the registry with a short-lived GitHub token and receives a
+  # credential that expires in minutes, so there is no long-lived API token stored anywhere.
+  #
+  # The environment is part of that identity — each registry's trusted-publisher policy names
+  # this repository, this workflow file and the environment below, so a run from any other
+  # workflow, or the same workflow outside the environment, cannot mint a credential. Requiring
+  # a reviewer on the environment therefore gates the publish itself, not just the job.
+  #
+  # id-token: write is what lets the job request that GitHub token; job-level permissions
+  # replace the workflow default rather than adding to it, so contents: read is repeated.
+  #
+  # They depend only on validate-tag: a binding ships no Java, so it is not blocked by a Maven
+  # Central outage — same reasoning as the Docker image job.
   #
   # Each one rebuilds the engine from this tag and re-runs that binding's suite against it
   # before publishing. A tag can point at a commit CI never saw, and none of these registries
@@ -215,22 +225,18 @@ jobs:
     environment:
       name: PyPI Deployment
       url: https://pypi.org/project/cimvocabcheck/${{ needs.validate-tag.outputs.release_version }}/
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: cimvocabcheck/bindings/python
     env:
-      PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
       RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
       CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Validate required secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ -n "${PYPI_API_TOKEN}" ]] || (echo "PYPI_API_TOKEN is missing" >&2; exit 1)
 
       - name: Setup Java 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -282,13 +288,15 @@ jobs:
       - name: Check the metadata PyPI will render
         run: twine check --strict dist/*
 
-      # --skip-existing so re-running a release that failed half way is safe.
+      # Trusted publishing: no credential is passed in, the action mints one from this job's
+      # OIDC identity. It also attaches PEP 740 attestations by default. skip-existing so
+      # re-running a release that failed half way is safe. packages-dir is relative to the
+      # workspace, not to this job's working-directory, which applies only to `run` steps.
       - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-          TWINE_NON_INTERACTIVE: "1"
-        run: twine upload --skip-existing dist/*
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: cimvocabcheck/bindings/python/dist
+          skip-existing: true
 
   # ---- NuGet (Soptim.CimVocabCheck) ----------------------------------------
   publish-nuget:
@@ -297,11 +305,13 @@ jobs:
     environment:
       name: NuGet Deployment
       url: https://www.nuget.org/packages/Soptim.CimVocabCheck/${{ needs.validate-tag.outputs.release_version }}
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: cimvocabcheck/bindings/dotnet
     env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
       RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
       CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -310,11 +320,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Validate required secrets
+      # Not a credential — the NuGet.org account whose trusted-publishing policy this run has
+      # to match. Checked here so a missing variable fails by name rather than inside the
+      # token exchange.
+      - name: Validate required configuration
         shell: bash
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
         run: |
           set -euo pipefail
-          [[ -n "${NUGET_API_KEY}" ]] || (echo "NUGET_API_KEY is missing" >&2; exit 1)
+          [[ -n "${NUGET_USER}" ]] || (echo "repository variable NUGET_USER is missing" >&2; exit 1)
 
       - name: Setup Java 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -359,8 +374,17 @@ jobs:
           dotnet pack src/Soptim.CimVocabCheck/Soptim.CimVocabCheck.csproj \
             --configuration Release --no-build --output artifacts
 
+      # Exchanges this job's OIDC identity for a short-lived NuGet API key.
+      - name: Authenticate to NuGet
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       # --skip-duplicate so re-running a release that failed half way is safe.
       - name: Publish to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           dotnet nuget push "artifacts/*.nupkg" \
             --source https://api.nuget.org/v3/index.json \
@@ -374,22 +398,18 @@ jobs:
     environment:
       name: crates.io Deployment
       url: https://crates.io/crates/cimvocabcheck/${{ needs.validate-tag.outputs.release_version }}
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: cimvocabcheck/bindings/rust
     env:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
       CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Validate required secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ -n "${CARGO_REGISTRY_TOKEN}" ]] || (echo "CARGO_REGISTRY_TOKEN is missing" >&2; exit 1)
 
       - name: Setup Java 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -427,20 +447,34 @@ jobs:
           CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
         run: cargo test
 
-      # crates.io has no --skip-duplicate, so ask before pushing; that makes re-running a
-      # release that failed half way safe. --allow-dirty because set-versions.sh stamps the
-      # version into Cargo.toml at build time: versions in this repository are derived from
-      # tags and are never committed.
-      - name: Publish to crates.io
+      # crates.io has no --skip-duplicate, so ask first; that makes re-running a release that
+      # failed half way safe, and means no credential is minted when there is nothing to push.
+      - name: Check whether this version is already published
+        id: published
         shell: bash
         run: |
           set -euo pipefail
           if curl -sf -o /dev/null -H "User-Agent: opencgmes-release" \
               "https://crates.io/api/v1/crates/cimvocabcheck/${RELEASE_VERSION}"; then
             echo "cimvocabcheck ${RELEASE_VERSION} is already on crates.io; nothing to publish."
-            exit 0
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
-          cargo publish --allow-dirty
+
+      # Exchanges this job's OIDC identity for a crates.io token that expires in minutes.
+      - name: Authenticate to crates.io
+        if: steps.published.outputs.exists == 'false'
+        id: crates-auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+
+      # --allow-dirty because set-versions.sh stamps the version into Cargo.toml at build time:
+      # versions in this repository are derived from tags and are never committed.
+      - name: Publish to crates.io
+        if: steps.published.outputs.exists == 'false'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+        run: cargo publish --allow-dirty
 
   # ---- Public Docker image (GitHub Container Registry) ---------------------
   # Schema-less CLI image: users mount their own schema + inputs. Built from source so it does not
