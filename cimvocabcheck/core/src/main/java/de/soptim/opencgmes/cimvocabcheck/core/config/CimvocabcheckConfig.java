@@ -26,9 +26,10 @@ import java.util.Map;
  * Deserialized form of the {@code "cimvocabcheck"} section of {@code opencgmes.jsonc}, shared by
  * the CLI, the LSP server and any other OpenCGMES tooling.
  *
- * <p>All fields are optional. When neither {@code schemas} nor {@code schemasDirectory} is given,
- * no schema is loaded and inputs are checked syntax-only — there is no bundled default schema (the
- * LSP additionally honours a {@code # [endpoint=...]} directive in a document).
+ * <p>All fields are optional. When none of {@code schemas}, {@code schemasDirectory} or {@code
+ * rdfArchitect} is given, no schema is loaded and inputs are checked syntax-only — there is no
+ * bundled default schema (the LSP additionally honours a {@code # [endpoint=...]} directive in a
+ * document).
  *
  * <p>Example {@code opencgmes.jsonc}:
  *
@@ -46,6 +47,11 @@ import java.util.Map;
  * <p>Use either {@code schemasDirectory} (auto-discovers all {@code .rdf}/{@code .ttl}/{@code .owl}
  * files) or an explicit {@code schemas} list, not both.
  *
+ * <p>{@code rdfArchitect} takes the schema from a running <a
+ * href="https://github.com/SOPTIM/RDFArchitect">RDFArchitect</a> instead of from files — the value
+ * is a link copied out of that application, e.g. {@code "http://localhost:3000/?snapshot=<token>"}.
+ * It takes precedence over the file-based settings.
+ *
  * <p>{@code cimNamespaces} declares custom {@code cim} namespaces so schema files/endpoint graphs
  * using them can be parsed, mapping each namespace URI to the built-in profile "shape" that matches
  * its ontology conventions ({@code cim16}: {@code cims:isFixed}-based, as in CGMES 2.4.15; {@code
@@ -56,6 +62,7 @@ import java.util.Map;
 public record CimvocabcheckConfig(
     @JsonProperty("schemasDirectory") String schemasDirectory,
     @JsonProperty("schemas") List<String> schemas,
+    @JsonProperty("rdfArchitect") String rdfArchitect,
     @JsonProperty("namedGraphs") Map<String, List<String>> namedGraphs,
     @JsonProperty("strictness") String strictness,
     @JsonProperty("prefixes") Map<String, String> prefixes,
@@ -81,7 +88,7 @@ public record CimvocabcheckConfig(
 
   /** An empty config: no schemas, no overrides — i.e. syntax-only validation. */
   public static CimvocabcheckConfig empty() {
-    return new CimvocabcheckConfig(null, null, null, null, null, null, null);
+    return new CimvocabcheckConfig(null, null, null, null, null, null, null, null);
   }
 
   /**
