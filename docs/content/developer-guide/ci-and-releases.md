@@ -12,7 +12,7 @@ OpenCGMES ships its three products on **three independent CI/release trains**. E
 | Product | CI workflow | Release workflow | Release tag | Released artifacts |
 | --- | --- | --- | --- | --- |
 | **CIMXML** | `cimxml-ci.yml` | `cimxml-release.yml` | `cimxml-vX.Y.Z` | Maven Central + GitHub Packages JAR; GitHub Release |
-| **CIMVocabCheck** | `cimvocabcheck-ci.yml` | `cimvocabcheck-release.yml` | `cimvocabcheck-vX.Y.Z` | `cimvocabcheck-core` to Maven Central + GitHub Packages; core/cli/lsp JARs on the GitHub Release; `cimvocabcheck-cli` image to GHCR |
+| **CIMVocabCheck** | `cimvocabcheck-ci.yml` | `cimvocabcheck-release.yml` | `cimvocabcheck-vX.Y.Z` | `cimvocabcheck-core` to Maven Central + GitHub Packages; core/cli/lsp JARs on the GitHub Release; `cimvocabcheck-cli` image to GHCR; the Python, .NET and Rust bindings to PyPI, NuGet and crates.io |
 | **CIMNotebook** | `cimnotebook-ci.yml` | `cimnotebook-release.yml` | `cimnotebook-vX.Y.Z` | VSIX + IntelliJ zip on the GitHub Release; plugin to JetBrains Marketplace |
 
 Each CI workflow is scoped by path filters, so it only runs when files it owns change (CIMVocabCheck and CIMNotebook CI also trigger on `cimxml/**` and the shared scripts, because they build against CIMXML).
@@ -57,6 +57,7 @@ graph TD
 ### CIMVocabCheck CI (`cimvocabcheck-ci.yml`)
 - **lint** — compiler-warnings-as-errors, then Spotless/Checkstyle/SpotBugs/PMD (no tests, for fast feedback).
 - **build-test** — checks out **submodules recursively** and runs `mvn -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am clean verify` (which also builds cimxml). This is the authoritative run, including the ENTSO-E integration tests and coverage gates.
+- **python-binding** / **rust-binding** / **dotnet-binding** — each builds the CLI fat JAR and runs that binding's suite against it with `CIMVOCABCHECK_TESTS_REQUIRE_ENGINE=1`, so an engine-backed suite cannot silently start skipping. They also lint, type-check, verify the generated model still matches the schema, and dry-run the package build.
 - **sbom** — regenerates the Maven SBOM and enforces the license allow-list + drift check (see below).
 - **publish-snapshot** — on push to `main`, installs cimxml locally then deploys **`cimvocabcheck-core`** as a `-SNAPSHOT` to GitHub Packages. (The CLI and LSP are fat-JAR tools and are not deployed to registries.)
 - **publish-edge-image** — on push to `main`, calls the reusable `docker-publish.yml` to build and push `ghcr.io/<owner>/cimvocabcheck-cli:edge`, so there is always a fresh schema-less CLI image to test against.
@@ -72,7 +73,7 @@ graph TD
 Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's release workflow. Every release workflow first **validates the tag format** and derives the release version from it.
 
 - **CIMXML release** — publishes a **GPG-signed** JAR to **Maven Central** (Sonatype Central Portal, `-Pcentral-release`), publishes the release to **GitHub Packages**, and creates a **draft GitHub Release** with the JAR attached.
-- **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, and calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
+- **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**, and publishes the three [language bindings](/cimvocabcheck/python) to **PyPI**, **NuGet** and **crates.io**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
 - **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
 
 :::note Cross-product dependency pinning at release time
@@ -83,6 +84,41 @@ dependency is **required**: a cimvocabcheck or cimnotebook release fails if no `
 exists. The cimnotebook release resolves the bundled cimvocabcheck version with
 `compute-version.sh cimvocabcheck --released` and falls back — with a warning — to the in-repo
 `0.0.0-SNAPSHOT` LSP only until the first `cimvocabcheck-v*` tag exists.
+:::
+
+## Deployment environments and credentials
+
+Every job that pushes to a registry outside GitHub runs in its own **GitHub environment**, so each
+credential is scoped to the single job that needs it and can carry its own required reviewers,
+wait timer or branch/tag restriction.
+
+| Environment | Used by | Secrets |
+| --- | --- | --- |
+| `Maven Central Deployment` | `cimvocabcheck-core`, `cimxml` | `CENTRAL_PORTAL_USERNAME`, `CENTRAL_PORTAL_PASSWORD`, `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE` |
+| `PyPI Deployment` | `cimvocabcheck` (Python) | `PYPI_API_TOKEN` |
+| `NuGet Deployment` | `Soptim.CimVocabCheck` | `NUGET_API_KEY` |
+| `crates.io Deployment` | `cimvocabcheck` (Rust) | `CARGO_REGISTRY_TOKEN` |
+
+Each job starts by asserting its secrets are present, so a missing credential fails immediately
+with a named variable instead of part-way through an upload. GitHub Packages and GHCR need no
+environment — they use the workflow's own `GITHUB_TOKEN`.
+
+Requiring a reviewer on these environments turns a tag push into a two-step release: the build
+and the tests run, then the publish waits for approval. That is worth doing, because none of the
+three registries lets you take a published version back.
+
+:::note Binding releases re-test before they publish
+Each binding job rebuilds the CLI fat JAR **from the tag being released** and runs that binding's
+suite against it before uploading anything. A tag can point at a commit CI never saw. The
+publish steps are also idempotent — `twine --skip-existing`, `dotnet nuget push --skip-duplicate`,
+and a crates.io version probe — so re-running a release that failed half way is safe.
+:::
+
+:::tip Trusted publishing instead of tokens
+PyPI, NuGet and crates.io all support OIDC trusted publishing, which replaces the stored token
+with a short-lived credential minted per run. Switching means registering this repository and
+workflow with each registry and adding `permissions: id-token: write` to the job. The environment
+split above stays exactly as it is.
 :::
 
 ## Versioning
