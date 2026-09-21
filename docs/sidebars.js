@@ -31,6 +31,7 @@ const sidebars = {
     'cimvocabcheck/endpoints',
     'cimvocabcheck/explain-query',
     'cimvocabcheck/cli',
+    'cimvocabcheck/report-contract',
     'cimvocabcheck/language-server',
     'cimvocabcheck/limitations',
   ],

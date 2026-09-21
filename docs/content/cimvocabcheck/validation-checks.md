@@ -14,6 +14,11 @@ Each finding carries a **severity** (`ERROR`, `WARN`, `INFO`), a **code**, a hum
 **message**, and — where resolvable — a **line/column** and the offending **term**. How severities
 map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#strictness).
 
+The codes are a published contract: new ones are only ever added, never renamed or repurposed, and
+they are enumerated in the machine-readable [report contract](/cimvocabcheck/report-contract).
+Automation should switch on the code and ignore codes it does not recognise — never match on the
+message text, which changes freely between releases.
+
 ## All codes at a glance
 
 | Code | Severity | Category | Triggers when |

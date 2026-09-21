@@ -22,6 +22,7 @@ import de.soptim.opencgmes.cimvocabcheck.cli.output.CodeQualityFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.FileResult;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.Format;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.JsonFormatter;
+import de.soptim.opencgmes.cimvocabcheck.cli.output.SarifFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.TextFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.schema.SchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
@@ -87,7 +88,7 @@ import picocli.CommandLine.Parameters;
       "Exit codes: 0=valid  1=has errors  2=usage/config error"
     },
     mixinStandardHelpOptions = true,
-    version = "1.0.0",
+    versionProvider = ToolVersion.class,
     sortOptions = false,
     subcommands = {ExplainCommand.class, InitCommand.class})
 public class ValidateCommand implements Callable<Integer> {
@@ -147,7 +148,8 @@ public class ValidateCommand implements Callable<Integer> {
   @Option(
       names = {"-f", "--format"},
       paramLabel = "<format>",
-      description = "Output format: text (default), json, or codequality (GitLab Code Quality).",
+      description =
+          "Output format: text (default), json, codequality (GitLab Code Quality) or sarif.",
       defaultValue = "text")
   private String formatName;
 
@@ -428,6 +430,7 @@ public class ValidateCommand implements Callable<Integer> {
       case TEXT -> new TextFormatter(writer, verbose).write(results);
       case JSON -> new JsonFormatter(writer, verbose).write(results);
       case CODEQUALITY -> new CodeQualityFormatter(writer, verbose).write(results);
+      case SARIF -> new SarifFormatter(writer, verbose).write(results);
       default -> throw new IllegalStateException("Unexpected output format: " + format);
     }
     writer.flush();

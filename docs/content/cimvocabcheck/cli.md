@@ -62,7 +62,7 @@ docker build -f cimvocabcheck/Dockerfile -t cimvocabcheck-cli .
 | `-e`, `--endpoint` | `<url>` | SPARQL 1.1 endpoint hosting the CGMES schema; schema is loaded and graphs auto-mapped to profiles. See [Endpoints](/cimvocabcheck/endpoints) |
 | `--strict-endpoint` | | Fail (exit 2) when an `--endpoint` exposes no CIM schema graphs, instead of falling back to syntax-only |
 | `-p`, `--profile` | `<iri>` | Restrict to this profile IRI. Repeatable. Ignored when the config has `namedGraphs` |
-| `-f`, `--format` | `text` \| `json` \| `codequality` | Output format (default `text`). `json` matches the [API result shape](/cimvocabcheck/api#result-types); `codequality` emits a [Code Quality report](#code-quality-report) (alias: `gitlab`) |
+| `-f`, `--format` | `text` \| `json` \| `codequality` \| `sarif` | Output format (default `text`). `json` emits the [report contract](/cimvocabcheck/report-contract) document; `codequality` a [Code Quality report](#code-quality-report) (alias: `gitlab`); `sarif` a [SARIF 2.1.0 log](#sarif-report) |
 | `-v`, `--verbose` | | Also report `WARN` and `INFO` annotations (default: `ERROR` only) |
 | `--strictness` | `<level>` | `permissive` \| `default` \| `strict` \| `pedantic`. Overrides `opencgmes.jsonc` |
 | `-h`, `--help` | | Show help |
@@ -120,8 +120,10 @@ A schema is optional; without one the static plan is shown. See
 java -jar cimvocabcheck-cli.jar --format json --verbose query.rq
 ```
 
-Emits the structured [`SparqlValidationResult`](/cimvocabcheck/api#result-types) as JSON — feed it
-to `jq` or a CI annotation step.
+Emits the structured findings as JSON — feed them to `jq` or a CI annotation step. The document
+carries a `contractVersion`, the tool version, a `summary` and one entry per file; its shape is the
+published [report contract](/cimvocabcheck/report-contract), which is what bindings in other
+languages read.
 
 ## Code Quality report
 
@@ -156,3 +158,30 @@ so they point at the offending query rather than the top of the file. CI systems
 consume the file as a `codequality` report artifact and render the findings inline; the non-zero exit
 code on errors still fails the job.
 
+## SARIF report
+
+```bash
+java -jar cimvocabcheck-cli.jar --format sarif --schema path/to/rdfs \
+  queries/*.rq > cimvocabcheck.sarif
+```
+
+`--format sarif` emits a [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
+log — the format GitHub code scanning, Azure DevOps and most IDE result viewers consume. One rule is
+declared per reported code, and each finding carries its own level (`ERROR → error`, `WARN →
+warning`, `INFO → note`), so `--strictness` promotions show up without redefining rules. As with the
+Code Quality report, pass **repo-relative paths**: artifact URIs are relative to `%SRCROOT%`.
+
+A clean run still writes a well-formed log with an empty `results` array, which is what clears
+previously reported alerts on upload:
+
+```yaml
+- name: Validate SPARQL
+  run: java -jar cimvocabcheck-cli.jar --schema schemas -f sarif queries/*.rq > cimvocabcheck.sarif
+  continue-on-error: true   # findings must not skip the upload below
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: cimvocabcheck.sarif
+```
+
+Findings are fingerprinted identically to the Code Quality report, so the two can be used side by
+side — see [Report contract](/cimvocabcheck/report-contract#finding-fingerprints).

@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.jena.graph.Node;
@@ -190,7 +191,11 @@ public final class DefaultPrefixes {
 
     var sb = new StringBuilder();
     int count = 0;
-    for (var e : prefixes.entrySet()) {
+    // Sorted, not in map order: an immutable Map iterates in a per-JVM randomised order, so
+    // emitting in map order would make the parser's reported error positions — and with them the
+    // fingerprints of a SYNTAX_ERROR in a machine-readable report — differ between runs over
+    // identical input. The order of PREFIX declarations is semantically irrelevant.
+    for (var e : new TreeMap<>(prefixes).entrySet()) {
       if (!declared.contains(e.getKey().toLowerCase(Locale.ROOT))) {
         sb.append("PREFIX ").append(e.getKey()).append(": <").append(e.getValue()).append(">\n");
         count++;

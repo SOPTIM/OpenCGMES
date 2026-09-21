@@ -1,0 +1,142 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://raw.githubusercontent.com/SOPTIM/OpenCGMES/main/cimvocabcheck/schemas/cimvocabcheck-report-1.schema.json",
+    "title": "CIMVocabCheck validation report (contract 1.x)",
+    "description": "The document CIMVocabCheck writes with --format json. This is the published integration contract: non-Java consumers generate their result types from this schema. Within contract major version 1, fields, output formats and diagnostic codes are only ever ADDED — nothing is renamed or removed — so a consumer must ignore properties and enum members it does not know. Breaking changes require a new major (a new file, cimvocabcheck-report-2.schema.json). The SARIF report (--format sarif) follows the OASIS SARIF 2.1.0 schema instead and is not described here.",
+    "type": "object",
+    "required": ["contractVersion", "tool", "summary", "results"],
+    "additionalProperties": true,
+    "properties": {
+        "contractVersion": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+$",
+            "description": "Version of this report contract, \"<major>.<minor>\" — independent of the tool version. A consumer should accept any report whose major matches the one it was written against."
+        },
+        "tool": {
+            "type": "object",
+            "description": "Which engine produced the report.",
+            "required": ["name", "version"],
+            "additionalProperties": true,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Always \"cimvocabcheck\"."
+                },
+                "version": {
+                    "type": "string",
+                    "description": "Released tool version, or \"unknown\" when the engine runs from a checkout rather than a packaged JAR."
+                }
+            }
+        },
+        "summary": {
+            "type": "object",
+            "description": "Counts over this document. The finding counts are taken AFTER the --verbose filter, so they always account for exactly what \"results\" contains; \"valid\"/\"invalid\" are decided before filtering and are unaffected by it.",
+            "required": ["files", "valid", "invalid", "errors", "warnings", "infos"],
+            "additionalProperties": true,
+            "properties": {
+                "files": { "type": "integer", "minimum": 0, "description": "Number of validated inputs." },
+                "valid": { "type": "integer", "minimum": 0, "description": "Inputs with no ERROR-severity finding." },
+                "invalid": { "type": "integer", "minimum": 0, "description": "Inputs with at least one ERROR-severity finding." },
+                "errors": { "type": "integer", "minimum": 0, "description": "ERROR-severity findings in this document." },
+                "warnings": { "type": "integer", "minimum": 0, "description": "WARN-severity findings in this document." },
+                "infos": { "type": "integer", "minimum": 0, "description": "INFO-severity findings in this document." }
+            }
+        },
+        "results": {
+            "type": "array",
+            "description": "One entry per validated input, in the order the inputs were given.",
+            "items": { "$ref": "#/definitions/fileResult" }
+        }
+    },
+    "definitions": {
+        "fileResult": {
+            "type": "object",
+            "required": ["file", "valid", "annotations"],
+            "additionalProperties": true,
+            "properties": {
+                "file": {
+                    "type": "string",
+                    "description": "The input as it was passed on the command line (\"-\" for stdin). Invoke the CLI with repository-relative paths for findings to line up with a source tree."
+                },
+                "valid": {
+                    "type": "boolean",
+                    "description": "False when the input has at least one ERROR-severity finding after strictness is applied. Independent of --verbose."
+                },
+                "annotations": {
+                    "type": "array",
+                    "description": "Findings for this input; empty when it is clean, or when --verbose is off and only WARN/INFO findings were produced.",
+                    "items": { "$ref": "#/definitions/annotation" }
+                }
+            }
+        },
+        "annotation": {
+            "type": "object",
+            "description": "One finding. Position and term are present whenever the engine could resolve them.",
+            "required": ["severity", "code", "message"],
+            "additionalProperties": true,
+            "properties": {
+                "severity": { "$ref": "#/definitions/severity" },
+                "code": { "$ref": "#/definitions/code" },
+                "line": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-based line in the input file. Findings inside embedded SPARQL (sh:select / sh:ask) are mapped back to their line in the Turtle source. Absent when the engine could not resolve a position."
+                },
+                "column": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "1-based column, counted in UTF-16 code units. Absent when unresolved."
+                },
+                "term": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The offending RDF term (class IRI, property IRI, …). Absent when the finding is not about a single term."
+                },
+                "graph": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Named graph the finding occurred in, under per-graph profile scoping. Absent for default-graph context."
+                },
+                "message": {
+                    "type": "string",
+                    "description": "Human-readable rendering. Not stable across releases — key automation off \"code\", never off this text."
+                },
+                "foundInOtherProfiles": {
+                    "type": "array",
+                    "description": "For UNKNOWN_CLASS / UNKNOWN_PROPERTY: profiles in which the term DOES exist. A hint that the wrong profile is in scope rather than a typo. Absent when empty.",
+                    "items": { "type": "string", "format": "uri" }
+                }
+            }
+        },
+        "severity": {
+            "type": "string",
+            "description": "Severity after --strictness has been applied.",
+            "enum": ["ERROR", "WARN", "INFO"]
+        },
+        "code": {
+            "type": "string",
+            "description": "Stable identifier of the rule that triggered — the key automation should switch on. The catalogue is documented at https://opencgmes.soptim.de/cimvocabcheck/validation-checks. New codes are added in minor contract versions, so consumers must treat an unrecognised code as a generic finding rather than an error.",
+            "enum": [
+                "SYNTAX_ERROR",
+                "UNKNOWN_CLASS",
+                "UNKNOWN_PROPERTY",
+                "UNKNOWN_VOCABULARY_TERM",
+                "GRAPH_NOT_CONFIGURED",
+                "UNSUPPORTED_DYNAMIC_PROPERTY",
+                "QUERY_IMPLIED_TYPE",
+                "DATATYPE_MISMATCH",
+                "PROPERTY_NOT_ALLOWED_FOR_CLASS",
+                "NODE_KIND_INCOMPATIBLE_WITH_RANGE",
+                "DATATYPE_INCOMPATIBLE_WITH_RANGE",
+                "CLASS_INCOMPATIBLE_WITH_RANGE",
+                "INVALID_CARDINALITY",
+                "INVALID_ENUM_VALUE",
+                "INVALID_VALUE_RANGE",
+                "UNKNOWN_TERM_IN_EXPRESSION",
+                "CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY",
+                "PROJECTED_VARIABLE_UNBOUND",
+                "UNUSED_VARIABLE"
+            ]
+        }
+    }
+}
