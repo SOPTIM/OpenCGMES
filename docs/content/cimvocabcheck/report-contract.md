@@ -54,7 +54,7 @@ stderr so a CI log still shows the outcome, and the [exit code](/cimvocabcheck/c
 | `tool.name` / `tool.version` | Always `cimvocabcheck`; the version is `unknown` when the engine runs from a checkout rather than a released artifact |
 | `summary.files` / `valid` / `invalid` | Input counts; a file is invalid when it has at least one `ERROR` after [strictness](/cimvocabcheck/configuration#strictness) |
 | `summary.errors` / `warnings` / `infos` | Finding counts **for this document** — i.e. after the `--verbose` filter, so they always account for exactly what `results` contains |
-| `results[].file` | The input as passed on the command line (`-` for stdin) — invoke with repository-relative paths |
+| `results[].file` | The input as passed on the command line, or `<stdin>` for stdin — invoke with repository-relative paths |
 | `results[].valid` | Decided before filtering, so it does not change with `--verbose` |
 | `annotations[].severity` | `ERROR`, `WARN`, `INFO`, after strictness |
 | `annotations[].code` | The [rule code](/cimvocabcheck/validation-checks) — key automation off this, never off `message` |
@@ -116,6 +116,9 @@ wording changes. Repeated identical findings in one run are disambiguated by the
 
 ## Writing a binding
 
+For Python there is one already: [`cimvocabcheck` on PyPI](/cimvocabcheck/python). For any other
+language:
+
 - **Batch.** Loading a CGMES profile set costs about a second; validating a query after that costs
   almost nothing. Pass every input to one invocation instead of spawning per file.
 - **Pass argv, not a shell string** — paths contain spaces.
@@ -123,3 +126,5 @@ wording changes. Repeated identical findings in one run are disambiguated by the
   in that case.
 - **Pin the contract, not the wording.** Switch on `code`, tolerate codes you do not know, and
   ignore fields you do not know.
+- **Generate the result type from the schema** rather than hand-writing it, and regenerate on every
+  contract minor with a CI check that fails when the two have drifted apart.

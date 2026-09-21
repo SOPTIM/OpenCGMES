@@ -1,0 +1,31 @@
+# Hook definition for https://pre-commit.com.
+#
+# pre-commit only reads this file from the ROOT of a cloned repository, and this package lives in a
+# subdirectory of the OpenCGMES monorepo — so a `repo:` entry pointing at OpenCGMES will not find
+# it. Until the binding has a repository of its own, consume the published package instead, which
+# gives exactly the hook defined below:
+#
+#   repos:
+#     - repo: local
+#       hooks:
+#         - id: cimvocabcheck
+#           name: CIMVocabCheck
+#           entry: cimvocabcheck
+#           language: python
+#           additional_dependencies: ["cimvocabcheck"]
+#           files: \.(rq|sparql|ttl|shacl)$
+#           require_serial: true
+#
+# The hook runs whichever engine this package discovers (see the README); it does not install one.
+# Schema and strictness come from the nearest opencgmes.jsonc, so no arguments are needed in a
+# configured repository.
+
+- id: cimvocabcheck
+  name: CIMVocabCheck
+  description: Validate SPARQL queries and SHACL shapes against CIM/CGMES schema profiles.
+  entry: cimvocabcheck
+  language: python
+  files: \.(rq|sparql|ttl|shacl)$
+  # One process for every staged input: loading the CGMES profiles costs about a second, and
+  # pre-commit would otherwise pay that once per parallel chunk.
+  require_serial: true

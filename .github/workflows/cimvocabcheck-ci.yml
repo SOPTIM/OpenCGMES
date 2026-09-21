@@ -109,6 +109,79 @@ jobs:
         run: |
           mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am clean verify
 
+  # ---- Python binding ------------------------------------------------------
+  # The binding is a thin wrapper, so what needs guarding is the seam: that its generated model
+  # still matches the published schema, and that a real engine answers the way the wrapper assumes.
+  # It therefore builds the CLI fat JAR (analysis gates are the Java jobs' business) and points the
+  # suite at it, with CIMVOCABCHECK_TESTS_REQUIRE_ENGINE turning "no engine, skipping" into a
+  # failure so the engine-backed tests cannot silently stop running.
+  python-binding:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cimvocabcheck/bindings/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+
+      - name: Build the CLI fat JAR to test against
+        working-directory: .
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/cli -am package \
+            -DskipTests -Djacoco.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true \
+            -Dpmd.skip=true -Dcpd.skip=true -Dlicense.skip=true -Dspotless.check.skip=true
+          echo "CIMVOCABCHECK_JAR=$(ls "${GITHUB_WORKSPACE}"/cimvocabcheck/cli/target/cimvocabcheck-cli-*.jar)" >> "${GITHUB_ENV}"
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install the binding and its tooling
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Type-check
+        run: mypy
+
+      # FAILS if the model no longer matches the schema it is generated from, i.e. someone changed
+      # the report contract without regenerating: python scripts/generate_model.py
+      - name: Verify the generated model matches the published schema
+        run: python scripts/generate_model.py --check
+
+      - name: Test against a real engine
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: python -m pytest
+
+      # The run above only proves 3.13; this is the floor the package claims in requires-python.
+      # No engine here (what differs between interpreters is the wrapper, not the engine) and the
+      # container fallback is taken out of the way so the step cannot start pulling an image.
+      - name: Setup the oldest supported Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Test on the oldest supported Python
+        env:
+          CIMVOCABCHECK_JAR: ""
+          CIMVOCABCHECK_NO_DOCKER: "1"
+        run: pip install -e ".[test]" && python -m pytest
+
   # ---- SBOM (maven) + license compliance -----------------------------------
   # Covers the Java library/CLI/LSP and their shipped Maven dependencies. The
   # CIMNotebook plugin SBOMs are generated/checked in cimnotebook-ci.
@@ -152,6 +225,7 @@ jobs:
       - lint
       - build-test
       - sbom
+      - python-binding
     runs-on: ubuntu-latest
     permissions:
       contents: read

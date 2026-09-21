@@ -51,6 +51,17 @@ if [[ -n "${CIMVOCABCHECK_VERSION}" ]]; then
             ${VERSIONS_PLUGIN}:set-property -Dproperty=ver.cimvocabcheck-core \
             -DnewVersion="${CIMVOCABCHECK_VERSION}" -DgenerateBackupPoms=false
     done
+
+    # Python binding: same train as the engine it wraps, so a binding and an engine that share a
+    # minor are known to have been generated against the same report contract. PEP 440 has no
+    # -SNAPSHOT, and its developmental releases sort before the release they lead to, which is the
+    # same meaning: X.Y.Z-SNAPSHOT -> X.Y.Z.dev0.
+    PY_VERSION="${CIMVOCABCHECK_VERSION%-SNAPSHOT}"
+    if [[ "${PY_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
+        PY_VERSION="${PY_VERSION}.dev0"
+    fi
+    sed -i "s/^version = \".*\"/version = \"${PY_VERSION}\"/" \
+        "${REPO_ROOT}/cimvocabcheck/bindings/python/pyproject.toml"
 fi
 
 # --- cimnotebook plugin versions (IntelliJ + VS Code) ---

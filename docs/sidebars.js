@@ -32,6 +32,7 @@ const sidebars = {
     'cimvocabcheck/explain-query',
     'cimvocabcheck/cli',
     'cimvocabcheck/report-contract',
+    'cimvocabcheck/python',
     'cimvocabcheck/language-server',
     'cimvocabcheck/limitations',
   ],

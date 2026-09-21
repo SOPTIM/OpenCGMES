@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cimvocabcheck"
+# Placeholder, like every other build file in this repository: real versions are derived from git
+# tags by scripts/compute-version.sh and applied by scripts/set-versions.sh. Never edit by hand.
+version = "0.0.0.dev0"
+description = "Validate SPARQL queries and SHACL shapes against CIM/CGMES schema profiles."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "SOPTIM AG", email = "info@soptim.de" }]
+keywords = ["cgmes", "cim", "sparql", "shacl", "rdf", "validation", "iec61970"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Text Processing :: Markup",
+    "Typing :: Typed",
+]
+# No runtime dependencies on purpose: this package builds an argv, spawns a process and parses
+# JSON. A wrapper that drags a dependency tree into every CI image it runs in is a worse wrapper.
+dependencies = []
+
+[project.optional-dependencies]
+# Pinned like every other tool version in this repository, so a new lint rule lands as a Renovate
+# pull request rather than as a red build on an unrelated change.
+test = ["pytest==9.1.1"]
+lint = ["ruff==0.16.8", "mypy==2.3.1"]
+dev = ["cimvocabcheck[test,lint]"]
+
+[project.urls]
+Homepage = "https://opencgmes.soptim.de/cimvocabcheck/python"
+Documentation = "https://opencgmes.soptim.de/cimvocabcheck/python"
+Source = "https://github.com/SOPTIM/OpenCGMES"
+Issues = "https://github.com/SOPTIM/OpenCGMES/issues"
+
+[project.scripts]
+# Deliberately named after the engine: this shim forwards to a real engine when one is installed,
+# and runtime discovery skips this interpreter's script directory so it cannot find itself.
+cimvocabcheck = "cimvocabcheck.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cimvocabcheck"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "scripts/", "README.md", "LICENSE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["engine: needs a real CIMVocabCheck engine; skipped when none is discoverable"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# Generated from the JSON Schema; its shape is the generator's business, not the linter's.
+"src/cimvocabcheck/_model.py" = ["E501"]
+"src/cimvocabcheck/_codes.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["cimvocabcheck"]
+mypy_path = "src"
+strict = false
+warn_unused_ignores = true
