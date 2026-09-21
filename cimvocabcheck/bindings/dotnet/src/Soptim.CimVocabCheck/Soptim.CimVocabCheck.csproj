@@ -1,0 +1,35 @@
+<!--
+    Copyright (c) 2026 SOPTIM AG
+    SPDX-License-Identifier: Apache-2.0
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net8.0 is still supported and widely deployed; net10.0 is the current LTS. -->
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>Soptim.CimVocabCheck</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Soptim.CimVocabCheck</PackageId>
+    <Description>Validate SPARQL queries and SHACL shapes against CIM/CGMES schema profiles.</Description>
+    <PackageTags>cgmes;cim;sparql;shacl;rdf;validation;iec61970</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://opencgmes.soptim.de/cimvocabcheck/dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/SOPTIM/OpenCGMES</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!--
+        No package references on purpose: this library builds an argv, spawns a process and
+        parses JSON, all of which System.Text.Json and the BCL already do.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

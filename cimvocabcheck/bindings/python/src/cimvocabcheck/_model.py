@@ -16,7 +16,8 @@
 
 # ---------------------------------------------------------------------------------------------
 # GENERATED FILE - DO NOT EDIT.
-# Produced from schemas/cimvocabcheck-report-1.schema.json by scripts/generate_model.py.
+# Produced from cimvocabcheck/schemas/cimvocabcheck-report-1.schema.json
+# by cimvocabcheck/bindings/codegen/generate_models.py.
 # Behaviour that is convenience rather than contract belongs in _ergonomics.py, which survives
 # regeneration.
 # ---------------------------------------------------------------------------------------------

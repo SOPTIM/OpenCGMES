@@ -1,6 +1,6 @@
 ---
 title: Language Server (CIMLangServer)
-sidebar_position: 13
+sidebar_position: 15
 ---
 
 # CIMLangServer (Language Server)

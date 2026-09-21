@@ -33,6 +33,8 @@ const sidebars = {
     'cimvocabcheck/cli',
     'cimvocabcheck/report-contract',
     'cimvocabcheck/python',
+    'cimvocabcheck/dotnet',
+    'cimvocabcheck/rust',
     'cimvocabcheck/language-server',
     'cimvocabcheck/limitations',
   ],

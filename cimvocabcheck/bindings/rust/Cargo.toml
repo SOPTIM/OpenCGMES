@@ -1,0 +1,37 @@
+# Copyright (c) 2026 SOPTIM AG
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "cimvocabcheck"
+# Placeholder, like every other build file in this repository: real versions are derived from git
+# tags by scripts/compute-version.sh and applied by scripts/set-versions.sh. Never edit by hand.
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.74"
+description = "Validate SPARQL queries and SHACL shapes against CIM/CGMES schema profiles."
+documentation = "https://opencgmes.soptim.de/cimvocabcheck/rust"
+homepage = "https://opencgmes.soptim.de/cimvocabcheck/overview"
+repository = "https://github.com/SOPTIM/OpenCGMES"
+license = "Apache-2.0"
+keywords = ["cgmes", "cim", "sparql", "shacl", "validation"]
+categories = ["development-tools", "parser-implementations"]
+readme = "README.md"
+exclude = ["/tests/fixtures"]
+
+# serde is the whole dependency list on purpose: this crate builds an argv, spawns a process and
+# parses JSON. Everything else — the subprocess timeout included — is std.
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+# Most doc text is the published schema's own prose, written for humans reading a contract
+# rather than for rustdoc; peppering it with backticks would make the contract harder to diff.
+doc_markdown = "allow"

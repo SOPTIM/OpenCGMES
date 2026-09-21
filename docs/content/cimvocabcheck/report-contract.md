@@ -116,8 +116,9 @@ wording changes. Repeated identical findings in one run are disambiguated by the
 
 ## Writing a binding
 
-For Python there is one already: [`cimvocabcheck` on PyPI](/cimvocabcheck/python). For any other
-language:
+There are three already — [Python](/cimvocabcheck/python), [.NET](/cimvocabcheck/dotnet) and
+[Rust](/cimvocabcheck/rust) — all generated from this schema by one shared generator. For any
+other language:
 
 - **Batch.** Loading a CGMES profile set costs about a second; validating a query after that costs
   almost nothing. Pass every input to one invocation instead of spawning per file.

@@ -174,12 +174,13 @@ The contract itself is documented at
 
 ## Developing
 
-The result model is **generated** from the JSON Schema this package vendors — edit the generator,
-not the model. Convenience methods live in `_ergonomics.py` and survive regeneration.
+The result model is **generated** from the published JSON Schema by a generator shared with the
+.NET and Rust bindings — edit the generator, not the model. Convenience methods live in
+`_ergonomics.py` and survive regeneration.
 
 ```bash
-python scripts/generate_model.py            # regenerate after a contract change
-python scripts/generate_model.py --check    # what CI runs; fails with a diff when stale
+python3 ../codegen/generate_models.py --target python           # after a contract change
+python3 ../codegen/generate_models.py --target python --check   # what CI runs
 python -m pytest                            # engine-backed tests skip when no engine is found
 CIMVOCABCHECK_JAR=../../cli/target/cimvocabcheck-cli-*.jar python -m pytest
 ```

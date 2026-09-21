@@ -52,16 +52,34 @@ if [[ -n "${CIMVOCABCHECK_VERSION}" ]]; then
             -DnewVersion="${CIMVOCABCHECK_VERSION}" -DgenerateBackupPoms=false
     done
 
-    # Python binding: same train as the engine it wraps, so a binding and an engine that share a
-    # minor are known to have been generated against the same report contract. PEP 440 has no
-    # -SNAPSHOT, and its developmental releases sort before the release they lead to, which is the
-    # same meaning: X.Y.Z-SNAPSHOT -> X.Y.Z.dev0.
-    PY_VERSION="${CIMVOCABCHECK_VERSION%-SNAPSHOT}"
+    # Language bindings: same train as the engine they wrap, so a binding and an engine that
+    # share a minor are known to have been generated against the same report contract. Each
+    # ecosystem spells a pre-release differently, and none of them spell it "-SNAPSHOT".
+    BINDINGS="${REPO_ROOT}/cimvocabcheck/bindings"
+    PLAIN_VERSION="${CIMVOCABCHECK_VERSION%-SNAPSHOT}"
+
+    # Python (PEP 440): a developmental release sorts before the release it leads to, which is
+    # what -SNAPSHOT means. X.Y.Z-SNAPSHOT -> X.Y.Z.dev0
+    PY_VERSION="${PLAIN_VERSION}"
     if [[ "${PY_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
         PY_VERSION="${PY_VERSION}.dev0"
     fi
     sed -i "s/^version = \".*\"/version = \"${PY_VERSION}\"/" \
-        "${REPO_ROOT}/cimvocabcheck/bindings/python/pyproject.toml"
+        "${BINDINGS}/python/pyproject.toml"
+
+    # Rust (SemVer): a pre-release is a -suffix, and "-SNAPSHOT" is already valid SemVer, but
+    # cargo sorts it below every other pre-release tag; -dev keeps the same meaning and the same
+    # spelling as the other two. X.Y.Z-SNAPSHOT -> X.Y.Z-dev
+    RS_VERSION="${PLAIN_VERSION}"
+    if [[ "${RS_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
+        RS_VERSION="${RS_VERSION}-dev"
+    fi
+    sed -i "0,/^version = \".*\"/s//version = \"${RS_VERSION}\"/" \
+        "${BINDINGS}/rust/Cargo.toml"
+
+    # .NET (NuGet, SemVer 2.0): same pre-release spelling as the crate.
+    sed -i "s|<Version>.*</Version>|<Version>${RS_VERSION}</Version>|" \
+        "${BINDINGS}/dotnet/Directory.Build.props"
 fi
 
 # --- cimnotebook plugin versions (IntelliJ + VS Code) ---

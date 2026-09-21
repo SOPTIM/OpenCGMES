@@ -36,23 +36,28 @@ VENDORED_SCHEMA = PACKAGE_ROOT / "src" / "cimvocabcheck" / "schemas" / (
 CANONICAL_SCHEMA = (
     PACKAGE_ROOT.parent.parent / "schemas" / "cimvocabcheck-report-1.schema.json"
 )
-GENERATOR = PACKAGE_ROOT / "scripts" / "generate_model.py"
+# One generator serves every binding, so it lives beside them rather than inside this package;
+# an installed distribution therefore has the model but not the tool that produced it.
+GENERATOR = PACKAGE_ROOT.parent / "codegen" / "generate_models.py"
 
 SOURCES = sorted(
-    path
-    for directory in ("src", "tests", "scripts")
-    for path in (PACKAGE_ROOT / directory).rglob("*.py")
+    path for directory in ("src", "tests") for path in (PACKAGE_ROOT / directory).rglob("*.py")
 )
 
 
+@pytest.mark.skipif(
+    not GENERATOR.is_file(),
+    reason="not a repository checkout; the shared generator is not packaged",
+)
 def test_the_generated_model_matches_the_schema():
     """Regenerating must be a no-op; otherwise the model and the contract have drifted apart."""
     completed = subprocess.run(
-        [sys.executable, str(GENERATOR), "--check"],
+        [sys.executable, str(GENERATOR), "--target", "python", "--check"],
         cwd=str(PACKAGE_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        check=False,
     )
 
     assert completed.returncode == 0, completed.stdout
