@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.lsp;
 
 import de.soptim.opencgmes.cimvocabcheck.core.CgmesSchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
+import de.soptim.opencgmes.cimvocabcheck.core.RuleSeverities;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
@@ -108,6 +109,8 @@ final class SchemaManager {
 
   private final AtomicReference<StrictnessLevel> levelRef =
       new AtomicReference<>(StrictnessLevel.DEFAULT);
+  private final AtomicReference<RuleSeverities> rulesRef =
+      new AtomicReference<>(RuleSeverities.NONE);
   private final AtomicReference<DefinitionIndex> defRef = new AtomicReference<>();
   private final AtomicReference<Map<Node, Collection<VersionIri>>> namedGraphRef =
       new AtomicReference<>(Map.of());
@@ -401,7 +404,12 @@ final class SchemaManager {
     }
     return Optional.of(
         new WorkspaceSchema(
-            api, levelRef.get(), defRef.get(), namedGraphRef.get(), checkStdVocabRef.get()));
+            api,
+            levelRef.get(),
+            rulesRef.get(),
+            defRef.get(),
+            namedGraphRef.get(),
+            checkStdVocabRef.get()));
   }
 
   /** Builds (and notifies on failure) the schema for a non-primary config key. */
@@ -434,7 +442,8 @@ final class SchemaManager {
   }
 
   private static WorkspaceSchema noSchemaWorkspace(boolean checkStandardVocab) {
-    return new WorkspaceSchema(null, StrictnessLevel.DEFAULT, null, Map.of(), checkStandardVocab);
+    return new WorkspaceSchema(
+        null, StrictnessLevel.DEFAULT, RuleSeverities.NONE, null, Map.of(), checkStandardVocab);
   }
 
   private static boolean isRemote(String endpoint) {
@@ -618,7 +627,7 @@ final class SchemaManager {
       DefinitionIndex definitionIndex) {
     var prefixes = DefaultPrefixes.withDetectedCimPrefix(DefaultPrefixes.BUILT_IN, index);
     var api = new SparqlValidationApi(index, prefixes, checkStdVocabRef.get());
-    return new ResolvedSchema(api, levelRef.get(), scope, definitionIndex);
+    return new ResolvedSchema(api, levelRef.get(), rulesRef.get(), scope, definitionIndex);
   }
 
   /** Records an endpoint as failed (negative cache) and notifies once per failure window. */
@@ -689,6 +698,7 @@ final class SchemaManager {
           configFile.isPresent() ? buildSchemaForConfig(configFile.get()) : noSchemaWorkspace();
       apiRef.set(primary.api());
       levelRef.set(primary.level());
+      rulesRef.set(primary.rules());
       defRef.set(primary.definitionIndex());
       namedGraphRef.set(primary.namedGraphScope());
       checkStdVocabRef.set(primary.checkStandardVocab());
@@ -733,7 +743,12 @@ final class SchemaManager {
     if (loaded.isEmpty()) {
       // Config present but no schemas declared → syntax-only (unless documents use an endpoint).
       return new WorkspaceSchema(
-          null, parseLevel(config), null, Map.of(), config.checkStandardVocabulary());
+          null,
+          parseLevel(config),
+          parseRules(config),
+          null,
+          Map.of(),
+          config.checkStandardVocabulary());
     }
     return assemble(config, loaded.get());
   }
@@ -762,7 +777,7 @@ final class SchemaManager {
               + " file(s) could not be parsed and were skipped:\n"
               + String.join("\n", loaded.skippedFiles()));
     }
-    return new WorkspaceSchema(api, level, defIndex, scope, checkStd);
+    return new WorkspaceSchema(api, level, parseRules(config), defIndex, scope, checkStd);
   }
 
   /** Runs every registered on-loaded callback (typically: revalidate all open documents). */
@@ -785,6 +800,16 @@ final class SchemaManager {
           config.strictness(),
           e.getMessage());
       return StrictnessLevel.DEFAULT;
+    }
+  }
+
+  /** Parses the config's per-check severity overrides; a bad entry disables all of them. */
+  private static RuleSeverities parseRules(CimvocabcheckConfig config) {
+    try {
+      return config.ruleSeverities();
+    } catch (IllegalArgumentException e) {
+      LOG.warn("Invalid 'rules' entry in config, ignoring all rule overrides: {}", e.getMessage());
+      return RuleSeverities.NONE;
     }
   }
 

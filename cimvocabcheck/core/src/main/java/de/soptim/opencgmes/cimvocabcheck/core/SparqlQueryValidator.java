@@ -30,6 +30,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.analysis.TriplePatternReference;
 import de.soptim.opencgmes.cimvocabcheck.core.explain.QueryPlanFormatter;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.ValidationScope;
+import de.soptim.opencgmes.cimvocabcheck.core.semantic.MultiplicityChecks;
 import de.soptim.opencgmes.cimvocabcheck.core.semantic.SemanticChecks;
 import de.soptim.opencgmes.cimvocabcheck.core.semantic.SubjectTypeInference;
 import java.util.ArrayList;
@@ -148,6 +149,7 @@ public final class SparqlQueryValidator {
             triples,
             a.pathChains(),
             a.constants(),
+            a.expressionVariables(),
             a.dynamicPredicate(),
             a.dynamicClass());
     List<SparqlValidationAnnotation> ann =
@@ -205,6 +207,7 @@ public final class SparqlQueryValidator {
               a.triples(),
               a.pathChains(),
               a.constants(),
+              a.expressionVariables(),
               a.dynamicPredicate(),
               a.dynamicClass());
       List<SparqlValidationAnnotation> ann =
@@ -238,6 +241,7 @@ public final class SparqlQueryValidator {
       List<TriplePatternReference> triples,
       List<PathChainReference> pathChains,
       List<ConstantReference> constants,
+      Set<Node> expressionVariables,
       boolean dynamicPredicate,
       boolean dynamicClass) {}
 
@@ -398,7 +402,17 @@ public final class SparqlQueryValidator {
             original,
             prefixes));
 
-    // 6. Constant IRIs in FILTER / VALUES / BIND expressions.
+    // 6. Multiplicity hints: optional properties matched in the mandatory clause.
+    annotations.addAll(
+        MultiplicityChecks.run(
+            refs.triples(),
+            refs.expressionVariables(),
+            schemaIndex,
+            g -> scopeProfiles(scope, g),
+            original,
+            prefixes));
+
+    // 7. Constant IRIs in FILTER / VALUES / BIND expressions.
     for (ConstantReference cr : refs.constants()) {
       validateConstant(cr, scope, refs.triples(), annotations, original, prefixes);
     }

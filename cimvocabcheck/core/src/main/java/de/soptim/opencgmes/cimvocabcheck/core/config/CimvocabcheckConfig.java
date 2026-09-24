@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.core.config;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import de.soptim.opencgmes.cimvocabcheck.core.RuleSeverities;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,9 @@ import java.util.Map;
  * <p>Use either {@code schemasDirectory} (auto-discovers all {@code .rdf}/{@code .ttl}/{@code .owl}
  * files) or an explicit {@code schemas} list, not both.
  *
+ * <p>{@code rules} overrides the severity of individual checks by {@code SparqlValidationCode} name
+ * ({@code "off"}, {@code "info"}, {@code "warn"}, {@code "error"}); see {@link RuleSeverities}.
+ *
  * <p>{@code cimNamespaces} declares custom {@code cim} namespaces so schema files/endpoint graphs
  * using them can be parsed, mapping each namespace URI to the built-in profile "shape" that matches
  * its ontology conventions ({@code cim16}: {@code cims:isFixed}-based, as in CGMES 2.4.15; {@code
@@ -60,11 +64,12 @@ public record CimvocabcheckConfig(
     @JsonProperty("strictness") String strictness,
     @JsonProperty("prefixes") Map<String, String> prefixes,
     @JsonProperty("standardVocabulary") String standardVocabulary,
-    @JsonProperty("cimNamespaces") Map<String, String> cimNamespaces) {
+    @JsonProperty("cimNamespaces") Map<String, String> cimNamespaces,
+    @JsonProperty("rules") Map<String, String> rules) {
 
   /**
-   * Canonical constructor; defaults the {@code schemas}, {@code namedGraphs}, and {@code
-   * cimNamespaces} collections.
+   * Canonical constructor; defaults the {@code schemas}, {@code namedGraphs}, {@code cimNamespaces}
+   * and {@code rules} collections.
    */
   public CimvocabcheckConfig {
     if (schemas == null) {
@@ -76,12 +81,15 @@ public record CimvocabcheckConfig(
     if (cimNamespaces == null) {
       cimNamespaces = Map.of();
     }
+    if (rules == null) {
+      rules = Map.of();
+    }
     // prefixes: null means "use built-in defaults", empty map means "no defaults"
   }
 
   /** An empty config: no schemas, no overrides — i.e. syntax-only validation. */
   public static CimvocabcheckConfig empty() {
-    return new CimvocabcheckConfig(null, null, null, null, null, null, null);
+    return new CimvocabcheckConfig(null, null, null, null, null, null, null, null);
   }
 
   /**
@@ -96,6 +104,15 @@ public record CimvocabcheckConfig(
   /** Returns whether {@link #cimNamespaces()} is non-null and non-empty. */
   public boolean hasCimNamespaces() {
     return cimNamespaces != null && !cimNamespaces.isEmpty();
+  }
+
+  /**
+   * Parses {@link #rules()} into per-check severity overrides.
+   *
+   * @throws IllegalArgumentException if an entry names an unknown check or severity
+   */
+  public RuleSeverities ruleSeverities() {
+    return RuleSeverities.parse(rules);
   }
 
   /**

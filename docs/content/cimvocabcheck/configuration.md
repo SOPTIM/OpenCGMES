@@ -57,6 +57,7 @@ syntax-only mode.
 | `schemasDirectory` | string | — | Directory of RDFS/profile files (`.rdf`, `.ttl`, `.owl`) |
 | `schemas` | string[] | — | Explicit list of RDFS/profile files |
 | `strictness` | enum | `default` | How findings map to severities |
+| `rules` | object | — | Per-check severity overrides, keyed by validation code |
 | `namedGraphs` | object | — | Map graph IRIs / short names to profile IRIs |
 | `prefixes` | object | *(built-in set)* | PREFIX declarations injected into queries |
 | `standardVocabulary` | enum | `check` | Whether to typo-check `rdf`/`rdfs`/`owl`/`sh` terms |
@@ -104,6 +105,38 @@ Controls which findings are reported and how their severities are mapped:
 ```json
 { "cimvocabcheck": { "strictness": "strict" } }
 ```
+
+### `rules`
+
+Overrides the severity of **individual checks**, keyed by
+[validation code](/cimvocabcheck/validation-checks):
+
+| Value | Behaviour |
+| --- | --- |
+| `off` | The check's findings are dropped entirely |
+| `info` | Reported as a hint |
+| `warn` | Reported as a warning |
+| `error` | Reported as an error — fails validation |
+
+```json
+{
+  "cimvocabcheck": {
+    "strictness": "strict",
+    "rules": {
+      "PROPERTY_MAY_BE_ABSENT": "off",
+      "UNKNOWN_TERM_IN_EXPRESSION": "info"
+    }
+  }
+}
+```
+
+A code listed here keeps the configured severity **whatever the strictness level is**: it is
+neither promoted by `strict`/`pedantic` nor filtered out by `permissive`. That is what makes the
+override usable in CI — a hint you deliberately turned down to `info` would otherwise still fail
+the build under `pedantic`, and a check you pinned to `error` would vanish under `permissive`.
+
+An unknown code or severity is a configuration error: the CLI reports it and exits, and the
+language server logs a warning and ignores the whole `rules` block.
 
 ### `namedGraphs`
 
@@ -248,6 +281,10 @@ before CIMVocabCheck loads. See [CIMXML → Compliance](/cimxml/compliance#cim-v
     "schemasDirectory": "schemas/cgmes-3.0",
     "strictness": "strict",
     "standardVocabulary": "check",
+    "rules": {
+      // Hints about optional properties matched outside OPTIONAL — off for this project.
+      "PROPERTY_MAY_BE_ABSENT": "off"
+    },
     "namedGraphs": {
       "EQ": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
       "TP": ["http://iec.ch/TC57/ns/CIM/Topology-EU/3.0"]

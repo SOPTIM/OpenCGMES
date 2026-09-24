@@ -66,6 +66,11 @@ public final class ConfigTemplate {
           // "check" (default) flags typos in rdf/rdfs/owl/sh terms; "ignore" disables it.
           // "standardVocabulary": "check"
 
+          // --- Per-check severity -------------------------------------------------------
+          // Override the severity of individual checks by code: "off" | "info" | "warn" |
+          // "error". A code listed here keeps that severity whatever the strictness level is.
+          // "rules": { "PROPERTY_MAY_BE_ABSENT": "off" },
+
           // --- Custom CIM namespaces ----------------------------------------------------
           // Map non-standard "cim" namespace URIs to the built-in profile shape that matches
           // their ontology conventions: "cim16" (CGMES 2.4.15), "cim17"/"cim18" (CGMES 3.0+).
