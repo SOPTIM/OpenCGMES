@@ -420,6 +420,12 @@ public class TestParserCIMXMLConformity {
                 <rdf:Description rdf:about="#Package_FileHeaderProfile">
                     <rdf:type rdf:resource="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#ClassCategory"/>
                 </rdf:Description>
+                <rdf:Description rdf:about="http://iec.ch/TC57/61970-552/ModelDescription/1#Model">
+                    <rdfs:label xml:lang="en">Model</rdfs:label>
+                    <cims:stereotype>md</cims:stereotype>
+                    <cims:belongsToCategory rdf:resource="#Package_FileHeaderProfile"/>
+                    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+                </rdf:Description>
                 <rdf:Description rdf:about="http://iec.ch/TC57/61970-552/ModelDescription/1#Model.profile">
                     <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
                     <rdfs:domain rdf:resource="http://iec.ch/TC57/61970-552/ModelDescription/1#Model"/>
@@ -526,6 +532,13 @@ public class TestParserCIMXMLConformity {
 
         final var streamInstanceData = new StreamCimXmlToDatasetGraph();
         parser.read(new StringReader(cimxmlInstanceData), registry, streamInstanceData);
+
+        var headerGraph = streamInstanceData.getCimDatasetGraph().getModelHeader();
+        assertNotNull(headerGraph);
+        assertEquals("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6", headerGraph.getModel().toString());
+        assertEquals(1, headerGraph.getProfiles().size());
+        assertTrue(headerGraph.getProfiles().stream().map(Node::getURI).toList()
+                .contains("http://example.org/MyCustom/1/1"));
 
         var instanceGraph = streamInstanceData.getCimDatasetGraph().getBody();
         assertNotNull(instanceGraph);
