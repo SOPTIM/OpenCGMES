@@ -99,7 +99,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
-          gradle-version: "9.7.1"
+          gradle-version: "9.8.0"
 
       # Plugins -> RELEASE_VERSION; bundled LSP -> latest released cimvocabcheck version.
       - name: Apply release versions
@@ -175,7 +175,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
-          gradle-version: "9.7.1"
+          gradle-version: "9.8.0"
 
       - name: Validate required secret
         shell: bash
