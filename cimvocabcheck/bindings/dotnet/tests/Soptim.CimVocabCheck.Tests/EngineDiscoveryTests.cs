@@ -216,6 +216,47 @@ public sealed class EngineDiscoveryTests
     }
 
     [Fact]
+    public void DockerAddressesTheWorkingDirectoryItself()
+    {
+        using var directory = new TempDir();
+        var engine = new DockerEngine("cvc:test", "docker", directory.Path);
+
+        Assert.Equal(".", engine.ResolvePath(".", null));
+        Assert.Equal(".", engine.ResolvePath(directory.Path, null));
+        Assert.Equal(".", engine.ResolvePath(directory.Path + Path.DirectorySeparatorChar, null));
+    }
+
+    [Fact]
+    public void DockerNamesEveryRunSoAKilledOneCanBeRemoved()
+    {
+        using var directory = new TempDir();
+        var engine = new DockerEngine("cvc:test", "docker", directory.Path);
+
+        static string NameOf(IReadOnlyList<string> command) =>
+            command[command.ToList().IndexOf("--name") + 1];
+
+        Assert.NotEqual(
+            NameOf(engine.BuildCommand([], false, null)),
+            NameOf(engine.BuildCommand([], false, null)));
+    }
+
+    [Fact]
+    public void ARelativeEnginePathIsPinnedToWhereItWasFound()
+    {
+        // The engine may run in another directory, where the relative path means something else.
+        using var directory = new TempDir();
+        File.WriteAllText(Path.Combine(directory.Path, "cimvocabcheck"), string.Empty);
+        var relative = Path.GetRelativePath(
+            Directory.GetCurrentDirectory(), Path.Combine(directory.Path, "cimvocabcheck"));
+
+        var engine = Engine.Discover(Discovery(directory) with { EnginePath = relative });
+
+        Assert.Equal(
+            Path.Combine(directory.Path, "cimvocabcheck"),
+            Assert.IsType<BinaryEngine>(engine).Path);
+    }
+
+    [Fact]
     public void LocalEnginesPassPathsThroughUntouched()
     {
         Assert.Equal("../shared/q.rq", new BinaryEngine("/opt/cvc").ResolvePath("../shared/q.rq", null));

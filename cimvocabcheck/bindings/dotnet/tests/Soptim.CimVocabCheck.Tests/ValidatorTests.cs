@@ -161,6 +161,48 @@ public sealed class ValidatorTests
     }
 
     [Fact]
+    public void ATimedOutDockerRunRemovesItsContainer()
+    {
+        // Killing `docker run` stops the client only; the container would keep running.
+        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
+        using var directory = new TempDir();
+        var log = Path.Combine(directory.Path, "docker.log");
+        var docker = directory.Script(
+            "docker", $"echo \"$@\" >> '{log}'\n[ \"$1\" = run ] && sleep 5\nexit 0");
+        var engine = new DockerEngine("cvc:test", docker, directory.Path);
+
+        var error = Assert.Throws<EngineTimeoutException>(
+            () => Validator.Validate(
+                ["q.rq"],
+                new ValidationOptions { Engine = engine, Timeout = TimeSpan.FromMilliseconds(300) }));
+
+        var name = error.Arguments[error.Arguments.ToList().IndexOf("--name") + 1];
+        Assert.Equal($"rm --force {name}", File.ReadAllLines(log)[^1]);
+    }
+
+    [Fact]
+    public void NonAsciiTextSurvivesTheRoundTripAsUtf8()
+    {
+        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
+        using var directory = new TempDir();
+        // Echo the query back as the tool version: bytes in, the same bytes out.
+        var engine = new BinaryEngine(directory.Script(
+            "stdin",
+            """
+            read -r line
+            cat <<REPORT
+            {"contractVersion":"1.0","tool":{"name":"cimvocabcheck","version":"$line"},
+             "summary":{"files":0,"valid":0,"invalid":0,"errors":0,"warnings":0,"infos":0},
+             "results":[]}
+            REPORT
+            """));
+
+        var report = Validator.ValidateText("Übersicht – ≥ 𝄞", new ValidationOptions { Engine = engine });
+
+        Assert.Equal("Übersicht – ≥ 𝄞", report.Tool.Version);
+    }
+
+    [Fact]
     public void AnEngineThatCannotBeStartedIsReportedClearly()
     {
         var engine = new BinaryEngine("/nowhere/does-not-exist");

@@ -15,6 +15,7 @@
 //    SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace Soptim.CimVocabCheck;
@@ -121,15 +122,15 @@ public static class Validator
     {
         options ??= new ValidationOptions();
         var engine = options.ResolveEngine();
-        string[] arguments = ["--version"];
-        var result = await SpawnAsync(engine, arguments, null, options, cancellationToken)
+        var command = engine.BuildCommand(["--version"], false, options.WorkingDirectory);
+        var result = await SpawnAsync(engine, command, null, options, cancellationToken)
             .ConfigureAwait(false);
 
         if (result.ExitCode != ExitClean)
         {
             throw new ToolException(
                 "the engine failed to report its version.",
-                engine.BuildCommand(arguments, false, options.WorkingDirectory),
+                command,
                 result.ExitCode,
                 result.StandardOutput,
                 result.StandardError);
@@ -278,7 +279,7 @@ public static class Validator
 
         var arguments = BuildArguments(resolvedInputs, resolved);
         var command = engine.BuildCommand(arguments, standardInput is not null, directory);
-        var result = await SpawnAsync(engine, arguments, standardInput, options, cancellationToken)
+        var result = await SpawnAsync(engine, command, standardInput, options, cancellationToken)
             .ConfigureAwait(false);
 
         if (result.ExitCode == ExitUsage)
@@ -308,17 +309,21 @@ public static class Validator
 
     private static async Task<ProcessResult> SpawnAsync(
         Engine engine,
-        IReadOnlyList<string> arguments,
+        IReadOnlyList<string> command,
         string? standardInput,
         ValidationOptions options,
         CancellationToken cancellationToken)
     {
-        var command = engine.BuildCommand(arguments, standardInput is not null, options.WorkingDirectory);
+        // The engine reads and writes UTF-8 on every platform. Left unset, .NET would use the
+        // console code page on Windows and garble anything outside ASCII in both directions.
         var startInfo = new ProcessStartInfo(command[0])
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             RedirectStandardInput = standardInput is not null,
+            StandardOutputEncoding = Utf8,
+            StandardErrorEncoding = Utf8,
+            StandardInputEncoding = standardInput is not null ? Utf8 : null,
             UseShellExecute = false,
         };
 
@@ -392,6 +397,7 @@ public static class Validator
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             Kill(process);
+            engine.Abandon(command, options.Environment);
             throw new EngineTimeoutException(
                 $"the engine did not finish within {options.Timeout?.TotalSeconds:0.#}s.",
                 command);
@@ -399,6 +405,7 @@ public static class Validator
         catch (OperationCanceledException)
         {
             Kill(process);
+            engine.Abandon(command, options.Environment);
             throw;
         }
     }
@@ -423,6 +430,9 @@ public static class Validator
     /// </remarks>
     private static T Block<T>(Func<Task<T>> work) =>
         Task.Run(work).GetAwaiter().GetResult();
+
+    /// <summary>UTF-8 without a byte order mark, which the engine would read as part of a query.</summary>
+    private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 }

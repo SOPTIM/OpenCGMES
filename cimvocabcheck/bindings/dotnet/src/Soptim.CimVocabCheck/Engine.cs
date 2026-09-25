@@ -14,6 +14,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Soptim.CimVocabCheck;
@@ -71,6 +72,22 @@ public abstract class Engine
     /// <param name="workingDirectory">Where the process will start.</param>
     /// <returns>The path as the engine should see it.</returns>
     public virtual string ResolvePath(string path, string? workingDirectory) => path;
+
+    /// <summary>
+    /// Cleans up after the process spawned from <paramref name="command"/> was killed before it
+    /// finished.
+    /// </summary>
+    /// <remarks>
+    /// Only the Docker engine leaves anything behind: killing <c>docker run</c> stops the client,
+    /// not the container. Best effort — the failure that caused the kill matters more.
+    /// </remarks>
+    /// <param name="command">The command that was killed, as <see cref="BuildCommand"/> built it.</param>
+    /// <param name="environment">The environment it ran with, or <c>null</c> for this process's.</param>
+    public virtual void Abandon(
+        IReadOnlyList<string> command,
+        IReadOnlyDictionary<string, string>? environment)
+    {
+    }
 
     /// <summary>A one-line description, for diagnostics and error messages.</summary>
     /// <returns>What this engine will run.</returns>
@@ -164,6 +181,9 @@ public abstract class Engine
         {
             throw new EngineNotFoundException($"{origin} points at {path}, which does not exist.");
         }
+
+        // Checked against this process's directory, so pinned to it: the engine may run in another.
+        path = System.IO.Path.GetFullPath(path);
 
         return Path.GetExtension(path).Equals(".jar", StringComparison.OrdinalIgnoreCase)
             ? new JarEngine(path, FindJava(options))
@@ -294,7 +314,8 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         bool usesStandardInput,
         string? workingDirectory)
     {
-        var command = new List<string> { Docker, "run", "--rm" };
+        // Named, so a run that has to be killed can be found and removed again.
+        var command = new List<string> { Docker, "run", "--rm", "--name", $"cimvocabcheck-{Guid.NewGuid():N}" };
         if (usesStandardInput)
         {
             command.Add("-i");
@@ -321,10 +342,19 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         var absolute = System.IO.Path.GetFullPath(
             System.IO.Path.IsPathRooted(path) ? path : System.IO.Path.Combine(mount, path));
 
+        var comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (System.IO.Path.TrimEndingDirectorySeparator(absolute)
+            .Equals(System.IO.Path.TrimEndingDirectorySeparator(mount), comparison))
+        {
+            return ".";
+        }
+
         var prefix = mount.EndsWith(System.IO.Path.DirectorySeparatorChar)
             ? mount
             : mount + System.IO.Path.DirectorySeparatorChar;
-        if (!absolute.StartsWith(prefix, StringComparison.Ordinal))
+        if (!absolute.StartsWith(prefix, comparison))
         {
             throw new CimVocabCheckException(
                 $"'{path}' is outside the working directory {mount}, which is the only path the "
@@ -334,6 +364,44 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         }
 
         return absolute[prefix.Length..].Replace(System.IO.Path.DirectorySeparatorChar, '/');
+    }
+
+    /// <inheritdoc/>
+    public override void Abandon(
+        IReadOnlyList<string> command,
+        IReadOnlyDictionary<string, string>? environment)
+    {
+        var at = command.ToList().IndexOf("--name");
+        if (at < 0 || at + 1 >= command.Count)
+        {
+            return;
+        }
+
+        var startInfo = new ProcessStartInfo(Docker)
+        {
+            ArgumentList = { "rm", "--force", command[at + 1] },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        if (environment is not null)
+        {
+            startInfo.Environment.Clear();
+            foreach (var (key, value) in environment)
+            {
+                startInfo.Environment[key] = value;
+            }
+        }
+
+        try
+        {
+            using var process = Process.Start(startInfo);
+            process?.WaitForExit(TimeSpan.FromSeconds(30));
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException)
+        {
+            // The container outlives us; the timeout being reported matters more.
+        }
     }
 
     /// <inheritdoc/>
