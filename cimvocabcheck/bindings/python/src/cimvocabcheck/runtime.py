@@ -24,10 +24,13 @@ empty, because "not found" is the failure mode a user actually has to fix.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
+import subprocess
 import sys
 import sysconfig
+import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Union
@@ -77,6 +80,13 @@ class Engine:
     def resolve_path(self, path: str, cwd: Path | None = None) -> str:
         """Rewrites one path for this engine. Only the Docker engine needs to."""
         return path
+
+    def abandon(self, argv: Sequence[str], env: Mapping[str, str] | None = None) -> None:
+        """Cleans up after the process spawned from ``argv`` was killed before it finished.
+
+        Only the Docker engine leaves anything behind: killing ``docker run`` stops the client,
+        not the container.
+        """
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.describe()
@@ -144,7 +154,8 @@ class DockerEngine(Engine):
         self, args: Sequence[str], *, stdin: bool = False, cwd: Path | None = None
     ) -> list[str]:
         mount = f"{self._mount(cwd)}:{CONTAINER_WORKDIR}"
-        run = [self.docker, "run", "--rm"]
+        # Named, so a run that has to be killed can be found and removed again.
+        run = [self.docker, "run", "--rm", "--name", f"cimvocabcheck-{uuid.uuid4().hex}"]
         if stdin:
             run.append("-i")
         return [*run, "-v", mount, "-w", CONTAINER_WORKDIR, self.image, *args]
@@ -153,18 +164,38 @@ class DockerEngine(Engine):
         if path == "-":
             return path
         mount = self._mount(cwd)
+        lexical_mount = Path(os.path.abspath(Path(cwd) if cwd is not None else self.cwd))
         candidate = Path(path)
-        absolute = candidate if candidate.is_absolute() else mount / candidate
-        try:
-            relative = Path(os.path.normpath(str(absolute))).relative_to(mount)
-        except ValueError:
-            raise ValueError(
-                f"{path!r} is outside the working directory {mount}, which is the only path "
-                "the Docker engine mounts. Pass paths relative to the working directory, run "
-                "from a directory that contains them, or configure a local engine "
-                f"({ENV_JAR} / {ENV_BIN})."
-            ) from None
-        return relative.as_posix()
+        lexical = Path(
+            os.path.normpath(candidate if candidate.is_absolute() else lexical_mount / candidate)
+        )
+        # The mount has its symlinks resolved and an absolute input may not, or the other way
+        # round; the input is inside when either spelling of it is.
+        spellings = ((lexical, lexical_mount), (lexical, mount), (lexical.resolve(), mount))
+        for inside, root in spellings:
+            try:
+                return inside.relative_to(root).as_posix()
+            except ValueError:
+                continue
+        raise ValueError(
+            f"{path!r} is outside the working directory {mount}, which is the only path "
+            "the Docker engine mounts. Pass paths relative to the working directory, run "
+            "from a directory that contains them, or configure a local engine "
+            f"({ENV_JAR} / {ENV_BIN})."
+        )
+
+    def abandon(self, argv: Sequence[str], env: Mapping[str, str] | None = None) -> None:
+        if "--name" not in argv:
+            return
+        name = argv[list(argv).index("--name") + 1]
+        # Best effort: the timeout being reported matters more than this cleanup.
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run(  # noqa: S603 - argv list, never a shell string
+                [self.docker, "rm", "--force", name],
+                capture_output=True,
+                env=dict(env) if env is not None else None,
+                timeout=30,
+            )
 
     def _mount(self, cwd: Path | None) -> Path:
         """The directory to mount: the one the call runs in, else the engine's own.
@@ -291,6 +322,8 @@ def discover(
 def _engine_for_path(path: Path, env: Mapping[str, str], origin: str) -> Engine:
     if not path.exists():
         raise EngineNotFoundError(f"{origin} points at {path}, which does not exist.")
+    # Checked against this process's directory, so pinned to it: the engine may run in another.
+    path = path.absolute()
     if path.suffix.lower() == ".jar":
         return JarEngine(path, java=find_java(env))
     return BinaryEngine(path)

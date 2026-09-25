@@ -188,3 +188,57 @@ def test_docker_refuses_a_path_it_could_not_mount(tmp_path):
 
 def test_local_engines_pass_paths_through_untouched(tmp_path):
     assert BinaryEngine("/opt/cvc").resolve_path("../shared/q.rq") == "../shared/q.rq"
+
+
+def test_docker_accepts_an_absolute_path_spelled_through_a_symlink(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+
+    through_link = DockerEngine(cwd=link)
+    through_real = DockerEngine(cwd=real)
+
+    assert through_link.resolve_path(str(link / "q.rq")) == "q.rq"
+    assert through_link.resolve_path(str(real / "q.rq")) == "q.rq"
+    assert through_real.resolve_path(str(link / "q.rq")) == "q.rq"
+
+
+def test_docker_addresses_the_working_directory_itself(tmp_path):
+    engine = DockerEngine(cwd=tmp_path)
+
+    assert engine.resolve_path(".") == "."
+    assert engine.resolve_path(str(tmp_path)) == "."
+
+
+def test_a_relative_engine_path_is_pinned_to_where_it_was_found(tmp_path, bare_env, monkeypatch):
+    """The engine may run in another directory, where the relative path means something else."""
+    (tmp_path / "engine.jar").write_bytes(b"")
+    executable(tmp_path / "jdk" / "bin", "java")
+    monkeypatch.chdir(tmp_path)
+
+    engine = discover(
+        env=dict(bare_env, JAVA_HOME=str(tmp_path / "jdk"), CIMVOCABCHECK_JAR="engine.jar")
+    )
+
+    assert isinstance(engine, JarEngine)
+    assert engine.jar == tmp_path / "engine.jar"
+
+
+def test_a_killed_docker_run_removes_its_container(tmp_path):
+    """Killing ``docker run`` stops the client only; the container would keep running."""
+    log = tmp_path / "docker.log"
+    docker = tmp_path / "bin" / "docker"
+    docker.parent.mkdir()
+    docker.write_text(f'#!/bin/sh\necho "$@" >> {log}\n', encoding="utf-8")
+    docker.chmod(0o755)
+    engine = DockerEngine(docker=str(docker), cwd=tmp_path)
+
+    first = engine.command(["q.rq"])
+    second = engine.command(["q.rq"])
+    name = first[first.index("--name") + 1]
+    assert name != second[second.index("--name") + 1], "every run needs a name of its own"
+
+    engine.abandon(first)
+
+    assert log.read_text(encoding="utf-8").split() == ["rm", "--force", name]

@@ -252,7 +252,7 @@ def tool_version(
     if completed.returncode != EXIT_CLEAN:
         raise ToolError(
             "the engine failed to report its version.",
-            argv=resolved.command(["--version"]),
+            argv=list(completed.args),
             returncode=completed.returncode,
             stdout=completed.stdout,
             stderr=completed.stderr,
@@ -289,6 +289,7 @@ def _spawn(
             errors="replace",
         )
     except subprocess.TimeoutExpired as expired:
+        engine.abandon(argv, env)
         raise EngineTimeoutError(
             f"the engine did not finish within {timeout}s.",
             argv=argv,
@@ -317,9 +318,7 @@ def _run(
     stdin_text: str | None = None,
 ) -> Report:
     completed = _spawn(engine, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text)
-    argv = engine.command(
-        args, stdin=stdin_text is not None, cwd=Path(cwd) if cwd is not None else None
-    )
+    argv = list(completed.args)
 
     if completed.returncode == EXIT_USAGE:
         raise ToolError(

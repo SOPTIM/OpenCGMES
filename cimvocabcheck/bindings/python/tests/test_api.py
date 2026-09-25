@@ -224,6 +224,21 @@ def test_a_timeout_is_its_own_error():
         validate(["q.rq"], engine=engine, timeout=0.3)
 
 
+def test_a_timed_out_engine_is_given_the_chance_to_clean_up():
+    abandoned = []
+
+    class Abandonable(ScriptedEngine):
+        def abandon(self, argv, env=None):
+            abandoned.append(list(argv))
+
+    engine = Abandonable(stdout=report_json(), sleep=5)
+
+    with pytest.raises(EngineTimeoutError) as raised:
+        validate(["q.rq"], engine=engine, timeout=0.3)
+
+    assert abandoned == [list(raised.value.argv)]
+
+
 def test_an_engine_that_cannot_be_started_is_reported_clearly(tmp_path):
     class Missing(Engine):
         def command(self, args, *, stdin=False, cwd=None):
