@@ -12,7 +12,9 @@ This is the **canonical catalogue** of the diagnostic codes CIMVocabCheck emits.
 
 Each finding carries a **severity** (`ERROR`, `WARN`, `INFO`), a **code**, a human-readable
 **message**, and — where resolvable — a **line/column** and the offending **term**. How severities
-map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#strictness).
+map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#strictness); the
+severity of an individual code can be overridden (or the code switched off) with
+[`rules`](/cimvocabcheck/configuration#rules).
 
 ## All codes at a glance
 
@@ -27,6 +29,7 @@ map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#st
 | `PROPERTY_NOT_ALLOWED_FOR_CLASS` | ERROR | Semantic | Subject's type is not a subclass of any `rdfs:domain` of the property |
 | `QUERY_IMPLIED_TYPE` | INFO | Semantic | Subject has no `rdf:type` but the property implies exactly one domain |
 | `DATATYPE_MISMATCH` | WARN | Semantic | Literal object's datatype is incompatible with `rdfs:range` |
+| `PROPERTY_MAY_BE_ABSENT` | INFO | Semantic | A property whose CIM multiplicity allows zero values is matched outside `OPTIONAL` |
 | `INVALID_ENUM_VALUE` | ERROR | Semantic | Object IRI is not a member of the property's enumeration `rdfs:range` |
 | `UNKNOWN_TERM_IN_EXPRESSION` | WARN | Existence | A constant IRI in a `FILTER`/`VALUES`/`BIND` expression is unknown to every index (class/property/enumeration member) |
 | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:nodeKind` conflicts with the property's `rdfs:range` |
@@ -100,6 +103,12 @@ real CGMES RDFS files), these additional checks run:
   a variable in a `FILTER(?kind = cim:…)` / `FILTER(?kind IN (…))` expression or supplied via a
   `VALUES` row, when the variable's property context is a known enumeration.
 
+- `PROPERTY_MAY_BE_ABSENT` (INFO) — a property whose CIM `cims:multiplicity` allows zero values
+  (`0..1`, `0..n`) is matched in the query's **mandatory** clause. Every triple pattern outside
+  `OPTIONAL` is an inner join, so such a pattern silently removes each solution whose subject does
+  not carry that optional attribute — the classic reason a CGMES query returns fewer rows than
+  expected. See [below](#optional-property-hints) for when it fires.
+
 `rdfs:subClassOf` traversal is transitive and cycle-safe across the union of all profiles in scope.
 
 ## Unused-variable checks
@@ -137,6 +146,38 @@ A semantic check is **skipped** when the schema doesn't carry the information it
 check; inverse/alternative/repetition path operators → path-chain check skipped for that segment.
 See [Known limitations](/cimvocabcheck/limitations) for the full policy.
 :::
+
+### Optional-property hints
+
+Roughly two thirds of the properties in a CGMES profile declare a lower bound of zero, and
+requiring one is frequently deliberate ("only the units that declare a governor"). So
+`PROPERTY_MAY_BE_ABSENT` is a hint, never an error, and it is raised only where wrapping the
+pattern in `OPTIONAL` would be a meaningful edit — that is, when **all** of the following hold:
+
+- The triple is **matched**, not produced: `CONSTRUCT` and `INSERT`/`DELETE` template triples are
+  skipped.
+- The triple is in the **mandatory root clause**. A triple already inside `OPTIONAL`, a `UNION`
+  branch, `MINUS`, or `EXISTS`/`NOT EXISTS` sits in a scope the author chose.
+- The **object is a plain variable**. A constant or literal object is a deliberate value filter,
+  where requiring the property to be present is the point.
+- That object variable is **not otherwise constrained** by a `FILTER`, `BIND`, or `VALUES` — same
+  reasoning: the query already depends on the value existing.
+- The **subject is bound elsewhere** in the mandatory clause, or is a constant IRI. If the pattern
+  is the only thing binding the subject, making it optional would leave nothing to join against.
+
+One hint is emitted per attribute per subject. As everywhere else, a schema that declares no
+`cims:multiplicity` for the property produces no finding.
+
+```sparql
+SELECT ?line ?name ?description WHERE {
+  ?line a cim:ACLineSegment ;
+        cim:IdentifiedObject.name        ?name ;        # 1..1 — quiet
+        cim:IdentifiedObject.description ?description . # 0..1 — PROPERTY_MAY_BE_ABSENT
+}
+```
+
+Switch it off for a project with `"rules": { "PROPERTY_MAY_BE_ABSENT": "off" }` — see
+[Configuration → rules](/cimvocabcheck/configuration#rules).
 
 ## SHACL property-shape checks
 
@@ -203,5 +244,7 @@ are mapped back to positions in the Turtle source.
 
 - [Configuration → strictness](/cimvocabcheck/configuration#strictness) — promote warnings to
   errors for CI.
+- [Configuration → rules](/cimvocabcheck/configuration#rules) — change or switch off the severity
+  of an individual check.
 - [Known limitations](/cimvocabcheck/limitations) — what is intentionally not checked, and why.
 - [API reference](/cimvocabcheck/api) — the `SparqlValidationAnnotation` record these codes live on.

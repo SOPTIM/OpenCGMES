@@ -18,6 +18,8 @@
 
 package de.soptim.opencgmes.cimvocabcheck.core.analysis;
 
+import static de.soptim.opencgmes.cimvocabcheck.core.analysis.TriplePatternReference.Origin.TEMPLATE;
+
 import de.soptim.opencgmes.cimvocabcheck.core.InvalidQueryException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -93,7 +95,7 @@ public final class SparqlQueryAnalyzer {
     if (query.isConstructType()) {
       Template tmpl = query.getConstructTemplate();
       if (tmpl != null) {
-        visitor.walkQuads(tmpl.getQuads());
+        visitor.walkQuads(tmpl.getQuads(), null, TriplePatternReference.Origin.TEMPLATE);
       }
     }
 
@@ -125,6 +127,7 @@ public final class SparqlQueryAnalyzer {
         graphs,
         visitor.pathChains(),
         visitor.constants(),
+        visitor.expressionVariables(),
         visitor.dynamicPredicate(),
         visitor.dynamicClass());
   }
@@ -147,10 +150,11 @@ public final class SparqlQueryAnalyzer {
 
     for (Update update : req) {
       switch (update) {
-        case UpdateDataInsert ins -> visitor.walkQuads(ins.getQuads());
+        case UpdateDataInsert ins -> visitor.walkQuads(ins.getQuads(), null, TEMPLATE);
 
-        case UpdateDataDelete del -> visitor.walkQuads(del.getQuads());
+        case UpdateDataDelete del -> visitor.walkQuads(del.getQuads(), null, TEMPLATE);
 
+        // DELETE WHERE is its own WHERE clause — these quads are matched, not produced.
         case UpdateDeleteWhere del -> visitor.walkQuads(del.getQuads());
 
         case UpdateModify mod -> {
@@ -180,10 +184,10 @@ public final class SparqlQueryAnalyzer {
             }
           }
           if (mod.hasInsertClause()) {
-            visitor.walkQuads(mod.getInsertQuads(), withIri);
+            visitor.walkQuads(mod.getInsertQuads(), withIri, TEMPLATE);
           }
           if (mod.hasDeleteClause()) {
-            visitor.walkQuads(mod.getDeleteQuads(), withIri);
+            visitor.walkQuads(mod.getDeleteQuads(), withIri, TEMPLATE);
           }
         }
 
@@ -260,6 +264,7 @@ public final class SparqlQueryAnalyzer {
         graphRefs,
         visitor.pathChains(),
         visitor.constants(),
+        visitor.expressionVariables(),
         visitor.dynamicPredicate(),
         visitor.dynamicClass());
   }

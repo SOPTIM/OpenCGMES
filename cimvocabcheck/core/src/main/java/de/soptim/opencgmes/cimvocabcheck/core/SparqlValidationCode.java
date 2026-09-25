@@ -74,6 +74,13 @@ public enum SparqlValidationCode {
    */
   UNKNOWN_TERM_IN_EXPRESSION,
   /**
+   * A property whose CIM {@code cims:multiplicity} allows zero values is matched in the query's
+   * mandatory clause. Because a triple pattern outside {@code OPTIONAL} is an inner join, every
+   * solution whose subject does not carry that optional attribute is silently dropped. Reported as
+   * a hint because requiring an optional property is often intentional.
+   */
+  PROPERTY_MAY_BE_ABSENT,
+  /**
    * A SHACL {@code sh:minCount}/{@code sh:maxCount} is incompatible with the property's declared
    * CIM {@code cims:multiplicity} — e.g. requiring more values than the schema's upper bound
    * allows, so the constraint can never be satisfied against conformant data.
