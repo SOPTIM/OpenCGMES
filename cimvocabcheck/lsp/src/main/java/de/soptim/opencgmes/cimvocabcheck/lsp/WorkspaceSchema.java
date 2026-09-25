@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimvocabcheck.lsp;
 
+import de.soptim.opencgmes.cimvocabcheck.core.RuleSeverities;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationApi;
 import de.soptim.opencgmes.cimvocabcheck.core.StrictnessLevel;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
@@ -36,6 +37,7 @@ import org.apache.jena.graph.Node;
  *
  * @param api the validation API built from the config's schemas
  * @param level the strictness level from the config
+ * @param rules the per-check severity overrides from the config
  * @param definitionIndex the source-navigation index
  * @param namedGraphScope the per-graph profile scope from {@code namedGraphs}
  * @param checkStandardVocab whether standard-vocabulary typo checking is enabled
@@ -45,6 +47,7 @@ import org.apache.jena.graph.Node;
 record WorkspaceSchema(
     SparqlValidationApi api,
     StrictnessLevel level,
+    RuleSeverities rules,
     DefinitionIndex definitionIndex,
     Map<Node, Collection<VersionIri>> namedGraphScope,
     boolean checkStandardVocab,
@@ -54,14 +57,20 @@ record WorkspaceSchema(
   WorkspaceSchema(
       SparqlValidationApi api,
       StrictnessLevel level,
+      RuleSeverities rules,
       DefinitionIndex definitionIndex,
       Map<Node, Collection<VersionIri>> namedGraphScope,
       boolean checkStandardVocab) {
-    this(api, level, definitionIndex, namedGraphScope, checkStandardVocab, Map.of());
+    this(api, level, rules, definitionIndex, namedGraphScope, checkStandardVocab, Map.of());
+  }
+
+  /** Canonical constructor; defaults {@code rules} to {@link RuleSeverities#NONE}. */
+  WorkspaceSchema {
+    rules = rules == null ? RuleSeverities.NONE : rules;
   }
 
   /** Adapts this workspace schema to a {@link ResolvedSchema} for the document-validation path. */
   ResolvedSchema toResolvedSchema() {
-    return new ResolvedSchema(api, level, namedGraphScope, definitionIndex, profileGraphs);
+    return new ResolvedSchema(api, level, rules, namedGraphScope, definitionIndex, profileGraphs);
   }
 }
