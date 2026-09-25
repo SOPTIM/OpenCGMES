@@ -24,6 +24,9 @@
 use std::collections::HashMap;
 use std::env;
 use std::path::{Component, Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::{Error, Result};
 
@@ -98,6 +101,9 @@ impl Engine {
                 out.push(docker.display().to_string());
                 out.push("run".into());
                 out.push("--rm".into());
+                // Named, so a run that has to be killed can be found and removed again.
+                out.push("--name".into());
+                out.push(container_name());
                 if stdin {
                     out.push("-i".into());
                 }
@@ -122,15 +128,34 @@ impl Engine {
         }
         let mount = self.mount(cwd);
         let candidate = Path::new(path);
-        let absolute = if candidate.is_absolute() {
+        let lexical = normalize(&if candidate.is_absolute() {
             candidate.to_path_buf()
         } else {
             mount.join(candidate)
-        };
-        normalize(&absolute)
+        });
+        // The mount is spelled as given, and an absolute input may go through a symlink the mount
+        // does not, or the other way round; the input is inside when both resolve to one place.
+        let canonical = |p: &Path| p.canonicalize().ok();
+        let relative = lexical
             .strip_prefix(&mount)
-            .map(|relative| relative.to_string_lossy().replace('\\', "/"))
-            .map_err(|_| {
+            .map(Path::to_path_buf)
+            .ok()
+            .or_else(|| {
+                let root = canonical(&mount)?;
+                let inside = canonical(&lexical).or_else(|| {
+                    let parent = canonical(lexical.parent()?)?;
+                    Some(parent.join(lexical.file_name()?))
+                })?;
+                inside.strip_prefix(root).map(Path::to_path_buf).ok()
+            });
+        relative
+            .map(
+                |relative| match relative.to_string_lossy().replace('\\', "/") {
+                    empty if empty.is_empty() => ".".to_owned(),
+                    relative => relative,
+                },
+            )
+            .ok_or_else(|| {
                 Error::UnreachablePath(format!(
                     "{path:?} is outside the working directory {}, which is the only path the \
                      Docker engine mounts. Pass paths relative to the working directory, run from \
@@ -139,6 +164,33 @@ impl Engine {
                     mount.display()
                 ))
             })
+    }
+
+    /// Cleans up after the process spawned from `argv` was killed before it finished.
+    ///
+    /// Only the Docker engine leaves anything behind: killing `docker run` stops the client, not
+    /// the container. Best effort — the failure that caused the kill matters more.
+    pub fn abandon(&self, argv: &[String], env: Option<&HashMap<String, String>>) {
+        let Self::Docker { docker, .. } = self else {
+            return;
+        };
+        let Some(name) = argv
+            .iter()
+            .position(|arg| arg == "--name")
+            .and_then(|at| argv.get(at + 1))
+        else {
+            return;
+        };
+        let mut command = Command::new(docker);
+        command
+            .args(["rm", "--force", name])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if let Some(env) = env {
+            command.env_clear().envs(env);
+        }
+        let _ = command.status();
     }
 
     /// A one-line description, for diagnostics and error messages.
@@ -158,15 +210,37 @@ impl Engine {
     /// The directory to mount: the one the call runs in, else the engine's own.
     ///
     /// An engine is discovered once and may then be used from several working directories, so
-    /// the mount cannot be frozen at discovery time.
+    /// the mount cannot be frozen at discovery time. Made absolute lexically rather than
+    /// canonicalized: on Windows `canonicalize` yields a `\\?\` path that `docker -v` rejects.
     fn mount(&self, cwd: Option<&Path>) -> PathBuf {
         let base = match (cwd, self) {
             (Some(path), _) => path.to_path_buf(),
             (None, Self::Docker { cwd, .. }) => cwd.clone(),
             (None, _) => PathBuf::from("."),
         };
-        base.canonicalize().unwrap_or_else(|_| normalize(&base))
+        normalize(&absolute(&base))
     }
+}
+
+/// `path` made absolute against the current directory, without touching the filesystem.
+fn absolute(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+}
+
+/// A container name unique to this run.
+fn container_name() -> String {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos());
+    format!(
+        "cimvocabcheck-{}-{nanos}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 /// Resolves `.` and `..` lexically; unlike `canonicalize` it does not require the path to exist.
@@ -278,6 +352,9 @@ fn engine_for_path(
             path: path.to_path_buf(),
         });
     }
+    // Checked against this process's directory, so pinned to it: the engine may run in another.
+    let absolute = absolute(path);
+    let path = absolute.as_path();
     if path
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"))
@@ -310,9 +387,21 @@ pub(crate) fn find_java(get: &impl Fn(&str) -> Option<String>) -> Result<PathBuf
 }
 
 /// A minimal `which`: the first entry of `path_var` holding an executable file called `name`.
+///
+/// On Windows the name is tried with the usual executable extensions first, as `cmd` does.
 fn which(name: &str, path_var: &str) -> Option<PathBuf> {
+    let extensions: &[&str] = if cfg!(windows) {
+        &[".exe", ".cmd", ".bat", ""]
+    } else {
+        &[""]
+    };
     env::split_paths(path_var)
-        .map(|directory| directory.join(name))
+        .filter(|directory| !directory.as_os_str().is_empty())
+        .flat_map(|directory| {
+            extensions
+                .iter()
+                .map(move |extension| directory.join(format!("{name}{extension}")))
+        })
         .find(|candidate| is_executable(candidate))
 }
 

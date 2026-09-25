@@ -275,3 +275,89 @@ fn local_engines_pass_paths_through_untouched() {
         "../shared/q.rq"
     );
 }
+
+#[test]
+fn docker_addresses_the_working_directory_itself() {
+    let dir = TempDir::new();
+    let engine = Engine::Docker {
+        image: "cvc:test".into(),
+        docker: "docker".into(),
+        cwd: dir.path().to_path_buf(),
+    };
+
+    assert_eq!(engine.resolve_path(".", None).unwrap(), ".");
+    assert_eq!(
+        engine
+            .resolve_path(dir.path().to_str().unwrap(), None)
+            .unwrap(),
+        "."
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn docker_accepts_an_absolute_path_spelled_through_a_symlink() {
+    let dir = TempDir::new();
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let docker = |cwd: &std::path::Path| Engine::Docker {
+        image: "cvc:test".into(),
+        docker: "docker".into(),
+        cwd: cwd.to_path_buf(),
+    };
+
+    for (cwd, input) in [(&link, &link), (&link, &real), (&real, &link)] {
+        assert_eq!(
+            docker(cwd)
+                .resolve_path(input.join("q.rq").to_str().unwrap(), None)
+                .unwrap(),
+            "q.rq",
+            "cwd {} input {}",
+            cwd.display(),
+            input.display()
+        );
+    }
+    // Mounted as given: the daemon follows the link itself.
+    assert!(docker(&link)
+        .command(&[], false, None)
+        .contains(&format!("{}:/work", link.display())));
+}
+
+#[test]
+fn docker_names_every_run_so_a_killed_one_can_be_removed() {
+    let dir = TempDir::new();
+    let engine = Engine::Docker {
+        image: "cvc:test".into(),
+        docker: "docker".into(),
+        cwd: dir.path().to_path_buf(),
+    };
+    let name = |command: Vec<String>| {
+        command[command.iter().position(|arg| arg == "--name").unwrap() + 1].clone()
+    };
+
+    assert_ne!(
+        name(engine.command(&[], false, None)),
+        name(engine.command(&[], false, None))
+    );
+}
+
+#[test]
+fn a_relative_engine_path_is_pinned_to_where_it_was_found() {
+    // The engine may run in another directory, where the relative path means something else.
+    // Tests run in the crate directory, so its manifest is a relative path that exists.
+    let engine = discover(&Discovery {
+        engine_path: Some(PathBuf::from("Cargo.toml")),
+        env: Some(bare_env()),
+        ..Discovery::default()
+    })
+    .unwrap();
+
+    assert_eq!(
+        engine,
+        Engine::Binary {
+            path: std::env::current_dir().unwrap().join("Cargo.toml")
+        }
+    );
+}

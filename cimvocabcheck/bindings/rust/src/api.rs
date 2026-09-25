@@ -277,12 +277,12 @@ pub fn validate_text(text: &str, options: &Options) -> Result<Report> {
 /// version is stamped into the JAR manifest at package time.
 pub fn tool_version(options: &Options) -> Result<String> {
     let engine = options.resolve_engine()?;
-    let args = vec!["--version".to_owned()];
-    let output = spawn(&engine, &args, None, options)?;
+    let command = engine.command(&["--version".to_owned()], false, options.cwd.as_deref());
+    let output = spawn(&engine, &command, None, options)?;
     if output.status != Some(EXIT_CLEAN) {
         return Err(Error::tool(ToolFailure {
             message: "the engine failed to report its version.".to_owned(),
-            argv: engine.command(&args, false, options.cwd.as_deref()),
+            argv: command,
             status: output.status,
             stdout: output.stdout,
             stderr: output.stderr,
@@ -367,7 +367,7 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
 
     let args = build_args(&resolved, &effective);
     let command = engine.command(&args, stdin_text.is_some(), cwd);
-    let output = spawn(&engine, &args, stdin_text, options)?;
+    let output = spawn(&engine, &command, stdin_text, options)?;
 
     match output.status {
         Some(EXIT_USAGE) => Err(Error::tool(ToolFailure {
@@ -435,11 +435,10 @@ struct Output {
 /// the child, and enforcing `timeout` by polling rather than by pulling in a dependency.
 fn spawn(
     engine: &Engine,
-    args: &[String],
+    command_line: &[String],
     stdin_text: Option<&str>,
     options: &Options,
 ) -> Result<Output> {
-    let command_line = engine.command(args, stdin_text.is_some(), options.cwd.as_deref());
     let (program, rest) = command_line
         .split_first()
         .expect("an engine always has a program");
@@ -495,12 +494,13 @@ fn spawn(
                     None if Instant::now() >= deadline => {
                         let _ = child.kill();
                         let _ = child.wait();
+                        engine.abandon(command_line, options.env.as_ref());
                         return Err(Error::timeout(ToolFailure {
                             message: format!(
                                 "the engine did not finish within {:.1}s.",
                                 limit.as_secs_f64()
                             ),
-                            argv: command_line,
+                            argv: command_line.to_vec(),
                             status: None,
                             // Bounded, not blocking: a grandchild the engine spawned can hold
                             // the pipe open long after the engine itself was killed, and a

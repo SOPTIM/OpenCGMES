@@ -234,6 +234,43 @@ fn a_timeout_is_its_own_error() {
 }
 
 #[test]
+fn a_timed_out_docker_run_removes_its_container() {
+    // Killing `docker run` stops the client only; the container would keep running.
+    let _guard = exclusive();
+    let dir = TempDir::new();
+    let log = dir.path().join("docker.log");
+    let docker = dir.script(
+        "docker",
+        &format!(
+            "echo \"$@\" >> '{}'\n[ \"$1\" = run ] && sleep 5\nexit 0",
+            log.display()
+        ),
+    );
+    let engine = Engine::Docker {
+        image: "cvc:test".into(),
+        docker,
+        cwd: dir.path().to_path_buf(),
+    };
+
+    let error = validate(
+        &["q.rq"],
+        &Options::new()
+            .engine(engine)
+            .timeout(Duration::from_millis(300)),
+    )
+    .expect_err("the engine never finishes");
+
+    let argv = &error.failure().expect("a tool failure").argv;
+    let name = &argv[argv.iter().position(|arg| arg == "--name").unwrap() + 1];
+    let calls = std::fs::read_to_string(&log).unwrap();
+    assert_eq!(
+        calls.lines().last(),
+        Some(format!("rm --force {name}").as_str()),
+        "{calls}"
+    );
+}
+
+#[test]
 fn an_engine_that_cannot_be_started_is_reported_clearly() {
     let engine = Engine::Binary {
         path: "/nowhere/does-not-exist".into(),
