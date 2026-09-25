@@ -27,6 +27,9 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationCode;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -60,9 +63,11 @@ import java.util.Set;
  * }
  * }</pre>
  *
- * <p>Artifact URIs are the validated file arguments verbatim (a leading {@code ./} is stripped) and
- * are relative to {@code %SRCROOT%}, so — as with the Code Quality report — the CLI must be invoked
- * with paths relative to the repository root for findings to line up with the source tree.
+ * <p>Artifact URIs are derived from the validated file arguments (a leading {@code ./} is
+ * stripped). A relative argument becomes a percent-encoded relative reference against {@code
+ * %SRCROOT%}, so — as with the Code Quality report — the CLI must be invoked with paths relative to
+ * the repository root for findings to line up with the source tree. An absolute argument becomes a
+ * {@code file:} URI, which a code-scanning upload cannot map onto the repository.
  */
 public final class SarifFormatter {
 
@@ -74,6 +79,11 @@ public final class SarifFormatter {
 
   /** Namespaced key under which the shared finding fingerprint is published. */
   private static final String FINGERPRINT_KEY = "cimvocabcheckFinding/v1";
+
+  /** Characters besides ASCII letters and digits that a path segment may carry unencoded. */
+  private static final String SEGMENT_SAFE = "-._~!$&'()*+,;=@";
+
+  private static final char[] HEX = "0123456789ABCDEF".toCharArray();
 
   private final boolean verbose;
   private final PrintWriter out;
@@ -147,12 +157,8 @@ public final class SarifFormatter {
       region.put("startColumn", a.column());
     }
 
-    var artifact = new LinkedHashMap<String, Object>();
-    artifact.put("uri", path);
-    artifact.put("uriBaseId", "%SRCROOT%");
-
     var physicalLocation = new LinkedHashMap<String, Object>();
-    physicalLocation.put("artifactLocation", artifact);
+    physicalLocation.put("artifactLocation", artifactLocation(path));
     physicalLocation.put("region", region);
 
     var result = new LinkedHashMap<String, Object>();
@@ -163,6 +169,55 @@ public final class SarifFormatter {
     result.put("locations", List.of(Map.of("physicalLocation", physicalLocation)));
     result.put("partialFingerprints", Map.of(FINGERPRINT_KEY, fingerprints.of(path, a)));
     return result;
+  }
+
+  /**
+   * The SARIF {@code artifactLocation} for one file argument. SARIF requires a valid URI, and the
+   * argument is a platform path that may hold spaces, {@code %}, {@code #} or backslashes — or be
+   * the {@code <stdin>} placeholder, which is not a path at all.
+   */
+  static Map<String, Object> artifactLocation(String path) {
+    var artifact = new LinkedHashMap<String, Object>();
+    Path file = asPath(path);
+    if (file != null && file.isAbsolute()) {
+      artifact.put("uri", file.normalize().toUri().toASCIIString());
+      return artifact;
+    }
+    List<String> segments = new ArrayList<>();
+    if (file == null) {
+      segments.add(path);
+    } else {
+      file.forEach(name -> segments.add(name.toString()));
+    }
+    artifact.put(
+        "uri", String.join("/", segments.stream().map(SarifFormatter::encodeSegment).toList()));
+    artifact.put("uriBaseId", "%SRCROOT%");
+    return artifact;
+  }
+
+  private static Path asPath(String path) {
+    try {
+      return Path.of(path);
+    } catch (InvalidPathException e) {
+      return null;
+    }
+  }
+
+  /**
+   * Percent-encodes one path segment (RFC 3986 {@code pchar}). A colon is encoded too: in the first
+   * segment of a relative reference it would otherwise be read as a URI scheme.
+   */
+  private static String encodeSegment(String segment) {
+    var out = new StringBuilder();
+    for (byte b : segment.getBytes(StandardCharsets.UTF_8)) {
+      int c = b & 0xFF;
+      if (c < 0x80 && (Character.isLetterOrDigit(c) || SEGMENT_SAFE.indexOf(c) >= 0)) {
+        out.append((char) c);
+      } else {
+        out.append('%').append(HEX[c >> 4]).append(HEX[c & 0xF]);
+      }
+    }
+    return out.toString();
   }
 
   /** Maps a validation severity onto the SARIF result level scale. */

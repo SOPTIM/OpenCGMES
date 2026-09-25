@@ -169,7 +169,8 @@ java -jar cimvocabcheck-cli.jar --format sarif --schema path/to/rdfs \
 log — the format GitHub code scanning, Azure DevOps and most IDE result viewers consume. One rule is
 declared per reported code, and each finding carries its own level (`ERROR → error`, `WARN →
 warning`, `INFO → note`), so `--strictness` promotions show up without redefining rules. As with the
-Code Quality report, pass **repo-relative paths**: artifact URIs are relative to `%SRCROOT%`.
+Code Quality report, pass **repo-relative paths**: artifact URIs are percent-encoded and relative to
+`%SRCROOT%`, while an absolute path becomes a `file:` URI that code scanning cannot place.
 
 A clean run still writes a well-formed log with an empty `results` array, which is what clears
 previously reported alerts on upload:

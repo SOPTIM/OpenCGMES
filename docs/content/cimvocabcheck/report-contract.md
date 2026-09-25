@@ -93,8 +93,9 @@ reported, and one result per finding carrying its own `level` (`ERROR → error`
 `INFO → note`). Because the level lives on the result, promoting severities with `--strictness` is
 reflected in the log without redefining rules.
 
-Artifact URIs are the file arguments verbatim, relative to `%SRCROOT%`, so invoke the CLI with
-repository-relative paths. A clean run still emits a valid log with an empty `results` array —
+Artifact URIs are the file arguments, percent-encoded (`my queries/q.rq` → `my%20queries/q.rq`)
+and relative to `%SRCROOT%`, so invoke the CLI with repository-relative paths. An absolute argument
+becomes a `file:` URI, which code scanning cannot map onto the repository. A clean run still emits a valid log with an empty `results` array —
 uploading it is what clears previously reported alerts.
 
 ```yaml
