@@ -165,42 +165,68 @@ final class RdfArchitectDefinitionPeek {
     boolean isProperty = !index.findProperty(term).isEmpty();
 
     if (isClass) {
-      graph.add(Triple.create(term, RDF.type.asNode(), RDFS.Class.asNode()));
-      for (Node parent : index.superClassesOf(term, scope)) {
-        if (!parent.equals(term)) {
-          graph.add(Triple.create(term, RDFS.subClassOf.asNode(), parent));
-        }
-      }
-      for (Node member : index.enumMembersOf(term, scope)) {
-        graph.add(Triple.create(member, RDF.type.asNode(), term));
-      }
+      describeClass(term, index, scope, graph);
     }
     if (isProperty) {
-      graph.add(Triple.create(term, RDF.type.asNode(), RDF.Property.asNode()));
-      for (Node domain : index.domainsOf(term, scope)) {
-        graph.add(Triple.create(term, RDFS.domain.asNode(), domain));
-      }
-      for (Node range : index.rangesOf(term, scope)) {
-        graph.add(Triple.create(term, RDFS.range.asNode(), range));
-      }
-      index
-          .multiplicityOf(term, scope)
-          .ifPresent(
-              m ->
-                  graph.add(
-                      Triple.create(
-                          term,
-                          NodeFactory.createURI(CIMS + "multiplicity"),
-                          NodeFactory.createLiteralString(m.toString()))));
+      describeProperty(term, index, scope, graph);
     }
     if (!isClass && !isProperty) {
-      // An enumeration member: typed by the enumeration that declares it.
-      for (Node enumClass : index.allClasses()) {
-        if (index.enumMembersOf(enumClass, scope).contains(term)) {
-          graph.add(Triple.create(term, RDF.type.asNode(), enumClass));
-        }
+      describeEnumMember(term, index, scope, graph);
+    }
+    describeDocumentation(term, index, scope, graph);
+    if (isClass) {
+      declaredProperties(term, index, scope, graph);
+    }
+  }
+
+  /** The class itself: its type, its superclasses, and its enumeration members if it has any. */
+  private static void describeClass(
+      Node term, SchemaIndex index, List<VersionIri> scope, Graph graph) {
+    graph.add(Triple.create(term, RDF.type.asNode(), RDFS.Class.asNode()));
+    for (Node parent : index.superClassesOf(term, scope)) {
+      if (!parent.equals(term)) {
+        graph.add(Triple.create(term, RDFS.subClassOf.asNode(), parent));
       }
     }
+    for (Node member : index.enumMembersOf(term, scope)) {
+      graph.add(Triple.create(member, RDF.type.asNode(), term));
+    }
+  }
+
+  /** The property itself: its type, domains, ranges and multiplicity. */
+  private static void describeProperty(
+      Node term, SchemaIndex index, List<VersionIri> scope, Graph graph) {
+    graph.add(Triple.create(term, RDF.type.asNode(), RDF.Property.asNode()));
+    for (Node domain : index.domainsOf(term, scope)) {
+      graph.add(Triple.create(term, RDFS.domain.asNode(), domain));
+    }
+    for (Node range : index.rangesOf(term, scope)) {
+      graph.add(Triple.create(term, RDFS.range.asNode(), range));
+    }
+    index
+        .multiplicityOf(term, scope)
+        .ifPresent(
+            m ->
+                graph.add(
+                    Triple.create(
+                        term,
+                        NodeFactory.createURI(CIMS + "multiplicity"),
+                        NodeFactory.createLiteralString(m.toString()))));
+  }
+
+  /** An enumeration member: typed by the enumeration that declares it. */
+  private static void describeEnumMember(
+      Node term, SchemaIndex index, List<VersionIri> scope, Graph graph) {
+    for (Node enumClass : index.allClasses()) {
+      if (index.enumMembersOf(enumClass, scope).contains(term)) {
+        graph.add(Triple.create(term, RDF.type.asNode(), enumClass));
+      }
+    }
+  }
+
+  /** The term's label and comment. */
+  private static void describeDocumentation(
+      Node term, SchemaIndex index, List<VersionIri> scope, Graph graph) {
     index
         .labelOf(term, scope)
         .ifPresent(
@@ -215,9 +241,6 @@ final class RdfArchitectDefinitionPeek {
                 graph.add(
                     Triple.create(
                         term, RDFS.comment.asNode(), NodeFactory.createLiteralString(comment))));
-    if (isClass) {
-      declaredProperties(term, index, scope, graph);
-    }
   }
 
   /**

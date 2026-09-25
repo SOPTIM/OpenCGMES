@@ -1299,21 +1299,59 @@ final class SchemaManager {
   private WorkspaceSchema buildSchemaFromRdfArchitect(
       CimvocabcheckConfig config, Path configFile, boolean quietLoad) {
     RdfArchitectConnection connection = rdfArchitect.get();
-    RdfArchitectSource source;
+    RdfArchitectSource source = resolveRdfArchitectSource(config, connection);
+    if (source == null) {
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    String stamp = liveStampOf(source, connection);
+    EndpointSchema es = loadFromRdfArchitect(source, connection, configFile, quietLoad);
+    if (es == null) {
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    if (!es.hasSchema()) {
+      notify(
+          MessageType.Warning,
+          "CIMVocabCheck: RDFArchitect "
+              + source.describe()
+              + " "
+              + describeNoSchema(es)
+              + " — validating SPARQL syntax only.");
+      return noSchemaWorkspace(config.checkStandardVocabulary());
+    }
+    rememberLiveSource(
+        configLiveKey(configFile), source, connection, stamp, this::reloadQuietlyAsync);
+    reportRdfArchitectLoaded(source, es, quietLoad);
+    return assembleFromEndpoint(config, es);
+  }
+
+  /**
+   * The RDFArchitect source the config names, or {@code null} — after warning the user — when it
+   * cannot be resolved.
+   */
+  private RdfArchitectSource resolveRdfArchitectSource(
+      CimvocabcheckConfig config, RdfArchitectConnection connection) {
     try {
-      source =
-          RdfArchitectSource.parse(
-              config.rdfArchitect(), connection == null ? null : connection.url());
+      return RdfArchitectSource.parse(
+          config.rdfArchitect(), connection == null ? null : connection.url());
     } catch (IllegalArgumentException e) {
       // Typically: the config names a workspace but no editor has connected a window yet. Say so
       // instead of silently validating against nothing.
       notify(MessageType.Warning, "CIMVocabCheck: " + e.getMessage());
-      return noSchemaWorkspace(config.checkStandardVocabulary());
+      return null;
     }
-    String stamp = liveStampOf(source, connection);
-    EndpointSchema es;
+  }
+
+  /**
+   * Loads the schema from {@code source}, or returns {@code null} after recording the failure when
+   * the instance does not answer.
+   */
+  private EndpointSchema loadFromRdfArchitect(
+      RdfArchitectSource source,
+      RdfArchitectConnection connection,
+      Path configFile,
+      boolean quietLoad) {
     try {
-      es = RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
+      return RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
     } catch (RuntimeException e) {
       // An instance that is momentarily unreachable must not take the rest of the config down
       // with it, and must not stay down once it comes back — see retryRdfArchitectIfDue.
@@ -1331,20 +1369,12 @@ final class SchemaManager {
       } else {
         fail(configLiveKey(configFile), MessageType.Error, message);
       }
-      return noSchemaWorkspace(config.checkStandardVocabulary());
+      return null;
     }
-    if (!es.hasSchema()) {
-      notify(
-          MessageType.Warning,
-          "CIMVocabCheck: RDFArchitect "
-              + source.describe()
-              + " "
-              + describeNoSchema(es)
-              + " — validating SPARQL syntax only.");
-      return noSchemaWorkspace(config.checkStandardVocabulary());
-    }
-    rememberLiveSource(
-        configLiveKey(configFile), source, connection, stamp, this::reloadQuietlyAsync);
+  }
+
+  private void reportRdfArchitectLoaded(
+      RdfArchitectSource source, EndpointSchema es, boolean quietLoad) {
     LOG.info(
         "Loaded schema from RDFArchitect {} ({} schema graph(s))",
         source.describe(),
@@ -1358,6 +1388,13 @@ final class SchemaManager {
               + es.schemaGraphNames().size()
               + " schema graph(s).");
     }
+  }
+
+  /**
+   * {@link #assemble} for a schema read over the network: no definition index, and the endpoint's
+   * own named-graph scope unless the config overrides it.
+   */
+  private WorkspaceSchema assembleFromEndpoint(CimvocabcheckConfig config, EndpointSchema es) {
     var prefixes =
         config.prefixes() != null
             ? config.prefixes()
