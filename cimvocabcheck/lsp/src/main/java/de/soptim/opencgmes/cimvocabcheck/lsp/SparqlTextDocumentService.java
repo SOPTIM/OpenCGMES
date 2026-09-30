@@ -132,8 +132,6 @@ final class SparqlTextDocumentService implements TextDocumentService {
       new EndpointDefinitionPeek(Duration.ofSeconds(15));
 
   /** Generates the same for terms of a model held in RDFArchitect, which has no source files. */
-  private final RdfArchitectDefinitionPeek rdfArchitectPeek = new RdfArchitectDefinitionPeek();
-
   SparqlTextDocumentService(SchemaManager schemaManager, NotebookDefaults notebookDefaults) {
     this.schemaManager = schemaManager;
     this.notebookDefaults = notebookDefaults;
@@ -225,8 +223,8 @@ final class SparqlTextDocumentService implements TextDocumentService {
       SchemaSource source = schemaManager.schemaSourceOf(effectiveEndpoints(uri, text), docDir);
 
       // RDFArchitect document: the model lives in a browser session, so there is no file to jump
-      // to. The term is rendered as the loaded schema holds it, one document per declaring
-      // profile, and opening one is what shows the term in the editor's RDFArchitect view.
+      // to. Each declaring profile gets a virtual link instead, which the editors resolve by
+      // showing the term in their RDFArchitect view — nothing is written to disk.
       var rdfArchitect = schemaManager.rdfArchitectRefFor(source, docDir);
       if (rdfArchitect.isPresent()) {
         return definitionsAt(rdfArchitectDefinitions(term, source, docDir, rdfArchitect.get()));
@@ -280,7 +278,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
   }
 
   /**
-   * The declarations of a term whose schema comes from RDFArchitect: one generated document per
+   * The declarations of a term whose schema comes from RDFArchitect: one link opening it there per
    * profile declaring it, or none when the schema has not loaded or does not know the term.
    */
   private List<Location> rdfArchitectDefinitions(
@@ -294,14 +292,12 @@ final class SparqlTextDocumentService implements TextDocumentService {
     var locations = new ArrayList<Location>();
     for (VersionIri profile : declaringProfiles(schema.api().schemaIndex(), term)) {
       var target =
-          new RdfArchitectDefinitionPeek.Target(
+          new RdfArchitectTermLink.Target(
               baseUrl,
               dataset,
               schema.profileGraphs().get(profile),
               shortProfileIri(profile.iri()));
-      rdfArchitectPeek
-          .locationFor(term, schema.api().schemaIndex(), profile, target)
-          .ifPresent(locations::add);
+      locations.add(RdfArchitectTermLink.locationFor(term.getURI(), target));
     }
     return List.copyOf(locations);
   }

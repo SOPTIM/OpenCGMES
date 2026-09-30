@@ -32,7 +32,6 @@ import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
@@ -246,11 +245,11 @@ public class RdfArchitectTermProfilesTest {
 
   /**
    * The gesture that has to work: Ctrl+Click. It is the editors' own go-to-definition, so the
-   * server has to answer with real locations — anything else leaves the term without so much as an
-   * underline.
+   * server has to answer with locations — anything else leaves the term without so much as an
+   * underline. They are links into RDFArchitect, which is where the term is edited, never a file.
    */
   @Test
-  public void answersGoToDefinitionWithOneDocumentPerProfile() throws Exception {
+  public void answersGoToDefinitionWithOneRdfArchitectLinkPerProfile() throws Exception {
     terms(); // wait for the schema
 
     var params =
@@ -262,16 +261,14 @@ public class RdfArchitectTermProfilesTest {
 
     assertEquals("declared in both profiles", 2, locations.size());
     for (var location : locations) {
-      Path file = Path.of(java.net.URI.create(location.getUri()));
-      assertTrue("the definition document must exist", Files.exists(file));
-      String header = Files.readAllLines(file).get(0);
-      assertTrue(
-          "the editor reads the first line to open the term in RDFArchitect: " + header,
-          header.startsWith("#! rdfarchitect ") && header.contains("class=http"));
-      assertTrue("and it names the graph to open it in", header.contains("graph=http"));
-      assertTrue("the term is in the document", Files.readString(file).contains("Breaker"));
+      var link = java.net.URI.create(location.getUri());
+      assertEquals("a link into RDFArchitect, not a file", "rdfarchitect", link.getScheme());
+      String directive = directiveOf(link);
+      assertTrue("it names the term: " + directive, directive.contains("class=http"));
+      assertTrue("and the graph to open it in", directive.contains("graph=http"));
+      assertTrue("and reads as the term", link.getPath().endsWith("/Breaker"));
     }
-    // One document per profile, kept apart by the profile's own directory.
+    // One link per profile, kept apart by the profile's own path segment.
     assertTrue(
         locations.get(0).getUri().contains("CoreEquipment-EU")
             || locations.get(1).getUri().contains("CoreEquipment-EU"));
@@ -308,9 +305,16 @@ public class RdfArchitectTermProfilesTest {
     }
 
     for (var location : documents.definition(params).get().getLeft()) {
-      Path file = Path.of(java.net.URI.create(location.getUri()));
-      assertTrue("and the document must be whole", Files.readString(file).contains("Breaker"));
+      assertTrue(
+          "and the link must be whole",
+          directiveOf(java.net.URI.create(location.getUri())).contains("Breaker"));
     }
+  }
+
+  /** The directive an editor decodes out of an RDFArchitect link's first path segment. */
+  private static String directiveOf(java.net.URI link) {
+    String payload = link.getPath().split("/")[1];
+    return new String(java.util.Base64.getUrlDecoder().decode(payload), StandardCharsets.UTF_8);
   }
 
   @Test

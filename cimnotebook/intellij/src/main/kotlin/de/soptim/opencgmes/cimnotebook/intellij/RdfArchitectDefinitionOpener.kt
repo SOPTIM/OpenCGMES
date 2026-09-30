@@ -17,73 +17,59 @@
  */
 package de.soptim.opencgmes.cimnotebook.intellij
 
-import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.util.Base64
 
 /**
- * Shows the term in the RDFArchitect tool window whenever one of the language server's generated
- * definition documents is opened.
+ * Shows the term in the RDFArchitect tool window when one of the language server's term links is
+ * navigated to, and closes the placeholder tab again.
  *
  * A model held in RDFArchitect has no schema files, so Ctrl+Click on one of its terms goes to a
- * document the server renders from the loaded schema. Opening that document is the moment the user
- * asked to *see* the term — and the only moment we can act on: the IDE resolves a Ctrl+Click target
- * while the user is merely hovering, so nothing may happen at resolution time.
+ * virtual `rdfarchitect:` link, resolved by [RdfArchitectTermFileSystem]. Navigating to it is the
+ * moment the user asked to *see* the term — and the only moment we can act on: the IDE resolves a
+ * Ctrl+Click target while the user is merely hovering, so nothing may happen at resolution time.
  */
 class RdfArchitectDefinitionOpener : FileEditorManagerListener {
     override fun fileOpened(
         source: FileEditorManager,
         file: VirtualFile,
     ) {
-        val header = firstLine(file) ?: return
-        if (!header.startsWith(MARKER)) {
+        if (file.fileSystem.protocol != RdfArchitectTermFileSystem.PROTOCOL) {
             return
         }
-        open(source.project, fields(header.removePrefix(MARKER)))
-    }
-
-    private fun firstLine(file: VirtualFile): String? {
-        if (file.extension != "ttl") {
-            return null
+        ApplicationManager.getApplication().invokeLater {
+            if (!source.project.isDisposed) {
+                source.closeFile(file)
+            }
         }
-        val document = FileDocumentManager.getInstance().getDocument(file) ?: return null
-        return if (document.lineCount == 0) {
-            null
-        } else {
-            document.getText(
-                com.intellij.openapi.util.TextRange(
-                    document.getLineStartOffset(0),
-                    document.getLineEndOffset(0),
-                ),
-            )
-        }
+        fieldsOfLink(file.path)?.let { open(source.project, it) }
     }
-
-    /** The header's percent-encoded `key=value` pairs. */
-    internal fun fields(header: String): Map<String, String> =
-        header
-            .trim()
-            .split(' ')
-            .mapNotNull { pair ->
-                val eq = pair.indexOf('=')
-                if (eq <= 0) {
-                    null
-                } else {
-                    pair.substring(0, eq) to
-                        URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8)
-                }
-            }.toMap()
 
     private fun open(
         project: Project,
         fields: Map<String, String>,
     ) {
         val iri = fields["class"] ?: return
-        val base = fields["base"] ?: RdfArchitectToolWindowFactory.configuredUrl() ?: return
+        val base = fields["base"] ?: RdfArchitectToolWindowFactory.configuredUrl()
+        if (base == null) {
+            // The placeholder tab is about to close, so this has to be visible.
+            ApplicationManager.getApplication().invokeLater {
+                Messages.showWarningDialog(
+                    project,
+                    "No RDFArchitect instance to show ${localNameOf(iri)} in — set the RDFArchitect URL " +
+                        "under Settings → Tools → CIMNotebook.",
+                    "CIMNotebook",
+                )
+            }
+            return
+        }
         project.putUserData(RdfArchitectToolWindowFactory.PENDING_TERM_KEY, iri)
         RdfArchitectToolWindowFactory.openUrl(
             project,
@@ -91,8 +77,42 @@ class RdfArchitectDefinitionOpener : FileEditorManagerListener {
         )
     }
 
+    private fun localNameOf(iri: String): String = iri.substringAfterLast('#').substringAfterLast('/')
+
     companion object {
-        /** Marks the header line of a generated RDFArchitect definition document. */
-        private const val MARKER = "#! rdfarchitect "
+        /**
+         * The fields of a term link's path — `class`, and where known `base`, `dataset` and
+         * `graph` — or null when it is not one. The first segment after the authority is the
+         * language server's percent-encoded `key=value` directive, Base64url-encoded because
+         * LSP4IJ percent-decodes a location URI before resolving it.
+         */
+        internal fun fieldsOfLink(linkPath: String): Map<String, String>? {
+            val payload = linkPath.split('/').getOrNull(1) ?: return null
+            if (payload.isEmpty() || !payload.all { it.isLetterOrDigit() || it == '-' || it == '_' }) {
+                return null
+            }
+            val directive =
+                try {
+                    String(Base64.getUrlDecoder().decode(payload), StandardCharsets.UTF_8)
+                } catch (_: IllegalArgumentException) {
+                    return null
+                }
+            return fields(directive).takeIf { "class" in it }
+        }
+
+        /** The directive's percent-encoded `key=value` pairs. */
+        internal fun fields(directive: String): Map<String, String> =
+            directive
+                .trim()
+                .split(' ')
+                .mapNotNull { pair ->
+                    val eq = pair.indexOf('=')
+                    if (eq <= 0) {
+                        null
+                    } else {
+                        pair.substring(0, eq) to
+                            URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8)
+                    }
+                }.toMap()
     }
 }

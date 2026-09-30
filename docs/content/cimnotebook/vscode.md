@@ -93,12 +93,12 @@ A CIM term is usually declared in **several profiles**. All of them are offered:
 peek list, and you pick the profile you meant. The list is ordered by profile version IRI, so the
 same one is on top every time.
 
-When the schema comes from [RDFArchitect](#live-workspaces) there are no schema files either, so the
-term is rendered from the loaded schema into a read-only document — one per profile, as above — and
-**opening it also shows the term in the RDFArchitect panel**: a class opens itself, an attribute,
-association or enum entry opens the class that declares it, with the row highlighted. The panel
-opens on the profile you picked, rather than on whichever graph RDFArchitect happens to find the
-term in first.
+When the schema comes from [RDFArchitect](#live-workspaces) there are no schema files either, and
+RDFArchitect is where the model is edited, so `Ctrl+Click` **shows the term in the RDFArchitect
+panel** instead of opening a document — nothing is written to disk. A class opens itself; an
+attribute, association or enum entry opens the class that declares it, with the row highlighted.
+A term declared in several profiles still offers the choice first, and the panel opens on the
+profile you picked rather than on whichever graph RDFArchitect happens to find the term in first.
 
 ### Workspace symbol search
 

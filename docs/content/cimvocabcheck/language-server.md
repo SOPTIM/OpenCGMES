@@ -38,10 +38,10 @@ The server provides, for `.rq` / `.sparql` (SPARQL) and `.ttl` / `.shacl` (SHACL
   `cim:WindGenUnitKind.offshore`).
 - **Go-to-definition** — jump to a term's declaration in the source RDFS file (classes, properties,
   and enumeration members). A term declared in several profiles reports one location per profile,
-  so the editor can offer the choice. A schema with no source files — a SPARQL endpoint, or a model
-  held in RDFArchitect — gets one read-only Turtle document generated per profile instead; the
-  RDFArchitect ones carry a header line the editors read to show the term in their RDFArchitect
-  view when the document is opened.
+  so the editor can offer the choice. A SPARQL endpoint has no source files, so it gets one
+  read-only Turtle document generated per profile instead. A model held in RDFArchitect gets one
+  virtual `rdfarchitect://` link per profile, with nothing written to disk: the editors resolve it
+  by showing the term in their RDFArchitect view.
 - **Workspace symbols** — find any schema class, property, or enumeration member by (partial,
   case-insensitive) name.
 - **Commands** — `cimvocabcheck.explainQuery` ([explain](/cimvocabcheck/explain-query)),

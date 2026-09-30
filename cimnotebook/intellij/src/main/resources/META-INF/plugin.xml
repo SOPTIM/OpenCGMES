@@ -170,12 +170,15 @@
             id="de.soptim.opencgmes.cimnotebook.settings"
             instance="de.soptim.opencgmes.cimnotebook.intellij.settings.CimnotebookSettingsConfigurable"/>
 
+        <!-- Resolves those rdfarchitect: links to in-memory placeholders; nothing is written. -->
+        <virtualFileSystem key="rdfarchitect"
+                           implementationClass="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectTermFileSystem"/>
     </extensions>
 
     <projectListeners>
-        <!-- Ctrl+Click on a term of an RDFArchitect-held model goes to a document the language
-             server renders (there are no schema files); opening one shows the term in the tool
-             window. -->
+        <!-- Ctrl+Click on a term of an RDFArchitect-held model goes to a virtual rdfarchitect:
+             link (there are no schema files); navigating to one shows the term in the tool window
+             and closes the placeholder tab. -->
         <listener class="de.soptim.opencgmes.cimnotebook.intellij.RdfArchitectDefinitionOpener"
                   topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
     </projectListeners>

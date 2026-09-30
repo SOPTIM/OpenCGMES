@@ -19,11 +19,10 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
-    RDFA_DEFINITION_MARKER,
     datasetNameFor,
     localNameOf,
     normalizeBaseUrl,
-    parseDefinitionHeader,
+    parseTermLink,
     snapshotDatasetName,
     termDeepLink,
 } from "../rdfArchitect";
@@ -118,10 +117,16 @@ describe("snapshotDatasetName", () => {
     });
 });
 
-describe("parseDefinitionHeader", () => {
-    it("reads the fields the language server writes", () => {
-        const fields = parseDefinitionHeader(
-            `${RDFA_DEFINITION_MARKER}class=urn%3Ax%23T base=http%3A%2F%2Fhost%3A3000 dataset=cgmes-3.0 graph=EQ%20profile.rdf`,
+describe("parseTermLink", () => {
+    /** A link path as the language server builds it: payload, profile, local name. */
+    const linkPath = (directive: string) =>
+        `/${Buffer.from(directive, "utf8").toString("base64url")}/CoreEquipment-EU/T`;
+
+    it("reads the fields the language server encodes", () => {
+        const fields = parseTermLink(
+            linkPath(
+                "class=urn%3Ax%23T base=http%3A%2F%2Fhost%3A3000 dataset=cgmes-3.0 graph=EQ%20profile.rdf",
+            ),
         );
         assert.equal(fields?.get("class"), "urn:x#T");
         assert.equal(fields?.get("base"), "http://host:3000");
@@ -130,18 +135,16 @@ describe("parseDefinitionHeader", () => {
         assert.equal(fields?.get("graph"), "EQ profile.rdf");
     });
 
-    it("accepts a header that names only the term", () => {
-        const fields = parseDefinitionHeader(`${RDFA_DEFINITION_MARKER}class=urn%3Ax%23T`);
+    it("accepts a link that names only the term", () => {
+        const fields = parseTermLink(linkPath("class=urn%3Ax%23T"));
         assert.equal(fields?.get("class"), "urn:x#T");
         assert.equal(fields?.has("base"), false);
     });
 
-    it("ignores any other first line", () => {
-        assert.equal(
-            parseDefinitionHeader("# ACLineSegment — as the model declares it."),
-            undefined,
-        );
-        assert.equal(parseDefinitionHeader(""), undefined);
+    it("rejects anything that does not name a term", () => {
+        assert.equal(parseTermLink(linkPath("base=http%3A%2F%2Fhost")), undefined);
+        assert.equal(parseTermLink("/not base64!/EQ/T"), undefined);
+        assert.equal(parseTermLink(""), undefined);
     });
 });
 

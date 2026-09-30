@@ -32,7 +32,8 @@ import {
     datasetNameFor,
     localNameOf,
     normalizeBaseUrl,
-    parseDefinitionHeader,
+    parseTermLink,
+    RDFA_TERM_SCHEME,
     snapshotDatasetName,
     termDeepLink,
 } from "./rdfArchitect";
@@ -261,9 +262,12 @@ function doActivate(context: vscode.ExtensionContext, connectionStore: Connectio
     );
     out.appendLine("Language client started — waiting for server handshake.");
 
-    // Ctrl+Click on a term of an RDFArchitect-held model goes to a document the server renders;
-    // opening one is what shows the term in the panel.
+    // Ctrl+Click on a term of an RDFArchitect-held model goes to a virtual term link; navigating
+    // to one shows the term in the panel instead of opening anything.
     context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider(RDFA_TERM_SCHEME, {
+            provideTextDocumentContent: termLinkPlaceholder,
+        }),
         vscode.window.onDidChangeActiveTextEditor(openRdfArchitectFromDefinition),
     );
 
@@ -581,40 +585,64 @@ async function rdfArchitectTerms(doc: vscode.TextDocument): Promise<RdfArchitect
 }
 
 /**
- * Shows the term in the RDFArchitect panel whenever one of the language server's generated
- * definition documents is opened.
+ * What a term link reads as where VS Code shows its target without navigating to it: the preview
+ * of a `Ctrl+hover`, and the peek list of a term declared in several profiles.
+ */
+function termLinkPlaceholder(uri: vscode.Uri): string {
+    const iri = parseTermLink(uri.path)?.get("class");
+    const profile = uri.path.split("/")[2];
+    return iri
+        ? `${localNameOf(iri)} (${profile}) — opens in RDFArchitect.\n`
+        : "Not an RDFArchitect term link.\n";
+}
+
+/**
+ * Shows the term in the RDFArchitect panel when one of the language server's term links is
+ * navigated to, and closes the placeholder tab again.
  *
  * A model held in RDFArchitect has no schema files, so `Ctrl+Click` on one of its terms goes to a
- * document the server renders from the loaded schema. Opening that document is the moment the user
- * asked to *see* the term — and the only moment we can act on: both editors resolve a `Ctrl+Click`
- * target while the user is merely hovering, so nothing may happen at resolution time. Hovering
- * loads the document but never activates an editor for it, which is exactly the distinction this
- * hooks into.
+ * virtual `rdfarchitect:` link. Navigating to it is the moment the user asked to *see* the term —
+ * and the only moment we can act on: both editors resolve a `Ctrl+Click` target while the user is
+ * merely hovering, so nothing may happen at resolution time. Hovering loads the placeholder but
+ * never activates an editor for it, which is exactly the distinction this hooks into.
  */
 function openRdfArchitectFromDefinition(editor: vscode.TextEditor | undefined): void {
-    const doc = editor?.document;
-    if (!doc || doc.lineCount === 0) {
+    const uri = editor?.document.uri;
+    if (uri?.scheme !== RDFA_TERM_SCHEME) {
         return;
     }
-    const fields = parseDefinitionHeader(doc.lineAt(0).text);
-    if (!fields) {
-        return;
-    }
-    const iri = fields.get("class");
-    if (!iri) {
+    closeTabsOf(uri);
+    const fields = parseTermLink(uri.path);
+    const iri = fields?.get("class");
+    if (!fields || !iri) {
         return;
     }
     const base =
         fields.get("base") ??
         vscode.workspace.getConfiguration("cimnotebook").get<string>("rdfArchitectUrl", "").trim();
     if (!base) {
-        out.appendLine(
-            `No RDFArchitect instance to show ${iri} in — set cimnotebook.rdfArchitectUrl.`,
+        // The placeholder tab is already gone, so this has to be visible.
+        vscode.window.showWarningMessage(
+            `CIMNotebook: no RDFArchitect instance to show ${localNameOf(iri)} in — set cimnotebook.rdfArchitectUrl.`,
         );
         return;
     }
     const url = termDeepLink(base, iri, fields.get("dataset"), fields.get("graph"));
     showRdfArchitectPanel(base, url, true, iri);
+}
+
+/** Closes every tab showing {@link uri} — the placeholder is never what the user wanted to see. */
+function closeTabsOf(uri: vscode.Uri): void {
+    const tabs = vscode.window.tabGroups.all
+        .flatMap((group) => group.tabs)
+        .filter(
+            (tab) =>
+                tab.input instanceof vscode.TabInputText &&
+                tab.input.uri.toString() === uri.toString(),
+        );
+    if (tabs.length > 0) {
+        void vscode.window.tabGroups.close(tabs);
+    }
 }
 
 /**

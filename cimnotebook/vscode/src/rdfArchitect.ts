@@ -19,15 +19,18 @@
 /**
  * The parts of the RDFArchitect integration that are decided by strings alone: the links the
  * extension builds, the names it agrees on with RDFArchitect and with the language server, and the
- * header it reads back out of a generated definition document.
+ * term links the language server answers go-to-definition with.
  *
  * Kept free of `vscode` imports so it can be unit-tested in plain Node.
  */
 
 import * as path from "path";
 
-/** Marks the header line of a language-server-generated RDFArchitect definition document. */
-export const RDFA_DEFINITION_MARKER = "#! rdfarchitect ";
+/**
+ * The URI scheme of the language server's go-to-definition links into RDFArchitect:
+ * `rdfarchitect://term/<payload>/<profile>/<name>`. Nothing backs them on disk.
+ */
+export const RDFA_TERM_SCHEME = "rdfarchitect";
 
 /**
  * One spelling for one instance, so two base URLs can be compared.
@@ -89,22 +92,25 @@ export function snapshotDatasetName(dataset: string, token: string): string {
 }
 
 /**
- * The percent-encoded `key=value` pairs of a definition document's header line, or undefined when
- * the line is not one. The language server writes it; opening such a document is what shows the
- * term in the RDFArchitect view, so both sides have to read it the same way.
+ * The fields of a term link's path — `class`, and where known `base`, `dataset` and `graph` — or
+ * undefined when it is not one. The payload is the language server's percent-encoded `key=value`
+ * directive, Base64url-encoded so that decoding the URI cannot tear an encoded value apart; both
+ * sides have to read it the same way.
  */
-export function parseDefinitionHeader(line: string): Map<string, string> | undefined {
-    if (!line.startsWith(RDFA_DEFINITION_MARKER)) {
+export function parseTermLink(linkPath: string): Map<string, string> | undefined {
+    const payload = linkPath.split("/")[1];
+    if (!payload || !/^[A-Za-z0-9_-]+$/.test(payload)) {
         return undefined;
     }
+    const directive = Buffer.from(payload, "base64url").toString("utf8");
     const fields = new Map<string, string>();
-    for (const pair of line.slice(RDFA_DEFINITION_MARKER.length).trim().split(" ")) {
+    for (const pair of directive.trim().split(" ")) {
         const eq = pair.indexOf("=");
         if (eq > 0) {
             fields.set(pair.slice(0, eq), decodeURIComponent(pair.slice(eq + 1)));
         }
     }
-    return fields;
+    return fields.has("class") ? fields : undefined;
 }
 
 /** The part of an IRI after its last `#` or `/`. */
