@@ -35,6 +35,54 @@ import java.util.Properties
  *     system cache directory on first use, keyed by plugin version).
  */
 class CimnotebookServerConnectionProvider : LanguageServerFactory {
+    /**
+     * Java arguments that make the language server trust the machine's certificates. The server
+     * runs in its own JVM with its own store, so an RDFArchitect behind a company CA can work in
+     * the tool window — which goes through the IDE's certificate manager — and still fail to load a
+     * schema. Nothing is added when the user configured a truststore themselves; theirs wins.
+     *
+     * macOS has no equivalent that can be set safely from here: add the CA to the JDK's `cacerts`
+     * or name a truststore in the Java arguments setting.
+     *
+     * Only done for an RDFArchitect reached over `https`, because on Linux this *replaces* the
+     * JVM's trust store rather than adding to it: a distribution store that an administrator has
+     * pruned would take HTTPS SPARQL endpoints down with it, for users who never opened
+     * RDFArchitect at all. Windows-ROOT is additive in practice, but the same condition keeps the
+     * two platforms explainable as one rule.
+     */
+    private fun systemTrustArgs(configured: List<String>): List<String> {
+        if (configured.any { it.startsWith("-Djavax.net.ssl.trustStore") }) {
+            return emptyList()
+        }
+        val instance = CimnotebookSettings.getInstance().rdfArchitectUrl.trim()
+        if (!instance.startsWith("https://")) {
+            return emptyList()
+        }
+        val os = System.getProperty("os.name").orEmpty().lowercase()
+        if (os.contains("win")) {
+            return listOf("-Djavax.net.ssl.trustStoreType=Windows-ROOT")
+        }
+        // Distributions keep a Java view of the system store in sync with it, and on a stock
+        // installation it is a superset of the JDK's own list.
+        val systemJavaStores =
+            listOf(
+                // Debian, Ubuntu (ca-certificates-java)
+                "/etc/ssl/certs/java/cacerts",
+                // Fedora, RHEL
+                "/etc/pki/java/cacerts",
+            )
+        if (os.contains("linux")) {
+            val store = systemJavaStores.map(::File).firstOrNull(File::isFile)
+            if (store != null) {
+                return listOf(
+                    "-Djavax.net.ssl.trustStore=" + store.path,
+                    "-Djavax.net.ssl.trustStorePassword=changeit",
+                )
+            }
+        }
+        return emptyList()
+    }
+
     override fun createConnectionProvider(project: Project): ProcessStreamConnectionProvider {
         val settings = CimnotebookSettings.getInstance()
         val javaExe = resolveJavaExecutable(settings.javaExecutable)
@@ -45,7 +93,7 @@ class CimnotebookServerConnectionProvider : LanguageServerFactory {
                 .splitToSequence("\\s+".toRegex())
                 .filter(String::isNotBlank)
                 .toList()
-        val cmd = listOf(javaExe) + extra + listOf("-jar", jarPath)
+        val cmd = listOf(javaExe) + systemTrustArgs(extra) + extra + listOf("-jar", jarPath)
         val workDir = project.basePath
 
         // ProcessStreamConnectionProvider is abstract in LSP4IJ 0.7+; subclass it inline.
