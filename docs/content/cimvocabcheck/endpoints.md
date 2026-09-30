@@ -164,9 +164,8 @@ so profile detection and per-graph scoping work the same way. A live workspace i
 change log moves, so an edit made in the view reaches the next validation without a reload; the
 change log is polled at most every few seconds, so a burst of typing costs one small request.
 
-Because such a schema has no source files, `Ctrl+Click` on a term in the cell goes to a read-only
-document rendered from the loaded schema — one per declaring profile — and opening it shows that
-term in the editor's RDFArchitect view
+Because such a schema has no source files, `Ctrl+Click` on a term in the cell shows that term in the
+editor's RDFArchitect view — nothing is opened or written to disk
 ([VS Code](/cimnotebook/vscode#go-to-definition), [IntelliJ](/cimnotebook/intellij#go-to-definition)).
 
 This is deliberately **not** a value of `# [endpoint=...]`: that directive belongs to SPARQL

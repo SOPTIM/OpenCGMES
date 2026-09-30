@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.Base64
 
 /**
  * The strings the RDFArchitect integration agrees on with RDFArchitect itself and with the language
@@ -119,12 +120,19 @@ class RdfArchitectLinkTest {
         assertEquals("cimnotebook", RdfArchitectSchemaHandoff.datasetNameFor("../opencgmes.jsonc"))
     }
 
+    /** A link path as LSP4IJ hands it to the file system: authority, payload, profile, name. */
+    private fun linkPath(directive: String) =
+        "term/" + Base64.getUrlEncoder().withoutPadding().encodeToString(directive.toByteArray()) +
+            "/CoreEquipment-EU/T"
+
     @Test
-    fun `the definition header is read as the language server writes it`() {
+    fun `a term link is read as the language server encodes it`() {
         val fields =
-            RdfArchitectDefinitionOpener().fields(
-                "class=urn%3Ax%23T base=http%3A%2F%2Fhost%3A3000 dataset=cgmes-3.0 graph=EQ%20profile.rdf",
-            )
+            RdfArchitectDefinitionOpener.fieldsOfLink(
+                linkPath(
+                    "class=urn%3Ax%23T base=http%3A%2F%2Fhost%3A3000 dataset=cgmes-3.0 graph=EQ%20profile.rdf",
+                ),
+            )!!
         assertEquals("urn:x#T", fields["class"])
         assertEquals("http://host:3000", fields["base"])
         assertEquals("cgmes-3.0", fields["dataset"])
@@ -133,10 +141,17 @@ class RdfArchitectLinkTest {
     }
 
     @Test
-    fun `a header naming only the term is enough`() {
-        val fields = RdfArchitectDefinitionOpener().fields("class=urn%3Ax%23T")
+    fun `a link naming only the term is enough`() {
+        val fields = RdfArchitectDefinitionOpener.fieldsOfLink(linkPath("class=urn%3Ax%23T"))!!
         assertEquals("urn:x#T", fields["class"])
         assertNull(fields["base"])
+    }
+
+    @Test
+    fun `anything that does not name a term is not a link`() {
+        assertNull(RdfArchitectDefinitionOpener.fieldsOfLink(linkPath("base=http%3A%2F%2Fhost")))
+        assertNull(RdfArchitectDefinitionOpener.fieldsOfLink("term/not base64!/EQ/T"))
+        assertNull(RdfArchitectDefinitionOpener.fieldsOfLink(""))
     }
 
     @Test
