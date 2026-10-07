@@ -15,6 +15,7 @@
 # fails if a regeneration differs from what is committed or uses a non-allow-listed license.
 #
 # Requires (per selected component): mvn (maven), node/npm (vscode), Gradle wrapper (intellij).
+# The vscode step installs the pinned CycloneDX npm tooling from scripts/sbom-tools.
 #
 set -euo pipefail
 
@@ -25,7 +26,10 @@ VOCAB_SBOM_DIR="${REPO_ROOT}/cimvocabcheck/sbom"   # maven (CIMVocabCheck)
 NB_SBOM_DIR="${REPO_ROOT}/cimnotebook/sbom"        # vscode + intellij (CIMNotebook)
 MVN="${MVN:-mvn}"
 GRADLE="${GRADLE:-./gradlew}"
-CYCLONEDX_NPM="@cyclonedx/cyclonedx-npm@4.2.1"
+# cyclonedx-npm and its @cyclonedx/cyclonedx-library are pinned by the lockfile in
+# scripts/sbom-tools: both versions are recorded in the BOM's metadata.tools, so a bare
+# `npx @cyclonedx/cyclonedx-npm@x` (library resolved as ^10) would drift on every release.
+SBOM_TOOLS_DIR="${SCRIPT_DIR}/sbom-tools"
 
 # Which components to (re)generate — default to all.
 if [[ $# -eq 0 ]]; then
@@ -156,10 +160,11 @@ fi
 if want vscode; then
     echo ">> [vscode] Generating CycloneDX SBOM (shipped npm deps) ..."
     mkdir -p "${NB_SBOM_DIR}/vscode"
+    ( cd "${SBOM_TOOLS_DIR}" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error )
     # --omit dev: only what esbuild bundles into the VSIX. --package-lock-only:
     # resolve from the committed lockfile (no install needed). --output-reproducible:
     # no serial number / timestamp.
-    ( cd "${REPO_ROOT}/cimnotebook/vscode" && npx --yes "${CYCLONEDX_NPM}" \
+    ( cd "${REPO_ROOT}/cimnotebook/vscode" && "${SBOM_TOOLS_DIR}/node_modules/.bin/cyclonedx-npm" \
         --omit dev --package-lock-only --output-reproducible \
         --output-format JSON --output-file "${NB_SBOM_DIR}/vscode/bom.json" )
 

@@ -1,0 +1,10 @@
+{
+  "name": "opencgmes-sbom-tools",
+  "private": true,
+  "description": "Pinned SBOM tooling for scripts/generate-sbom.sh. The CycloneDX tool versions are recorded in the committed BOMs, so they must not float.",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@cyclonedx/cyclonedx-library": "10.3.0",
+    "@cyclonedx/cyclonedx-npm": "4.2.1"
+  }
+}

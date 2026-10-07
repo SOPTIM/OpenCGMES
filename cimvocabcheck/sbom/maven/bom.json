@@ -1,7 +1,7 @@
 {
   "bomFormat" : "CycloneDX",
   "specVersion" : "1.6",
-  "serialNumber" : "urn:uuid:bed1e25b-44db-39e4-b2d5-7594d52d4cee",
+  "serialNumber" : "urn:uuid:40b29100-c05f-3a61-8183-9b4dd8c8f0b2",
   "version" : 1,
   "metadata" : {
     "lifecycles" : [
@@ -85,6 +85,10 @@
       {
         "name" : "maven.scopes",
         "value" : "compile,runtime"
+      },
+      {
+        "name" : "cdx:reproducible",
+        "value" : "enabled"
       }
     ]
   },
