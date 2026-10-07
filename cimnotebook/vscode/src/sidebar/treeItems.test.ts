@@ -135,10 +135,14 @@ describe("strictness / standardVocabulary description and write-value mapping", 
             schemasDirectoryDescription(undefined, 0, "cgmes-3.0"),
             "not set (the RDFArchitect model below is used)",
         );
-        // Schema files win: they are what the config actually loads.
+        // RDFArchitect wins over schema files and the directory, as in the language server.
         assert.equal(
             schemasDirectoryDescription(undefined, 2, "cgmes-3.0"),
-            "not set (schema files below are used)",
+            "not set (the RDFArchitect model below is used)",
+        );
+        assert.equal(
+            schemasDirectoryDescription("profiles", 2, "cgmes-3.0"),
+            "profiles (unused: the RDFArchitect model below is used)",
         );
     });
 
