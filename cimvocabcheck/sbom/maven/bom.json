@@ -561,45 +561,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.2?type=jar",
+      "bom-ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.3.0?type=jar",
       "publisher" : "FasterXML",
       "group" : "com.fasterxml.woodstox",
       "name" : "woodstox-core",
-      "version" : "7.2.2",
+      "version" : "7.3.0",
       "description" : "Woodstox is a high-performance XML processor that implements Stax (JSR-173), SAX2 and Stax2 APIs",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "6ec867fa050ede38a47d87ef0b367dc0"
+          "content" : "31ebeda4cf08aa9010cc454c2b828b30"
         },
         {
           "alg" : "SHA-1",
-          "content" : "64e3e5e7fd3158068c7329d74bcfee3217df1741"
+          "content" : "350970ea0a235e613f6c109d4dbc4415acb100f5"
         },
         {
           "alg" : "SHA-256",
-          "content" : "3bd35f778fb15cd517fae51961ba7a9388eae8e4a836fac1166c7f70740e55cd"
+          "content" : "246cb4845991ab52196ef90ee8a361164512b5cc7ec0547c9fab8f3db75f2679"
         },
         {
           "alg" : "SHA-512",
-          "content" : "94a9d1ee7faca772e726d69f3e96095b8e05bad688ab2ca45a44f0ef13e778bd40d01e15ec746b80ba69248aab34689ada24fedc90627fe58008270579ee5538"
+          "content" : "8dbd0545d328a7b6072b841915b3bc810f893bfb3ccabf9e54d0d0d4112b936c08ae7a6840d386615a3180082e7fe452d64f13820fca9e2a8924806277753c36"
         },
         {
           "alg" : "SHA-384",
-          "content" : "9150fda1390d6cfb34a431f8fc7b12b181a129711878c675849ae93e5182a79f614702cfa63ce2bc6919e45e1508a556"
+          "content" : "7903c579be2fba514c3c0772aaf351aac08e56d367f5c767ad5eeaef41c336d68fc2b3500a6aac003c6ea563504c0cbe"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "58a117f6d291e49a6939f2f7092306f375aa2825c1b1fde6557f98546baf4f0e8369cb5f520ccd29d2b7df8c70894c3c"
+          "content" : "68ddad3d905ae52e3ea8ce1b95a597ab93d9c0dc35ae4c7c333639ae5ffb91576858a8458f8178412d52334fcb6f1a4d"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "910c28c947503cba339735f3f27097fc021ad8c4acdf96c1961f868659563206"
+          "content" : "0b98675fb17639165119017150c2f9cf87a6cff108fd98bd6241aed1ddbf2cde"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "5afd0a28f3f34f0021de6c382007be06e628206826caee10d39176d55c04b37d88807b3a56335a15b66a789306543f1cae2ae98c031531d5daf7da1ef1b9108d"
+          "content" : "d15447a7d10c17d9eb75badd62d42143aa008f49c84b5a7ad68f147abbfe3ba7a9333d4e0705c4b1c99fdf4504febb7d4a2c833c52a8f5e4f6f17917f9d955e2"
         }
       ],
       "licenses" : [
@@ -609,7 +609,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.2?type=jar",
+      "purl" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.3.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -1662,6 +1662,85 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.commons",
+      "name" : "commons-lang3",
+      "version" : "3.21.0",
+      "description" : "Apache Commons Lang is a package of Java utility classes for the Java lang packages, classes that could be considered standard to justify their existence in java.lang. The code is tested using the latest revision of the JDK for supported LTS releases: 8, 11, 17, 21, and 25. See https://github.com/apache/commons-lang/blob/master/.github/workflows/maven.yml Please ensure your build environment is up-to-date and kindly report any build issues. Starting with Commons Lang 3.9, we target Java 8 and use those features. For advice on upgrading from 2.x to 3.x, see https://commons.apache.org/lang/article3_0.html",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "74a94a62f74cf1566767a085b3b9c758"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "7bad013a5acee0a078d75fc352a906baa57acb74"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "a2af247ec4db6eb8947e18e23e0433e4871a7c5d0a40e1f92e46ede54ae1defe"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "839bd4a0e63a82334c46f7acad520dac56900c8c4ea3e663811c1e8863de416df2bb8ff334c407caf6cb6d20fb892c6c730d7f271bd59c5c973611ed2f890b37"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "39615b3093cf020161bcdfa6813d0d608892b6a69b6e7d413bc27a9b8c2e4500cb4d0a64f1b2ffd9d0c3b9f611687872"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "54b8b1d35b30254d17751cd0ea42fd51cb8d6511c9aa761b76752396af67e14b16bce998aa8d31da9faa7846ee9cd478"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "d4c089ab0bf23ff52bfb24f2bb9e2cb629b66efcd43fa263fe4ae5affcbc567f"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "8bf09495990791415be6bbb9f72f2f3f40f4517b2b56501329e8c5ca716381c1858ea75a734b86346b37d8f5a7697f3361c204f3affe3f8fee656ee68a72480f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0",
+            "url" : "https://www.apache.org/licenses/LICENSE-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://commons.apache.org/proper/commons-lang/"
+        },
+        {
+          "type" : "build-system",
+          "url" : "https://github.com/apache/commons-lang/actions"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://issues.apache.org/jira/browse/LANG"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://mail-archives.apache.org/mod_mbox/commons-user/"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/commons-lang.git"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.jena",
@@ -2392,45 +2471,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar",
+      "bom-ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
       "publisher" : "fasterxml.com",
       "group" : "org.codehaus.woodstox",
       "name" : "stax2-api",
-      "version" : "4.3.0",
+      "version" : "4.3.1",
       "description" : "Stax2 API is an extension to basic Stax 1.0 API that adds significant new functionality, such as full-featured bi-direction validation interface and high-performance Typed Access API.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "6eec6c1cb7f63d8a8098cc5569a47e99"
+          "content" : "2a48eb99a954950283e5cfad0103445b"
         },
         {
           "alg" : "SHA-1",
-          "content" : "59251773c44122e8d1366f68884e29dd784e141b"
+          "content" : "c2a6c7802434e7693d0cef0e7ab8cd4aa76e19be"
         },
         {
           "alg" : "SHA-256",
-          "content" : "7c805f36129ea9fa42b696093b7ae1eb20bb6ccec65c8280d6f33db5609ca5e1"
+          "content" : "1953d9d443149769c8418fd4fb69284ba2f98adbbed304e9a050c360e28541c6"
         },
         {
           "alg" : "SHA-512",
-          "content" : "4d1bf5cb3a803423c5420050c245227b944acb4ced29e8095e470bc3a742d6a057c484fa1d531b58933ed8f81d52d5bbfc8406acc4241f6e4ec4c5116fe30d53"
+          "content" : "4147cc35d69f29b800050d3e9ba4e23e167ee7437554769cbd317e920b934181369567b99da4692c3ba7c65bf033ee0fdd1e89c4e49929c0211d5e0a0650517d"
         },
         {
           "alg" : "SHA-384",
-          "content" : "664bf1044e8c9e80083d02d2ccdba3c3953a515594b6a262baef76d1cf3790da9d71eb853806c27c94721e65983d72a3"
+          "content" : "415bc5d8faaa39c44ab24a8947f60da1e11bf978ca16811850e5118b93289cc4cdd531f9da69a5658b279be3fc79d186"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "298f2dcfffb3fe28229452770a969b2138008a23c508599a13303f48f21d3458c61ad19df53a20d6447c0f8ef56e4216"
+          "content" : "754670ec56c0a0e7dc6a774808027dd3f2f37d282642b8a1905e7e15e9a01dc988210cd99380c767f6dfe54fc5d1c81f"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "5a3bc0bf1b00df535d572ae16c62817788bea0f7d02a8c430fadd4cf4df95f5e"
+          "content" : "904c311acbed72a12d6a4e33bcae50b623424b97f6f28141af234d03214fddb0"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "5d4e4618b22accb1fee19d6d2702dcd0538df7f9e3b7aa8590e7554811770bb317d4bab1eecebc4b31df49a349c68e746256b3e9cca5fbea6f102df411c0e678"
+          "content" : "01b32a332f50b0d53730d0db68e1f3b1aa2a49df50f2ee325445c6bfc732ed3d8314f46af158d7cf950a487ecc0ad2e7f3c6c046eff6e3dfaf3f9f9b537a1484"
         }
       ],
       "licenses" : [
@@ -2440,7 +2519,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar",
+      "purl" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2850,45 +2929,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.19?type=jar",
+      "bom-ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.20?type=jar",
       "publisher" : "QOS.ch",
       "group" : "org.slf4j",
       "name" : "jcl-over-slf4j",
-      "version" : "2.0.19",
+      "version" : "2.0.20",
       "description" : "JCL 1.2 implemented over SLF4J",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "652eb51745f135efc59dc1e2962e4d0b"
+          "content" : "4a2f67a3feba29618916f8ccbd3dab18"
         },
         {
           "alg" : "SHA-1",
-          "content" : "8143d2f5d5e1896b1eca3af7e4febefded52b89c"
+          "content" : "7cb2437e20d244474b1c5a50747e4b376e9a2daf"
         },
         {
           "alg" : "SHA-256",
-          "content" : "efc3848f79638d9fa74ccbae3fd18c8735dcc0127b393ae53dce638827f8a2f3"
+          "content" : "32f95628a4baa60ea8a5b052c8cb6e51d07b0fee3e6092414070874f69daf710"
         },
         {
           "alg" : "SHA-512",
-          "content" : "4df47adc635233f0e0a6d2df6350140c181b65de9c820197da15c92306f685e37cacb37baea77df72c814e6dde17072f1faf0b0cd0e8d6080abdea40098f2813"
+          "content" : "db6cc4c11967e80d7392173f13cb1cc10874cc493f3357e7a01867cb927510e1ee7b11f5621e2874fc0e38c3afb0af21dd75a0fdb57ac7c660bdd4107e5ae296"
         },
         {
           "alg" : "SHA-384",
-          "content" : "ab9e170c008786d45316ca83053231e1c423943d4255f7d7a6c45faf1ddf85d5f350979d03106126709f04b56ebf2717"
+          "content" : "a7498a4a9561300327ef159f237ceb31698b5396d35829e454455718d84f72c9fd1b9c6cfcdc6d5573727d6d83219cd6"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "63b3f0ac51cb3e8be5afad11ab393b8e3b81871fcb679a7452477cf37b6ff456efb672829c4b8c4c3cf0c83578ede521"
+          "content" : "ccbfcdfd999e04a0bcf9830e427e9f8ad5a26bdef078044bc4ed15ceebbf51caaa218c4e4a1ed60200bcebb227a6e988"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "19b99a93cb711fc9f00640568c9dd77549842980f8c82b556f37d0bfacdb8052"
+          "content" : "7866d4950ad2d335c7804390ade70c2143befbcb67e21c29d60c0fdefe5a8685"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "75db8d6be4de2560c74e7b336ce31b66d767a47afa7b0ff54a731b546b4df139f6e08ce39ddc3f23f99ff3ef53bd4b1d9e2f7773967253a8c800f8dbbb549157"
+          "content" : "961c4df212cae468bd02cd134dfdf1fb8a7e5a2efac6fef45a535a753988e08f547cdd34ec13da1913118994f354a73005810ae602d58f033d191ee3921835f6"
         }
       ],
       "licenses" : [
@@ -2899,7 +2978,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.19?type=jar",
+      "purl" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.20?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2912,73 +2991,6 @@
         {
           "type" : "vcs",
           "url" : "https://github.com/qos-ch/slf4j/slf4j-parent/jcl-over-slf4j"
-        }
-      ]
-    },
-    {
-      "type" : "library",
-      "bom-ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar",
-      "publisher" : "QOS.ch",
-      "group" : "org.slf4j",
-      "name" : "slf4j-api",
-      "version" : "2.0.19",
-      "description" : "The slf4j API",
-      "scope" : "required",
-      "hashes" : [
-        {
-          "alg" : "MD5",
-          "content" : "1ca3a2acac3d5947b37d9b5536c55829"
-        },
-        {
-          "alg" : "SHA-1",
-          "content" : "efad9817997b3a6ce9e058f92e612917a744c290"
-        },
-        {
-          "alg" : "SHA-256",
-          "content" : "e91ff6d720609e7a194ffe758c3ed5c84e798617ae07b0a0f6a4fe229741b4bb"
-        },
-        {
-          "alg" : "SHA-512",
-          "content" : "627253cf27192750fd5ff84622526ac04f6848829adccd807d485a971bb74e83e47539214a054b8c129f3608cbc6450f2076000ab075b44a1b2dc7b74f592857"
-        },
-        {
-          "alg" : "SHA-384",
-          "content" : "ae23be04ee2e1c1315184c533190d44acb5f01d9a812dda81c928667401ad8e166e780f451d027a89b2d2dce94c61d02"
-        },
-        {
-          "alg" : "SHA3-384",
-          "content" : "03745b6475e8b9d85e0074ce0e0e6f94f3fead8eeaae857278a91f236b349dbfa5a0c1df3a6cdeea63d0d16a947ac5df"
-        },
-        {
-          "alg" : "SHA3-256",
-          "content" : "dfb417ec7e1febf8cdc4ac8b3eb495fe709caf163a98db0af9385b3ece464688"
-        },
-        {
-          "alg" : "SHA3-512",
-          "content" : "2225edddf8aac803c27b39872250dadc394da3facd2520fe50b50db86a3f0a571987291fd3d646ccb9a178890dbfdd385f1139e47e62ce0052f6834b448c2194"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "MIT",
-            "url" : "https://opensource.org/license/mit/"
-          }
-        }
-      ],
-      "purl" : "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar",
-      "externalReferences" : [
-        {
-          "type" : "website",
-          "url" : "http://www.slf4j.org"
-        },
-        {
-          "type" : "distribution-intake",
-          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-        },
-        {
-          "type" : "vcs",
-          "url" : "https://github.com/qos-ch/slf4j/slf4j-parent/slf4j-api"
         }
       ]
     },
@@ -3089,15 +3101,15 @@
       ]
     },
     {
-      "ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.2?type=jar",
+      "ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.3.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar"
+        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar"
       ]
     },
     {
       "ref" : "pkg:maven/com.fasterxml/aalto-xml@1.4.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar"
+        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar"
       ]
     },
     {
@@ -3171,13 +3183,13 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.2.2?type=jar",
+        "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.3.0?type=jar",
         "pkg:maven/com.fasterxml/aalto-xml@1.4.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
-        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
+        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
       ]
     },
     {
@@ -3197,7 +3209,7 @@
       "dependsOn" : [
         "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar"
+        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar"
       ]
     },
     {
@@ -3212,16 +3224,20 @@
       "dependsOn" : []
     },
     {
+      "ref" : "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+      "dependsOn" : []
+    },
+    {
       "ref" : "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
       "dependsOn" : [
         "pkg:maven/com.apicatalog/titanium-json-ld@1.7.0?type=jar",
         "pkg:maven/com.google.code.gson/gson@2.14.0?type=jar",
         "pkg:maven/com.google.protobuf/protobuf-java@4.35.1?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
         "pkg:maven/org.apache.jena/jena-core@6.2.0?type=jar",
         "pkg:maven/org.apache.thrift/libthrift@0.24.0?type=jar",
         "pkg:maven/org.glassfish/jakarta.json@2.0.1?type=jar",
-        "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.19?type=jar"
+        "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.20?type=jar"
       ]
     },
     {
@@ -3234,8 +3250,8 @@
         "pkg:maven/org.apache.commons/commons-collections4@4.5.0?type=jar",
         "pkg:maven/org.apache.commons/commons-compress@1.28.0?type=jar",
         "pkg:maven/org.apache.commons/commons-csv@1.14.1?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
-        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
+        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
       ]
     },
     {
@@ -3284,7 +3300,7 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.0?type=jar",
+      "ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
       "dependsOn" : []
     },
     {
@@ -3318,14 +3334,10 @@
       ]
     },
     {
-      "ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.19?type=jar",
+      "ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.20?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar"
+        "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
       ]
-    },
-    {
-      "ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.19?type=jar",
-      "dependsOn" : []
     },
     {
       "ref" : "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar",
