@@ -50,8 +50,8 @@
 
         <ver.cimvocabcheck-core>0.0.0-SNAPSHOT</ver.cimvocabcheck-core>
         <ver.lsp4j>1.0.0</ver.lsp4j>
-        <ver.jackson>2.22.2</ver.jackson>
-        <ver.slf4j>2.0.19</ver.slf4j>
+        <ver.jackson>2.22.3</ver.jackson>
+        <ver.slf4j>2.0.20</ver.slf4j>
         <ver.log4j2>2.26.1</ver.log4j2>
         <ver.junit4>4.13.2</ver.junit4>
         <!-- Jena bits this module needs directly: jena-shacl (compile, notebook SHACL cells) and
@@ -65,11 +65,11 @@
         <ver.plugin.shade>3.6.2</ver.plugin.shade>
 
         <!-- Static analysis / formatting plugins -->
-        <ver.plugin.spotless>3.10.2</ver.plugin.spotless>
+        <ver.plugin.spotless>3.10.3</ver.plugin.spotless>
         <ver.googleJavaFormat>1.35.0</ver.googleJavaFormat>
         <ver.plugin.spotbugs>4.10.4.1</ver.plugin.spotbugs>
         <ver.plugin.checkstyle-plugin>3.6.0</ver.plugin.checkstyle-plugin>
-        <ver.checkstyle>14.1.0</ver.checkstyle>
+        <ver.checkstyle>14.3.0</ver.checkstyle>
         <ver.plugin.pmd>3.28.0</ver.plugin.pmd>
         <ver.plugin.jacoco>0.8.15</ver.plugin.jacoco>
         <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
