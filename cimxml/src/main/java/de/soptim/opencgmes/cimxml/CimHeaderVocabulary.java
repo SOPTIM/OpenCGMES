@@ -38,6 +38,14 @@ public final class CimHeaderVocabulary {
   public static final Node PREDICATE_SUPERSEDES = NodeFactory.createURI(NS_MD + "Model.Supersedes");
   public static final Node PREDICATE_DEPENDENT_ON
       = NodeFactory.createURI(NS_MD + "Model.DependentOn");
+  public static final Node PREDICATE_SCENARIO_TIME
+      = NodeFactory.createURI(NS_MD + "Model.ScenarioTime");
+  public static final Node PREDICATE_VERSION = NodeFactory.createURI(NS_MD + "Model.version");
+  public static final Node PREDICATE_MODELING_AUTHORITY_SET
+      = NodeFactory.createURI(NS_MD + "Model.modelingAuthoritySet");
+  public static final Node PREDICATE_CREATED = NodeFactory.createURI(NS_MD + "Model.created");
+  public static final Node PREDICATE_DESCRIPTION
+      = NodeFactory.createURI(NS_MD + "Model.description");
 
   public static final String FULL_MODEL_URI = NS_MD + CLASSNAME_FULL_MODEL;
   public static final Node TYPE_FULL_MODEL = NodeFactory.createURI(FULL_MODEL_URI);
