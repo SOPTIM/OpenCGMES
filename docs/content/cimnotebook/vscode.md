@@ -143,10 +143,10 @@ RDFArchitect instance in an editor panel, so you can browse and edit the schema 
 leaving VS Code; **CIMNotebook: Open RDFArchitect in Browser** opens the same instance in your
 system browser instead.
 
-RDFArchitect is not bundled — point the `cimnotebook.rdfArchitectUrl` setting at a local
-[docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g.
-`http://localhost:3000`) or a hosted deployment. The first invocation prompts for the URL and saves
-it.
+RDFArchitect is not bundled, and the integration needs **RDFArchitect 1.7.0 or later**. Point
+the `cimnotebook.rdfArchitectUrl` setting at a local
+[docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g. `http://localhost:3000`)
+or a hosted deployment. The first invocation prompts for the URL and saves it.
 
 Right-click a CIM term in a SPARQL query or SHACL shape and choose **Open in RDFArchitect** to jump
 straight to it: the term under the cursor is resolved to its full IRI by the language server, and
@@ -166,8 +166,6 @@ whose schema comes from files.
 :::note
 Because a property is declared once, jumping to an inherited attribute opens the superclass that
 declares it — `cim:Conductor.length` opens `Conductor`, even when you were reading `ACLineSegment`.
-Jumping to a property requires an RDFArchitect that supports property deep links (released after
-1.2.0); on an older instance the term reports "Not found" and classes keep working.
 :::
 
 The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks the

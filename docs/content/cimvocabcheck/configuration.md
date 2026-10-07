@@ -96,7 +96,8 @@ If you omit both, no schema is loaded and validation is syntax-only (unless a
 
 Validate against the model as it is curated in a running
 [RDFArchitect](https://github.com/SOPTIM/RDFArchitect) rather than against files on disk. The schema
-is read over its REST API, so no SPARQL endpoint and no access to its store are needed.
+is read over its REST API, so no SPARQL endpoint and no access to its store are needed, and it needs
+RDFArchitect 1.7.0 or later.
 
 **A workspace name** validates against that workspace **as you edit it** — the language server reads the
 very working copy shown in the editor's RDFArchitect view, so a class you add there is known to the

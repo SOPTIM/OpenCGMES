@@ -110,9 +110,10 @@ window's title bar has **Send Schema**, **Reconnect Session**, **Reload** and **
 actions; if the IDE runtime does not support JCEF, the tool window offers the system browser
 instead.
 
-RDFArchitect is not bundled — point the **RDFArchitect URL** setting at a local
-[docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g.
-`http://localhost:3000`) or a hosted deployment.
+RDFArchitect is not bundled, and the integration needs **RDFArchitect 1.7.0 or later**. Point
+the **RDFArchitect URL** setting at a local
+[docker-compose](https://github.com/SOPTIM/RDFArchitect#quickstart) instance (e.g. `http://localhost:3000`)
+or a hosted deployment.
 
 Right-click a CIM term in a SPARQL query or SHACL shape and choose **Open in RDFArchitect** to jump
 straight to it: the term under the caret is resolved to its full IRI by the language server, and
@@ -132,8 +133,6 @@ whose schema comes from files.
 :::note
 Because a property is declared once, jumping to an inherited attribute opens the superclass that
 declares it — `cim:Conductor.length` opens `Conductor`, even when you were reading `ACLineSegment`.
-Jumping to a property requires an RDFArchitect that supports property deep links (released after
-1.2.0); on an older instance the term reports "Not found" and classes keep working.
 :::
 
 The import itself can be automated too: **CIMNotebook: Send Schema to RDFArchitect** asks
