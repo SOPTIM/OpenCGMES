@@ -31,12 +31,16 @@ import {
 import {
     datasetNameFor,
     datasetNames,
+    defaultPrefixDecisions,
+    importProgress,
+    type ImportJobStatus,
     localNameOf,
     normalizeBaseUrl,
     parseTermLink,
     RDFA_TERM_SCHEME,
     snapshotDatasetName,
     termDeepLink,
+    undisplayableProperties,
 } from "./rdfArchitect";
 
 import { registerNotebookSerializers } from "./notebook/serializers";
@@ -673,13 +677,35 @@ async function sendSchemaToRdfArchitect(termIri?: string): Promise<void> {
         const handoff = await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
-                title: "CIMNotebook: sending schema to RDFArchitect…",
+                title: "CIMNotebook: Sending schema to RDFArchitect",
+                cancellable: true,
             },
-            () => importSchemaAndSnapshot(base, info.configFile, info.schemaFiles, termIri),
+            (progress, token) =>
+                importSchemaAndSnapshot(
+                    base,
+                    info.configFile,
+                    info.schemaFiles,
+                    termIri,
+                    progress,
+                    token,
+                ),
         );
         await extensionContext.workspaceState.update(HANDOFF_KEY, handoff.record);
         showRdfArchitectPanel(base, handoff.url, true);
+        if (handoff.notes.length > 0) {
+            vscode.window
+                .showWarningMessage(
+                    "CIMNotebook: the schema was sent, with notes from RDFArchitect's import.",
+                    "Show Log",
+                )
+                .then((choice) => choice && out.show(true));
+        }
     } catch (err) {
+        if (err instanceof ImportCancelledError) {
+            out.info(`Send Schema to RDFArchitect cancelled: ${err.message}`);
+            vscode.window.showInformationMessage(`CIMNotebook: ${err.message}`);
+            return;
+        }
         const msg = err instanceof Error ? err.message : String(err);
         out.appendLine(`Send Schema to RDFArchitect failed: ${msg}`);
         vscode.window.showErrorMessage(`CIMNotebook: Send Schema to RDFArchitect failed: ${msg}`);
@@ -721,11 +747,27 @@ async function importSchemaAndSnapshot(
     configFile: string,
     schemaFiles: string[],
     termIri?: string,
-): Promise<{ url: string; record: SchemaHandoff }> {
+    progress?: vscode.Progress<{ message?: string; increment?: number }>,
+    token?: vscode.CancellationToken,
+): Promise<{ url: string; record: SchemaHandoff; notes: string[] }> {
     const session = connectedSession?.url === base ? connectedSession.id : undefined;
     const api = new RdfArchitectClient(base, session);
     const dataset = datasetNameFor(configFile);
-    await api.importGraphs(dataset, schemaFiles);
+    progress?.report({ message: `Uploading ${schemaFiles.length} schema file(s)…` });
+    // The import's files fill the bar; the snapshot that may follow is quick and only gets a line.
+    let shown = 0;
+    const notes = await api.importGraphs(dataset, schemaFiles, {
+        cancellation: token,
+        onProgress: (status) => {
+            const { message, fraction } = importProgress(status);
+            const percent = fraction === undefined ? shown : Math.round(fraction * 100);
+            progress?.report({ message, increment: percent - shown });
+            shown = percent;
+        },
+    });
+    for (const note of notes) {
+        out.warn(`RDFArchitect import into "${dataset}": ${note}`);
+    }
     const url = new URL(base);
     let snapshot: string | undefined;
     if (session) {
@@ -735,6 +777,7 @@ async function importSchemaAndSnapshot(
     } else {
         // No connected window: bridge into whatever session the panel gets via a snapshot, and
         // keep that copy read-only since nothing would ever read edits back out of it.
+        progress?.report({ message: "Creating snapshot…" });
         await api.disableEditing(dataset);
         snapshot = await api.createSnapshot(dataset);
         url.searchParams.set("snapshot", snapshot);
@@ -747,6 +790,7 @@ async function importSchemaAndSnapshot(
     }
     return {
         url: url.toString(),
+        notes,
         record: {
             url: base,
             dataset,
@@ -1064,18 +1108,8 @@ async function schemaFingerprint(files: string[]): Promise<string> {
 const IMPORT_POLL_INTERVAL_MS = 300;
 const IMPORT_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** The parts of RDFArchitect's import job status the extension reads. */
-interface ImportJobStatus {
-    state:
-        | "RUNNING"
-        | "SCANNING_PREFIXES"
-        | "AWAITING_PREFIX_RESOLUTION"
-        | "COMPLETED"
-        | "CANCELLED"
-        | "FAILED";
-    failedImports?: string[];
-    errorMessage?: string | null;
-}
+/** Thrown when the user cancels an import; the graphs imported up to then are kept. */
+class ImportCancelledError extends Error {}
 
 /**
  * Minimal client for the RDFArchitect REST API. RDFArchitect scopes datasets to the backend
@@ -1100,9 +1134,21 @@ class RdfArchitectClient {
     /**
      * Imports the files as graphs of the dataset (replacing graphs of the same name) and waits for
      * the import to finish. RDFArchitect imports as a background job of the session: started with
-     * a POST, followed by polling its status.
+     * a POST, followed by polling its status, which is handed to {@code onProgress} as it changes.
+     *
+     * @returns notes worth showing the user: prefix conflicts decided here, and properties that
+     *     were stored but which RDFArchitect will not display
+     * @throws ImportCancelledError when {@code cancellation} is requested; the job is cancelled
+     *     too, keeping the graphs imported so far
      */
-    async importGraphs(dataset: string, files: string[]): Promise<void> {
+    async importGraphs(
+        dataset: string,
+        files: string[],
+        options: {
+            onProgress?: (status: ImportJobStatus) => void;
+            cancellation?: { readonly isCancellationRequested: boolean };
+        } = {},
+    ): Promise<string[]> {
         const form = new FormData();
         for (const file of files) {
             const data = await fs.promises.readFile(file);
@@ -1113,6 +1159,7 @@ class RdfArchitectClient {
         const { jobId } = (await started.json()) as { jobId: string };
         const job = `${imports}/${encodeURIComponent(jobId)}`;
         const deadline = Date.now() + IMPORT_TIMEOUT_MS;
+        const notes: string[] = [];
         let prefixesResolved = false;
         let settled = false;
         try {
@@ -1121,6 +1168,7 @@ class RdfArchitectClient {
                     await this.request(job, { method: "GET" })
                 ).json()) as ImportJobStatus;
                 settled = ["COMPLETED", "FAILED", "CANCELLED"].includes(status.state);
+                options.onProgress?.(status);
                 switch (status.state) {
                     case "COMPLETED":
                         if (status.failedImports?.length) {
@@ -1128,7 +1176,12 @@ class RdfArchitectClient {
                                 `RDFArchitect could not parse: ${status.failedImports.join(", ")}`,
                             );
                         }
-                        return;
+                        notes.push(
+                            ...undisplayableProperties(status).map(
+                                (line) => `stored, but not displayed by RDFArchitect: ${line}`,
+                            ),
+                        );
+                        return notes;
                     case "FAILED":
                     case "CANCELLED":
                         throw new Error(
@@ -1137,10 +1190,12 @@ class RdfArchitectClient {
                         );
                     case "AWAITING_PREFIX_RESOLUTION":
                         // The app asks its user about clashing namespace prefixes; with no one to
-                        // ask, keep the dataset's prefixes and import the contested namespaces
-                        // without one. Answered once: the job may still report waiting right after.
+                        // ask, answer with no decisions, which RDFArchitect resolves by keeping
+                        // each prefix with the workspace (or the first file declaring it). Answered
+                        // once: the job may still report waiting right after.
                         if (!prefixesResolved) {
                             prefixesResolved = true;
+                            notes.push(...defaultPrefixDecisions(status));
                             await this.request(`${job}/prefix-resolutions`, {
                                 method: "PUT",
                                 headers: { "Content-Type": "application/json" },
@@ -1149,14 +1204,20 @@ class RdfArchitectClient {
                         }
                         break;
                 }
+                if (options.cancellation?.isCancellationRequested) {
+                    throw new ImportCancelledError(
+                        "Sending the schema was cancelled; the files imported so far stay in " +
+                            `RDFArchitect workspace "${dataset}".`,
+                    );
+                }
                 if (Date.now() > deadline) {
                     throw new Error("RDFArchitect import did not finish in time");
                 }
                 await new Promise((resolve) => setTimeout(resolve, IMPORT_POLL_INTERVAL_MS));
             }
         } finally {
-            // Given up on (timed out, unreachable): stop the job rather than leave it importing
-            // into a dataset nobody waits for.
+            // Given up on (cancelled, timed out, unreachable): stop the job rather than leave it
+            // importing into a workspace nobody waits for.
             if (!settled) {
                 await this.request(job, { method: "DELETE" }).catch(() => undefined);
             }

@@ -142,6 +142,13 @@ in the tool window. The workspace is named after the config file's
 directory. After that, **Open in RDFArchitect** finds every term of your profiles without any
 manual import. It is available from **Tools** and from the RDFArchitect tool window's toolbar.
 
+While it runs, the background task in the status bar shows which file is being imported and how many are done, and
+cancelling it stops the import after the current file — the files imported up to then stay in the
+workspace. RDFArchitect normally asks how to handle namespace prefixes that clash; CIMNotebook
+answers for you by keeping each prefix with the namespace the workspace (or else the first file)
+binds it to, and imports the other namespaces without a prefix. Those decisions, and any properties
+RDFArchitect stores but does not display, are reported in a notification (and in the IDE log) once the schema is sent.
+
 When a session is connected (see below), the schema is imported into the tool window's own session
 and stays **editable** there — so changes you make to it are picked up live by validation. Without a
 connection it is imported read-only and bridged in as a snapshot, as before.

@@ -21,6 +21,9 @@ import { describe, it } from "node:test";
 import {
     datasetNameFor,
     datasetNames,
+    defaultPrefixDecisions,
+    importProgress,
+    type ImportJobStatus,
     localNameOf,
     normalizeBaseUrl,
     parseTermLink,
@@ -180,5 +183,91 @@ describe("datasetNames", () => {
     it("answers no names for anything but a list", () => {
         assert.deepEqual(datasetNames({ error: "nope" }), []);
         assert.deepEqual(datasetNames(null), []);
+    });
+});
+
+describe("importProgress", () => {
+    const running = (states: string[]): ImportJobStatus =>
+        ({
+            state: "RUNNING",
+            files: states.map((state, i) => ({ fileName: `f${i}.rdf`, state })),
+        }) as ImportJobStatus;
+
+    it("has no fraction before the files are known", () => {
+        assert.deepEqual(importProgress({ state: "RUNNING", files: [] }), {
+            message: "Preparing the import…",
+        });
+    });
+
+    it("names the file being imported and counts the finished ones", () => {
+        assert.deepEqual(importProgress(running(["IMPORTED", "FAILED", "RUNNING", "PENDING"])), {
+            message: "Importing 3 of 4: f2.rdf",
+            fraction: 0.5,
+        });
+    });
+
+    it("names the next file between two files", () => {
+        assert.equal(
+            importProgress(running(["IMPORTED", "PENDING"])).message,
+            "Importing 2 of 2: f1.rdf",
+        );
+    });
+
+    it("reports every file as done once none is left", () => {
+        assert.deepEqual(importProgress(running(["IMPORTED", "SKIPPED"])), {
+            message: "Imported 2 of 2 files",
+            fraction: 1,
+        });
+    });
+
+    it("says when it is waiting on namespace prefixes", () => {
+        assert.equal(
+            importProgress({ state: "AWAITING_PREFIX_RESOLUTION" }).message,
+            "Resolving namespace prefix conflicts…",
+        );
+    });
+});
+
+describe("defaultPrefixDecisions", () => {
+    const binding = (iri: string, ...fileNames: string[]) => ({ iri, fileNames });
+
+    it("keeps a prefix with the workspace's namespace", () => {
+        const status: ImportJobStatus = {
+            state: "AWAITING_PREFIX_RESOLUTION",
+            prefixComparison: [
+                {
+                    prefix: "ex:",
+                    workspace: binding("http://w/#"),
+                    imported: [binding("http://a/#", "a.ttl")],
+                    contested: true,
+                },
+            ],
+        };
+        assert.deepEqual(defaultPrefixDecisions(status), [
+            "ex: stays bound to <http://w/#>; imported without a prefix: <http://a/#> (a.ttl)",
+        ]);
+    });
+
+    it("keeps a prefix new to the workspace with the first file, and skips uncontested ones", () => {
+        const status: ImportJobStatus = {
+            state: "AWAITING_PREFIX_RESOLUTION",
+            prefixComparison: [
+                {
+                    prefix: "ex:",
+                    workspace: null,
+                    imported: [binding("http://a/#", "a.ttl"), binding("http://b/#", "b.ttl")],
+                    contested: true,
+                },
+                {
+                    prefix: "rdfs:",
+                    workspace: null,
+                    imported: [binding("http://rdfs/#", "a.ttl", "b.ttl")],
+                    contested: false,
+                },
+            ],
+        };
+        assert.deepEqual(defaultPrefixDecisions(status), [
+            "ex: stays bound to <http://a/#>; imported without a prefix: <http://b/#> (b.ttl)",
+        ]);
     });
 });

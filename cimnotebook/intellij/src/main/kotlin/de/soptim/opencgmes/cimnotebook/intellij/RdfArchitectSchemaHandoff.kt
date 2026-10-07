@@ -21,6 +21,8 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.progress.ProgressIndicator
@@ -28,6 +30,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.net.ssl.CertificateManager
 import com.redhat.devtools.lsp4ij.LanguageServerManager
 import org.eclipse.lsp4j.ExecuteCommandParams
@@ -66,6 +69,7 @@ object RdfArchitectSchemaHandoff {
     private const val CMD_SCHEMA_INFO = "cimvocabcheck.schemaInfo"
     private const val HANDOFF_KEY = "cimnotebook.rdfArchitect.handoff"
     private const val OPT_OUT_KEY = "cimnotebook.rdfArchitect.handoff.optOut"
+    private const val NOTIFICATION_GROUP = "CIMNotebook"
 
     /** An instance that is gone must not hold a background task for the OS's connect timeout. */
     private val PROBE_TIMEOUT: Duration = Duration.ofSeconds(10)
@@ -104,6 +108,9 @@ object RdfArchitectSchemaHandoff {
     ) {
         ProgressManager.getInstance().run(
             object : Task.Backgroundable(project, "Sending schema to RDFArchitect", true) {
+                /** The workspace an import was started for, to say where a cancelled one left off. */
+                private var importing: String? = null
+
                 override fun run(indicator: ProgressIndicator) {
                     indicator.text = "Resolving workspace schema…"
                     val info = requestSchemaInfo(project, docUri)
@@ -126,10 +133,22 @@ object RdfArchitectSchemaHandoff {
                             ?.takeIf { it.url == base.trimEnd('/') }
                     val dataset = datasetNameFor(info.configFile)
                     var token: String? = null
+                    var notes: List<String>
                     RdfArchitectClient(base, session?.id).use { client ->
-                        indicator.text = "Importing ${info.schemaFiles.size} schema file(s)…"
-                        client.importGraphs(dataset, info.schemaFiles.map(Path::of), indicator)
+                        indicator.text = "Uploading ${info.schemaFiles.size} schema file(s)…"
+                        importing = dataset
+                        notes =
+                            client.importGraphs(dataset, info.schemaFiles.map(Path::of), indicator) { status ->
+                                val progress = RdfArchitectImport.progress(status)
+                                indicator.text = "Importing schema into RDFArchitect"
+                                indicator.text2 = progress.message
+                                indicator.isIndeterminate = progress.fraction == null
+                                progress.fraction?.let { indicator.fraction = it }
+                            }
+                        notes.forEach { LOG.warn("RDFArchitect import into \"$dataset\": $it") }
+                        indicator.text2 = ""
                         if (session == null) {
+                            indicator.isIndeterminate = true
                             client.disableEditing(dataset)
                             indicator.text = "Creating snapshot…"
                             token = client.createSnapshot(dataset)
@@ -150,6 +169,24 @@ object RdfArchitectSchemaHandoff {
                     )
                     val url = datasetLink(base, dataset, token, termIri)
                     invokeLater { RdfArchitectToolWindowFactory.openUrl(project, url) }
+                    if (notes.isNotEmpty()) {
+                        notify(
+                            project,
+                            "The schema was sent, with notes from RDFArchitect's import:<br>" +
+                                notes.joinToString("<br>") { StringUtil.escapeXmlEntities(it) },
+                            NotificationType.WARNING,
+                        )
+                    }
+                }
+
+                override fun onCancel() {
+                    val dataset = importing ?: return
+                    notify(
+                        project,
+                        "Sending the schema was cancelled; the files imported so far stay in " +
+                            "RDFArchitect workspace \"${StringUtil.escapeXmlEntities(dataset)}\".",
+                        NotificationType.INFORMATION,
+                    )
                 }
 
                 override fun onThrowable(error: Throwable) {
@@ -341,6 +378,18 @@ object RdfArchitectSchemaHandoff {
             }
         }
 
+    private fun notify(
+        project: Project,
+        content: String,
+        type: NotificationType,
+    ) {
+        NotificationGroupManager
+            .getInstance()
+            .getNotificationGroup(NOTIFICATION_GROUP)
+            .createNotification("CIMNotebook", content, type)
+            .notify(project)
+    }
+
     /**
      * Dataset name for the imported schema: the config file's directory name, sanitised.
      *
@@ -406,14 +455,18 @@ object RdfArchitectSchemaHandoff {
         /**
          * Imports the files as graphs of the dataset (replacing graphs of the same name) and waits
          * for the import to finish. RDFArchitect imports as a background job of the session:
-         * started with a POST, followed by polling its status. Cancelling [indicator] cancels the
-         * job, which keeps the graphs imported so far.
+         * started with a POST, followed by polling its status, which is handed to [onProgress] as
+         * it changes. Cancelling [indicator] cancels the job, which keeps the graphs imported so far.
+         *
+         * @return notes worth showing the user: prefix conflicts decided here, and properties that
+         *     were stored but which RDFArchitect will not display
          */
         fun importGraphs(
             dataset: String,
             files: List<Path>,
             indicator: ProgressIndicator,
-        ) {
+            onProgress: (RdfArchitectImport.JobStatus) -> Unit = {},
+        ): List<String> {
             val boundary = "----cimnotebook" + UUID.randomUUID().toString().replace("-", "")
             val imports = "$api/datasets/${encode(dataset)}/graphs/content/imports"
             val started =
@@ -433,43 +486,42 @@ object RdfArchitectSchemaHandoff {
                     .asString
             val job = URI.create("$imports/${encode(jobId)}")
             val deadline = System.nanoTime() + IMPORT_TIMEOUT.toNanos()
+            val notes = mutableListOf<String>()
             var prefixesResolved = false
             var settled = false
             try {
                 while (true) {
                     val status =
-                        JsonParser
-                            .parseString(send(HttpRequest.newBuilder(job).GET().build()).body())
-                            .asJsonObject
-                    val state = status.get("state")?.asString
-                    settled = state in setOf("COMPLETED", "FAILED", "CANCELLED")
-                    when (state) {
+                        RdfArchitectImport.parse(send(HttpRequest.newBuilder(job).GET().build()).body())
+                    settled = status.isSettled
+                    onProgress(status)
+                    when (status.state) {
                         "COMPLETED" -> {
-                            val failed = status.getAsJsonArray("failedImports")
-                            if (failed != null && !failed.isEmpty) {
-                                throw IOException("RDFArchitect could not parse: $failed")
+                            val failed = status.failedImports.orEmpty()
+                            if (failed.isNotEmpty()) {
+                                throw IOException("RDFArchitect could not parse: ${failed.joinToString(", ")}")
                             }
-                            return
+                            RdfArchitectImport
+                                .undisplayableProperties(status)
+                                .mapTo(notes) { "stored, but not displayed by RDFArchitect: $it" }
+                            return notes
                         }
 
                         "FAILED", "CANCELLED" -> {
-                            val reason =
-                                status
-                                    .get("errorMessage")
-                                    ?.takeUnless { it.isJsonNull }
-                                    ?.asString
                             throw IOException(
-                                "RDFArchitect import ${state.lowercase()}" +
-                                    (reason?.let { ": $it" } ?: ""),
+                                "RDFArchitect import ${status.state.lowercase()}" +
+                                    (status.errorMessage?.let { ": $it" } ?: ""),
                             )
                         }
 
                         // The app asks its user about clashing namespace prefixes; with no one to
-                        // ask, keep the dataset's prefixes and import the contested namespaces
-                        // without one. Answered once: the job may still report waiting right after.
+                        // ask, answer with no decisions, which RDFArchitect resolves by keeping
+                        // each prefix with the workspace (or the first file declaring it).
+                        // Answered once: the job may still report waiting right after.
                         "AWAITING_PREFIX_RESOLUTION" -> {
                             if (!prefixesResolved) {
                                 prefixesResolved = true
+                                notes += RdfArchitectImport.defaultPrefixDecisions(status)
                                 send(
                                     HttpRequest
                                         .newBuilder(URI.create("$job/prefix-resolutions"))
@@ -488,7 +540,7 @@ object RdfArchitectSchemaHandoff {
                 }
             } finally {
                 // Given up on (cancelled, timed out, unreachable): stop the job rather than leave
-                // it importing into a dataset nobody waits for.
+                // it importing into a workspace nobody waits for.
                 if (!settled) {
                     runCatching { send(HttpRequest.newBuilder(job).DELETE().build()) }
                 }

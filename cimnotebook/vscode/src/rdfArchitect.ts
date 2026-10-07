@@ -136,3 +136,81 @@ export function datasetNames(listing: unknown): string[] {
 export function localNameOf(iri: string): string {
     return iri.split(/[#/]/).pop() || iri;
 }
+
+/** A namespace binding of an RDFArchitect import's prefix comparison. */
+interface PrefixBinding {
+    iri: string;
+    fileNames: string[];
+}
+
+/** RDFArchitect's import job status (`GET .../graphs/content/imports/<jobId>`), as far as it is read. */
+export interface ImportJobStatus {
+    state:
+        | "RUNNING"
+        | "SCANNING_PREFIXES"
+        | "AWAITING_PREFIX_RESOLUTION"
+        | "COMPLETED"
+        | "CANCELLED"
+        | "FAILED";
+    files?: {
+        fileName: string;
+        state: "PENDING" | "RUNNING" | "IMPORTED" | "FAILED" | "SKIPPED";
+    }[];
+    failedImports?: string[];
+    warnings?: { fileName: string; undisplayableProperties: string[] }[];
+    prefixComparison?: {
+        prefix: string;
+        workspace: PrefixBinding | null;
+        imported: PrefixBinding[];
+        contested: boolean;
+    }[];
+    errorMessage?: string | null;
+}
+
+/**
+ * What a running import is doing, for a progress display: a line to show, and how far through its
+ * files it is (0–1) once the files are known.
+ */
+export function importProgress(status: ImportJobStatus): { message: string; fraction?: number } {
+    if (status.state === "SCANNING_PREFIXES") {
+        return { message: "Checking namespace prefixes…", fraction: 0 };
+    }
+    if (status.state === "AWAITING_PREFIX_RESOLUTION") {
+        return { message: "Resolving namespace prefix conflicts…", fraction: 0 };
+    }
+    const files = status.files ?? [];
+    if (files.length === 0) {
+        return { message: "Preparing the import…" };
+    }
+    const done = files.filter((f) => f.state !== "PENDING" && f.state !== "RUNNING").length;
+    const fraction = done / files.length;
+    const current =
+        files.find((f) => f.state === "RUNNING") ?? files.find((f) => f.state === "PENDING");
+    return current
+        ? { message: `Importing ${done + 1} of ${files.length}: ${current.fileName}`, fraction }
+        : { message: `Imported ${done} of ${files.length} files`, fraction };
+}
+
+/**
+ * What answering an import's prefix conflicts with no decisions does, one line per contested prefix:
+ * the prefix stays with the workspace's namespace, or else with the first file declaring it, and
+ * every other namespace claiming it is imported without a prefix.
+ */
+export function defaultPrefixDecisions(status: ImportJobStatus): string[] {
+    return (status.prefixComparison ?? [])
+        .filter((c) => c.contested)
+        .map((c) => {
+            const holder = c.workspace?.iri ?? c.imported[0]?.iri;
+            const others = c.imported
+                .filter((b) => b.iri !== holder)
+                .map((b) => `<${b.iri}> (${b.fileNames.join(", ")})`);
+            return `${c.prefix} stays bound to <${holder}>; imported without a prefix: ${others.join(", ")}`;
+        });
+}
+
+/** The properties a finished import stored but RDFArchitect will not display, one line per file. */
+export function undisplayableProperties(status: ImportJobStatus): string[] {
+    return (status.warnings ?? [])
+        .filter((w) => w.undisplayableProperties.length > 0)
+        .map((w) => `${w.fileName}: ${w.undisplayableProperties.join(", ")}`);
+}

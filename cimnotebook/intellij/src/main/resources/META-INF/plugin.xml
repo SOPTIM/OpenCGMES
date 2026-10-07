@@ -108,6 +108,8 @@
 
     <extensions defaultExtensionNs="com.intellij">
 
+        <notificationGroup id="CIMNotebook" displayType="BALLOON"/>
+
         <!-- ── File types ────────────────────────────────────────────────── -->
         <fileType name="SPARQL"
                   language="SPARQL"
