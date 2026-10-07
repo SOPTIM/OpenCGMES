@@ -113,6 +113,17 @@ public class RdfArchitectLiveDatasetTest {
   /** Whether the instance answers at all — an outage, as far as a caller can tell. */
   private volatile boolean down;
 
+  /**
+   * Whether the change log answers — an instance without one, or one briefly failing to serve it.
+   */
+  private volatile boolean changeLogDown;
+
+  /** Whether graph content can be exported — a refetch that fails half-way. */
+  private volatile boolean contentDown;
+
+  private final java.util.concurrent.atomic.AtomicInteger contentRequests =
+      new java.util.concurrent.atomic.AtomicInteger();
+
   private final java.util.concurrent.atomic.AtomicInteger requests =
       new java.util.concurrent.atomic.AtomicInteger();
   private final java.util.List<String> cookiesSeen = new java.util.ArrayList<>();
@@ -152,7 +163,13 @@ public class RdfArchitectLiveDatasetTest {
         Thread.currentThread().interrupt();
       }
     }
-    if (down) {
+    String requested = exchange.getRequestURI().getPath();
+    if (requested.endsWith("/content")) {
+      contentRequests.incrementAndGet();
+    }
+    if (down
+        || (changeLogDown && requested.endsWith("/changes"))
+        || (contentDown && requested.endsWith("/content"))) {
       exchange.sendResponseHeaders(503, -1);
       exchange.close();
       return;
@@ -484,6 +501,150 @@ public class RdfArchitectLiveDatasetTest {
       manager.shutdown();
       deleteTree(workspace);
     }
+  }
+
+  /**
+   * A change log that could not be read when the schema was loaded is read again later; giving up
+   * on it would leave the schema stale for the rest of the session without a word.
+   */
+  @Test(timeout = 60_000)
+  public void editsAreNoticedAfterTheChangeLogFailedToAnswerOnce() throws Exception {
+    SchemaManager manager = new SchemaManager();
+    try {
+      changeLogDown = true;
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      ResolvedSchema before = resolve(manager, DATASET).orElseThrow();
+      assertFalse(knows(before, "Disconnector"));
+
+      changeLogDown = false;
+      turtle = profile("Breaker", "Disconnector");
+      changeId = "9f1c1c1e-0000-4000-8000-000000000001";
+
+      assertTrue("the edit must still be picked up", awaitClass(manager, "Disconnector"));
+    } finally {
+      manager.shutdown();
+    }
+  }
+
+  /**
+   * An edit over there refetches the schema, and that refetch takes a while or may fail. Documents
+   * keep validating against the schema they had in the meantime, instead of dropping to a syntax
+   * check — and the edit is still picked up once the instance can serve it.
+   */
+  @Test(timeout = 60_000)
+  public void aRefetchKeepsServingTheSchemaItReplaces() throws Exception {
+    SchemaManager manager = new SchemaManager();
+    try {
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      resolve(manager, DATASET).orElseThrow();
+
+      contentDown = true;
+      turtle = profile("Breaker", "Disconnector");
+      changeId = "9f1c1c1e-0000-4000-8000-000000000001";
+
+      int contentBefore = contentRequests.get();
+      for (int i = 0; i < 200 && contentRequests.get() == contentBefore; i++) {
+        manager.resolveSchema(RdfArchitectDirective.SCHEME + DATASET, null);
+        Thread.sleep(20);
+      }
+      assertTrue("the edit must have triggered a refetch", contentRequests.get() > contentBefore);
+      for (int i = 0; i < 20; i++) {
+        assertTrue(
+            "the schema must be served while its refetch fails",
+            manager.resolveSchema(RdfArchitectDirective.SCHEME + DATASET, null).isPresent());
+        Thread.sleep(20);
+      }
+
+      contentDown = false;
+      assertTrue("the edit must arrive once it can be read", awaitClass(manager, "Disconnector"));
+    } finally {
+      manager.shutdown();
+    }
+  }
+
+  /**
+   * Switching windows while a load of the previous one is still running: that load read another
+   * session's datasets, so what it brings back must not be cached for this one.
+   */
+  @Test(timeout = 60_000)
+  public void aLoadStartedBeforeASwitchIsNotCachedForTheNewSession() throws Exception {
+    SchemaManager manager = new SchemaManager();
+    try {
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      gate = new java.util.concurrent.CountDownLatch(1);
+      assertTrue(manager.resolveSchema(RdfArchitectDirective.SCHEME + DATASET, null).isEmpty());
+      awaitRequest();
+
+      // The new window's session cannot see the dataset.
+      manager.connectRdfArchitect(baseUrl(), "SOME-OTHER-SESSION");
+      gate.countDown();
+      gate = null;
+
+      for (int i = 0; i < 40; i++) {
+        assertTrue(
+            "the previous session's schema must not be served",
+            manager.resolveSchema(RdfArchitectDirective.SCHEME + DATASET, null).isEmpty());
+        Thread.sleep(50);
+      }
+    } finally {
+      manager.shutdown();
+    }
+  }
+
+  /** {@link #aLoadStartedBeforeASwitchIsNotCachedForTheNewSession} for a config's schema. */
+  @Test(timeout = 60_000)
+  public void aConfigLoadStartedBeforeASwitchIsNotCachedForTheNewSession() throws Exception {
+    Path workspace = java.nio.file.Files.createTempDirectory("rdfa-switch");
+    Path nested = java.nio.file.Files.createDirectories(workspace.resolve("queries"));
+    java.nio.file.Files.writeString(
+        nested.resolve("opencgmes.jsonc"),
+        "{ \"cimvocabcheck\": { \"rdfArchitect\": \"" + DATASET + "\" } }");
+
+    SchemaManager manager = new SchemaManager();
+    try {
+      manager.connectRdfArchitect(baseUrl(), SESSION);
+      manager.loadAsync(workspace); // the root itself has no config
+      gate = new java.util.concurrent.CountDownLatch(1);
+      assertTrue(manager.workspaceSchemaFor(nested).isEmpty());
+      awaitRequest();
+
+      manager.connectRdfArchitect(baseUrl(), "SOME-OTHER-SESSION");
+      gate.countDown();
+      gate = null;
+
+      for (int i = 0; i < 40; i++) {
+        assertTrue(
+            "the previous session's schema must not be served",
+            manager.workspaceSchemaFor(nested).isEmpty());
+        Thread.sleep(50);
+      }
+    } finally {
+      manager.shutdown();
+      deleteTree(workspace);
+    }
+  }
+
+  /** Waits until a request has reached the stub. */
+  private void awaitRequest() throws InterruptedException {
+    for (int i = 0; i < 200 && requests.get() == 0; i++) {
+      Thread.sleep(20);
+    }
+    assertTrue("a load must have reached the instance", requests.get() > 0);
+  }
+
+  /** Asks for the dataset's schema until it knows {@code className}. */
+  private static boolean awaitClass(SchemaManager manager, String className)
+      throws InterruptedException {
+    for (int i = 0; i < 200; i++) {
+      if (manager
+          .resolveSchema(RdfArchitectDirective.SCHEME + DATASET, null)
+          .map(rs -> knows(rs, className))
+          .orElse(false)) {
+        return true;
+      }
+      Thread.sleep(50);
+    }
+    return false;
   }
 
   /** Asks for {@code docDir}'s schema until it is there, the way an editor keeps asking. */

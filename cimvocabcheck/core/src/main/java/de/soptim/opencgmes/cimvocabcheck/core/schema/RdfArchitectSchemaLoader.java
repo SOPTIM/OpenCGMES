@@ -127,8 +127,9 @@ public final class RdfArchitectSchemaLoader {
    * <p>A snapshot has none: it is immutable, so there is nothing to re-check — and asking would
    * mean loading it into a session again on every poll.
    *
-   * @return an opaque stamp, or {@code null} for a snapshot, or when the workspace cannot be read
-   *     at all
+   * @return an opaque stamp, or {@code null} for a snapshot
+   * @throws RdfArchitectException when the change log cannot be read — kept apart from the snapshot
+   *     case, because a caller that took a failed read for "nothing to watch" would stop watching
    */
   public static String changeStamp(RdfArchitectSource source, Duration timeout, String sessionId) {
     Objects.requireNonNull(source, "source");
@@ -142,9 +143,6 @@ public final class RdfArchitectSchemaLoader {
         stamp.append(graph).append('=').append(client.latestChangeId(workspace, graph)).append(';');
       }
       return stamp.toString();
-    } catch (RuntimeException e) {
-      LOG.debug("Could not read the change stamp of {}: {}", source.describe(), e.getMessage());
-      return null;
     }
   }
 

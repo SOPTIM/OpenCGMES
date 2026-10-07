@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import org.apache.jena.graph.Node;
@@ -165,8 +166,12 @@ final class SchemaManager {
    */
   private final Map<String, Long> failedEndpoints = new ConcurrentHashMap<>();
 
-  /** Remote endpoints whose async load is in progress, so keystrokes don't resubmit it. */
-  private final Set<String> inFlightEndpoints = ConcurrentHashMap.newKeySet();
+  /**
+   * Remote sources whose async load is in progress, so keystrokes don't resubmit it — mapped to the
+   * {@link #rdfArchitectGeneration} the load was started in, so that a load of a previous
+   * RDFArchitect connection cannot release the claim of one started since (see {@link #claim}).
+   */
+  private final Map<String, Long> inFlightEndpoints = new ConcurrentHashMap<>();
 
   private volatile Path workspaceRoot;
   private final AtomicReference<LanguageClient> client = new AtomicReference<>();
@@ -336,7 +341,7 @@ final class SchemaManager {
     }
     if (source.isRdfArchitect()) {
       String key = RdfArchitectDirective.SCHEME + source.rdfArchitect();
-      return resolveAsync(key, () -> loadRdfArchitect(key));
+      return resolveAsync(key, generation -> loadRdfArchitect(key, generation));
     }
     return source.isRemote() ? resolveRemote(source.remoteUrl()) : resolveLocal(source.files());
   }
@@ -517,19 +522,23 @@ final class SchemaManager {
       String key, Path configFile, CimvocabcheckConfig config, boolean quiet) {
     WorkspaceSchema pending = noSchemaWorkspace(config.checkStandardVocabulary());
     String liveKey = configLiveKey(configFile);
-    if (isFailed(liveKey) || !inFlightEndpoints.add(liveKey)) {
+    if (isFailed(liveKey)) {
+      return pending;
+    }
+    long generation = claim(liveKey);
+    if (generation == NOT_CLAIMED) {
       return pending;
     }
     endpointExecutor.submit(
         () -> {
           try {
             WorkspaceSchema loaded = buildSchemaFromRdfArchitect(config, configFile, quiet);
-            workspaceSchemaCache.put(key, loaded);
-            if (loaded.api() != null) {
+            if (ifCurrent(generation, () -> workspaceSchemaCache.put(key, loaded))
+                && loaded.api() != null) {
               fireOnLoaded();
             }
           } finally {
-            inFlightEndpoints.remove(liveKey);
+            inFlightEndpoints.remove(liveKey, generation);
           }
         });
     return pending;
@@ -658,15 +667,17 @@ final class SchemaManager {
    * schema lands. Returns empty until then.
    */
   private Optional<ResolvedSchema> resolveRemote(String endpoint) {
-    return resolveAsync(endpoint, () -> loadRemoteEndpoint(endpoint));
+    return resolveAsync(endpoint, generation -> loadRemoteEndpoint(endpoint));
   }
 
   /**
    * Serves a network-backed schema from the cache, kicking off {@code load} the first time it is
    * asked for. Returns empty until the load lands (open documents are revalidated then), and stays
    * empty for a failure window afterwards so a keystroke cannot re-trigger a failing fetch.
+   *
+   * @param load runs the load, given the generation it was {@linkplain #claim claimed} in
    */
-  private Optional<ResolvedSchema> resolveAsync(String key, Runnable load) {
+  private Optional<ResolvedSchema> resolveAsync(String key, LongConsumer load) {
     ResolvedSchema cached = endpointCache.get(key);
     if (cached != null) {
       checkForEdits(key);
@@ -675,15 +686,24 @@ final class SchemaManager {
     if (isFailed(key)) {
       return Optional.empty();
     }
-    if (inFlightEndpoints.add(key)) {
+    long generation = claim(key);
+    if (generation != NOT_CLAIMED) {
       notify(MessageType.Info, "CIMVocabCheck: loading schema from " + describeSource(key) + " …");
-      endpointExecutor.submit(load);
+      endpointExecutor.submit(() -> load.accept(generation));
     }
     return Optional.empty();
   }
 
-  /** Loads the schema for a {@code # [rdfarchitect=...]} document. */
-  private void loadRdfArchitect(String key) {
+  /**
+   * Loads the schema for a {@code # [rdfarchitect=...]} document.
+   *
+   * <p>On a refetch, the schema read before stays cached until this one replaces it: documents keep
+   * validating against it in the meantime, and keep doing so when the refetch fails.
+   *
+   * @param generation the generation {@code key} was claimed in; what a load of an earlier one
+   *     brings back was read through a connection that is gone, and is dropped
+   */
+  private void loadRdfArchitect(String key, long generation) {
     String url = rdfArchitectRefOf(key);
     RdfArchitectConnection connection = rdfArchitect.get();
     try {
@@ -693,19 +713,33 @@ final class SchemaManager {
       EndpointSchema es =
           RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
       if (!es.hasSchema()) {
-        markFailed(key);
-        notify(
-            MessageType.Warning,
-            "CIMVocabCheck: RDFArchitect "
-                + source.describe()
-                + " "
-                + describeNoSchema(es)
-                + " — validating SPARQL syntax only.");
+        // Unlike a failed read, this is an answer: the dataset holds no schema any more.
+        if (ifCurrent(
+            generation,
+            () -> {
+              endpointCache.remove(key);
+              markFailed(key);
+            })) {
+          notify(
+              MessageType.Warning,
+              "CIMVocabCheck: RDFArchitect "
+                  + source.describe()
+                  + " "
+                  + describeNoSchema(es)
+                  + " — validating SPARQL syntax only.");
+        }
         return;
       }
-      endpointCache.put(
-          key, buildSchema(es.index(), es.namedGraphScope(), null, es.profileGraphs()));
-      rememberLiveSource(key, source, connection, stamp, () -> refetchDirectiveSchema(key));
+      ResolvedSchema schema =
+          buildSchema(es.index(), es.namedGraphScope(), null, es.profileGraphs());
+      if (!ifCurrent(
+          generation,
+          () -> {
+            endpointCache.put(key, schema);
+            rememberLiveSource(key, source, connection, stamp, () -> refetchDirectiveSchema(key));
+          })) {
+        return;
+      }
       LOG.info(
           "Loaded schema from RDFArchitect {} ({} schema graph(s))",
           source.describe(),
@@ -720,15 +754,32 @@ final class SchemaManager {
       fireOnLoaded();
     } catch (RuntimeException e) {
       LOG.warn("Failed to load schema from RDFArchitect {}: {}", url, e.getMessage());
-      fail(
-          key,
-          MessageType.Error,
-          "CIMVocabCheck: could not load the schema from RDFArchitect "
-              + url
-              + " — "
-              + e.getMessage());
+      AtomicBoolean refetch = new AtomicBoolean();
+      boolean current =
+          ifCurrent(
+              generation,
+              () -> {
+                LiveSource live = liveSources.get(key);
+                refetch.set(endpointCache.containsKey(key));
+                if (refetch.get() && live != null) {
+                  // The edit that prompted this refetch is still unread: look again next poll.
+                  live.stamp = null;
+                }
+              });
+      if (current) {
+        fail(
+            key,
+            MessageType.Error,
+            (refetch.get()
+                    ? "CIMVocabCheck: could not refresh the schema from RDFArchitect "
+                    : "CIMVocabCheck: could not load the schema from RDFArchitect ")
+                + url
+                + " — "
+                + e.getMessage()
+                + (refetch.get() ? " — keeping the one loaded before." : ""));
+      }
     } finally {
-      inFlightEndpoints.remove(key);
+      inFlightEndpoints.remove(key, generation);
     }
   }
 
@@ -748,6 +799,20 @@ final class SchemaManager {
   record RdfArchitectConnection(String url, String sessionId) {}
 
   private final AtomicReference<RdfArchitectConnection> rdfArchitect = new AtomicReference<>();
+
+  /**
+   * Counts RDFArchitect connection changes. A load records the generation it started in, and
+   * publishes what it read only while that generation is still current — a load that was running
+   * when the connection changed read another session's datasets. Changed, and checked against
+   * publishing, under {@link #rdfArchitectLock}, so no publish can slip in between a change and the
+   * clearing of the caches that goes with it.
+   */
+  private final AtomicLong rdfArchitectGeneration = new AtomicLong();
+
+  private final Object rdfArchitectLock = new Object();
+
+  /** What {@link #claim} answers for a source whose load is already running. */
+  private static final long NOT_CLAIMED = -1;
 
   /** Live sources behind cached schemas, so edits in RDFArchitect can be noticed. */
   private final Map<String, LiveSource> liveSources = new ConcurrentHashMap<>();
@@ -770,7 +835,10 @@ final class SchemaManager {
     private final RdfArchitectSource source;
     private final RdfArchitectConnection connection;
     private final Runnable onChanged;
+
+    /** The change stamp the cached schema was read at; {@code null} when it could not be read. */
     private volatile String stamp;
+
     private final AtomicLong nextCheckAt = new AtomicLong();
 
     LiveSource(
@@ -902,12 +970,50 @@ final class SchemaManager {
     }
   }
 
-  /** Drops everything read from RDFArchitect: another session holds different datasets. */
+  /**
+   * Drops everything read from RDFArchitect: another session holds different datasets. Loads still
+   * running belong to the previous connection: they no longer publish what they read, and their
+   * claims are released so the loads for this connection can start straight away.
+   */
   private void forgetRdfArchitectSchemas() {
-    liveSources.clear();
-    endpointCache.keySet().removeIf(key -> key.startsWith(RdfArchitectDirective.SCHEME));
-    failedEndpoints.keySet().removeIf(key -> key.startsWith(RdfArchitectDirective.SCHEME));
-    workspaceSchemaCache.clear();
+    synchronized (rdfArchitectLock) {
+      rdfArchitectGeneration.incrementAndGet();
+      liveSources.clear();
+      endpointCache.keySet().removeIf(key -> key.startsWith(RdfArchitectDirective.SCHEME));
+      failedEndpoints.keySet().removeIf(key -> key.startsWith(RdfArchitectDirective.SCHEME));
+      inFlightEndpoints
+          .keySet()
+          .removeIf(
+              key -> key.startsWith(RdfArchitectDirective.SCHEME) || key.startsWith(CONFIG_KEY));
+      workspaceSchemaCache.clear();
+    }
+  }
+
+  /**
+   * Claims the load of {@code key}, so that keystrokes do not start it again while it runs.
+   *
+   * @return the generation the load belongs to, or {@link #NOT_CLAIMED} when one is running
+   */
+  private long claim(String key) {
+    long generation = rdfArchitectGeneration.get();
+    return inFlightEndpoints.putIfAbsent(key, generation) == null ? generation : NOT_CLAIMED;
+  }
+
+  /**
+   * Publishes what a load read, unless the RDFArchitect connection has changed since {@code
+   * generation}.
+   *
+   * @return whether it was published
+   */
+  private boolean ifCurrent(long generation, Runnable publish) {
+    synchronized (rdfArchitectLock) {
+      if (generation != rdfArchitectGeneration.get()) {
+        LOG.debug("Dropping a schema read through a previous RDFArchitect connection");
+        return false;
+      }
+      publish.run();
+      return true;
+    }
   }
 
   /**
@@ -917,12 +1023,17 @@ final class SchemaManager {
    * fetch was running, and that edit would then never be noticed. Taken before, such an edit merely
    * costs one redundant refetch.
    *
-   * @return the stamp, or {@code null} for a snapshot — it is immutable, so there is nothing to
-   *     re-check
+   * @return the stamp, or {@code null} when there is none to compare against: a snapshot is
+   *     immutable, and a change log that could not be read is read again on the next poll
    */
   private String liveStampOf(RdfArchitectSource source, RdfArchitectConnection connection) {
-    return RdfArchitectSchemaLoader.changeStamp(
-        source, REMOTE_TIMEOUT, sessionFor(source, connection));
+    try {
+      return RdfArchitectSchemaLoader.changeStamp(
+          source, REMOTE_TIMEOUT, sessionFor(source, connection));
+    } catch (RuntimeException e) {
+      LOG.debug("Could not read the change stamp of {}: {}", source.describe(), e.getMessage());
+      return null;
+    }
   }
 
   /**
@@ -942,7 +1053,9 @@ final class SchemaManager {
   /**
    * Records what a cached RDFArchitect schema was read from, so edits to it can be noticed.
    *
-   * @param stamp the change stamp from {@link #liveStampOf} taken before the content was read
+   * @param stamp the change stamp from {@link #liveStampOf} taken before the content was read, or
+   *     {@code null} when it could not be read — the source is still watched, and the first stamp
+   *     that can be read counts as a change, since an edit may have slipped in unnoticed
    * @param onChanged rebuilds that schema — refetching the one document source for a directive,
    *     reloading the workspace for a config
    */
@@ -952,8 +1065,8 @@ final class SchemaManager {
       RdfArchitectConnection connection,
       String stamp,
       Runnable onChanged) {
-    if (stamp == null) {
-      liveSources.remove(key);
+    if (source.snapshot() != null) {
+      liveSources.remove(key); // immutable: nothing to watch
       return;
     }
     liveSources.put(key, new LiveSource(source, connection, stamp, onChanged));
@@ -971,9 +1084,7 @@ final class SchemaManager {
     }
     endpointExecutor.submit(
         () -> {
-          String stamp =
-              RdfArchitectSchemaLoader.changeStamp(
-                  live.source, REMOTE_TIMEOUT, sessionFor(live.source, live.connection));
+          String stamp = liveStampOf(live.source, live.connection);
           if (stamp == null || stamp.equals(live.stamp)) {
             return;
           }
@@ -983,9 +1094,12 @@ final class SchemaManager {
         });
   }
 
+  /** Prefix of {@link #configLiveKey}. */
+  private static final String CONFIG_KEY = "config:";
+
   /** Cache key for the live source behind a config's schema. */
   private static String configLiveKey(Path configFile) {
-    return "config:" + configFile;
+    return CONFIG_KEY + configFile;
   }
 
   /**
@@ -999,11 +1113,14 @@ final class SchemaManager {
     }
   }
 
-  /** Re-reads the schema of a {@code # [rdfarchitect=...]} document after an edit over there. */
+  /**
+   * Re-reads the schema of a {@code # [rdfarchitect=...]} document after an edit over there. The
+   * schema it replaces is served until then.
+   */
   private void refetchDirectiveSchema(String key) {
-    endpointCache.remove(key);
-    if (inFlightEndpoints.add(key)) {
-      loadRdfArchitect(key);
+    long generation = claim(key);
+    if (generation != NOT_CLAIMED) {
+      loadRdfArchitect(key, generation);
     }
   }
 
@@ -1310,13 +1427,16 @@ final class SchemaManager {
    */
   private WorkspaceSchema buildSchemaFromRdfArchitect(
       CimvocabcheckConfig config, Path configFile, boolean quietLoad) {
+    // Read before the connection, so that a change in between drops this load rather than letting
+    // it publish under the new connection.
+    long generation = rdfArchitectGeneration.get();
     RdfArchitectConnection connection = rdfArchitect.get();
     RdfArchitectSource source = resolveRdfArchitectSource(config, connection);
     if (source == null) {
       return noSchemaWorkspace(config.checkStandardVocabulary());
     }
     String stamp = liveStampOf(source, connection);
-    EndpointSchema es = loadFromRdfArchitect(source, connection, configFile, quietLoad);
+    EndpointSchema es = loadFromRdfArchitect(source, connection, configFile, quietLoad, generation);
     if (es == null) {
       return noSchemaWorkspace(config.checkStandardVocabulary());
     }
@@ -1330,8 +1450,11 @@ final class SchemaManager {
               + " — validating SPARQL syntax only.");
       return noSchemaWorkspace(config.checkStandardVocabulary());
     }
-    rememberLiveSource(
-        configLiveKey(configFile), source, connection, stamp, this::reloadQuietlyAsync);
+    ifCurrent(
+        generation,
+        () ->
+            rememberLiveSource(
+                configLiveKey(configFile), source, connection, stamp, this::reloadQuietlyAsync));
     reportRdfArchitectLoaded(source, es, quietLoad);
     return assembleFromEndpoint(config, es);
   }
@@ -1361,7 +1484,8 @@ final class SchemaManager {
       RdfArchitectSource source,
       RdfArchitectConnection connection,
       Path configFile,
-      boolean quietLoad) {
+      boolean quietLoad,
+      long generation) {
     try {
       return RdfArchitectSchemaLoader.load(source, REMOTE_TIMEOUT, sessionFor(source, connection));
     } catch (RuntimeException e) {
@@ -1375,11 +1499,16 @@ final class SchemaManager {
               + " — "
               + e.getMessage()
               + " — validating SPARQL syntax only until it answers again.";
-      liveSources.remove(configLiveKey(configFile));
-      if (quietLoad) {
-        markFailed(configLiveKey(configFile));
-      } else {
-        fail(configLiveKey(configFile), MessageType.Error, message);
+      String liveKey = configLiveKey(configFile);
+      AtomicBoolean fresh = new AtomicBoolean();
+      ifCurrent(
+          generation,
+          () -> {
+            liveSources.remove(liveKey);
+            fresh.set(markFailed(liveKey));
+          });
+      if (fresh.get() && !quietLoad) {
+        notify(MessageType.Error, message);
       }
       return null;
     }

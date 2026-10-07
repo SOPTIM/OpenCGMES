@@ -305,12 +305,15 @@ public class RdfArchitectSchemaLoaderTest {
   }
 
   @Test
-  public void changeStampIsNullWhenTheInstanceCannotBeRead() {
-    assertNull(
-        RdfArchitectSchemaLoader.changeStamp(
-            RdfArchitectSource.parse("http://127.0.0.1:1/?dataset=nope"),
-            Duration.ofSeconds(2),
-            null));
+  public void changeStampFailsWhenTheInstanceCannotBeRead() {
+    // Not null: that is a snapshot's answer, and a caller would read it as "nothing to watch".
+    assertThrows(
+        RdfArchitectException.class,
+        () ->
+            RdfArchitectSchemaLoader.changeStamp(
+                RdfArchitectSource.parse("http://127.0.0.1:1/?dataset=nope"),
+                Duration.ofSeconds(2),
+                null));
   }
 
   /**
