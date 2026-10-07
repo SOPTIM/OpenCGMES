@@ -70,6 +70,10 @@ object RdfArchitectSchemaHandoff {
     /** An instance that is gone must not hold a background task for the OS's connect timeout. */
     private val PROBE_TIMEOUT: Duration = Duration.ofSeconds(10)
 
+    /** How often, and how long at most, an RDFArchitect import job is polled for its outcome. */
+    private val IMPORT_POLL_INTERVAL: Duration = Duration.ofMillis(300)
+    private val IMPORT_TIMEOUT: Duration = Duration.ofMinutes(10)
+
     /** What was last sent, to which instance. */
     data class Handoff(
         val url: String,
@@ -124,7 +128,7 @@ object RdfArchitectSchemaHandoff {
                     var token: String? = null
                     RdfArchitectClient(base, session?.id).use { client ->
                         indicator.text = "Importing ${info.schemaFiles.size} schema file(s)…"
-                        client.importGraphs(dataset, info.schemaFiles.map(Path::of))
+                        client.importGraphs(dataset, info.schemaFiles.map(Path::of), indicator)
                         if (session == null) {
                             client.disableEditing(dataset)
                             indicator.text = "Creating snapshot…"
@@ -399,27 +403,95 @@ object RdfArchitectSchemaHandoff {
         /** Releases the client's selector thread and executor rather than waiting for a collection. */
         override fun close() = http.close()
 
+        /**
+         * Imports the files as graphs of the dataset (replacing graphs of the same name) and waits
+         * for the import to finish. RDFArchitect imports as a background job of the session:
+         * started with a POST, followed by polling its status. Cancelling [indicator] cancels the
+         * job, which keeps the graphs imported so far.
+         */
         fun importGraphs(
             dataset: String,
             files: List<Path>,
+            indicator: ProgressIndicator,
         ) {
             val boundary = "----cimnotebook" + UUID.randomUUID().toString().replace("-", "")
-            val request =
-                HttpRequest
-                    .newBuilder()
-                    .uri(URI.create("$api/datasets/${encode(dataset)}/graphs/content"))
-                    .header("Content-Type", "multipart/form-data; boundary=$boundary")
-                    .PUT(HttpRequest.BodyPublishers.ofByteArray(multipartBody(boundary, files)))
-                    .build()
-            val response = send(request)
-            val failed =
+            val imports = "$api/datasets/${encode(dataset)}/graphs/content/imports"
+            val started =
+                send(
+                    HttpRequest
+                        .newBuilder()
+                        .uri(URI.create(imports))
+                        .header("Content-Type", "multipart/form-data; boundary=$boundary")
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody(boundary, files)))
+                        .build(),
+                )
+            val jobId =
                 JsonParser
-                    .parseString(response.body())
-                    .takeIf { it.isJsonObject }
-                    ?.asJsonObject
-                    ?.getAsJsonArray("failedImports")
-            if (failed != null && !failed.isEmpty) {
-                throw IOException("RDFArchitect could not parse: $failed")
+                    .parseString(started.body())
+                    .asJsonObject
+                    .get("jobId")
+                    .asString
+            val job = URI.create("$imports/${encode(jobId)}")
+            val deadline = System.nanoTime() + IMPORT_TIMEOUT.toNanos()
+            var prefixesResolved = false
+            var settled = false
+            try {
+                while (true) {
+                    val status =
+                        JsonParser
+                            .parseString(send(HttpRequest.newBuilder(job).GET().build()).body())
+                            .asJsonObject
+                    val state = status.get("state")?.asString
+                    settled = state in setOf("COMPLETED", "FAILED", "CANCELLED")
+                    when (state) {
+                        "COMPLETED" -> {
+                            val failed = status.getAsJsonArray("failedImports")
+                            if (failed != null && !failed.isEmpty) {
+                                throw IOException("RDFArchitect could not parse: $failed")
+                            }
+                            return
+                        }
+
+                        "FAILED", "CANCELLED" -> {
+                            val reason =
+                                status
+                                    .get("errorMessage")
+                                    ?.takeUnless { it.isJsonNull }
+                                    ?.asString
+                            throw IOException(
+                                "RDFArchitect import ${state.lowercase()}" +
+                                    (reason?.let { ": $it" } ?: ""),
+                            )
+                        }
+
+                        // The app asks its user about clashing namespace prefixes; with no one to
+                        // ask, keep the dataset's prefixes and import the contested namespaces
+                        // without one. Answered once: the job may still report waiting right after.
+                        "AWAITING_PREFIX_RESOLUTION" -> {
+                            if (!prefixesResolved) {
+                                prefixesResolved = true
+                                send(
+                                    HttpRequest
+                                        .newBuilder(URI.create("$job/prefix-resolutions"))
+                                        .header("Content-Type", "application/json")
+                                        .PUT(HttpRequest.BodyPublishers.ofString("[]"))
+                                        .build(),
+                                )
+                            }
+                        }
+                    }
+                    if (System.nanoTime() > deadline) {
+                        throw IOException("RDFArchitect import did not finish in time")
+                    }
+                    indicator.checkCanceled()
+                    Thread.sleep(IMPORT_POLL_INTERVAL.toMillis())
+                }
+            } finally {
+                // Given up on (cancelled, timed out, unreachable): stop the job rather than leave
+                // it importing into a dataset nobody waits for.
+                if (!settled) {
+                    runCatching { send(HttpRequest.newBuilder(job).DELETE().build()) }
+                }
             }
         }
 

@@ -1060,6 +1060,23 @@ async function schemaFingerprint(files: string[]): Promise<string> {
     return hash.digest("hex");
 }
 
+/** How often, and how long at most, an RDFArchitect import job is polled for its outcome. */
+const IMPORT_POLL_INTERVAL_MS = 300;
+const IMPORT_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** The parts of RDFArchitect's import job status the extension reads. */
+interface ImportJobStatus {
+    state:
+        | "RUNNING"
+        | "SCANNING_PREFIXES"
+        | "AWAITING_PREFIX_RESOLUTION"
+        | "COMPLETED"
+        | "CANCELLED"
+        | "FAILED";
+    failedImports?: string[];
+    errorMessage?: string | null;
+}
+
 /**
  * Minimal client for the RDFArchitect REST API. RDFArchitect scopes datasets to the backend
  * session (`RDFA_SESSION_ID` cookie), so the cookie returned by the first response is replayed on
@@ -1080,19 +1097,69 @@ class RdfArchitectClient {
         }
     }
 
+    /**
+     * Imports the files as graphs of the dataset (replacing graphs of the same name) and waits for
+     * the import to finish. RDFArchitect imports as a background job of the session: started with
+     * a POST, followed by polling its status.
+     */
     async importGraphs(dataset: string, files: string[]): Promise<void> {
         const form = new FormData();
         for (const file of files) {
             const data = await fs.promises.readFile(file);
             form.append("files", new Blob([data]), path.basename(file));
         }
-        const res = await this.request(`/datasets/${encodeURIComponent(dataset)}/graphs/content`, {
-            method: "PUT",
-            body: form,
-        });
-        const result = (await res.json()) as { failedImports?: string[] };
-        if (result.failedImports?.length) {
-            throw new Error(`RDFArchitect could not parse: ${result.failedImports.join(", ")}`);
+        const imports = `/datasets/${encodeURIComponent(dataset)}/graphs/content/imports`;
+        const started = await this.request(imports, { method: "POST", body: form });
+        const { jobId } = (await started.json()) as { jobId: string };
+        const job = `${imports}/${encodeURIComponent(jobId)}`;
+        const deadline = Date.now() + IMPORT_TIMEOUT_MS;
+        let prefixesResolved = false;
+        let settled = false;
+        try {
+            for (;;) {
+                const status = (await (
+                    await this.request(job, { method: "GET" })
+                ).json()) as ImportJobStatus;
+                settled = ["COMPLETED", "FAILED", "CANCELLED"].includes(status.state);
+                switch (status.state) {
+                    case "COMPLETED":
+                        if (status.failedImports?.length) {
+                            throw new Error(
+                                `RDFArchitect could not parse: ${status.failedImports.join(", ")}`,
+                            );
+                        }
+                        return;
+                    case "FAILED":
+                    case "CANCELLED":
+                        throw new Error(
+                            `RDFArchitect import ${status.state.toLowerCase()}` +
+                                (status.errorMessage ? `: ${status.errorMessage}` : ""),
+                        );
+                    case "AWAITING_PREFIX_RESOLUTION":
+                        // The app asks its user about clashing namespace prefixes; with no one to
+                        // ask, keep the dataset's prefixes and import the contested namespaces
+                        // without one. Answered once: the job may still report waiting right after.
+                        if (!prefixesResolved) {
+                            prefixesResolved = true;
+                            await this.request(`${job}/prefix-resolutions`, {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: "[]",
+                            });
+                        }
+                        break;
+                }
+                if (Date.now() > deadline) {
+                    throw new Error("RDFArchitect import did not finish in time");
+                }
+                await new Promise((resolve) => setTimeout(resolve, IMPORT_POLL_INTERVAL_MS));
+            }
+        } finally {
+            // Given up on (timed out, unreachable): stop the job rather than leave it importing
+            // into a dataset nobody waits for.
+            if (!settled) {
+                await this.request(job, { method: "DELETE" }).catch(() => undefined);
+            }
         }
     }
 
