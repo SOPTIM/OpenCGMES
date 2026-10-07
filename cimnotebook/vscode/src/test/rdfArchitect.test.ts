@@ -20,6 +20,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import {
     datasetNameFor,
+    datasetNames,
     localNameOf,
     normalizeBaseUrl,
     parseTermLink,
@@ -156,5 +157,28 @@ describe("localNameOf", () => {
 
     it("returns the value itself when there is no separator", () => {
         assert.equal(localNameOf("ACLineSegment"), "ACLineSegment");
+    });
+});
+
+describe("datasetNames", () => {
+    it("reads the names of dataset objects", () => {
+        const listing = [
+            { name: "cgmes-3.0", prefixes: { cim: "http://iec.ch/TC57/CIM100#" }, readOnly: false },
+            { name: "draft", prefixes: {}, readOnly: true },
+        ];
+        assert.deepEqual(datasetNames(listing), ["cgmes-3.0", "draft"]);
+    });
+
+    it("reads the bare names older instances serve", () => {
+        assert.deepEqual(datasetNames(["cgmes-3.0", "draft"]), ["cgmes-3.0", "draft"]);
+    });
+
+    it("does not mistake a prefix for a dataset", () => {
+        assert.deepEqual(datasetNames([{ name: "a", prefixes: { cim: "urn:x" } }]), ["a"]);
+    });
+
+    it("answers no names for anything but a list", () => {
+        assert.deepEqual(datasetNames({ error: "nope" }), []);
+        assert.deepEqual(datasetNames(null), []);
     });
 });

@@ -113,6 +113,25 @@ export function parseTermLink(linkPath: string): Map<string, string> | undefined
     return fields.has("class") ? fields : undefined;
 }
 
+/**
+ * The dataset names in a `GET /api/datasets` response. Current instances list each dataset as a
+ * `{name, prefixes, readOnly}` object; older ones served bare strings.
+ */
+export function datasetNames(listing: unknown): string[] {
+    if (!Array.isArray(listing)) {
+        return [];
+    }
+    return listing
+        .map((entry: unknown) =>
+            typeof entry === "string"
+                ? entry
+                : typeof entry === "object" && entry !== null && "name" in entry
+                  ? String((entry as { name: unknown }).name)
+                  : "",
+        )
+        .filter((name) => name !== "");
+}
+
 /** The part of an IRI after its last `#` or `/`. */
 export function localNameOf(iri: string): string {
     return iri.split(/[#/]/).pop() || iri;

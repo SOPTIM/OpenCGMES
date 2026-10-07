@@ -30,6 +30,7 @@ import {
 } from "vscode-languageclient/node";
 import {
     datasetNameFor,
+    datasetNames,
     localNameOf,
     normalizeBaseUrl,
     parseTermLink,
@@ -1043,7 +1044,7 @@ async function handoffIsAlive(base: string, handoff: SchemaHandoff): Promise<boo
         const res = await fetch(`${api}/datasets`, {
             headers: { Cookie: `${RDFA_SESSION_COOKIE}=${connectedSession.id}` },
         });
-        return res.ok && ((await res.json()) as string[]).includes(handoff.dataset);
+        return res.ok && datasetNames(await res.json()).includes(handoff.dataset);
     } catch {
         return false;
     }
