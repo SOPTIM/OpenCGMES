@@ -138,9 +138,7 @@
                     <outputFormat>json</outputFormat>
                     <outputName>bom</outputName>
                     <outputDirectory>${sbom.outputDirectory}</outputDirectory>
-                    <!-- Deterministic serial number + tool metadata for drift checking.
-                         (The metadata timestamp is normalised away by generate-sbom.sh.) -->
-                    <outputReproducible>true</outputReproducible>
+                    <outputTimestamp>1980-01-01T00:00:02Z</outputTimestamp>
                     <includeBomSerialNumber>true</includeBomSerialNumber>
                     <!-- Only what is actually shipped: compile + runtime, no test deps. -->
                     <includeCompileScope>true</includeCompileScope>

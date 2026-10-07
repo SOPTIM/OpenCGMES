@@ -38,6 +38,16 @@ from the local environment, which would otherwise churn the files:
   artifacts, so the hashes are dropped (component, version and license — what
   the license gate needs — are kept).
 
+Two inputs are pinned rather than normalized, because they are written into the BOM:
+
+- the CycloneDX Maven plugin's reproducible mode (deterministic `serialNumber` and
+  `cdx:reproducible` property) is enabled via an explicit `outputTimestamp` in the
+  root `pom.xml`, so it no longer depends on the build environment;
+- the npm generator (`@cyclonedx/cyclonedx-npm` and `@cyclonedx/cyclonedx-library`,
+  both listed in `metadata.tools`) is installed from the lockfile in
+  [`scripts/sbom-tools/`](../../scripts/sbom-tools/) instead of being resolved
+  ad hoc by `npx`.
+
 Running `scripts/generate-sbom.sh` with no args regenerates all three components
 across both sbom directories. With the above normalized, re-running with
 unchanged dependencies produces byte-identical files on any machine.

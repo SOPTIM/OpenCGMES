@@ -31,6 +31,8 @@ on:
       - "cimnotebook/intellij/build.gradle.kts"
       - "cimnotebook/intellij/settings.gradle.kts"
       - "cimnotebook/intellij/gradle.properties"
+      - "scripts/sbom-tools/package.json"
+      - "scripts/sbom-tools/package-lock.json"
 
 permissions:
   contents: write
