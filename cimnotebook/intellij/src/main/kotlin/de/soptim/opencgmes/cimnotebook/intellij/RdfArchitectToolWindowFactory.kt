@@ -22,6 +22,7 @@ import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
@@ -57,6 +58,15 @@ class RdfArchitectToolWindowFactory :
         project: Project,
         toolWindow: ToolWindow,
     ) {
+        // The platform calls this once per tool window: an exception here — such as JCEF's classes
+        // failing to load in RdfArchitectPanel — leaves it empty until the IDE restarts.
+        if (!jcefClassesAvailable()) {
+            LOG.warn("JCEF classes are not available to CIMNotebook; is the Web Browser (JCEF) plugin disabled?")
+            toolWindow.contentManager.addContent(
+                ContentFactory.getInstance().createContent(jcefMissing(), "", false),
+            )
+            return
+        }
         val panel = RdfArchitectPanel(project, toolWindow)
         val content = ContentFactory.getInstance().createContent(panel, "", false)
         toolWindow.contentManager.addContent(content)
@@ -130,7 +140,32 @@ class RdfArchitectToolWindowFactory :
         }
     }
 
+    /** Shown instead of the browser when the IDE's JCEF plugin is disabled or missing. */
+    private fun jcefMissing(): javax.swing.JComponent {
+        val panel = JBPanelWithEmptyText()
+        panel.emptyText.text = "The embedded browser (JCEF) is not available."
+        panel.emptyText.appendLine("Enable the bundled \"Web Browser (JCEF)\" plugin and restart the IDE.")
+        return panel
+    }
+
     companion object {
+        private val LOG = Logger.getInstance(RdfArchitectToolWindowFactory::class.java)
+
+        /**
+         * Whether JCEF's classes can be loaded by this plugin. Since 2025.3 they belong to a
+         * bundled plugin of their own (see the optional dependency in plugin.xml), which the user
+         * can disable.
+         */
+        private fun jcefClassesAvailable(): Boolean =
+            try {
+                Class.forName("com.intellij.ui.jcef.JBCefBrowser", false, RdfArchitectToolWindowFactory::class.java.classLoader)
+                true
+            } catch (_: ClassNotFoundException) {
+                false
+            } catch (_: LinkageError) {
+                false
+            }
+
         /**
          * The term a deep link is heading for, set before the tool window is opened so a first-time
          * schema import can land on it. Read and cleared when the tool window content is created.
@@ -191,7 +226,12 @@ class RdfArchitectToolWindowFactory :
                     toolWindow.contentManager.contents
                         .firstOrNull()
                         ?.component as? RdfArchitectPanel
-                panel?.openUrl(url) ?: BrowserUtil.browse(url)
+                if (panel != null) {
+                    panel.openUrl(url)
+                } else {
+                    LOG.warn("RDFArchitect tool window has no browser; opening $url in the system browser")
+                    BrowserUtil.browse(url)
+                }
             }
         }
     }

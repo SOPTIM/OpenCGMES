@@ -105,6 +105,10 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.redhat.devtools.lsp4ij</depends>
+    <!-- Since 2025.3 JCEF (JBCefBrowser, used by the RDFArchitect tool window) is a bundled plugin
+         of its own, and its classes are visible only to plugins depending on it. Optional, because
+         IDEs before that have JCEF in the core and do not know this ID. -->
+    <depends optional="true" config-file="cimnotebook-jcef.xml">com.intellij.modules.jcef</depends>
 
     <extensions defaultExtensionNs="com.intellij">
 
