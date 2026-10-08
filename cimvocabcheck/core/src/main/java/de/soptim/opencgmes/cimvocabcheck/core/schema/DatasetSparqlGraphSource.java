@@ -19,16 +19,19 @@
 package de.soptim.opencgmes.cimvocabcheck.core.schema;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.Triple;
 import org.apache.jena.query.Dataset;
-import org.apache.jena.query.ParameterizedSparqlString;
 import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.RDFNode;
+import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.vocabulary.RDF;
 
 /**
  * A {@link SparqlGraphSource} backed by an in-memory Jena {@link Dataset}.
@@ -53,17 +56,6 @@ public final class DatasetSparqlGraphSource implements SparqlGraphSource {
   private static final String ALL_GRAPHS_QUERY =
       "SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }";
 
-  private static final String SAMPLE_TERMS_QUERY =
-      """
-      SELECT DISTINCT ?term WHERE {
-        GRAPH ?g {
-          { ?s ?term ?o }
-          UNION
-          { ?x a ?term }
-        }
-      }\
-      """;
-
   private final Dataset dataset;
 
   /** Creates a source backed by the given in-memory {@code dataset}. */
@@ -86,22 +78,38 @@ public final class DatasetSparqlGraphSource implements SparqlGraphSource {
     return dataset.getNamedModel(graphName).getGraph();
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Walks the graph rather than querying it by name. A graph here is named by whoever filled the
+   * dataset — RDFArchitect names one after the file it was imported from — and such a name is
+   * routinely not writable as a SPARQL {@code IRIREF}: a space in it makes the query text
+   * unparseable, which would fail the whole schema load over one graph. {@link #fetchGraph} already
+   * addresses graphs directly for the same reason.
+   */
   @Override
   public List<Node> sampleTerms(String graphName, int limit) {
-    ParameterizedSparqlString pss = new ParameterizedSparqlString();
-    pss.setCommandText(SAMPLE_TERMS_QUERY + "\nLIMIT " + Math.max(1, limit));
-    pss.setIri("g", graphName);
-    var terms = new ArrayList<Node>();
-    try (QueryExecution qe = QueryExecution.dataset(dataset).query(pss.toString()).build()) {
-      ResultSet rs = qe.execSelect();
-      while (rs.hasNext()) {
-        RDFNode t = rs.next().get("term");
-        if (t != null && t.isURIResource()) {
-          terms.add(t.asNode());
+    var terms = new LinkedHashSet<Node>();
+    int max = Math.max(1, limit);
+    Graph graph = fetchGraph(graphName);
+    ExtendedIterator<Triple> triples = graph.find();
+    try {
+      while (triples.hasNext() && terms.size() < max) {
+        Triple triple = triples.next();
+        // The same two shapes the SPARQL form sampled: every predicate, and the object of rdf:type.
+        if (triple.getPredicate().isURI()) {
+          terms.add(triple.getPredicate());
+        }
+        if (terms.size() < max
+            && RDF.type.asNode().equals(triple.getPredicate())
+            && triple.getObject().isURI()) {
+          terms.add(triple.getObject());
         }
       }
+    } finally {
+      triples.close();
     }
-    return terms;
+    return List.copyOf(terms);
   }
 
   private List<String> selectUris(String query, String var) {
