@@ -29,16 +29,17 @@ import org.apache.jena.graph.Node;
  *
  * <p>The SHACL shape analyzer and the SPARQL query validator both need to decide, for a URI used in
  * class or property position, whether it is a genuine CIM term, a standard-vocabulary term, an open
- * annotation term, a header extension, a locally declared helper, a closed-vocabulary typo, or
- * simply unknown. Historically that decision was a hand-ordered {@code if}-chain copied — with
+ * annotation term, a non-standard header term, a locally declared helper, a closed-vocabulary typo,
+ * or simply unknown. Historically that decision was a hand-ordered {@code if}-chain copied — with
  * subtle divergences — into four places. This resolver centralises the ordering so every caller
  * classifies terms the same way.
  *
  * <p>The classification order is:
  *
  * <ol>
- *   <li>{@link Classification#HEADER_EXTENSION} — a curated CGMES header term (see {@link
- *       HeaderVocabulary}); accepted even though it lives in a closed namespace.
+ *   <li>{@link Classification#HEADER_EXTENSION} — a non-standard 552 header term in the {@code
+ *       rdf:} namespace (see {@link HeaderVocabulary}); neither a typo nor a missing CIM term, but
+ *       callers report it as {@link SparqlValidationCode#NON_STANDARD_HEADER_TERM}.
  *   <li>{@link Classification#KNOWN_STANDARD} — a genuine term of a closed W3C vocabulary
  *       (rdf/rdfs/owl/sh).
  *   <li>{@link Classification#VOCAB_TYPO} — an unknown term in a closed W3C namespace (e.g. {@code
@@ -68,7 +69,9 @@ public final class TermResolver {
     VOCAB_TYPO,
     /** A term in an open annotation/datatype namespace, accepted wholesale. */
     OPEN_NAMESPACE,
-    /** A curated CGMES header extension term (e.g. {@code rdf:Statements.subject}). */
+    /**
+     * A non-standard 552 header term in the rdf namespace (e.g. {@code rdf:Statements.subject}).
+     */
     HEADER_EXTENSION,
     /** A URI the analysed document declares itself. */
     LOCAL_DEF,
@@ -147,9 +150,10 @@ public final class TermResolver {
   }
 
   /**
-   * Returns whether a classification means the term is acceptable in the requested role (no
-   * annotation should be emitted). The two "matching" CIM roles are handled by the caller, which
-   * knows whether it asked about a class or a property.
+   * Returns whether a classification means the term is acceptable in the requested role, i.e. it
+   * must not be reported as unknown or as a typo. {@link Classification#HEADER_EXTENSION} counts as
+   * acceptable here; callers warn about it separately. The two "matching" CIM roles are handled by
+   * the caller, which knows whether it asked about a class or a property.
    */
   public static boolean isAccepted(Classification c, Role role) {
     return switch (c) {

@@ -91,7 +91,7 @@ CIMVocabCheck makes **two passes** over a SHACL shapes graph.
 | Predicate | What is checked |
 | --- | --- |
 | `sh:targetClass` / `sh:class` | CIM class IRI must exist in the selected profiles. Standard-vocab classes, classes the file declares itself, and constraint-component parameters are exempt; a closed-namespace typo (e.g. `sh:Fooo`) is reported as `UNKNOWN_VOCABULARY_TERM` |
-| `sh:path` | Every URI segment must be a known property (standard-vocab terms, header extensions, properties the file declares itself, and constraint-component parameter paths are exempt); a closed-namespace typo (e.g. `rdf:typ`) is reported as `UNKNOWN_VOCABULARY_TERM` |
+| `sh:path` | Every URI segment must be a known property (standard-vocab terms, properties the file declares itself, and constraint-component parameter paths are exempt); a closed-namespace typo (e.g. `rdf:typ`) is reported as `UNKNOWN_VOCABULARY_TERM`, a non-standard 552 header term (`rdf:Statements.subject`, …) as `NON_STANDARD_HEADER_TERM` |
 | `sh:nodeKind` + `rdfs:range` | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` |
 | `sh:datatype` / `sh:class` vs `rdfs:range` | `DATATYPE_INCOMPATIBLE_WITH_RANGE` / `CLASS_INCOMPATIBLE_WITH_RANGE`; a non-XSD-datatype `sh:datatype` is `UNKNOWN_VOCABULARY_TERM` |
 | `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min &gt; max; `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` when incompatible with the property's `cims:multiplicity` |
