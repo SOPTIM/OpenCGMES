@@ -55,8 +55,18 @@ public enum SparqlValidationCode {
    * property).
    */
   CLASS_INCOMPATIBLE_WITH_RANGE,
-  /** {@code sh:minCount} exceeds {@code sh:maxCount} on a property shape. */
+  /**
+   * A count constraint is self-contradictory — {@code sh:minCount} exceeds {@code sh:maxCount}, or
+   * {@code sh:qualifiedMinCount} exceeds {@code sh:qualifiedMaxCount} or the shape's {@code
+   * sh:maxCount} — so the shape can never be satisfied.
+   */
   INVALID_CARDINALITY,
+  /**
+   * A SHACL constraint parameter is ill-formed — a negative count or length (e.g. {@code
+   * sh:minCount -1}), or an {@code sh:qualifiedValueShape} without {@code sh:qualifiedMinCount} or
+   * {@code sh:qualifiedMaxCount}.
+   */
+  INVALID_CONSTRAINT_PARAMETER,
   /**
    * Object IRI of a property whose {@code rdfs:range} is an enumeration is not one of that
    * enumeration's members — almost always a typo (e.g. {@code cim:WindGenUnitKind.offshroe}).

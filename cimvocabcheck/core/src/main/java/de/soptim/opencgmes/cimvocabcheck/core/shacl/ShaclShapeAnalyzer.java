@@ -110,6 +110,16 @@ public final class ShaclShapeAnalyzer {
   private static final List<Node> PROPERTY_PAIR_PREDICATES =
       List.of(Shacl.EQUALS, Shacl.DISJOINT, Shacl.LESS_THAN, Shacl.LESS_THAN_OR_EQUALS);
 
+  /** Count and length parameters whose value SHACL restricts to non-negative integers. */
+  private static final List<Node> NON_NEGATIVE_PARAMETERS =
+      List.of(
+          Shacl.MIN_COUNT,
+          Shacl.MAX_COUNT,
+          Shacl.QUALIFIED_MIN_COUNT,
+          Shacl.QUALIFIED_MAX_COUNT,
+          Shacl.MIN_LENGTH,
+          Shacl.MAX_LENGTH);
+
   /** Links through which {@code sh:deactivated} propagates to nested shapes. */
   private static final List<Node> DEACTIVATION_PROPAGATING_LINKS =
       List.of(Shacl.PROPERTY, Shacl.NODE);
@@ -180,6 +190,8 @@ public final class ShaclShapeAnalyzer {
     checkPropertyShapes(shapesGraph, scope, localDefs, componentInternals, deactivated, out);
     checkInLists(shapesGraph, scope, localDefs, deactivated, out);
     checkHasValue(shapesGraph, scope, localDefs, deactivated, out);
+    checkQualifiedCardinalities(shapesGraph, deactivated, out);
+    checkConstraintParameters(shapesGraph, deactivated, out);
     checkValueRanges(shapesGraph, deactivated, out);
     checkDatatypeVocabulary(shapesGraph, deactivated, out);
     checkPropertyRefPredicates(shapesGraph, TARGET_PREDICATES, scope, localDefs, deactivated, out);
@@ -540,16 +552,116 @@ public final class ShaclShapeAnalyzer {
       return;
     }
 
-    OptionalInt min = parseLiteralInt(minNode);
-    OptionalInt max = parseLiteralInt(maxNode);
+    OptionalInt min = countValue(minNode);
+    OptionalInt max = countValue(maxNode);
     if (min.isEmpty() || max.isEmpty()) {
       return;
     }
 
     if (min.getAsInt() > max.getAsInt()) {
       Node term = pathNode.isURI() ? pathNode : null;
-      out.add(cardinalityAnnotation(min.getAsInt(), max.getAsInt(), term, hint));
+      out.add(
+          cardinalityAnnotation(
+              "sh:minCount", min.getAsInt(), "sh:maxCount", max.getAsInt(), term, hint));
     }
+  }
+
+  /**
+   * Flags a qualified count that no data can satisfy: {@code sh:qualifiedMinCount} above {@code
+   * sh:qualifiedMaxCount}, or above the shape's own {@code sh:maxCount} — the conforming value
+   * nodes are a subset of all value nodes, so they cannot outnumber the overall upper bound.
+   */
+  private static void checkQualifiedCardinalities(
+      Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
+    var shapes = new LinkedHashSet<Node>();
+    forEachSubject(g, Shacl.QUALIFIED_MIN_COUNT, shapes::add);
+    for (Node shape : shapes) {
+      if (deactivated.contains(shape)) {
+        continue;
+      }
+      OptionalInt qualifiedMin = countValue(singleObject(g, shape, Shacl.QUALIFIED_MIN_COUNT));
+      if (qualifiedMin.isEmpty()) {
+        continue;
+      }
+      int lower = qualifiedMin.getAsInt();
+      OptionalInt qualifiedMax = countValue(singleObject(g, shape, Shacl.QUALIFIED_MAX_COUNT));
+      OptionalInt max = countValue(singleObject(g, shape, Shacl.MAX_COUNT));
+      Node term = simplePathProperty(g, shape);
+      Node hint = resolveHintNode(g, shape);
+      if (qualifiedMax.isPresent() && lower > qualifiedMax.getAsInt()) {
+        out.add(
+            cardinalityAnnotation(
+                "sh:qualifiedMinCount",
+                lower,
+                "sh:qualifiedMaxCount",
+                qualifiedMax.getAsInt(),
+                term,
+                hint));
+      } else if (max.isPresent() && lower > max.getAsInt()) {
+        out.add(
+            cardinalityAnnotation(
+                "sh:qualifiedMinCount", lower, "sh:maxCount", max.getAsInt(), term, hint));
+      }
+    }
+  }
+
+  /**
+   * Flags ill-formed constraint parameters that SHACL-SHACL rejects: a negative count or length,
+   * and an {@code sh:qualifiedValueShape} with neither {@code sh:qualifiedMinCount} nor {@code
+   * sh:qualifiedMaxCount} (at least one is a mandatory parameter of that constraint component).
+   */
+  private static void checkConstraintParameters(
+      Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
+    for (Node parameter : NON_NEGATIVE_PARAMETERS) {
+      var it = g.find(Node.ANY, parameter, Node.ANY);
+      try {
+        while (it.hasNext()) {
+          Triple t = it.next();
+          Node shape = t.getSubject();
+          OptionalInt value = parseLiteralInt(t.getObject());
+          if (deactivated.contains(shape) || value.isEmpty() || value.getAsInt() >= 0) {
+            continue;
+          }
+          String msg =
+              "sh:"
+                  + parameter.getLocalName()
+                  + " "
+                  + value.getAsInt()
+                  + " is negative: SHACL requires a non-negative integer.";
+          out.add(
+              constraintParameterAnnotation(
+                  msg, simplePathProperty(g, shape), resolveHintNode(g, shape)));
+        }
+      } finally {
+        closeQuietly(it);
+      }
+    }
+
+    var qualifiedShapes = new LinkedHashSet<Node>();
+    forEachSubject(g, Shacl.QUALIFIED_VALUE_SHAPE, qualifiedShapes::add);
+    for (Node shape : qualifiedShapes) {
+      if (deactivated.contains(shape)
+          || g.contains(shape, Shacl.QUALIFIED_MIN_COUNT, Node.ANY)
+          || g.contains(shape, Shacl.QUALIFIED_MAX_COUNT, Node.ANY)) {
+        continue;
+      }
+      out.add(
+          constraintParameterAnnotation(
+              "sh:qualifiedValueShape without sh:qualifiedMinCount or sh:qualifiedMaxCount:"
+                  + " at least one of them is required, otherwise the constraint is ill-formed.",
+              simplePathProperty(g, shape),
+              resolveHintNode(g, shape)));
+    }
+  }
+
+  /**
+   * Parses a count for the contradiction checks. A negative value is treated as absent: it is
+   * reported on its own as an ill-formed parameter, and comparing it would only add a second
+   * finding for the same mistake.
+   */
+  private static OptionalInt countValue(Node n) {
+    OptionalInt v = parseLiteralInt(n);
+    return v.isPresent() && v.getAsInt() < 0 ? OptionalInt.empty() : v;
   }
 
   /**
@@ -573,8 +685,8 @@ public final class ShaclShapeAnalyzer {
     }
     Multiplicity m = declared.get();
 
-    OptionalInt shMin = parseLiteralInt(singleObject(g, shape, Shacl.MIN_COUNT));
-    OptionalInt shMax = parseLiteralInt(singleObject(g, shape, Shacl.MAX_COUNT));
+    OptionalInt shMin = countValue(singleObject(g, shape, Shacl.MIN_COUNT));
+    OptionalInt shMax = countValue(singleObject(g, shape, Shacl.MAX_COUNT));
 
     boolean exceedsUpper = m.max() != null && shMin.isPresent() && shMin.getAsInt() > m.max();
     boolean belowLower = shMax.isPresent() && shMax.getAsInt() < m.min();
@@ -1318,13 +1430,16 @@ public final class ShaclShapeAnalyzer {
   }
 
   private static SparqlValidationAnnotation cardinalityAnnotation(
-      int min, int max, Node term, Node hint) {
+      String lowerLabel, int lower, String upperLabel, int upper, Node term, Node hint) {
 
     String msg =
-        "sh:minCount "
-            + min
-            + " exceeds sh:maxCount "
-            + max
+        lowerLabel
+            + " "
+            + lower
+            + " exceeds "
+            + upperLabel
+            + " "
+            + upper
             + ": property shape can never be satisfied.";
     return new SparqlValidationAnnotation(
         SparqlValidationSeverity.ERROR,
@@ -1332,6 +1447,21 @@ public final class ShaclShapeAnalyzer {
         null,
         msg,
         SparqlValidationCode.INVALID_CARDINALITY,
+        term,
+        List.of(),
+        List.of(),
+        null,
+        hint);
+  }
+
+  private static SparqlValidationAnnotation constraintParameterAnnotation(
+      String msg, Node term, Node hint) {
+    return new SparqlValidationAnnotation(
+        SparqlValidationSeverity.ERROR,
+        null,
+        null,
+        msg,
+        SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER,
         term,
         List.of(),
         List.of(),
