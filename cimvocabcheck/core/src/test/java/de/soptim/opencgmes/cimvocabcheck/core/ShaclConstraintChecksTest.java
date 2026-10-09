@@ -517,6 +517,164 @@ public class ShaclConstraintChecksTest {
   }
 
   // ============================================================================================
+  // sh:qualifiedMinCount / sh:qualifiedMaxCount checks
+  // ============================================================================================
+
+  private static final String QUALIFIED_PATH =
+      "sh:path cim:Equipment.EquipmentContainer ; sh:qualifiedValueShape [ sh:class cim:Substation"
+          + " ] ; ";
+
+  /** qualifiedMinCount above qualifiedMaxCount — no value node set can satisfy both. */
+  @Test
+  public void qualified_minAboveMax_isError() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount 3 ; sh:qualifiedMaxCount 1 ] ."));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+  }
+
+  /** The conforming values are a subset of all values, so they cannot outnumber sh:maxCount. */
+  @Test
+  public void qualified_minAboveMaxCount_isError() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount 2 ; sh:maxCount 1 ] ."));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+  }
+
+  /** Equal qualified bounds and a qualified upper bound within sh:maxCount are both satisfiable. */
+  @Test
+  public void qualified_consistentBounds_ok() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount 2 ; sh:qualifiedMaxCount 2 ; sh:maxCount 4 ] ;\n"
+                    + "   sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMaxCount 3 ] ."));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+  }
+
+  /** At least one qualified count is a mandatory parameter of sh:qualifiedValueShape. */
+  @Test
+  public void qualified_withoutAnyCount_isError() {
+    var r =
+        api.validateShacl(
+            parseShapes(PREFIXES + "ex:S sh:property [ " + QUALIFIED_PATH + "sh:maxCount 4 ] ."));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+  }
+
+  /** Qualified counts are checked on node shapes too, not only on property shapes. */
+  @Test
+  public void qualified_onNodeShape_isChecked() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:qualifiedValueShape [ sh:class cim:Substation ] ;"
+                    + " sh:qualifiedMinCount 2 ; sh:qualifiedMaxCount 1 ."));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+  }
+
+  /** A deactivated shape is ignored, including its qualified counts. */
+  @Test
+  public void qualified_deactivated_ignored() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:deactivated true ; sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount 3 ; sh:qualifiedMaxCount 1 ] ;\n"
+                    + "   sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:maxCount 1 ] ."));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+  }
+
+  // ============================================================================================
+  // Negative count and length parameters
+  // ============================================================================================
+
+  /** Every count and length parameter must be a non-negative integer. */
+  @Test
+  public void negativeParameters_areErrors() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:minCount -1 ] ;\n"
+                    + "   sh:property [ sh:path cim:ACLineSegment.r ; sh:maxCount -1 ] ;\n"
+                    + "   sh:property [ sh:path cim:IdentifiedObject.name ; sh:minLength -2 ;"
+                    + " sh:maxLength -1 ] ;\n"
+                    + "   sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount -1 ; sh:qualifiedMaxCount -3 ] ."));
+    assertEquals(6, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+  }
+
+  /** The finding names the parameter and its value, and points at the shape's path property. */
+  @Test
+  public void negativeParameter_annotation_namesParameterAndPath() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:maxLength -5 ] ."));
+    var annotation =
+        r.shapeAnnotations().stream()
+            .filter(a -> a.code() == SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER)
+            .findFirst()
+            .orElseThrow();
+    assertEquals(SparqlValidationSeverity.ERROR, annotation.severity());
+    assertTrue(annotation.message(), annotation.message().contains("sh:maxLength -5"));
+    assertEquals(PROP_R, annotation.term().getURI());
+  }
+
+  /**
+   * A negative bound is reported once as an ill-formed parameter and not compared as well — {@code
+   * sh:minCount 0 ; sh:maxCount -1} would otherwise also look like min &gt; max.
+   */
+  @Test
+  public void negativeParameter_notAlsoReportedAsContradiction() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:minCount 0 ;"
+                    + " sh:maxCount -1 ] ;\n"
+                    + "   sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount -1 ] ."));
+    assertEquals(2, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+  }
+
+  /** Zero is a valid count and length. */
+  @Test
+  public void zeroParameters_ok() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:IdentifiedObject.name ; sh:minCount 0 ;"
+                    + " sh:maxCount 0 ; sh:minLength 0 ; sh:maxLength 0 ] ."));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+  }
+
+  // ============================================================================================
   // Helpers
   // ============================================================================================
 
@@ -527,6 +685,10 @@ public class ShaclConstraintChecksTest {
                 a.code() == SparqlValidationCode.NODE_KIND_INCOMPATIBLE_WITH_RANGE
                     && a.term() != null
                     && propUri.equals(a.term().getURI()));
+  }
+
+  private static long count(ShaclValidationResult r, SparqlValidationCode code) {
+    return r.shapeAnnotations().stream().filter(a -> a.code() == code).count();
   }
 
   private static boolean hasCardinalityError(ShaclValidationResult r) {
