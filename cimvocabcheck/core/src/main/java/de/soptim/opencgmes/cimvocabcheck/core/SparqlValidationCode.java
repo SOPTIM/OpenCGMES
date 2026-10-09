@@ -31,6 +31,13 @@ public enum SparqlValidationCode {
    * vocabulary does not define — almost always a typo (e.g. {@code rdf:typ}).
    */
   UNKNOWN_VOCABULARY_TERM,
+  /**
+   * A non-standard term the IEC 61970-552 header RDFS coins under the {@code rdf:} namespace (e.g.
+   * {@code rdf:Statements.subject}). Difference models carry plain triples inside {@code
+   * rdf:parseType="Statements"} containers, so no instance data uses these terms and a pattern or
+   * path naming one never matches. Reported as a warning, not as a vocabulary typo.
+   */
+  NON_STANDARD_HEADER_TERM,
   /** A named graph is used by the query but no profiles were configured for it. */
   GRAPH_NOT_CONFIGURED,
   /** A variable predicate / class is used and cannot be validated statically. */

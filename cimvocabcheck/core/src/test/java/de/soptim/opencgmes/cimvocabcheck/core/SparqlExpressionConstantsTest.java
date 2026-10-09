@@ -153,10 +153,11 @@ public class SparqlExpressionConstantsTest {
   }
 
   @Test
-  public void bind_headerExtensionConstant_accepted() {
+  public void bind_headerTermConstant_warnedNotUnknown() {
     var r = validate("SELECT * WHERE { ?u a cim:WindGeneratingUnit . BIND(rdf:Statements AS ?x) }");
     assertFalse(has(r, SparqlValidationCode.UNKNOWN_TERM_IN_EXPRESSION));
     assertFalse(has(r, SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
+    assertTrue(has(r, SparqlValidationCode.NON_STANDARD_HEADER_TERM));
   }
 
   // ---- helpers ----------------------------------------------------------------------------

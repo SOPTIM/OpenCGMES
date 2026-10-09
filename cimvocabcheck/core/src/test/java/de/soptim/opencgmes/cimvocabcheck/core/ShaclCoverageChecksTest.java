@@ -141,7 +141,7 @@ public class ShaclCoverageChecksTest {
   }
 
   @Test
-  public void inList_headerExtensionMember_accepted() {
+  public void inList_headerTermMember_warnedNotUnknown() {
     var r =
         shacl(
             "ex:S a sh:NodeShape ; sh:targetClass cim:Terminal ;\n"
@@ -149,6 +149,7 @@ public class ShaclCoverageChecksTest {
                 + "    sh:in ( rdf:Statements ) ] .");
     assertFalse(has(r, SparqlValidationCode.UNKNOWN_CLASS));
     assertFalse(has(r, SparqlValidationCode.UNKNOWN_VOCABULARY_TERM));
+    assertTrue(has(r, SparqlValidationCode.NON_STANDARD_HEADER_TERM));
   }
 
   // ---- A9: sh:hasValue --------------------------------------------------------------------
