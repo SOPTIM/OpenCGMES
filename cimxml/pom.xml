@@ -72,7 +72,7 @@
         <ver.jena>6.2.0</ver.jena>
 
         <!-- XML -->
-        <ver.stax2-api>4.3.1</ver.stax2-api>
+        <ver.stax2-api>4.3.2</ver.stax2-api>
         <ver.aalto-xml>1.4.0</ver.aalto-xml>
         <ver.woodstox-core>7.3.0</ver.woodstox-core>
 
