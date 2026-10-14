@@ -23,7 +23,7 @@
 mod common;
 
 use cimvocabcheck::{
-    tool_version, validate, validate_text, Code, Error, Options, Severity, STDIN_NAME,
+    tool_version, validate, validate_text, Code, Error, Finding, Options, Severity, STDIN_NAME,
 };
 use common::{TempDir, BROKEN_QUERY, CLEAN_QUERY, REQUIRE_ENGINE, WARNING_QUERY};
 
@@ -145,8 +145,8 @@ fn warnings_are_dropped_when_the_caller_asks_for_the_cli_default() {
         let verbose = validate(std::slice::from_ref(&input), &options).expect("a report");
         let quiet = validate(&[input], &options.clone().verbose(false)).expect("a report");
 
-        assert!(!verbose.warnings().is_empty());
-        assert!(quiet.warnings().is_empty());
+        assert_ne!(verbose.warnings(), Vec::<Finding>::new());
+        assert_eq!(quiet.warnings(), Vec::<Finding>::new());
         assert_eq!(quiet.summary.warnings, 0);
     });
 }
@@ -219,6 +219,6 @@ fn a_configuration_error_is_raised_rather_than_returned() {
 #[test]
 fn the_crate_reports_the_engine_version() {
     with_engine(|_workspace, options| {
-        assert!(!tool_version(&options).expect("a version").is_empty());
+        assert_ne!(tool_version(&options).expect("a version"), "");
     });
 }

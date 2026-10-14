@@ -70,7 +70,7 @@ fn omitted_optional_fields_are_none_not_errors() {
     assert!(annotation.line.is_none());
     assert!(annotation.column.is_none());
     assert!(annotation.term.is_none());
-    assert!(annotation.found_in_other_profiles.is_empty());
+    assert_eq!(annotation.found_in_other_profiles, Vec::<String>::new());
 }
 
 #[test]
