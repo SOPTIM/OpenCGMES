@@ -75,6 +75,9 @@ SHIM_MARKER = b"cimvocabcheck.__main__"
 #: How much of each end of a candidate is searched for :data:`SHIM_MARKER`.
 _SHIM_SCAN_BYTES = 64 * 1024
 
+#: The locale a local engine is handed when the caller's would have it read file names as ASCII.
+UTF8_LOCALE = "C.UTF-8"
+
 EngineSpec = Union[str, "os.PathLike[str]", "Engine", None]
 
 
@@ -101,6 +104,16 @@ class Engine:
     def resolve_path(self, path: str, cwd: Path | None = None) -> str:
         """Rewrites one path for this engine. Only the Docker engine needs to."""
         return path
+
+    def environment(self, env: Mapping[str, str] | None = None) -> dict[str, str] | None:
+        """The environment to spawn this engine with: ``env``, or this process's when ``None``.
+
+        A local engine is a JVM, which encodes file names in the locale's charset: under a C or
+        POSIX locale (or none, as in many containers and CI images) a non-ASCII input name cannot
+        even be opened. Such a locale is upgraded to :data:`UTF8_LOCALE`; any real locale is left
+        alone. ``None`` means "inherit unchanged".
+        """
+        return utf8_environment(env)
 
     def abandon(self, argv: Sequence[str], env: Mapping[str, str] | None = None) -> None:
         """Cleans up after the process spawned from ``argv`` was killed before it finished.
@@ -213,6 +226,10 @@ class DockerEngine(Engine):
             f"({ENV_JAR} / {ENV_BIN})."
         )
 
+    def environment(self, env: Mapping[str, str] | None = None) -> dict[str, str] | None:
+        # The engine runs inside the image, under the image's locale; the client needs nothing.
+        return dict(env) if env is not None else None
+
     def abandon(self, argv: Sequence[str], env: Mapping[str, str] | None = None) -> None:
         if "--name" not in argv:
             return
@@ -236,6 +253,24 @@ class DockerEngine(Engine):
 
     def describe(self) -> str:
         return f"{self.docker} run {self.image} (mounting {self.cwd})"
+
+
+def utf8_environment(env: Mapping[str, str] | None) -> dict[str, str] | None:
+    """``env`` with a C/POSIX/unset character locale replaced by :data:`UTF8_LOCALE`.
+
+    The variable that decides is the one POSIX gives precedence to — ``LC_ALL``, else ``LC_CTYPE``,
+    else ``LANG`` — and it is overridden in place, so a deliberate ``LC_ALL=C`` keeps its collation
+    and messages and only gains UTF-8. Returns ``None`` when ``env`` is ``None`` and nothing needed
+    changing, so the child simply inherits. Windows takes no locale from the environment.
+    """
+    if os.name == "nt":
+        return dict(env) if env is not None else None
+    environ = dict(os.environ if env is None else env)
+    effective = environ.get("LC_ALL") or environ.get("LC_CTYPE") or environ.get("LANG") or ""
+    if effective not in ("", "C", "POSIX"):
+        return dict(env) if env is not None else None
+    environ["LC_ALL" if environ.get("LC_ALL") else "LC_CTYPE"] = UTF8_LOCALE
+    return environ
 
 
 def _config_above(directory: Path) -> Path | None:
@@ -315,7 +350,7 @@ def shim_environment(engine: Engine, env: Mapping[str, str] | None = None) -> di
     be a copy of the shim :func:`_is_shim` did not recognise, its own discovery then skips
     everything already visited, so a chain of shims ends instead of looping.
     """
-    environ = dict(os.environ if env is None else env)
+    environ = engine.environment(env) or dict(os.environ if env is None else env)
     chain = _shim_chain(environ)
     if isinstance(engine, BinaryEngine):
         chain.append(_normalized(engine.binary.parent))

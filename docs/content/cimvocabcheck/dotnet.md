@@ -106,7 +106,12 @@ var typos = report.OfCode(Code.UnknownClass).Concat(report.OfCode(Code.UnknownPr
 | 3 | `cimvocabcheck` on `PATH` | |
 | 4 | `docker run ghcr.io/soptim/cimvocabcheck-cli:latest` | last resort |
 
-A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`. The Docker fallback
+A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
+A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
+else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
+engine gets `C.UTF-8` so it can open non-ASCII file names.
+
+The Docker fallback
 mounts the working directory at the image's `/work`, so inputs must live inside it — see the
 [Python page](/cimvocabcheck/python#finding-an-engine) for the shared details, which are the same
 for every binding.

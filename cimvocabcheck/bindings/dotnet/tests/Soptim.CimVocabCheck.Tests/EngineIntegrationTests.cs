@@ -86,6 +86,26 @@ public sealed class EngineIntegrationTests
     }
 
     [Fact]
+    public void ANonAsciiInputNameIsReadUnderACLocale()
+    {
+        // Containers and CI images often run with no locale, in which a JVM cannot open ü.rq.
+        var (workspace, options) = Engine();
+        using var _ = workspace;
+        var input = workspace.Write("übersicht.rq", CleanQuery);
+        var environment = System.Environment.GetEnvironmentVariables()
+            .Cast<System.Collections.DictionaryEntry>()
+            .Select(entry => ((string)entry.Key, (string?)entry.Value ?? ""))
+            .Where(pair => !pair.Item1.StartsWith("LC_", StringComparison.Ordinal) && pair.Item1 != "LANG")
+            .ToDictionary(pair => pair.Item1, pair => pair.Item2);
+        environment["LC_ALL"] = "C";
+
+        var report = Validator.Validate([input], options with { Environment = environment });
+
+        Assert.True(report.IsOk(), string.Join("; ", report.Findings()));
+        Assert.Equal("übersicht.rq", report.Results[0].File);
+    }
+
+    [Fact]
     public void ABrokenQueryComesBackAsFindings()
     {
         var (workspace, options) = Engine();

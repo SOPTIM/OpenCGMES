@@ -376,4 +376,39 @@ public sealed class EngineDiscoveryTests
     {
         Assert.Equal("../shared/q.rq", new BinaryEngine("/opt/cvc").ResolvePath("../shared/q.rq", null));
     }
+
+    [Theory]
+    [InlineData("", "", "", "LC_CTYPE")]
+    [InlineData("", "", "C", "LC_CTYPE")]
+    [InlineData("", "", "POSIX", "LC_CTYPE")]
+    [InlineData("C", "", "de_DE.UTF-8", "LC_ALL")]
+    [InlineData("", "C", "C", "LC_CTYPE")]
+    [InlineData("", "", "de_DE.UTF-8", null)]
+    [InlineData("", "en_US.UTF-8", "C", null)]
+    public void ALocalEngineNeverRunsUnderAnAsciiOnlyLocale(
+        string all, string ctype, string lang, string? expected)
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows takes no locale from the environment");
+        var environment = new Dictionary<string, string?>
+        {
+            ["LC_ALL"] = all,
+            ["LC_CTYPE"] = ctype,
+            ["LANG"] = lang,
+        };
+
+        foreach (Engine engine in new Engine[] { new JarEngine("cli.jar", "java"), new BinaryEngine("cimvocabcheck") })
+        {
+            Assert.Equal(
+                expected is null ? null : (expected, "C.UTF-8"),
+                engine.LocaleOverride(environment));
+        }
+    }
+
+    [Fact]
+    public void TheDockerClientKeepsTheCallersLocale()
+    {
+        var engine = new DockerEngine("cvc:test", "docker", ".");
+
+        Assert.Null(engine.LocaleOverride(new Dictionary<string, string?> { ["LANG"] = "C" }));
+    }
 }

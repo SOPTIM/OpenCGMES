@@ -464,3 +464,44 @@ fn an_input_named_like_a_flag_does_not_suppress_the_config() {
 
     assert!(command.contains(&"/config/opencgmes.jsonc".to_owned()));
 }
+
+type LocaleCase<'a> = (&'a [(&'a str, &'a str)], Option<&'a str>);
+
+#[cfg(unix)]
+#[test]
+fn a_local_engine_never_runs_under_an_ascii_only_locale() {
+    let jar = Engine::Jar {
+        jar: "cli.jar".into(),
+        java: "java".into(),
+    };
+    let binary = Engine::Binary {
+        path: "cimvocabcheck".into(),
+    };
+    // The environment, and the variable expected to be set to C.UTF-8.
+    let cases: [LocaleCase; 7] = [
+        (&[], Some("LC_CTYPE")),
+        (&[("LANG", "C")], Some("LC_CTYPE")),
+        (&[("LANG", "POSIX")], Some("LC_CTYPE")),
+        (&[("LC_ALL", "C"), ("LANG", "de_DE.UTF-8")], Some("LC_ALL")),
+        (&[("LC_CTYPE", "C"), ("LANG", "C")], Some("LC_CTYPE")),
+        (&[("LANG", "de_DE.UTF-8")], None),
+        (&[("LC_CTYPE", "en_US.UTF-8"), ("LANG", "C")], None),
+    ];
+    for (pairs, expected) in cases {
+        let vars = env(pairs);
+        let expected = expected.map(|variable| (variable, "C.UTF-8"));
+        assert_eq!(jar.locale_override(Some(&vars)), expected, "{pairs:?}");
+        assert_eq!(binary.locale_override(Some(&vars)), expected, "{pairs:?}");
+    }
+}
+
+#[test]
+fn the_docker_client_keeps_the_callers_locale() {
+    let engine = Engine::Docker {
+        image: "cvc:test".into(),
+        docker: "docker".into(),
+        cwd: ".".into(),
+    };
+
+    assert_eq!(engine.locale_override(Some(&env(&[("LANG", "C")]))), None);
+}

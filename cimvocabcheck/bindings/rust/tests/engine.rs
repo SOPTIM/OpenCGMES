@@ -22,6 +22,8 @@
 
 mod common;
 
+use std::collections::HashMap;
+
 use cimvocabcheck::{
     tool_version, validate, validate_text, Code, Error, Finding, Options, Severity, STDIN_NAME,
 };
@@ -174,6 +176,23 @@ fn a_query_in_memory_is_validated_over_stdin() {
 
         assert!(!report.ok());
         assert_eq!(report.results[0].file, STDIN_NAME);
+    });
+}
+
+#[test]
+fn a_non_ascii_input_name_is_read_under_a_c_locale() {
+    // Containers and CI images often run with no locale, in which a JVM cannot open `ü.rq`.
+    with_engine(|workspace, options| {
+        let input = workspace.write("übersicht.rq", CLEAN_QUERY);
+        let mut env: HashMap<String, String> = std::env::vars()
+            .filter(|(name, _)| !name.starts_with("LC_") && name != "LANG")
+            .collect();
+        env.insert("LC_ALL".into(), "C".into());
+
+        let report = validate(&[input], &options.env(env)).expect("a report");
+
+        assert!(report.ok(), "{:?}", report.results);
+        assert_eq!(report.results[0].file, "übersicht.rq");
     });
 }
 

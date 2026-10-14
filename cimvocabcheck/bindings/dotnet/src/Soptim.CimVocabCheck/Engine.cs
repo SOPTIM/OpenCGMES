@@ -47,6 +47,11 @@ public abstract class Engine
     /// <summary>Config file names the engine discovers, in the order it prefers them.</summary>
     public static readonly IReadOnlyList<string> ConfigFileNames = ["opencgmes.jsonc", "opencgmes.json"];
 
+    /// <summary>
+    /// The locale a local engine is handed when the caller's would have it read file names as ASCII.
+    /// </summary>
+    public const string Utf8Locale = "C.UTF-8";
+
     /// <summary>Environment variable naming a fat JAR to run with <c>java -jar</c>.</summary>
     public const string JarVariable = "CIMVOCABCHECK_JAR";
 
@@ -81,6 +86,41 @@ public abstract class Engine
     /// <param name="workingDirectory">Where the process will start.</param>
     /// <returns>The path as the engine should see it.</returns>
     public virtual string ResolvePath(string path, string? workingDirectory) => path;
+
+    /// <summary>
+    /// The locale variable to set when spawning this engine, if its environment needs one.
+    /// </summary>
+    /// <remarks>
+    /// A local engine is a JVM, which encodes file names in the locale's charset: under a C or
+    /// POSIX locale (or none, as in many containers and CI images) a non-ASCII input name cannot
+    /// even be opened. The variable POSIX gives precedence to — <c>LC_ALL</c>, else
+    /// <c>LC_CTYPE</c>, else <c>LANG</c> — decides; when it is C, POSIX or unset the variable to set
+    /// to <see cref="Utf8Locale"/> is returned (<c>LC_ALL</c> when that is what is in force, so a
+    /// deliberate <c>LC_ALL=C</c> keeps everything but its charset). Windows takes no locale from
+    /// the environment.
+    /// </remarks>
+    /// <param name="environment">The environment the engine will be spawned with.</param>
+    /// <returns>The variable and its value, or <c>null</c> when the locale is usable as it is.</returns>
+    public virtual (string Variable, string Value)? LocaleOverride(
+        IDictionary<string, string?> environment)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        string? NonEmpty(string name) =>
+            environment.TryGetValue(name, out var value) && !string.IsNullOrEmpty(value) ? value : null;
+
+        var all = NonEmpty("LC_ALL");
+        var effective = all ?? NonEmpty("LC_CTYPE") ?? NonEmpty("LANG") ?? "";
+        if (effective is not ("" or "C" or "POSIX"))
+        {
+            return null;
+        }
+
+        return (all is not null ? "LC_ALL" : "LC_CTYPE", Utf8Locale);
+    }
 
     /// <summary>
     /// Cleans up after the process spawned from <paramref name="command"/> was killed before it
@@ -446,6 +486,11 @@ public sealed class DockerEngine(string image, string docker, string workingDire
 
         return current;
     }
+
+    /// <inheritdoc/>
+    /// <remarks>The engine runs inside the image, under the image's locale.</remarks>
+    public override (string Variable, string Value)? LocaleOverride(
+        IDictionary<string, string?> environment) => null;
 
     /// <inheritdoc/>
     public override void Abandon(

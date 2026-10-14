@@ -23,6 +23,8 @@ and they skip when the machine has no engine at all.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from cimvocabcheck import Code, Severity, tool_version, validate, validate_text
@@ -157,3 +159,15 @@ def test_the_shim_forwards_to_the_engine_and_returns_its_exit_code(engine, works
 def test_the_shim_reports_which_engine_it_found(engine, capfd):
     assert main(["--print-engine"]) == 0
     assert capfd.readouterr().out.strip()
+
+
+def test_a_non_ascii_input_name_is_read_under_a_c_locale(engine, workspace):
+    """Containers and CI images often run with no locale, in which a JVM cannot open ``ü.rq``."""
+    name = write(workspace, "übersicht.rq", CLEAN_QUERY)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("LC_") and k != "LANG"}
+    env["LC_ALL"] = "C"
+
+    report = validate([name], engine=engine, cwd=workspace, env=env)
+
+    assert report.ok
+    assert report.results[0].file == name

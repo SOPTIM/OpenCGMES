@@ -50,6 +50,9 @@ pub const CONFIG_FILENAMES: [&str; 2] = ["opencgmes.jsonc", "opencgmes.json"];
 /// Flags that name a schema source. When a call passes one, the engine does no config discovery.
 const SCHEMA_SOURCE_FLAGS: [&str; 6] = ["-c", "--config", "-s", "--schema", "-e", "--endpoint"];
 
+/// The locale a local engine is handed when the caller's would have it read file names as ASCII.
+pub const UTF8_LOCALE: &str = "C.UTF-8";
+
 /// Environment variable naming a fat JAR to run with `java -jar`.
 pub const ENV_JAR: &str = "CIMVOCABCHECK_JAR";
 /// Environment variable naming an executable engine.
@@ -196,6 +199,42 @@ impl Engine {
                     mount.display()
                 ))
             })
+    }
+
+    /// The locale variable to set when spawning this engine, if the environment needs one.
+    ///
+    /// A local engine is a JVM, which encodes file names in the locale's charset: under a C or
+    /// POSIX locale (or none, as in many containers and CI images) a non-ASCII input name cannot
+    /// even be opened. The variable POSIX gives precedence to — `LC_ALL`, else `LC_CTYPE`, else
+    /// `LANG` — decides; when it is C, POSIX or unset this returns the variable to set to
+    /// [`UTF8_LOCALE`] (`LC_ALL` when that is what is in force, so a deliberate `LC_ALL=C` keeps
+    /// everything but its charset). `env` is the child's environment, `None` meaning this
+    /// process's. The Docker engine runs under the image's locale and never needs one, and
+    /// Windows takes no locale from the environment.
+    #[must_use]
+    pub fn locale_override(
+        &self,
+        env: Option<&HashMap<String, String>>,
+    ) -> Option<(&'static str, &'static str)> {
+        if matches!(self, Self::Docker { .. }) || cfg!(windows) {
+            return None;
+        }
+        let read = |name: &str| match env {
+            Some(env) => env.get(name).cloned(),
+            None => env::var(name).ok(),
+        };
+        let non_empty = |name: &str| read(name).filter(|value| !value.is_empty());
+        let all = non_empty("LC_ALL");
+        let effective = all
+            .clone()
+            .or_else(|| non_empty("LC_CTYPE"))
+            .or_else(|| non_empty("LANG"))
+            .unwrap_or_default();
+        if !matches!(effective.as_str(), "" | "C" | "POSIX") {
+            return None;
+        }
+        let variable = if all.is_some() { "LC_ALL" } else { "LC_CTYPE" };
+        Some((variable, UTF8_LOCALE))
     }
 
     /// Cleans up after the process spawned from `argv` was killed before it finished.

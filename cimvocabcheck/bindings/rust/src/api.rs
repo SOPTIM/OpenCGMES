@@ -478,6 +478,9 @@ fn spawn(
     if let Some(env) = &options.env {
         command.env_clear().envs(env);
     }
+    if let Some((variable, locale)) = engine.locale_override(options.env.as_ref()) {
+        command.env(variable, locale);
+    }
 
     let mut child = command.spawn().map_err(|e| {
         Error::io(

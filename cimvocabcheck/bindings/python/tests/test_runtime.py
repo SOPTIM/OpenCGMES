@@ -449,3 +449,35 @@ def test_an_input_named_like_a_flag_does_not_suppress_the_config(tmp_path):
     command = DockerEngine(cwd=tmp_path / "sub").command(["--", "-s.rq"])
 
     assert "/config/opencgmes.jsonc" in command
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows takes no locale from the environment")
+@pytest.mark.parametrize(
+    ("env", "expected"),
+    [
+        ({}, {"LC_CTYPE": "C.UTF-8"}),
+        ({"LANG": "C"}, {"LANG": "C", "LC_CTYPE": "C.UTF-8"}),
+        ({"LANG": "POSIX"}, {"LANG": "POSIX", "LC_CTYPE": "C.UTF-8"}),
+        ({"LC_ALL": "C", "LANG": "de_DE.UTF-8"}, {"LC_ALL": "C.UTF-8", "LANG": "de_DE.UTF-8"}),
+        ({"LC_CTYPE": "C", "LANG": "C"}, {"LC_CTYPE": "C.UTF-8", "LANG": "C"}),
+        ({"LANG": "de_DE.UTF-8"}, {"LANG": "de_DE.UTF-8"}),
+        ({"LC_CTYPE": "en_US.UTF-8", "LANG": "C"}, {"LC_CTYPE": "en_US.UTF-8", "LANG": "C"}),
+    ],
+)
+def test_a_local_engine_never_runs_under_an_ascii_only_locale(env, expected):
+    assert JarEngine("cli.jar", java="java").environment(env) == expected
+    assert BinaryEngine("cimvocabcheck").environment(env) == expected
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows takes no locale from the environment")
+def test_an_inherited_locale_is_left_to_inheritance_when_it_is_already_usable(monkeypatch):
+    monkeypatch.setenv("LC_ALL", "C.UTF-8")
+
+    assert JarEngine("cli.jar", java="java").environment() is None
+
+
+def test_the_docker_client_keeps_the_callers_environment(tmp_path):
+    engine = DockerEngine(cwd=tmp_path)
+
+    assert engine.environment({"LANG": "C"}) == {"LANG": "C"}
+    assert engine.environment() is None

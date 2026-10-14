@@ -109,6 +109,9 @@ errors-only behaviour.
 | 5 | `docker run ghcr.io/soptim/cimvocabcheck-cli:latest` | last resort |
 
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
+A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
+else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
+engine gets `C.UTF-8` so it can open non-ASCII file names.
 
 The Docker fallback mounts the working directory at the image's `/work`, so inputs must live
 inside it — an outside path is refused rather than silently unreadable. An `opencgmes.jsonc` above the working directory is mounted read-only alongside it and passed

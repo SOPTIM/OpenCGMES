@@ -378,6 +378,11 @@ public static class Validator
             }
         }
 
+        if (engine.LocaleOverride(startInfo.Environment) is var (variable, locale))
+        {
+            startInfo.Environment[variable] = locale;
+        }
+
         using var process = new Process { StartInfo = startInfo };
         try
         {

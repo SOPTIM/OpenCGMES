@@ -306,7 +306,7 @@ def _spawn(
             input=stdin_text,
             capture_output=True,
             cwd=os.fspath(cwd) if cwd is not None else None,
-            env=dict(env) if env is not None else None,
+            env=engine.environment(env),
             timeout=timeout,
             text=True,
             encoding="utf-8",
