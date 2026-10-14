@@ -173,6 +173,20 @@ jobs:
           CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
         run: python -m pytest
 
+      # The same build and metadata check the release runs before it uploads. The stray
+      # directory stands in for anything a developer leaves next to the package that git does
+      # not ignore (a virtualenv not called .venv): it must not end up in the sdist.
+      - name: Package dry run
+        run: |
+          pip install build==1.6.1 twine==7.0.0
+          mkdir -p stray-env/lib/tests && touch stray-env/LICENSE stray-env/lib/tests/test_stray.py
+          python -m build --outdir dist .
+          twine check --strict dist/*
+          if tar tzf dist/*.tar.gz | grep stray-env; then
+            echo "::error::The sdist picked up files from outside the package" >&2
+            exit 1
+          fi
+
       # The run above only proves 3.13; this is the floor the package claims in requires-python.
       # No engine here (what differs between interpreters is the wrapper, not the engine) and the
       # container fallback is taken out of the way so the step cannot start pulling an image.
