@@ -143,6 +143,9 @@ public static class Code
     /// <summary>The <c>UNUSED_VARIABLE</c> code.</summary>
     public const string UnusedVariable = "UNUSED_VARIABLE";
 
+    /// <summary>The <c>UNREADABLE_INPUT</c> code.</summary>
+    public const string UnreadableInput = "UNREADABLE_INPUT";
+
     /// <summary>Every code this binding knows, in schema order.</summary>
     public static readonly IReadOnlyList<string> All =
     [
@@ -166,5 +169,6 @@ public static class Code
         CardinalityIncompatibleWithMultiplicity,
         ProjectedVariableUnbound,
         UnusedVariable,
+        UnreadableInput,
     ];
 }

@@ -118,6 +118,33 @@ public class ValidateCommandTest {
         out.contains("UNKNOWN_VOCABULARY_TERM"));
   }
 
+  @Test
+  public void anUnreadableInputIsReportedWithoutCostingTheRestOfTheBatch() throws Exception {
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
+    Path query = write("q.rq", "SELECT * WHERE { ?s ?p ?o }");
+    String missing = tmp.getRoot().toPath().resolve("missing.rq").toString();
+    String[] args = {"--config", config.toString(), "--format", "json", query.toString(), missing};
+
+    JsonNode results = new ObjectMapper().readTree(run(args)).path("results");
+
+    assertEquals(1, exitOf(args));
+    assertEquals(2, results.size());
+    assertTrue("the readable input is still validated", results.get(0).path("valid").asBoolean());
+    JsonNode unreadable = results.get(1);
+    assertEquals(missing, unreadable.path("file").asText());
+    assertFalse(unreadable.path("valid").asBoolean());
+    assertEquals("UNREADABLE_INPUT", unreadable.path("annotations").get(0).path("code").asText());
+    assertEquals("ERROR", unreadable.path("annotations").get(0).path("severity").asText());
+  }
+
+  @Test
+  public void anUnreadableInputFailsEvenAPermissiveRun() throws Exception {
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
+    String missing = tmp.getRoot().toPath().resolve("missing.rq").toString();
+
+    assertEquals(1, exitOf("--config", config.toString(), "--strictness", "permissive", missing));
+  }
+
   // ---- syntax-only SPARQL, valid input, output formats ------------------------------------
 
   @Test
@@ -155,13 +182,6 @@ public class ValidateCommandTest {
     // Default (text) format, verbose to include all findings.
     String out = run("--config", config.toString(), "--verbose", shapes.toString());
     assertTrue("text output must mention the syntax error: " + out, out.contains("SYNTAX_ERROR"));
-  }
-
-  @Test
-  public void unreadableInput_returnsUsageError() throws Exception {
-    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
-    int exit = exitOf("--config", config.toString(), tmp.getRoot() + "/does-not-exist.ttl");
-    assertEquals(2, exit);
   }
 
   /**
@@ -216,8 +236,9 @@ public class ValidateCommandTest {
     // A NUL is unrepresentable everywhere; a non-ASCII name under a C locale fails the same way.
     String input = "q\u0000.rq";
 
-    assertEquals(2, exitOf("--format", "json", input));
-    assertTrue(runCapturingStderr("--format", "json", input).contains("Error reading"));
+    assertEquals(1, exitOf("--format", "json", input));
+    String out = run("--format", "json", input);
+    assertTrue(out, out.contains("UNREADABLE_INPUT") && out.contains("file name encoding"));
   }
 
   @Test

@@ -47,6 +47,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -397,12 +398,33 @@ public class ValidateCommand implements Callable<Integer> {
           text = readInput(input);
         }
       } catch (IOException e) {
-        System.err.println("Error reading " + source + ": " + e.getMessage());
-        throw new AbortException(ExitCode.USAGE);
+        results.add(unreadable(source, e));
+        continue;
       }
       results.add(validateOne(schema, api, namedGraphScope, severities, input, source, text));
     }
     return results;
+  }
+
+  /**
+   * The result for an input that could not be read. Not subject to the severity policy: a file that
+   * was never checked must not pass a gate because a strictness level hides its findings.
+   */
+  private static FileResult unreadable(String source, IOException e) {
+    String reason =
+        e instanceof NoSuchFileException ? "no such file" : String.valueOf(e.getMessage());
+    var annotation =
+        new SparqlValidationAnnotation(
+            SparqlValidationSeverity.ERROR,
+            null,
+            null,
+            "Cannot read input: " + reason,
+            SparqlValidationCode.UNREADABLE_INPUT,
+            null,
+            null,
+            null,
+            null);
+    return new FileResult(source, false, List.of(annotation));
   }
 
   private FileResult validateOne(

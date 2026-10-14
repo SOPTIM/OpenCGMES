@@ -119,8 +119,11 @@ impl Code {
     /// The `UNUSED_VARIABLE` code.
     pub const UNUSED_VARIABLE: &'static str = "UNUSED_VARIABLE";
 
+    /// The `UNREADABLE_INPUT` code.
+    pub const UNREADABLE_INPUT: &'static str = "UNREADABLE_INPUT";
+
     /// Every code this binding knows, in schema order.
-    pub const ALL: [&'static str; 20] = [
+    pub const ALL: [&'static str; 21] = [
         Self::SYNTAX_ERROR,
         Self::UNKNOWN_CLASS,
         Self::UNKNOWN_PROPERTY,
@@ -141,5 +144,6 @@ impl Code {
         Self::CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY,
         Self::PROJECTED_VARIABLE_UNBOUND,
         Self::UNUSED_VARIABLE,
+        Self::UNREADABLE_INPUT,
     ];
 }

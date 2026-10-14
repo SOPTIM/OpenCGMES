@@ -45,6 +45,7 @@ message text, which changes freely between releases.
 | `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` | WARN | SHACL | `sh:minCount`/`sh:maxCount` cannot be satisfied given the property's declared CIM `cims:multiplicity` |
 | `PROJECTED_VARIABLE_UNBOUND` | WARN | Variables | A `SELECT`/`DESCRIBE`/`CONSTRUCT`-template variable appears nowhere in the query body |
 | `UNUSED_VARIABLE` | WARN | Variables | A variable bound in a triple pattern, `BIND`, or `VALUES` is never used anywhere else |
+| `UNREADABLE_INPUT` | ERROR | Input | An input file could not be read (missing, unreadable, or a name the platform cannot encode); the other inputs are still validated |
 
 :::note The "exists in another profile" hint
 When a class or property does not exist in the *selected* profiles but **does** exist in another
