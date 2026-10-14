@@ -442,7 +442,7 @@ final class SparqlTextDocumentService implements TextDocumentService {
           namedGraphScope.isEmpty()
               ? schema.api().validateSparql(text)
               : schema.api().validateSparql(text, namedGraphScope);
-      var effective = schema.strictness().apply(result.annotations());
+      var effective = schema.effective(result.annotations());
       var diagnostics = effective.stream().map(a -> convertSparqlAnnotation(a, text)).toList();
       publishDiagnostics(uri, diagnostics);
       LOG.debug("Validated {}: {} annotation(s)", uri, diagnostics.size());
@@ -657,17 +657,16 @@ final class SparqlTextDocumentService implements TextDocumentService {
 
     try {
       ShaclValidationResult result = schema.api().validateShacl(model.getGraph());
-      var strictness = schema.strictness();
 
-      // Shape-structure annotations: apply strictness, then locate in Turtle source.
-      for (var a : strictness.apply(result.shapeAnnotations())) {
+      // Shape-structure annotations: apply the severity policy, then locate in Turtle source.
+      for (var a : schema.effective(result.shapeAnnotations())) {
         diagnostics.add(convertShapeAnnotation(a, text, model));
       }
 
-      // Embedded-SPARQL annotations: apply strictness per embedded result.
+      // Embedded-SPARQL annotations: apply the severity policy per embedded result.
       for (var er : result.embeddedResults()) {
         String kind = er.embedded().kind().toString();
-        for (var a : strictness.apply(er.result().annotations())) {
+        for (var a : schema.effective(er.result().annotations())) {
           diagnostics.add(convertEmbeddedAnnotation(a, kind, er.embedded(), text));
         }
       }

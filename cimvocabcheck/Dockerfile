@@ -11,7 +11,7 @@
 #   docker build -f cimvocabcheck/Dockerfile -t cimvocabcheck-cli .
 
 # ---- Stage 1: build the CLI fat JAR from source ----------------------------------------------
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.10-eclipse-temurin-21 AS build
 WORKDIR /src
 
 # Only the modules needed to build the CLI; .dockerignore prunes target/, the ENTSO-E test

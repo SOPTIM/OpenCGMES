@@ -89,6 +89,27 @@ public class ConfigLoaderTest {
   }
 
   @Test
+  public void readsPerCheckRuleOverrides() throws Exception {
+    String json =
+        """
+        {
+          "cimvocabcheck": {
+            "rules": { "PROPERTY_MAY_BE_ABSENT": "off" }
+          }
+        }
+        """;
+    Path file = write(tmp.getRoot().toPath(), json);
+    CimvocabcheckConfig cfg = ConfigLoader.load(file);
+    assertEquals("off", cfg.rules().get("PROPERTY_MAY_BE_ABSENT"));
+    assertTrue(
+        cfg.ruleSeverities()
+            .configuredCodes()
+            .contains(
+                de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationCode
+                    .PROPERTY_MAY_BE_ABSENT));
+  }
+
+  @Test
   public void missingSectionYieldsEmptyConfig() throws Exception {
     Path file = write(tmp.getRoot().toPath(), "{ \"otherTool\": { \"x\": 1 } }");
     CimvocabcheckConfig cfg = ConfigLoader.load(file);

@@ -13,6 +13,8 @@ on:
       - "scripts/generate-sbom.sh"
       - "scripts/check-sbom-licenses.py"
       - "scripts/sbom-license-overrides.json"
+      - "scripts/sbom-tools/package.json"
+      - "scripts/sbom-tools/package-lock.json"
       - "scripts/compute-version.sh"
       - "scripts/set-versions.sh"
       - ".github/workflows/cimnotebook-ci.yml"
@@ -26,6 +28,8 @@ on:
       - "scripts/generate-sbom.sh"
       - "scripts/check-sbom-licenses.py"
       - "scripts/sbom-license-overrides.json"
+      - "scripts/sbom-tools/package.json"
+      - "scripts/sbom-tools/package-lock.json"
       - "scripts/compute-version.sh"
       - "scripts/set-versions.sh"
       - ".github/workflows/cimnotebook-ci.yml"
@@ -128,7 +132,7 @@ jobs:
         working-directory: cimnotebook/vscode
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cimnotebook-vscode-${{ github.sha }}
           path: cimnotebook/vscode/cimnotebook-vscode-*.vsix
@@ -155,9 +159,9 @@ jobs:
             cimvocabcheck/lsp/pom.xml
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          gradle-version: "9.7.1"
+          gradle-version: "9.8.0"
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       # Normal build: every component uses its own in-repo (snapshot) version.
@@ -186,7 +190,7 @@ jobs:
         working-directory: cimnotebook/intellij
 
       - name: Upload IntelliJ plugin artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cimnotebook-intellij-${{ github.sha }}
           path: cimnotebook/intellij/build/distributions/cimnotebook-intellij-*.zip
@@ -215,9 +219,9 @@ jobs:
           cache-dependency-path: cimnotebook/vscode/package-lock.json
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          gradle-version: "9.7.1"
+          gradle-version: "9.8.0"
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       # Regenerates cimnotebook/sbom/{vscode,intellij}/{bom.json,THIRD-PARTY.txt}. FAILS here
