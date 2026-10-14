@@ -109,7 +109,9 @@ var typos = report.OfCode(Code.UnknownClass).Concat(report.OfCode(Code.UnknownPr
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
 else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
-engine gets `C.UTF-8` so it can open non-ASCII file names.
+engine gets `C.UTF-8` so it can open non-ASCII file names. A locale that is set but not installed
+(`LANG=en_US.UTF-8` without the locale package) falls back to ASCII too and is not detected;
+install it, or set `LC_ALL=C.UTF-8`.
 
 The Docker fallback
 mounts the working directory at the image's `/work`, so inputs must live inside it — see the
@@ -129,7 +131,7 @@ for every binding.
 
 ## Versions and compatibility
 
-The package tracks the engine it was generated against (`0.7.x` package ↔ `0.7.x` engine) and
+The package tracks the engine it was generated against (`1.2.x` package ↔ `1.2.x` engine) and
 accepts any engine declaring the same [report contract](/cimvocabcheck/report-contract) **major**.
 Within a major the contract only ever adds, so the package keeps fields it does not know in each
 record's `Extra` dictionary and accepts codes it does not know —

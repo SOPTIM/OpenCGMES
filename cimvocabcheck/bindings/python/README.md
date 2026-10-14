@@ -111,12 +111,14 @@ errors-only behaviour.
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
 else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
-engine gets `C.UTF-8` so it can open non-ASCII file names.
+engine gets `C.UTF-8` so it can open non-ASCII file names. A locale that is set but not installed
+(`LANG=en_US.UTF-8` without the locale package) falls back to ASCII too and is not detected;
+install it, or set `LC_ALL=C.UTF-8`.
 
 The Docker fallback mounts the working directory at the image's `/work`, so inputs must live
 inside it — an input outside it is refused rather than silently unreadable. A schema or config
-file outside it is mounted read-only instead (a config together with its directory, so its own
-relative paths keep working), and an `opencgmes.jsonc` above the working directory is mounted
+file outside it is mounted read-only instead (a config together with its directory, so relative paths
+in it keep working as long as they stay inside that directory), and an `opencgmes.jsonc` above the working directory is mounted
 the same way and passed
 as `--config`, unless the call names its own schema source, so a run from a subdirectory sees
 the same config a local engine would. Set
@@ -147,6 +149,10 @@ Installing the package puts a `cimvocabcheck` command on your `PATH` that forwar
 engine it discovers — same flags, same output formats, same exit codes (`0` clean, `1` findings,
 `2` usage). `python -m cimvocabcheck` does the same.
 
+Unlike the library call, the command passes its arguments through untouched, so with the Docker
+engine every path it names (inputs, `--config`, `--schema`) must lie inside the working
+directory.
+
 ```bash
 cimvocabcheck --schema profiles/ -f sarif queries/*.rq > cimvocabcheck.sarif
 ```
@@ -171,7 +177,7 @@ reloads the profile set.
 
 ## Versioning and compatibility
 
-This package tracks the engine it was generated against (`0.7.x` binding ↔ `0.7.x` engine) and
+This package tracks the engine it was generated against (`1.2.x` binding ↔ `1.2.x` engine) and
 accepts any engine declaring the same **report contract major**. Within a major the contract only
 ever adds — new optional fields, new rule codes, new output formats — so the binding:
 

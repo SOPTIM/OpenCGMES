@@ -12,7 +12,7 @@ the CI job and any other language binding produce.
 
 ```toml
 [dependencies]
-cimvocabcheck = "0.1"
+cimvocabcheck = "1"
 ```
 
 Rust 1.74+. `serde` is the whole dependency list — the subprocess timeout included, everything
@@ -102,7 +102,9 @@ let typos = [Code::UNKNOWN_CLASS, Code::UNKNOWN_PROPERTY]
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
 else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
-engine gets `C.UTF-8` so it can open non-ASCII file names.
+engine gets `C.UTF-8` so it can open non-ASCII file names. A locale that is set but not installed
+(`LANG=en_US.UTF-8` without the locale package) falls back to ASCII too and is not detected;
+install it, or set `LC_ALL=C.UTF-8`.
 
 The Docker fallback
 mounts the working directory at the image's `/work`, so inputs must live inside it — see the
@@ -123,7 +125,7 @@ for every binding.
 
 ## Versions and compatibility
 
-The crate tracks the engine it was generated against (`0.7.x` crate ↔ `0.7.x` engine) and accepts
+The crate tracks the engine it was generated against (`1.2.x` crate ↔ `1.2.x` engine) and accepts
 any engine declaring the same [report contract](/cimvocabcheck/report-contract) **major**. Within
 a major the contract only ever adds, so the crate keeps fields it does not know in each type's
 `extra` map and accepts codes it does not know — `Annotation::is_known_code` tells you which.

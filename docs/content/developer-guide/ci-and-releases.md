@@ -123,15 +123,12 @@ Register one policy per registry, all pointing at `cimvocabcheck-release.yml`:
 | Registry | Where | What to enter |
 | --- | --- | --- |
 | PyPI | project → Publishing | owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `PyPI Deployment` |
-| NuGet.org | account → Trusted Publishing | package `Soptim.CimVocabCheck`, repository `SOPTIM/OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `NuGet Deployment` |
+| NuGet.org | account → Trusted Publishing | policy owner (the account that owns `Soptim.CimVocabCheck`), repository owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `NuGet Deployment` |
 | crates.io | crate → Settings → Trusted Publishing | repository `SOPTIM/OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `crates.io Deployment` |
 
 NuGet additionally needs the repository (or environment) **variable** `NUGET_USER`, the
 nuget.org account that owns the policy. It is not a credential; the job checks it is set so a
 missing value fails by name rather than inside the token exchange.
-
-For a package that does not exist yet, PyPI and crates.io both support a *pending* publisher, so
-the first release can be the one that creates it.
 
 :::note Binding releases re-test before they publish
 Each binding job rebuilds the CLI fat JAR **from the tag being released** and runs that binding's
