@@ -292,6 +292,45 @@ public sealed class EngineDiscoveryTests
     }
 
     [Fact]
+    public void DockerAcceptsAnAbsolutePathSpelledThroughASymlink()
+    {
+        // macOS keeps /tmp and the temp directory under a symlinked /private, so the working
+        // directory and an absolute input routinely disagree about which spelling they use.
+        using var directory = new TempDir();
+        var real = Path.Combine(directory.Path, "real");
+        Directory.CreateDirectory(real);
+        var link = Path.Combine(directory.Path, "link");
+        Directory.CreateSymbolicLink(link, real);
+
+        var throughLink = new DockerEngine("cvc:test", "docker", link);
+        var throughReal = new DockerEngine("cvc:test", "docker", real);
+
+        Assert.Equal("q.rq", throughLink.ResolvePath(Path.Combine(link, "q.rq"), null));
+        Assert.Equal("q.rq", throughLink.ResolvePath(Path.Combine(real, "q.rq"), null));
+        Assert.Equal("q.rq", throughReal.ResolvePath(Path.Combine(link, "q.rq"), null));
+        Assert.Equal("sub/q.rq", throughReal.ResolvePath(Path.Combine(link, "sub", "q.rq"), null));
+    }
+
+    [Fact]
+    public void DockerStillRefusesAPathASymlinkLeadsOutOf()
+    {
+        using var directory = new TempDir();
+        var project = Path.Combine(directory.Path, "project");
+        var elsewhere = Path.Combine(directory.Path, "elsewhere");
+        Directory.CreateDirectory(project);
+        Directory.CreateDirectory(elsewhere);
+        var escape = Path.Combine(project, "escape");
+        Directory.CreateSymbolicLink(escape, elsewhere);
+        var engine = new DockerEngine("cvc:test", "docker", project);
+
+        // Lexically inside, so it is passed through: Docker follows the link inside the container
+        // and finds nothing, which the engine reports. Only a path no spelling puts inside is refused.
+        Assert.Equal("escape/q.rq", engine.ResolvePath(Path.Combine(escape, "q.rq"), null));
+        Assert.Throws<CimVocabCheckException>(
+            () => engine.ResolvePath(Path.Combine(elsewhere, "q.rq"), null));
+    }
+
+    [Fact]
     public void DockerAddressesTheWorkingDirectoryItself()
     {
         using var directory = new TempDir();

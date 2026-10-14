@@ -368,28 +368,83 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         var absolute = System.IO.Path.GetFullPath(
             System.IO.Path.IsPathRooted(path) ? path : System.IO.Path.Combine(mount, path));
 
+        // The mount and an absolute input may each be spelled through a symlink, or not; the input
+        // is inside when either spelling of it is.
+        var realMount = RealPath(mount);
+        var spellings = new[] { (absolute, mount), (absolute, realMount), (RealPath(absolute), realMount) };
+        foreach (var (inside, root) in spellings)
+        {
+            if (RelativeTo(inside, root) is { } relative)
+            {
+                return relative;
+            }
+        }
+
+        throw new CimVocabCheckException(
+            $"'{path}' is outside the working directory {mount}, which is the only path the "
+            + "Docker engine mounts. Pass paths relative to the working directory, run from a "
+            + $"directory that contains them, or configure a local engine ({JarVariable} / "
+            + $"{BinaryVariable}).");
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> relative to <paramref name="root"/> with <c>/</c> separators, or
+    /// <c>null</c> when it is not inside it. Both must be full paths.
+    /// </summary>
+    private static string? RelativeTo(string path, string root)
+    {
         var comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
-        if (System.IO.Path.TrimEndingDirectorySeparator(absolute)
-            .Equals(System.IO.Path.TrimEndingDirectorySeparator(mount), comparison))
+        if (System.IO.Path.TrimEndingDirectorySeparator(path)
+            .Equals(System.IO.Path.TrimEndingDirectorySeparator(root), comparison))
         {
             return ".";
         }
 
-        var prefix = mount.EndsWith(System.IO.Path.DirectorySeparatorChar)
-            ? mount
-            : mount + System.IO.Path.DirectorySeparatorChar;
-        if (!absolute.StartsWith(prefix, comparison))
+        var prefix = root.EndsWith(System.IO.Path.DirectorySeparatorChar)
+            ? root
+            : root + System.IO.Path.DirectorySeparatorChar;
+        return path.StartsWith(prefix, comparison)
+            ? path[prefix.Length..].Replace(System.IO.Path.DirectorySeparatorChar, '/')
+            : null;
+    }
+
+    /// <summary>
+    /// <paramref name="path"/> with every symlink along it resolved, as far as it exists; the part
+    /// that does not exist yet is kept as written.
+    /// </summary>
+    private static string RealPath(string path, int depth = 0)
+    {
+        // A link cycle would otherwise recurse forever; the kernel gives up at 40 too.
+        if (depth > 40)
         {
-            throw new CimVocabCheckException(
-                $"'{path}' is outside the working directory {mount}, which is the only path the "
-                + "Docker engine mounts. Pass paths relative to the working directory, run from a "
-                + $"directory that contains them, or configure a local engine ({JarVariable} / "
-                + $"{BinaryVariable}).");
+            return path;
         }
 
-        return absolute[prefix.Length..].Replace(System.IO.Path.DirectorySeparatorChar, '/');
+        var full = System.IO.Path.GetFullPath(path);
+        var current = System.IO.Path.GetPathRoot(full) ?? string.Empty;
+        var parts = full[current.Length..].Split(
+            System.IO.Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        for (var at = 0; at < parts.Length; at++)
+        {
+            var next = System.IO.Path.Combine(current, parts[at]);
+            FileSystemInfo info = Directory.Exists(next) ? new DirectoryInfo(next) : new FileInfo(next);
+            if (!info.Exists)
+            {
+                return System.IO.Path.Combine([current, .. parts[at..]]);
+            }
+
+            if (info.LinkTarget is not null && info.ResolveLinkTarget(returnFinalTarget: true) is { } target)
+            {
+                // The target may itself sit under a symlinked directory.
+                next = RealPath(target.FullName, depth + 1);
+            }
+
+            current = next;
+        }
+
+        return current;
     }
 
     /// <inheritdoc/>
