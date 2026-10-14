@@ -24,6 +24,7 @@ second per file.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import subprocess
@@ -221,8 +222,9 @@ def _validate(
 ) -> Report:
     resolved = engine if isinstance(engine, Engine) else discover(engine, env=env, cwd=cwd)
     here = Path(cwd) if cwd is not None else None
+    engine_inputs = [resolved.resolve_path(path, here) for path in inputs]
     args = build_args(
-        [resolved.resolve_path(path, here) for path in inputs],
+        engine_inputs,
         schema=[resolved.resolve_path(path, here) for path in _as_paths(schema)],
         config=resolved.resolve_path(os.fspath(config), here) if config is not None else None,
         endpoint=endpoint,
@@ -232,7 +234,29 @@ def _validate(
         verbose=verbose,
         extra_args=extra_args,
     )
-    return _run(resolved, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text)
+    report = _run(resolved, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text)
+    return _restore_input_names(report, inputs, engine_inputs)
+
+
+def _restore_input_names(
+    report: Report, inputs: Sequence[str], engine_inputs: Sequence[str]
+) -> Report:
+    """Puts back the names the caller used where the engine was handed rewritten ones.
+
+    The Docker engine sees mount-relative paths, and the report echoes what the engine saw; without
+    this, :meth:`~cimvocabcheck.Report.for_file` would answer differently per engine. The engine
+    reports one result per input, in input order, so results are matched by position — and only
+    renamed when they still carry the rewritten name, so an unexpected report passes through as is.
+    """
+    if list(inputs) == list(engine_inputs) or len(report.results) != len(inputs):
+        return report
+    results = tuple(
+        dataclasses.replace(result, file=original)
+        if result.file == rewritten and original != rewritten
+        else result
+        for result, original, rewritten in zip(report.results, inputs, engine_inputs, strict=True)
+    )
+    return dataclasses.replace(report, results=results)
 
 
 def tool_version(

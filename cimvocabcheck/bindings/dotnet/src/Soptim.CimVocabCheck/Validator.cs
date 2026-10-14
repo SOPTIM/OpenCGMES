@@ -304,7 +304,38 @@ public static class Validator
                 result.StandardError);
         }
 
-        return ParseReport(result.StandardOutput, command, result.ExitCode, result.StandardError);
+        return RestoreInputNames(
+            ParseReport(result.StandardOutput, command, result.ExitCode, result.StandardError),
+            inputs,
+            resolvedInputs);
+    }
+
+    /// <summary>Puts back the names the caller used where the engine was handed rewritten ones.</summary>
+    /// <remarks>
+    /// The Docker engine sees mount-relative paths, and the report echoes what the engine saw;
+    /// without this, <see cref="ReportExtensions.ForFile"/> would answer differently per engine.
+    /// The engine reports one result per input, in input order, so results are matched by
+    /// position — and only renamed when they still carry the rewritten name, so an unexpected
+    /// report passes through as is.
+    /// </remarks>
+    private static Report RestoreInputNames(
+        Report report, IReadOnlyList<string> inputs, List<string> resolvedInputs)
+    {
+        if (inputs.SequenceEqual(resolvedInputs, StringComparer.Ordinal)
+            || report.Results.Count != inputs.Count)
+        {
+            return report;
+        }
+
+        return report with
+        {
+            Results =
+            [
+                .. report.Results.Select((result, i) => result.File == resolvedInputs[i]
+                    ? result with { File = inputs[i] }
+                    : result),
+            ],
+        };
     }
 
     private static async Task<ProcessResult> SpawnAsync(
@@ -369,25 +400,16 @@ public static class Validator
         var standardOutputTask = process.StandardOutput.ReadToEndAsync(deadline.Token);
         var standardErrorTask = process.StandardError.ReadToEndAsync(deadline.Token);
 
-        if (standardInput is not null)
-        {
-            try
-            {
-                await process.StandardInput.WriteAsync(standardInput.AsMemory(), deadline.Token)
-                    .ConfigureAwait(false);
-            }
-            catch (IOException)
-            {
-                // The engine stopped reading; its exit code explains why.
-            }
-            finally
-            {
-                process.StandardInput.Close();
-            }
-        }
+        // Inside the deadline: an engine that is slow to start reading (a JVM warming up, an image
+        // being pulled) blocks a write larger than the pipe buffer, and that wait has to time out
+        // like any other.
+        var writing = standardInput is null
+            ? Task.CompletedTask
+            : WriteStandardInputAsync(process.StandardInput, standardInput, deadline.Token);
 
         try
         {
+            await writing.WaitAsync(deadline.Token).ConfigureAwait(false);
             await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
             return new ProcessResult(
                 process.ExitCode,
@@ -397,6 +419,7 @@ public static class Validator
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             Kill(process);
+            await ReleaseStandardInputAsync(process, writing).ConfigureAwait(false);
             engine.Abandon(command, options.Environment);
             throw new EngineTimeoutException(
                 $"the engine did not finish within {options.Timeout?.TotalSeconds:0.#}s.",
@@ -405,8 +428,50 @@ public static class Validator
         catch (OperationCanceledException)
         {
             Kill(process);
+            await ReleaseStandardInputAsync(process, writing).ConfigureAwait(false);
             engine.Abandon(command, options.Environment);
             throw;
+        }
+    }
+
+    private static async Task WriteStandardInputAsync(
+        StreamWriter input, string text, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await input.WriteAsync(text.AsMemory(), cancellationToken).ConfigureAwait(false);
+
+            // Only once everything is written: Close flushes synchronously, and a flush into a
+            // pipe the engine is not draining would block past the deadline.
+            input.Close();
+        }
+        catch (IOException)
+        {
+            // The engine stopped reading; its exit code explains why.
+        }
+        catch (OperationCanceledException)
+        {
+            // The deadline passed; the caller reports that.
+        }
+    }
+
+    /// <summary>Lets go of standard input once the engine is dead and can no longer block it.</summary>
+    private static async Task ReleaseStandardInputAsync(Process process, Task writing)
+    {
+        // The kill broke the pipe, so an unfinished write now fails instead of waiting.
+        await writing.ConfigureAwait(false);
+        if (!process.StartInfo.RedirectStandardInput)
+        {
+            return;
+        }
+
+        try
+        {
+            process.StandardInput.Close();
+        }
+        catch (Exception error) when (error is IOException or ObjectDisposedException)
+        {
+            // What was still buffered has nowhere to go.
         }
     }
 

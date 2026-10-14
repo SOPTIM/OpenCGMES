@@ -181,6 +181,50 @@ public sealed class ValidatorTests
     }
 
     [Fact]
+    public void AnEngineThatNeverReadsALargeQueryStillTimesOut()
+    {
+        // More than a pipe buffer holds, so the write itself blocks until the engine reads.
+        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
+        using var directory = new TempDir();
+        var engine = new BinaryEngine(directory.Script("deaf", "sleep 5"));
+        var started = System.Diagnostics.Stopwatch.StartNew();
+
+        Assert.Throws<EngineTimeoutException>(
+            () => Validator.ValidateText(
+                new string('#', 1 << 20),
+                new ValidationOptions { Engine = engine, Timeout = TimeSpan.FromMilliseconds(300) }));
+
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(4), $"took {started.Elapsed}");
+    }
+
+    [Fact]
+    public void ResultsAreAddressedByTheNamesTheCallerUsedEvenWhenDockerRewroteThem()
+    {
+        // The container sees mount-relative paths, and a report echoes what the engine saw.
+        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
+        using var directory = new TempDir();
+        var docker = directory.Script(
+            "docker",
+            """
+            shift $(( $# - 2 ))
+            cat <<REPORT
+            {"contractVersion":"1.0","tool":{"name":"cimvocabcheck","version":"1.2.3"},
+             "summary":{"files":2,"valid":2,"invalid":0,"errors":0,"warnings":0,"infos":0},
+             "results":[{"file":"$1","valid":true,"annotations":[]},
+                        {"file":"$2","valid":true,"annotations":[]}]}
+            REPORT
+            """);
+        var engine = new DockerEngine("cvc:test", docker, directory.Path);
+        var absolute = Path.Combine(directory.Path, "q.rq");
+
+        var report = Validator.Validate(
+            [absolute, "./other.rq"], new ValidationOptions { Engine = engine });
+
+        Assert.Equal([absolute, "./other.rq"], report.Results.Select(r => r.File));
+        Assert.NotNull(report.ForFile("./other.rq"));
+    }
+
+    [Fact]
     public void NonAsciiTextSurvivesTheRoundTripAsUtf8()
     {
         Assert.SkipUnless(CanScript, "the fixtures are shell scripts");

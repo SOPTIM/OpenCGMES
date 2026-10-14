@@ -381,6 +381,7 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
         })),
         Some(EXIT_CLEAN | EXIT_FINDINGS) => {
             parse_with(&output.stdout, &command, output.status, &output.stderr)
+                .map(|report| restore_input_names(report, inputs, &resolved))
         }
         other => Err(Error::tool(ToolFailure {
             message: format!(
@@ -394,6 +395,24 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
             stderr: output.stderr,
         })),
     }
+}
+
+/// Puts back the names the caller used where the engine was handed rewritten ones.
+///
+/// The Docker engine sees mount-relative paths, and the report echoes what the engine saw; without
+/// this, [`Report::for_file`] would answer differently per engine. The engine reports one result
+/// per input, in input order, so results are matched by position — and only renamed when they
+/// still carry the rewritten name, so an unexpected report passes through as is.
+fn restore_input_names(mut report: Report, inputs: &[String], resolved: &[String]) -> Report {
+    if inputs == resolved || report.results.len() != inputs.len() {
+        return report;
+    }
+    for ((result, original), rewritten) in report.results.iter_mut().zip(inputs).zip(resolved) {
+        if result.file == *rewritten {
+            result.file.clone_from(original);
+        }
+    }
+    report
 }
 
 fn parse_with(stdout: &str, argv: &[String], status: Option<i32>, stderr: &str) -> Result<Report> {

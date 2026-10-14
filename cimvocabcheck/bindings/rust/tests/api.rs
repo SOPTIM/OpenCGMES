@@ -337,3 +337,36 @@ REPORT"#,
 
     assert_eq!(report.tool.version, elsewhere.path().display().to_string());
 }
+
+#[test]
+fn results_are_addressed_by_the_names_the_caller_used_even_when_docker_rewrote_them() {
+    // The container sees mount-relative paths, and a report echoes what the engine saw.
+    let _guard = exclusive();
+    let dir = TempDir::new();
+    let docker = dir.script(
+        "docker",
+        r#"shift $(( $# - 2 ))
+cat <<REPORT
+{"contractVersion":"1.0","tool":{"name":"cimvocabcheck","version":"1.2.3"},
+ "summary":{"files":2,"valid":2,"invalid":0,"errors":0,"warnings":0,"infos":0},
+ "results":[{"file":"$1","valid":true,"annotations":[]},
+            {"file":"$2","valid":true,"annotations":[]}]}
+REPORT"#,
+    );
+    let engine = Engine::Docker {
+        image: "cvc:test".into(),
+        docker,
+        cwd: dir.path().to_path_buf(),
+    };
+    let absolute = dir.path().join("q.rq").display().to_string();
+
+    let report = validate(
+        &[absolute.as_str(), "./other.rq"],
+        &Options::new().engine(engine),
+    )
+    .expect("a report");
+
+    let files: Vec<&str> = report.results.iter().map(|r| r.file.as_str()).collect();
+    assert_eq!(files, [absolute.as_str(), "./other.rq"]);
+    assert!(report.for_file("./other.rq").is_some());
+}

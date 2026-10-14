@@ -290,3 +290,22 @@ def test_the_child_runs_in_the_requested_working_directory(tmp_path):
     report = validate(["q.rq"], engine=ReportsItsCwd(), cwd=tmp_path)
 
     assert report.tool.version == str(tmp_path.resolve())
+
+
+def test_results_are_addressed_by_the_names_the_caller_used_even_when_the_engine_rewrote_them():
+    """The Docker engine hands the CLI mount-relative paths; the report must not leak them."""
+
+    class Rewriting(ScriptedEngine):
+        def resolve_path(self, path, cwd=None):
+            return path.removeprefix("./")
+
+    results = [
+        {"file": name, "valid": True, "annotations": []} for name in ("q.rq", "other.rq")
+    ]
+    engine = Rewriting(stdout=report_json(results=results))
+
+    report = validate(["./q.rq", "other.rq"], engine=engine)
+
+    assert engine.last_call[-2:] == ["q.rq", "other.rq"]
+    assert [r.file for r in report.results] == ["./q.rq", "other.rq"]
+    assert report.for_file("./q.rq") is not None
