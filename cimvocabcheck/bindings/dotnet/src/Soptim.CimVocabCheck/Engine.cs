@@ -128,15 +128,22 @@ public abstract class Engine
     /// </summary>
     /// <remarks>
     /// Only the Docker engine leaves anything behind: killing <c>docker run</c> stops the client,
-    /// not the container. Best effort — the failure that caused the kill matters more.
+    /// not the container. Best effort — the failure that caused the kill matters more, so this
+    /// never throws, and it gives up after <see cref="AbandonLimit"/> or when
+    /// <paramref name="cancellationToken"/> fires: a Docker daemon that stopped responding is a
+    /// likely reason the run was killed in the first place.
     /// </remarks>
     /// <param name="command">The command that was killed, as <see cref="BuildCommand"/> built it.</param>
     /// <param name="environment">The environment it ran with, or <c>null</c> for this process's.</param>
-    public virtual void Abandon(
+    /// <param name="cancellationToken">Stops waiting for the cleanup.</param>
+    /// <returns>A task that completes once the cleanup finished or was given up on.</returns>
+    public virtual Task AbandonAsync(
         IReadOnlyList<string> command,
-        IReadOnlyDictionary<string, string>? environment)
-    {
-    }
+        IReadOnlyDictionary<string, string>? environment,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    /// <summary>How long <see cref="AbandonAsync"/> waits for its cleanup at most.</summary>
+    public static readonly TimeSpan AbandonLimit = TimeSpan.FromSeconds(30);
 
     /// <summary>A one-line description, for diagnostics and error messages.</summary>
     /// <returns>What this engine will run.</returns>
@@ -493,9 +500,10 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         IDictionary<string, string?> environment) => null;
 
     /// <inheritdoc/>
-    public override void Abandon(
+    public override async Task AbandonAsync(
         IReadOnlyList<string> command,
-        IReadOnlyDictionary<string, string>? environment)
+        IReadOnlyDictionary<string, string>? environment,
+        CancellationToken cancellationToken = default)
     {
         var at = command.ToList().IndexOf("--name");
         if (at < 0 || at + 1 >= command.Count)
@@ -519,14 +527,41 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             }
         }
 
+        Process? process;
         try
         {
-            using var process = Process.Start(startInfo);
-            process?.WaitForExit(TimeSpan.FromSeconds(30));
+            process = Process.Start(startInfo);
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException)
         {
             // The container outlives us; the timeout being reported matters more.
+            return;
+        }
+
+        if (process is null)
+        {
+            return;
+        }
+
+        using (process)
+        using (var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            limit.CancelAfter(AbandonLimit);
+            try
+            {
+                await process.WaitForExitAsync(limit.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                try
+                {
+                    process.Kill();
+                }
+                catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
+                {
+                    // Exited in the meantime.
+                }
+            }
         }
     }
 

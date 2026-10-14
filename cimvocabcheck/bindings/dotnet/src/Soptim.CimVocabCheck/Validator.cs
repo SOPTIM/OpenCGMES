@@ -425,7 +425,8 @@ public static class Validator
         {
             Kill(process);
             await ReleaseStandardInputAsync(process, writing).ConfigureAwait(false);
-            engine.Abandon(command, options.Environment);
+            await engine.AbandonAsync(command, options.Environment, CancellationToken.None)
+                .ConfigureAwait(false);
             throw new EngineTimeoutException(
                 $"the engine did not finish within {options.Timeout?.TotalSeconds:0.#}s.",
                 command);
@@ -434,7 +435,9 @@ public static class Validator
         {
             Kill(process);
             await ReleaseStandardInputAsync(process, writing).ConfigureAwait(false);
-            engine.Abandon(command, options.Environment);
+            // Not the caller's token: a cancelled run still has to remove its container.
+            await engine.AbandonAsync(command, options.Environment, CancellationToken.None)
+                .ConfigureAwait(false);
             throw;
         }
     }

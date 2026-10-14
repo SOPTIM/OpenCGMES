@@ -181,6 +181,22 @@ public sealed class ValidatorTests
     }
 
     [Fact]
+    public async Task AbandoningARunGivesUpOnADockerThatDoesNotAnswer()
+    {
+        // An unresponsive daemon is a likely reason the run was killed; the cleanup must not hang on it.
+        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
+        using var directory = new TempDir();
+        var engine = new DockerEngine("cvc:test", directory.Script("docker", "exec sleep 30"), directory.Path);
+        var command = engine.BuildCommand([], false, null);
+        using var patience = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        await engine.AbandonAsync(command, null, patience.Token);
+
+        Assert.True(started.Elapsed < TimeSpan.FromSeconds(10), started.Elapsed.ToString());
+    }
+
+    [Fact]
     public void AnEngineThatNeverReadsALargeQueryStillTimesOut()
     {
         // More than a pipe buffer holds, so the write itself blocks until the engine reads.
