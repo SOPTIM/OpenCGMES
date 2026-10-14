@@ -271,14 +271,15 @@ public static class Validator
         var directory = options.WorkingDirectory;
 
         var resolvedInputs = inputs.Select(input => engine.ResolvePath(input, directory)).ToList();
+        var mounts = new List<VolumeMount>();
         var resolved = options with
         {
-            Schema = [.. options.Schema.Select(path => engine.ResolvePath(path, directory))],
-            Config = options.Config is null ? null : engine.ResolvePath(options.Config, directory),
+            Schema = [.. options.Schema.Select(path => engine.ResolveSchema(path, directory, mounts))],
+            Config = options.Config is null ? null : engine.ResolveConfig(options.Config, directory, mounts),
         };
 
         var arguments = BuildArguments(resolvedInputs, resolved);
-        var command = engine.BuildCommand(arguments, standardInput is not null, directory);
+        var command = engine.BuildCommand(arguments, standardInput is not null, directory, mounts);
         var result = await SpawnAsync(engine, command, standardInput, options, cancellationToken)
             .ConfigureAwait(false);
 

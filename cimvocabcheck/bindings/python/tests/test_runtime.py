@@ -481,3 +481,48 @@ def test_the_docker_client_keeps_the_callers_environment(tmp_path):
 
     assert engine.environment({"LANG": "C"}) == {"LANG": "C"}
     assert engine.environment() is None
+
+
+def test_docker_mounts_an_explicit_config_outside_the_working_directory(tmp_path):
+    """The same config the engine would discover from there; naming it must not be refused."""
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    queries = tmp_path / "queries"
+    queries.mkdir()
+    engine = DockerEngine(docker="docker", cwd=queries)
+    mounts: list[runtime.Mount] = []
+
+    config = engine.resolve_config("../opencgmes.jsonc", None, mounts)
+    command = engine.command(["--config", config, "--", "q.rq"], mounts=mounts)
+
+    assert config == "/config/opencgmes.jsonc"
+    assert f"{tmp_path.resolve()}:/config:ro" in command
+
+
+def test_docker_mounts_schemas_outside_the_working_directory_one_each(tmp_path):
+    for name in ("profiles/a.rdf", "more/b.rdf", "project/profiles/inside.rdf"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text("", encoding="utf-8")
+    engine = DockerEngine(docker="docker", cwd=tmp_path / "project")
+    mounts: list[runtime.Mount] = []
+
+    schemas = [
+        engine.resolve_schema(path, None, mounts)
+        for path in ("../profiles", "../more/b.rdf", "profiles/inside.rdf")
+    ]
+    command = engine.command([], mounts=mounts)
+
+    assert schemas == ["/schemas/0/profiles", "/schemas/1/b.rdf", "profiles/inside.rdf"]
+    root = tmp_path.resolve()
+    assert f"{root / 'profiles'}:/schemas/0/profiles:ro" in command
+    assert f"{root / 'more' / 'b.rdf'}:/schemas/1/b.rdf:ro" in command
+
+
+def test_docker_still_refuses_a_missing_schema_outside_the_working_directory(tmp_path):
+    """Binding a path that does not exist makes Docker create an empty directory there."""
+    (tmp_path / "project").mkdir()
+    engine = DockerEngine(docker="docker", cwd=tmp_path / "project")
+    mounts: list[runtime.Mount] = []
+
+    with pytest.raises(UnreachablePathError):
+        engine.resolve_schema("../nowhere", None, mounts)
+    assert mounts == []

@@ -36,7 +36,7 @@ from typing import Any, Union
 from ._codes import CONTRACT_MAJOR
 from ._model import Report
 from .errors import EngineTimeoutError, ReportParseError, ToolError
-from .runtime import Engine, EngineSpec, discover
+from .runtime import Engine, EngineSpec, Mount, discover
 
 PathLike = Union[str, "os.PathLike[str]"]
 
@@ -223,10 +223,13 @@ def _validate(
     resolved = engine if isinstance(engine, Engine) else discover(engine, env=env, cwd=cwd)
     here = Path(cwd) if cwd is not None else None
     engine_inputs = [resolved.resolve_path(path, here) for path in inputs]
+    mounts: list[Mount] = []
     args = build_args(
         engine_inputs,
-        schema=[resolved.resolve_path(path, here) for path in _as_paths(schema)],
-        config=resolved.resolve_path(os.fspath(config), here) if config is not None else None,
+        schema=[resolved.resolve_schema(path, here, mounts) for path in _as_paths(schema)],
+        config=(
+            resolved.resolve_config(os.fspath(config), here, mounts) if config is not None else None
+        ),
         endpoint=endpoint,
         strict_endpoint=strict_endpoint,
         profiles=list(profiles),
@@ -234,7 +237,9 @@ def _validate(
         verbose=verbose,
         extra_args=extra_args,
     )
-    report = _run(resolved, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text)
+    report = _run(
+        resolved, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text, mounts=mounts
+    )
     return _restore_input_names(report, inputs, engine_inputs)
 
 
@@ -296,9 +301,13 @@ def _spawn(
     env: Mapping[str, str] | None,
     timeout: float | None,
     stdin_text: str | None = None,
+    mounts: Sequence[Mount] = (),
 ) -> subprocess.CompletedProcess[str]:
     argv = engine.command(
-        args, stdin=stdin_text is not None, cwd=Path(cwd) if cwd is not None else None
+        args,
+        stdin=stdin_text is not None,
+        cwd=Path(cwd) if cwd is not None else None,
+        mounts=mounts,
     )
     try:
         return subprocess.run(  # noqa: S603 - argv list, never a shell string
@@ -340,8 +349,11 @@ def _run(
     env: Mapping[str, str] | None,
     timeout: float | None,
     stdin_text: str | None = None,
+    mounts: Sequence[Mount] = (),
 ) -> Report:
-    completed = _spawn(engine, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text)
+    completed = _spawn(
+        engine, args, cwd=cwd, env=env, timeout=timeout, stdin_text=stdin_text, mounts=mounts
+    )
     argv = list(completed.args)
 
     if completed.returncode == EXIT_USAGE:

@@ -65,7 +65,7 @@ class ScriptedEngine(Engine):
             self.source = f"import time; time.sleep({sleep})\n" + self.source
         self.calls = []
 
-    def command(self, args, *, stdin=False, cwd=None):
+    def command(self, args, *, stdin=False, cwd=None, mounts=()):
         self.calls.append(list(args))
         return [sys.executable, "-c", self.source, *args]
 
@@ -241,7 +241,7 @@ def test_a_timed_out_engine_is_given_the_chance_to_clean_up():
 
 def test_an_engine_that_cannot_be_started_is_reported_clearly(tmp_path):
     class Missing(Engine):
-        def command(self, args, *, stdin=False, cwd=None):
+        def command(self, args, *, stdin=False, cwd=None, mounts=()):
             return [str(tmp_path / "does-not-exist")]
 
         def describe(self):
@@ -273,7 +273,7 @@ def test_the_child_runs_in_the_requested_working_directory(tmp_path):
     """Inputs are resolved by the engine, so it has to start where the caller says it does."""
 
     class ReportsItsCwd(Engine):
-        def command(self, args, *, stdin=False, cwd=None):
+        def command(self, args, *, stdin=False, cwd=None, mounts=()):
             return [
                 sys.executable,
                 "-c",

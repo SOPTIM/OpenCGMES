@@ -44,6 +44,12 @@ public abstract class Engine
     /// </summary>
     public const string ContainerConfigDirectory = "/config";
 
+    /// <summary>
+    /// Where the Docker fallback mounts, read-only and one numbered directory each, schema paths
+    /// that lie outside the working directory.
+    /// </summary>
+    public const string ContainerSchemaDirectory = "/schemas";
+
     /// <summary>Config file names the engine discovers, in the order it prefers them.</summary>
     public static readonly IReadOnlyList<string> ConfigFileNames = ["opencgmes.jsonc", "opencgmes.json"];
 
@@ -73,11 +79,16 @@ public abstract class Engine
     /// <param name="arguments">The engine's own arguments.</param>
     /// <param name="usesStandardInput">Whether input will be written to the process.</param>
     /// <param name="workingDirectory">Where the process will start.</param>
+    /// <param name="mounts">
+    /// Paths to mount read-only, as <see cref="ResolveConfig"/> and <see cref="ResolveSchema"/>
+    /// collected them. Only the Docker engine has any.
+    /// </param>
     /// <returns>The program followed by its arguments.</returns>
     public abstract IReadOnlyList<string> BuildCommand(
         IReadOnlyList<string> arguments,
         bool usesStandardInput,
-        string? workingDirectory);
+        string? workingDirectory,
+        IReadOnlyList<VolumeMount>? mounts = null);
 
     /// <summary>
     /// Rewrites one path for this engine. Only the Docker engine needs to.
@@ -86,6 +97,30 @@ public abstract class Engine
     /// <param name="workingDirectory">Where the process will start.</param>
     /// <returns>The path as the engine should see it.</returns>
     public virtual string ResolvePath(string path, string? workingDirectory) => path;
+
+    /// <summary>
+    /// Rewrites a config file path. The Docker engine mounts one outside the working directory
+    /// instead of refusing it.
+    /// </summary>
+    /// <param name="path">The path as the caller gave it.</param>
+    /// <param name="workingDirectory">Where the process will start.</param>
+    /// <param name="mounts">Collects what <see cref="BuildCommand"/> has to mount.</param>
+    /// <returns>The path as the engine should see it.</returns>
+    public virtual string ResolveConfig(
+        string path, string? workingDirectory, IList<VolumeMount> mounts) =>
+        ResolvePath(path, workingDirectory);
+
+    /// <summary>
+    /// Rewrites a schema file or directory path. The Docker engine mounts one outside the
+    /// working directory instead of refusing it.
+    /// </summary>
+    /// <param name="path">The path as the caller gave it.</param>
+    /// <param name="workingDirectory">Where the process will start.</param>
+    /// <param name="mounts">Collects what <see cref="BuildCommand"/> has to mount.</param>
+    /// <returns>The path as the engine should see it.</returns>
+    public virtual string ResolveSchema(
+        string path, string? workingDirectory, IList<VolumeMount> mounts) =>
+        ResolvePath(path, workingDirectory);
 
     /// <summary>
     /// The locale variable to set when spawning this engine, if its environment needs one.
@@ -319,7 +354,8 @@ public sealed class JarEngine(string jar, string java) : Engine
     public override IReadOnlyList<string> BuildCommand(
         IReadOnlyList<string> arguments,
         bool usesStandardInput,
-        string? workingDirectory) => [Java, "-jar", Jar, .. arguments];
+        string? workingDirectory,
+        IReadOnlyList<VolumeMount>? mounts = null) => [Java, "-jar", Jar, .. arguments];
 
     /// <inheritdoc/>
     public override string Describe() => $"{Java} -jar {Jar}";
@@ -336,7 +372,8 @@ public sealed class BinaryEngine(string path) : Engine
     public override IReadOnlyList<string> BuildCommand(
         IReadOnlyList<string> arguments,
         bool usesStandardInput,
-        string? workingDirectory) => [Path, .. arguments];
+        string? workingDirectory,
+        IReadOnlyList<VolumeMount>? mounts = null) => [Path, .. arguments];
 
     /// <inheritdoc/>
     public override string Describe() => Path;
@@ -368,7 +405,8 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     public override IReadOnlyList<string> BuildCommand(
         IReadOnlyList<string> arguments,
         bool usesStandardInput,
-        string? workingDirectory)
+        string? workingDirectory,
+        IReadOnlyList<VolumeMount>? mounts = null)
     {
         // Named, so a run that has to be killed can be found and removed again.
         var command = new List<string> { Docker, "run", "--rm", "--name", $"cimvocabcheck-{Guid.NewGuid():N}" };
@@ -390,6 +428,12 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             command.Add($"{System.IO.Path.GetDirectoryName(config)}:{ContainerConfigDirectory}:ro");
         }
 
+        foreach (var volume in mounts ?? [])
+        {
+            command.Add("-v");
+            command.Add($"{volume.Host}:{volume.Container}:ro");
+        }
+
         command.Add("-w");
         command.Add(ContainerWorkdir);
         command.Add(Image);
@@ -404,7 +448,68 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     }
 
     /// <inheritdoc/>
-    public override string ResolvePath(string path, string? workingDirectory)
+    public override string ResolvePath(string path, string? workingDirectory) =>
+        TryResolvePath(path, workingDirectory)
+        ?? throw new CimVocabCheckException(
+            $"'{path}' is outside the working directory {Mount(workingDirectory)}, which is the "
+            + "only path the Docker engine mounts. Pass paths relative to the working directory, "
+            + "run from a directory that contains them, or configure a local engine "
+            + $"({JarVariable} / {BinaryVariable}).");
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// A config outside the working directory has its directory mounted read-only at
+    /// <see cref="Engine.ContainerConfigDirectory"/>, so its own relative schema paths keep
+    /// resolving — exactly as for a config discovered above the working directory.
+    /// </remarks>
+    public override string ResolveConfig(
+        string path, string? workingDirectory, IList<VolumeMount> mounts)
+    {
+        if (Outside(path, workingDirectory) is not { } host)
+        {
+            return ResolvePath(path, workingDirectory);
+        }
+
+        mounts.Add(new VolumeMount(System.IO.Path.GetDirectoryName(host)!, ContainerConfigDirectory));
+        return $"{ContainerConfigDirectory}/{System.IO.Path.GetFileName(host)}";
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// A schema outside the working directory is mounted read-only in a directory of its own under
+    /// <see cref="Engine.ContainerSchemaDirectory"/>.
+    /// </remarks>
+    public override string ResolveSchema(
+        string path, string? workingDirectory, IList<VolumeMount> mounts)
+    {
+        if (Outside(path, workingDirectory) is not { } host)
+        {
+            return ResolvePath(path, workingDirectory);
+        }
+
+        var container = $"{ContainerSchemaDirectory}/{mounts.Count}/{System.IO.Path.GetFileName(host)}";
+        mounts.Add(new VolumeMount(host, container));
+        return container;
+    }
+
+    /// <summary>
+    /// The real host path when <paramref name="path"/> exists but lies outside the mount, else
+    /// <c>null</c>. A path that does not exist is left to <see cref="ResolvePath"/> to refuse:
+    /// binding it would make Docker create an empty directory in its place.
+    /// </summary>
+    private string? Outside(string path, string? workingDirectory)
+    {
+        if (TryResolvePath(path, workingDirectory) is not null)
+        {
+            return null;
+        }
+
+        var absolute = System.IO.Path.GetFullPath(path, Mount(workingDirectory));
+        var real = System.IO.Path.TrimEndingDirectorySeparator(RealPath(absolute));
+        return File.Exists(real) || Directory.Exists(real) ? real : null;
+    }
+
+    private string? TryResolvePath(string path, string? workingDirectory)
     {
         if (path == "-")
         {
@@ -427,11 +532,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             }
         }
 
-        throw new CimVocabCheckException(
-            $"'{path}' is outside the working directory {mount}, which is the only path the "
-            + "Docker engine mounts. Pass paths relative to the working directory, run from a "
-            + $"directory that contains them, or configure a local engine ({JarVariable} / "
-            + $"{BinaryVariable}).");
+        return null;
     }
 
     /// <summary>
@@ -624,3 +725,8 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         return false;
     }
 }
+
+/// <summary>A host path the Docker engine bind-mounts read-only for one call.</summary>
+/// <param name="Host">The path on the host.</param>
+/// <param name="Container">Where the engine sees it inside the container.</param>
+public sealed record VolumeMount(string Host, string Container);

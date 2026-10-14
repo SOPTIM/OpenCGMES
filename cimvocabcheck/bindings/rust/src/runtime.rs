@@ -44,6 +44,19 @@ pub const CONTAINER_WORKDIR: &str = "/work";
 /// working directory and would otherwise be invisible to the engine.
 pub const CONTAINER_CONFIG_DIR: &str = "/config";
 
+/// Where the Docker fallback mounts, read-only and one numbered directory each, schema paths that
+/// lie outside the working directory.
+pub const CONTAINER_SCHEMA_DIR: &str = "/schemas";
+
+/// A host path the Docker engine bind-mounts, read-only, for one call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mount {
+    /// The path on the host.
+    pub host: PathBuf,
+    /// Where the engine sees it inside the container.
+    pub container: String,
+}
+
 /// Config file names the engine discovers, in the order it prefers them.
 pub const CONFIG_FILENAMES: [&str; 2] = ["opencgmes.jsonc", "opencgmes.json"];
 
@@ -106,6 +119,20 @@ impl Engine {
     /// account for.
     #[must_use]
     pub fn command(&self, args: &[String], stdin: bool, cwd: Option<&Path>) -> Vec<String> {
+        self.command_with_mounts(args, stdin, cwd, &[])
+    }
+
+    /// [`Engine::command`], additionally mounting `mounts` read-only — the ones
+    /// [`Engine::resolve_config`] and [`Engine::resolve_schema`] collected. Only the Docker engine
+    /// has any.
+    #[must_use]
+    pub fn command_with_mounts(
+        &self,
+        args: &[String],
+        stdin: bool,
+        cwd: Option<&Path>,
+        mounts: &[Mount],
+    ) -> Vec<String> {
         let mut out = Vec::with_capacity(args.len() + 8);
         match self {
             Self::Jar { jar, java } => {
@@ -140,6 +167,10 @@ impl Engine {
                     out.push("-v".into());
                     out.push(format!("{}:{CONTAINER_CONFIG_DIR}:ro", directory.display()));
                 }
+                for mount in mounts {
+                    out.push("-v".into());
+                    out.push(format!("{}:{}:ro", mount.host.display(), mount.container));
+                }
                 out.push("-w".into());
                 out.push(CONTAINER_WORKDIR.into());
                 out.push(image.clone());
@@ -151,6 +182,72 @@ impl Engine {
         }
         out.extend(args.iter().cloned());
         out
+    }
+
+    /// Rewrites a config file path for this engine.
+    ///
+    /// Like [`Engine::resolve_path`], except that the Docker engine does not refuse a config
+    /// outside the working directory: it mounts the config's directory read-only at
+    /// [`CONTAINER_CONFIG_DIR`], adding to `mounts`, so the config's own relative schema paths
+    /// keep resolving — exactly as for a config the engine discovers above the working directory.
+    pub fn resolve_config(
+        &self,
+        path: &str,
+        cwd: Option<&Path>,
+        mounts: &mut Vec<Mount>,
+    ) -> Result<String> {
+        self.resolve_or_mount(path, cwd, |host| {
+            let name = host.file_name()?.to_string_lossy().into_owned();
+            let directory = host.parent()?.to_path_buf();
+            mounts.push(Mount {
+                host: directory,
+                container: CONTAINER_CONFIG_DIR.to_owned(),
+            });
+            Some(format!("{CONTAINER_CONFIG_DIR}/{name}"))
+        })
+    }
+
+    /// Rewrites a schema file or directory path for this engine.
+    ///
+    /// Like [`Engine::resolve_path`], except that the Docker engine does not refuse a schema
+    /// outside the working directory: it mounts it read-only under [`CONTAINER_SCHEMA_DIR`],
+    /// adding to `mounts`.
+    pub fn resolve_schema(
+        &self,
+        path: &str,
+        cwd: Option<&Path>,
+        mounts: &mut Vec<Mount>,
+    ) -> Result<String> {
+        self.resolve_or_mount(path, cwd, |host| {
+            let name = host.file_name()?.to_string_lossy().into_owned();
+            let container = format!("{CONTAINER_SCHEMA_DIR}/{}/{name}", mounts.len());
+            mounts.push(Mount {
+                host: host.to_path_buf(),
+                container: container.clone(),
+            });
+            Some(container)
+        })
+    }
+
+    /// [`Engine::resolve_path`], falling back to `mount` for an existing path outside the
+    /// working directory. A path that does not exist keeps the refusal: binding it would make
+    /// Docker create an empty directory in its place.
+    fn resolve_or_mount(
+        &self,
+        path: &str,
+        cwd: Option<&Path>,
+        mount: impl FnOnce(&Path) -> Option<String>,
+    ) -> Result<String> {
+        match self.resolve_path(path, cwd) {
+            Err(Error::UnreachablePath(message)) => self
+                .mount(cwd)
+                .join(path)
+                .canonicalize()
+                .ok()
+                .and_then(|host| mount(&host))
+                .ok_or(Error::UnreachablePath(message)),
+            resolved => resolved,
+        }
     }
 
     /// Rewrites one path for this engine. Only the Docker engine needs to.

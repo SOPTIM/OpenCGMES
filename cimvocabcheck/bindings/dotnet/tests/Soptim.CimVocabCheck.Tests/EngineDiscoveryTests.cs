@@ -411,4 +411,66 @@ public sealed class EngineDiscoveryTests
 
         Assert.Null(engine.LocaleOverride(new Dictionary<string, string?> { ["LANG"] = "C" }));
     }
+
+    [Fact]
+    public void DockerMountsAnExplicitConfigOutsideTheWorkingDirectory()
+    {
+        // The same config the engine would discover from there; naming it must not be refused.
+        using var directory = new TempDir();
+        directory.Write("opencgmes.jsonc", "{}");
+        directory.Write("queries/q.rq", "ASK {}");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "queries"));
+        var mounts = new List<VolumeMount>();
+
+        var config = engine.ResolveConfig("../opencgmes.jsonc", null, mounts);
+        var command = engine.BuildCommand(["--config", config, "--", "q.rq"], false, null, mounts);
+
+        Assert.Equal("/config/opencgmes.jsonc", config);
+        Assert.Contains($"{RealDirectory(directory.Path)}:/config:ro", command);
+    }
+
+    private static readonly string[] SchemaPaths = ["../profiles", "../more/b.rdf", "profiles/inside.rdf"];
+
+    [Fact]
+    public void DockerMountsSchemasOutsideTheWorkingDirectoryOneEach()
+    {
+        using var directory = new TempDir();
+        directory.Write("profiles/a.rdf", "");
+        directory.Write("more/b.rdf", "");
+        directory.Write("project/profiles/inside.rdf", "");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "project"));
+        var mounts = new List<VolumeMount>();
+
+        var schemas = SchemaPaths
+            .Select(path => engine.ResolveSchema(path, null, mounts))
+            .ToList();
+        var command = engine.BuildCommand([], false, null, mounts);
+
+        Assert.Equal(
+            new List<string> { "/schemas/0/profiles", "/schemas/1/b.rdf", "profiles/inside.rdf" },
+            schemas);
+        var root = RealDirectory(directory.Path);
+        Assert.Contains($"{Path.Combine(root, "profiles")}:/schemas/0/profiles:ro", command);
+        Assert.Contains($"{Path.Combine(root, "more", "b.rdf")}:/schemas/1/b.rdf:ro", command);
+    }
+
+    [Fact]
+    public void DockerStillRefusesAMissingSchemaOutsideTheWorkingDirectory()
+    {
+        // Binding a path that does not exist makes Docker create an empty directory there.
+        using var directory = new TempDir();
+        Directory.CreateDirectory(Path.Combine(directory.Path, "project"));
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "project"));
+        var mounts = new List<VolumeMount>();
+
+        var error = Assert.Throws<CimVocabCheckException>(
+            () => engine.ResolveSchema("../nowhere", null, mounts));
+
+        Assert.Contains("outside the working directory", error.Message, StringComparison.Ordinal);
+        Assert.Empty(mounts);
+    }
+
+    /// <summary>The temp root may sit behind a symlink (macOS /var → /private/var).</summary>
+    private static string RealDirectory(string path) =>
+        new DirectoryInfo(path).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? path;
 }

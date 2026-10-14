@@ -348,25 +348,28 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
     for input in inputs {
         resolved.push(engine.resolve_path(input, cwd)?);
     }
+    let mut mounts = Vec::new();
     let mut effective = options.clone();
     effective.schema = options
         .schema
         .iter()
         .map(|p| {
             engine
-                .resolve_path(&p.display().to_string(), cwd)
+                .resolve_schema(&p.display().to_string(), cwd, &mut mounts)
                 .map(PathBuf::from)
         })
         .collect::<Result<Vec<_>>>()?;
     effective.config = match &options.config {
-        Some(config) => Some(PathBuf::from(
-            engine.resolve_path(&config.display().to_string(), cwd)?,
-        )),
+        Some(config) => Some(PathBuf::from(engine.resolve_config(
+            &config.display().to_string(),
+            cwd,
+            &mut mounts,
+        )?)),
         None => None,
     };
 
     let args = build_args(&resolved, &effective);
-    let command = engine.command(&args, stdin_text.is_some(), cwd);
+    let command = engine.command_with_mounts(&args, stdin_text.is_some(), cwd, &mounts);
     let output = spawn(&engine, &command, stdin_text, options)?;
 
     match output.status {

@@ -115,7 +115,10 @@ else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI
 engine gets `C.UTF-8` so it can open non-ASCII file names.
 
 The Docker fallback mounts the working directory at the image's `/work`, so inputs must live
-inside it — a path outside is refused rather than silently unreadable. An `opencgmes.jsonc` above the working directory is mounted read-only alongside it and passed
+inside it — an input outside it is refused rather than silently unreadable. A schema or config
+file outside it is mounted read-only instead (a config together with its directory, so its own
+relative paths keep working), and an `opencgmes.jsonc` above the working directory is mounted
+the same way and passed
 as `--config`, unless the call names its own schema source, so a run from a subdirectory sees
 the same config a local engine would. `CIMVOCABCHECK_DOCKER_IMAGE`
 pins a tag and `CIMVOCABCHECK_NO_DOCKER=1` takes it out of the chain. The first run pulls the

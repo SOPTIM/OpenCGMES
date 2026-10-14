@@ -48,6 +48,13 @@ CONTAINER_WORKDIR = "/work"
 #: working directory and would otherwise be invisible to the engine.
 CONTAINER_CONFIG_DIR = "/config"
 
+#: Where the Docker fallback mounts, read-only and one numbered directory each, schema paths that
+#: lie outside the working directory.
+CONTAINER_SCHEMA_DIR = "/schemas"
+
+#: A host path the Docker engine bind-mounts read-only for one call, and where the engine sees it.
+Mount = tuple[Path, str]
+
 #: Config file names the engine discovers, in the order it prefers them.
 CONFIG_FILENAMES = ("opencgmes.jsonc", "opencgmes.json")
 
@@ -91,19 +98,33 @@ class Engine:
     kind = "engine"
 
     def command(
-        self, args: Sequence[str], *, stdin: bool = False, cwd: Path | None = None
+        self,
+        args: Sequence[str],
+        *,
+        stdin: bool = False,
+        cwd: Path | None = None,
+        mounts: Sequence[Mount] = (),
     ) -> list[str]:
         """Builds the argv to spawn.
 
         Never a shell string: inputs and schema paths contain spaces. ``cwd`` is the directory the
         process will start in, which an engine that cannot see the filesystem directly has to
-        account for.
+        account for. ``mounts`` are the ones :meth:`resolve_config` and :meth:`resolve_schema`
+        collected; only the Docker engine has any.
         """
         raise NotImplementedError
 
     def resolve_path(self, path: str, cwd: Path | None = None) -> str:
         """Rewrites one path for this engine. Only the Docker engine needs to."""
         return path
+
+    def resolve_config(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
+        """Rewrites a config file path; the Docker engine may mount it instead of refusing it."""
+        return self.resolve_path(path, cwd)
+
+    def resolve_schema(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
+        """Rewrites a schema path; the Docker engine may mount it instead of refusing it."""
+        return self.resolve_path(path, cwd)
 
     def environment(self, env: Mapping[str, str] | None = None) -> dict[str, str] | None:
         """The environment to spawn this engine with: ``env``, or this process's when ``None``.
@@ -139,7 +160,12 @@ class JarEngine(Engine):
         self.java = java or find_java()
 
     def command(
-        self, args: Sequence[str], *, stdin: bool = False, cwd: Path | None = None
+        self,
+        args: Sequence[str],
+        *,
+        stdin: bool = False,
+        cwd: Path | None = None,
+        mounts: Sequence[Mount] = (),
     ) -> list[str]:
         return [self.java, "-jar", str(self.jar), *args]
 
@@ -156,7 +182,12 @@ class BinaryEngine(Engine):
         self.binary = Path(binary)
 
     def command(
-        self, args: Sequence[str], *, stdin: bool = False, cwd: Path | None = None
+        self,
+        args: Sequence[str],
+        *,
+        stdin: bool = False,
+        cwd: Path | None = None,
+        mounts: Sequence[Mount] = (),
     ) -> list[str]:
         return [str(self.binary), *args]
 
@@ -185,7 +216,12 @@ class DockerEngine(Engine):
         self.cwd = Path(cwd) if cwd is not None else Path.cwd()
 
     def command(
-        self, args: Sequence[str], *, stdin: bool = False, cwd: Path | None = None
+        self,
+        args: Sequence[str],
+        *,
+        stdin: bool = False,
+        cwd: Path | None = None,
+        mounts: Sequence[Mount] = (),
     ) -> list[str]:
         mount = self._mount(cwd)
         # Named, so a run that has to be killed can be found and removed again.
@@ -200,7 +236,50 @@ class DockerEngine(Engine):
             # syntax-only check that reports every query as valid.
             run += ["-v", f"{config.parent}:{CONTAINER_CONFIG_DIR}:ro"]
             args = ["--config", f"{CONTAINER_CONFIG_DIR}/{config.name}", *args]
+        for host, container in mounts:
+            run += ["-v", f"{host}:{container}:ro"]
         return [*run, "-w", CONTAINER_WORKDIR, self.image, *args]
+
+    def resolve_config(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
+        """Like :meth:`resolve_path`, but a config outside the working directory is mounted.
+
+        Its directory goes to :data:`CONTAINER_CONFIG_DIR` read-only, so the config's own relative
+        schema paths keep resolving — exactly as for a config discovered above the working
+        directory.
+        """
+        host = self._outside(path, cwd)
+        if host is None:
+            return self.resolve_path(path, cwd)
+        mounts.append((host.parent, CONTAINER_CONFIG_DIR))
+        return f"{CONTAINER_CONFIG_DIR}/{host.name}"
+
+    def resolve_schema(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
+        """Like :meth:`resolve_path`, but a schema outside the working directory is mounted.
+
+        Each goes read-only to its own directory under :data:`CONTAINER_SCHEMA_DIR`.
+        """
+        host = self._outside(path, cwd)
+        if host is None:
+            return self.resolve_path(path, cwd)
+        container = f"{CONTAINER_SCHEMA_DIR}/{len(mounts)}/{host.name}"
+        mounts.append((host, container))
+        return container
+
+    def _outside(self, path: str, cwd: Path | None) -> Path | None:
+        """The resolved host path when ``path`` exists but lies outside the mount, else ``None``.
+
+        A path that does not exist is left to :meth:`resolve_path` to refuse: binding it would
+        make Docker create an empty directory in its place.
+        """
+        try:
+            self.resolve_path(path, cwd)
+            return None
+        except UnreachablePathError:
+            pass
+        try:
+            return (self._mount(cwd) / path).resolve(strict=True)
+        except OSError:
+            return None
 
     def resolve_path(self, path: str, cwd: Path | None = None) -> str:
         if path == "-":

@@ -505,3 +505,79 @@ fn the_docker_client_keeps_the_callers_locale() {
 
     assert_eq!(engine.locale_override(Some(&env(&[("LANG", "C")]))), None);
 }
+
+#[test]
+fn docker_mounts_an_explicit_config_outside_the_working_directory() {
+    // The same config the engine would discover from there; naming it must not be refused.
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("queries/q.rq", "ASK {}");
+    let engine = docker_in(dir.path().join("queries"));
+    let mut mounts = Vec::new();
+
+    let config = engine
+        .resolve_config("../opencgmes.jsonc", None, &mut mounts)
+        .expect("mounted, not refused");
+    let command = engine.command_with_mounts(
+        &strings(&["--config", &config, "--", "q.rq"]),
+        false,
+        None,
+        &mounts,
+    );
+
+    assert_eq!(config, "/config/opencgmes.jsonc");
+    let directory = dir.path().canonicalize().unwrap();
+    assert!(
+        command.contains(&format!("{}:/config:ro", directory.display())),
+        "{command:?}"
+    );
+}
+
+#[test]
+fn docker_mounts_schemas_outside_the_working_directory_one_each() {
+    let dir = TempDir::new();
+    dir.write("profiles/a.rdf", "");
+    dir.write("more/b.rdf", "");
+    dir.write("project/profiles/inside.rdf", "");
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    let schemas: Vec<String> = ["../profiles", "../more/b.rdf", "profiles/inside.rdf"]
+        .iter()
+        .map(|path| engine.resolve_schema(path, None, &mut mounts).unwrap())
+        .collect();
+    let command = engine.command_with_mounts(&[], false, None, &mounts);
+
+    assert_eq!(
+        schemas,
+        strings(&[
+            "/schemas/0/profiles",
+            "/schemas/1/b.rdf",
+            "profiles/inside.rdf"
+        ])
+    );
+    let root = dir.path().canonicalize().unwrap();
+    for (host, container) in [
+        ("profiles", "/schemas/0/profiles"),
+        ("more/b.rdf", "/schemas/1/b.rdf"),
+    ] {
+        let volume = format!("{}:{container}:ro", root.join(host).display());
+        assert!(command.contains(&volume), "{volume} in {command:?}");
+    }
+}
+
+#[test]
+fn docker_still_refuses_a_missing_schema_outside_the_working_directory() {
+    // Binding a path that does not exist makes Docker create an empty directory there.
+    let dir = TempDir::new();
+    std::fs::create_dir_all(dir.path().join("project")).unwrap();
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    let error = engine
+        .resolve_schema("../nowhere", None, &mut mounts)
+        .expect_err("refused");
+
+    assert!(matches!(error, Error::UnreachablePath(_)), "{error}");
+    assert_eq!(mounts, []);
+}
