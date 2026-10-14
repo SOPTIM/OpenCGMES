@@ -2471,45 +2471,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
+      "bom-ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar",
       "publisher" : "fasterxml.com",
       "group" : "org.codehaus.woodstox",
       "name" : "stax2-api",
-      "version" : "4.3.1",
+      "version" : "4.3.2",
       "description" : "Stax2 API is an extension to basic Stax 1.0 API that adds significant new functionality, such as full-featured bi-direction validation interface and high-performance Typed Access API.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "2a48eb99a954950283e5cfad0103445b"
+          "content" : "5d48e5d4b45a21ce5a0aa7b72d1c36b8"
         },
         {
           "alg" : "SHA-1",
-          "content" : "c2a6c7802434e7693d0cef0e7ab8cd4aa76e19be"
+          "content" : "8a01240c71fb000d6ecf1cb191d4cee915f71ea1"
         },
         {
           "alg" : "SHA-256",
-          "content" : "1953d9d443149769c8418fd4fb69284ba2f98adbbed304e9a050c360e28541c6"
+          "content" : "7fd6d60212696fb5d6dc422c2a1c8fb82c088d66dd7e4f30738d5d7606eabcd1"
         },
         {
           "alg" : "SHA-512",
-          "content" : "4147cc35d69f29b800050d3e9ba4e23e167ee7437554769cbd317e920b934181369567b99da4692c3ba7c65bf033ee0fdd1e89c4e49929c0211d5e0a0650517d"
+          "content" : "2dfbb91581a8a55ea833392ebb545a222da37ea865c09e61d942d2521cd831c241e4598df9a3cd8c4a0377b6d8713c0995abd0d5ce2add844875d8f7dd16ded7"
         },
         {
           "alg" : "SHA-384",
-          "content" : "415bc5d8faaa39c44ab24a8947f60da1e11bf978ca16811850e5118b93289cc4cdd531f9da69a5658b279be3fc79d186"
+          "content" : "bfbdfcd2966795365a9833ad60895e30b7e09322422cbeb3eaa3e0f8f852c90e1f9015114c6e17b304bc6c42bbdf6787"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "754670ec56c0a0e7dc6a774808027dd3f2f37d282642b8a1905e7e15e9a01dc988210cd99380c767f6dfe54fc5d1c81f"
+          "content" : "45a113d61501ba788c44712efaf206f7628fa12ae74ea8321b096465a72b376c204d8dea1208da69b6e2ed67c4efd766"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "904c311acbed72a12d6a4e33bcae50b623424b97f6f28141af234d03214fddb0"
+          "content" : "ed171e3df1794aab67a65099c3c669ceca4c022e4df99458ac89f978a03e160b"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "01b32a332f50b0d53730d0db68e1f3b1aa2a49df50f2ee325445c6bfc732ed3d8314f46af158d7cf950a487ecc0ad2e7f3c6c046eff6e3dfaf3f9f9b537a1484"
+          "content" : "7c32be70bc84a9adc7eac1bd8712fa07a4a367ea0dd52bfba8f9be2dfb92dca10db79f55b4ff2c1b4c47665315b772372fe916bfa95d03ccbafea9ebb8d9c931"
         }
       ],
       "licenses" : [
@@ -2519,7 +2519,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
+      "purl" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -3103,13 +3103,13 @@
     {
       "ref" : "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.3.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar"
+        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar"
       ]
     },
     {
       "ref" : "pkg:maven/com.fasterxml/aalto-xml@1.4.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar"
+        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar"
       ]
     },
     {
@@ -3188,7 +3188,7 @@
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
         "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
-        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
+        "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
       ]
     },
@@ -3300,7 +3300,7 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.1?type=jar",
+      "ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar",
       "dependsOn" : []
     },
     {
