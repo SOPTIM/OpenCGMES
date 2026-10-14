@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.cli;
 
 import picocli.CommandLine;
+import picocli.CommandLine.ExitCode;
 
 /** Entry point for the {@code cimvocabcheck} command-line tool. */
 public final class Main {
@@ -27,7 +28,24 @@ public final class Main {
 
   /** Runs the CLI with {@code args} and exits with the resulting status code. */
   public static void main(String[] args) {
-    int exitCode = new CommandLine(new ValidateCommand()).execute(args);
+    int exitCode = commandLine().execute(args);
     System.exit(exitCode);
+  }
+
+  /**
+   * The CLI as {@link #main} runs it.
+   *
+   * <p>picocli exits with 1 when a command throws, which the published report contract reserves for
+   * "the report has errors". A crash produced no report at all, so it exits with 2 — the code
+   * consumers already treat as "the tool failed, stdout holds no report".
+   */
+  static CommandLine commandLine() {
+    return new CommandLine(new ValidateCommand())
+        .setExecutionExceptionHandler(
+            (error, commandLine, parseResult) -> {
+              commandLine.getErr().println("Error: internal failure: " + error);
+              error.printStackTrace(commandLine.getErr());
+              return ExitCode.USAGE;
+            });
   }
 }

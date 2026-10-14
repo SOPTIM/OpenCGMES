@@ -285,7 +285,7 @@ public static class Validator
         if (result.ExitCode == ExitUsage)
         {
             throw new ToolException(
-                "the engine rejected the request (usage or configuration error); no report was "
+                "the engine failed (usage, configuration or internal error); no report was "
                 + "produced.",
                 command,
                 result.ExitCode,

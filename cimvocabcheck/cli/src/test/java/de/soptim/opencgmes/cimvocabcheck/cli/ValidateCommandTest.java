@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -194,6 +195,32 @@ public class ValidateCommandTest {
       </rdf:RDF>
       """;
 
+  @Test
+  public void anInputNameThePlatformCannotEncodeIsAReadErrorNotACrash() {
+    // A NUL is unrepresentable everywhere; a non-ASCII name under a C locale fails the same way.
+    String input = "q\u0000.rq";
+
+    assertEquals(2, exitOf("--format", "json", input));
+    assertTrue(runCapturingStderr("--format", "json", input).contains("Error reading"));
+  }
+
+  @Test
+  public void aCrashExitsWithTheToolFailureCodeNotTheFindingsCode() throws Exception {
+    // Exit 1 means "the report has errors"; a crash produced no report.
+    CommandLine commandLine = Main.commandLine();
+    var errors = new ByteArrayOutputStream();
+    commandLine.setErr(new PrintWriter(errors, true, StandardCharsets.UTF_8));
+
+    int code =
+        commandLine
+            .getExecutionExceptionHandler()
+            .handleExecutionException(
+                new IllegalStateException("boom"), commandLine, commandLine.parseArgs("q.rq"));
+
+    assertEquals(2, code);
+    assertTrue(errors.toString(StandardCharsets.UTF_8).contains("boom"));
+  }
+
   // ---- helpers ----------------------------------------------------------------------------
 
   private Path write(String name, String content) throws Exception {
@@ -207,7 +234,7 @@ public class ValidateCommandTest {
     var buffer = new ByteArrayOutputStream();
     System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
     try {
-      new CommandLine(new ValidateCommand()).execute(args);
+      Main.commandLine().execute(args);
     } finally {
       System.setOut(originalOut);
     }
@@ -222,7 +249,7 @@ public class ValidateCommandTest {
     System.setOut(outSink);
     System.setErr(new PrintStream(errBuffer, true, StandardCharsets.UTF_8));
     try {
-      new CommandLine(new ValidateCommand()).execute(args);
+      Main.commandLine().execute(args);
     } finally {
       System.setOut(originalOut);
       System.setErr(originalErr);
@@ -237,7 +264,7 @@ public class ValidateCommandTest {
     System.setOut(sink);
     System.setErr(sink);
     try {
-      return new CommandLine(new ValidateCommand()).execute(args);
+      return Main.commandLine().execute(args);
     } finally {
       System.setOut(originalOut);
       System.setErr(originalErr);

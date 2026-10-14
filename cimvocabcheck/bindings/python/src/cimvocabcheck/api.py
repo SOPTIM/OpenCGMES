@@ -346,7 +346,7 @@ def _run(
 
     if completed.returncode == EXIT_USAGE:
         raise ToolError(
-            "the engine rejected the request (usage or configuration error); no report was "
+            "the engine failed (usage, configuration or internal error); no report was "
             "produced.",
             argv=argv,
             returncode=completed.returncode,

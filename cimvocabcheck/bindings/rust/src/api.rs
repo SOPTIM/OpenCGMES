@@ -371,7 +371,7 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
 
     match output.status {
         Some(EXIT_USAGE) => Err(Error::tool(ToolFailure {
-            message: "the engine rejected the request (usage or configuration error); no report \
+            message: "the engine failed (usage, configuration or internal error); no report \
                       was produced."
                 .to_owned(),
             argv: command,

@@ -78,7 +78,7 @@ Schema resolution mirrors the editors: `--config`/`--schema`/`--endpoint`, else 
 | --- | --- |
 | `0` | Valid — no errors |
 | `1` | Validation found errors |
-| `2` | Usage or configuration error (e.g. `--strict-endpoint` with no schema graphs) |
+| `2` | Usage, configuration or internal error — no report was produced (e.g. `--strict-endpoint` with no schema graphs, an unreadable input) |
 
 This makes it a drop-in CI gate:
 

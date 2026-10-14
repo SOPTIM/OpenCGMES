@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ import picocli.CommandLine.Parameters;
       "Schema is loaded from a config file (auto-discovered or --config),",
       "or from explicit schema files passed with --schema.",
       "",
-      "Exit codes: 0=valid  1=has errors  2=usage/config error"
+      "Exit codes: 0=valid  1=has errors  2=usage/config/internal error"
     },
     mixinStandardHelpOptions = true,
     versionProvider = ToolVersion.class,
@@ -628,7 +629,18 @@ public class ValidateCommand implements Callable<Integer> {
   }
 
   private static String readInput(String input) throws IOException {
-    return Files.readString(Path.of(input), StandardCharsets.UTF_8);
+    Path path;
+    try {
+      path = Path.of(input);
+    } catch (InvalidPathException e) {
+      // Typically a non-ASCII name under a POSIX/C locale, where the JVM cannot encode it.
+      throw new IOException(
+          e.getMessage()
+              + " (the name cannot be represented in this platform's file name encoding; "
+              + "running under a UTF-8 locale, e.g. LC_ALL=C.UTF-8, usually fixes this)",
+          e);
+    }
+    return Files.readString(path, StandardCharsets.UTF_8);
   }
 
   private static FileResult applySeverities(FileResult r, SeverityPolicy severities) {
