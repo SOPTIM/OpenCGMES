@@ -245,6 +245,18 @@ jobs:
           CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
         run: cargo test
 
+      # The run above only proves the runner's stable Rust; this is the floor the crate claims in
+      # Cargo.toml's rust-version, read from there so the two cannot disagree. --locked, so a
+      # dependency update that raises the floor fails here rather than for a user.
+      - name: Test on the oldest supported Rust
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: |
+          msrv="$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)"
+          test -n "${msrv}" || { echo "::error::Cargo.toml declares no rust-version" >&2; exit 1; }
+          rustup toolchain install "${msrv}" --profile minimal --no-self-update
+          cargo "+${msrv}" test --locked
+
       - name: Verify the crate packages
         run: cargo package --no-verify
 
