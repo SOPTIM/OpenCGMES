@@ -42,7 +42,7 @@ Issues = "https://github.com/SOPTIM/OpenCGMES/issues"
 
 [project.scripts]
 # Deliberately named after the engine: this shim forwards to a real engine when one is installed,
-# and runtime discovery skips this interpreter's script directory so it cannot find itself.
+# and runtime discovery recognises copies of this script by content, so it cannot find itself.
 cimvocabcheck = "cimvocabcheck.__main__:main"
 
 [tool.hatch.build.targets.wheel]

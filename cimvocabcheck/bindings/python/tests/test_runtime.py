@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import sysconfig
 
 import pytest
 
@@ -92,14 +93,67 @@ def test_an_engine_on_path_is_used_when_the_environment_is_silent(tmp_path, bare
     assert engine.binary == binary
 
 
-def test_our_own_console_script_is_never_discovered_as_the_engine(monkeypatch, tmp_path):
+def shim(path, name="cimvocabcheck"):
+    """A copy of this package's console script, as pip and uv generate it."""
+    path.mkdir(parents=True, exist_ok=True)
+    script = path / name
+    script.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        "from cimvocabcheck.__main__ import main\n"
+        "sys.exit(main())\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return script
+
+
+def test_our_own_console_script_is_never_discovered_as_the_engine(tmp_path):
     """Otherwise the shim would exec itself, forever."""
     scripts = tmp_path / "venv" / "bin"
-    executable(scripts, "cimvocabcheck")
-    monkeypatch.setattr(runtime, "_script_directories", lambda: [os.path.normcase(str(scripts))])
+    shim(scripts)
 
     with pytest.raises(EngineNotFoundError):
         discover(env={"PATH": str(scripts)}, allow_docker=False)
+
+
+def test_a_console_script_is_skipped_but_an_engine_after_it_is_found(tmp_path):
+    shim(tmp_path / "venv" / "bin")
+    binary = executable(tmp_path / "opt" / "bin", "cimvocabcheck")
+
+    engine = discover(
+        env={"PATH": os.pathsep.join([str(tmp_path / "venv" / "bin"), str(binary.parent)])},
+        allow_docker=False,
+    )
+
+    assert isinstance(engine, BinaryEngine)
+    assert engine.binary == binary
+
+
+@pytest.mark.parametrize(
+    "directory",
+    [
+        sysconfig.get_path("scripts"),
+        sysconfig.get_path("scripts", scheme="nt_user" if os.name == "nt" else "posix_user"),
+        os.path.dirname(sys.executable),
+    ],
+    ids=["scripts", "user-scripts", "interpreter"],
+)
+def test_an_engine_installed_where_python_keeps_its_scripts_is_found(directory, monkeypatch):
+    """``/usr/local/bin``, ``~/.local/bin``, ``/usr/bin``, ``/opt/homebrew/bin``: common homes for
+    an engine, and also where some interpreter keeps its console scripts. Only a copy of the shim
+    may be skipped, never the directory."""
+    candidate = os.path.join(directory, "cimvocabcheck")
+    def which(name, path=None):
+        return candidate if name == "cimvocabcheck" and path == directory else None
+
+    monkeypatch.setattr(runtime.shutil, "which", which)
+    monkeypatch.setattr(runtime, "_is_shim", lambda path: False)
+
+    engine = discover(env={"PATH": directory}, allow_docker=False)
+
+    assert isinstance(engine, BinaryEngine)
+    assert str(engine.binary) == candidate
 
 
 def test_directories_the_shim_chain_already_visited_are_skipped(tmp_path):
@@ -127,7 +181,6 @@ def test_the_shim_records_where_it_forwards_to():
     chain = env[runtime.ENV_SHIM_CHAIN].split(os.pathsep)
     assert chain[0] == os.path.normcase(os.path.realpath("/earlier"))
     assert os.path.normcase(os.path.realpath("/opt/cimvocabcheck/bin")) in chain
-    assert set(runtime._script_directories()) <= set(chain)
 
 
 def test_a_bin_variable_pointing_back_into_the_shim_chain_is_refused(tmp_path, bare_env):

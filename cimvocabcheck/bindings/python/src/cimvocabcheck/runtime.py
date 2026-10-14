@@ -28,8 +28,6 @@ import contextlib
 import os
 import shutil
 import subprocess
-import sys
-import sysconfig
 import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -55,10 +53,17 @@ ENV_IMAGE = "CIMVOCABCHECK_DOCKER_IMAGE"
 ENV_NO_DOCKER = "CIMVOCABCHECK_NO_DOCKER"
 
 #: Set by the ``cimvocabcheck`` shim for the process it forwards to: the directories it has already
-#: been launched from, ``os.pathsep``-separated. Another interpreter's copy of the shim is not in
-#: this interpreter's script directory, so without it two installs on ``PATH`` forward to each other
-#: forever.
+#: forwarded into, ``os.pathsep``-separated. Shims are recognised by their content (see
+#: :func:`_is_shim`); this is the backstop for one that is not, so a chain of shims ends instead of
+#: forwarding to each other forever.
 ENV_SHIM_CHAIN = "CIMVOCABCHECK_SHIM_CHAIN"
+
+#: Text every copy of this package's console script carries: pip and uv write it into the generated
+#: script, and on Windows into the zip appended to the launcher ``.exe``. No engine contains it.
+SHIM_MARKER = b"cimvocabcheck.__main__"
+
+#: How much of each end of a candidate is searched for :data:`SHIM_MARKER`.
+_SHIM_SCAN_BYTES = 64 * 1024
 
 EngineSpec = Union[str, "os.PathLike[str]", "Engine", None]
 
@@ -232,24 +237,23 @@ def find_java(env: Mapping[str, str] | None = None) -> str:
     )
 
 
-def _script_directories() -> list[str]:
-    """Directories holding this interpreter's console scripts — including our own launcher.
+def _is_shim(path: str | os.PathLike[str]) -> bool:
+    """Whether ``path`` is a copy of this package's console script rather than an engine.
 
-    Skipping them keeps :func:`discover` from finding the shim it is running inside and recursing
-    into itself forever.
+    Recognised by content, not location: the directories Python installs console scripts into
+    (``/usr/local/bin``, ``~/.local/bin``, ``/usr/bin``, ``/opt/homebrew/bin``) are exactly where an
+    engine gets installed too, so skipping them would hide it. Both ends are read because a Windows
+    launcher carries its script in a zip appended to the executable.
     """
-    directories = []
-    for scheme in (None, "posix_user" if os.name != "nt" else "nt_user"):
-        try:
-            path = sysconfig.get_path("scripts") if scheme is None else sysconfig.get_path(
-                "scripts", scheme=scheme
-            )
-        except (KeyError, ValueError):  # pragma: no cover - exotic schemes
-            continue
-        if path:
-            directories.append(_normalized(path))
-    directories.append(_normalized(os.path.dirname(sys.executable)))
-    return directories
+    try:
+        with open(path, "rb") as handle:
+            head = handle.read(_SHIM_SCAN_BYTES)
+            size = handle.seek(0, os.SEEK_END)
+            handle.seek(max(len(head), size - _SHIM_SCAN_BYTES))
+            tail = handle.read()
+    except OSError:
+        return False
+    return SHIM_MARKER in head or SHIM_MARKER in tail
 
 
 def _normalized(directory: str | os.PathLike[str]) -> str:
@@ -263,12 +267,12 @@ def _shim_chain(env: Mapping[str, str]) -> list[str]:
 def shim_environment(engine: Engine, env: Mapping[str, str] | None = None) -> dict[str, str]:
     """The environment the shim hands to ``engine``: ``env`` with the shim chain extended.
 
-    Records this interpreter's script directories and, for an executable engine, the directory it
-    lives in. If that executable turns out to be another copy of the shim, its own discovery then
-    skips everything already visited, so a chain of shims ends instead of looping.
+    Records, for an executable engine, the directory it lives in. If that executable turns out to
+    be a copy of the shim :func:`_is_shim` did not recognise, its own discovery then skips
+    everything already visited, so a chain of shims ends instead of looping.
     """
     environ = dict(os.environ if env is None else env)
-    chain = _shim_chain(environ) + _script_directories()
+    chain = _shim_chain(environ)
     if isinstance(engine, BinaryEngine):
         chain.append(_normalized(engine.binary.parent))
     environ[ENV_SHIM_CHAIN] = os.pathsep.join(dict.fromkeys(chain))
@@ -277,12 +281,12 @@ def shim_environment(engine: Engine, env: Mapping[str, str] | None = None) -> di
 
 def _which_engine(env: Mapping[str, str]) -> Path | None:
     search = env.get("PATH")
-    skip = set(_script_directories()) | set(_shim_chain(env))
+    skip = set(_shim_chain(env))
     for directory in (search or "").split(os.pathsep):
         if not directory or _normalized(directory) in skip:
             continue
         found = shutil.which(BINARY_NAME, path=directory)
-        if found:
+        if found and not _is_shim(found):
             return Path(found)
     return None
 
@@ -355,9 +359,9 @@ def _engine_for_path(path: Path, env: Mapping[str, str], origin: str) -> Engine:
     path = path.absolute()
     if path.suffix.lower() == ".jar":
         return JarEngine(path, java=find_java(env))
-    if _normalized(path.parent) in _shim_chain(env):
+    if _normalized(path.parent) in _shim_chain(env) or _is_shim(path):
         raise EngineNotFoundError(
-            f"{origin} points at {path}, which is a cimvocabcheck shim that has already forwarded "
-            "here, not an engine. Point it at the engine's own launcher or native binary."
+            f"{origin} points at {path}, which is the cimvocabcheck Python shim, not an engine. "
+            "Point it at the engine's own launcher or native binary."
         )
     return BinaryEngine(path)
