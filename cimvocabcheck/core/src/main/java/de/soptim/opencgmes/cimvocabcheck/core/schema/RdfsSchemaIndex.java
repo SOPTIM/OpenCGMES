@@ -24,6 +24,8 @@ import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -92,7 +94,14 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   private final Map<Node, List<VersionIri>> enumMemberToProfiles;
 
   private RdfsSchemaIndex(Map<VersionIri, ProfileSchema> profiles) {
-    this.profiles = Map.copyOf(profiles);
+    // Ordered by IRI, so every profile list derived from here — the scope, where a term exists —
+    // reads the same whatever order the schema was loaded in. Map.copyOf would not do: the JDK
+    // randomises its iteration order per JVM, and findings would change from run to run.
+    var byIri = new LinkedHashMap<VersionIri, ProfileSchema>();
+    profiles.entrySet().stream()
+        .sorted(Map.Entry.comparingByKey(Comparator.comparing(VersionIri::iri)))
+        .forEachOrdered(e -> byIri.put(e.getKey(), e.getValue()));
+    this.profiles = Collections.unmodifiableMap(byIri);
     var c = new LinkedHashMap<Node, List<VersionIri>>();
     var p = new LinkedHashMap<Node, List<VersionIri>>();
     var m = new LinkedHashMap<Node, List<VersionIri>>();
@@ -119,7 +128,7 @@ public final class RdfsSchemaIndex implements SchemaIndex {
     for (var e : in.entrySet()) {
       out.put(e.getKey(), List.copyOf(e.getValue()));
     }
-    return Map.copyOf(out);
+    return Collections.unmodifiableMap(out);
   }
 
   @Override

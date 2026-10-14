@@ -62,7 +62,7 @@ stderr so a CI log still shows the outcome, and the [exit code](/cimvocabcheck/c
 | `annotations[].term` | The offending IRI, when the finding is about one term |
 | `annotations[].graph` | Named graph the finding occurred in, under [per-graph scoping](/cimvocabcheck/configuration#namedgraphs) |
 | `annotations[].message` | Human-readable; **not** stable across releases |
-| `annotations[].foundInOtherProfiles` | For `UNKNOWN_CLASS`/`UNKNOWN_PROPERTY`: profiles where the term *does* exist — the "wrong profile in scope" hint |
+| `annotations[].foundInOtherProfiles` | For `UNKNOWN_CLASS`/`UNKNOWN_PROPERTY`: profiles where the term *does* exist — the "wrong profile in scope" hint — in IRI order |
 
 Optional fields are omitted rather than emitted as `null`.
 
