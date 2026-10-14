@@ -131,6 +131,9 @@ public static class Code
     /// <summary>The <c>UNKNOWN_TERM_IN_EXPRESSION</c> code.</summary>
     public const string UnknownTermInExpression = "UNKNOWN_TERM_IN_EXPRESSION";
 
+    /// <summary>The <c>PROPERTY_MAY_BE_ABSENT</c> code.</summary>
+    public const string PropertyMayBeAbsent = "PROPERTY_MAY_BE_ABSENT";
+
     /// <summary>The <c>CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY</c> code.</summary>
     public const string CardinalityIncompatibleWithMultiplicity = "CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY";
 
@@ -159,6 +162,7 @@ public static class Code
         InvalidEnumValue,
         InvalidValueRange,
         UnknownTermInExpression,
+        PropertyMayBeAbsent,
         CardinalityIncompatibleWithMultiplicity,
         ProjectedVariableUnbound,
         UnusedVariable,

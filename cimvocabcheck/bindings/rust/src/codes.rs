@@ -106,6 +106,9 @@ impl Code {
     /// The `UNKNOWN_TERM_IN_EXPRESSION` code.
     pub const UNKNOWN_TERM_IN_EXPRESSION: &'static str = "UNKNOWN_TERM_IN_EXPRESSION";
 
+    /// The `PROPERTY_MAY_BE_ABSENT` code.
+    pub const PROPERTY_MAY_BE_ABSENT: &'static str = "PROPERTY_MAY_BE_ABSENT";
+
     /// The `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` code.
     pub const CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY: &'static str =
         "CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY";
@@ -117,7 +120,7 @@ impl Code {
     pub const UNUSED_VARIABLE: &'static str = "UNUSED_VARIABLE";
 
     /// Every code this binding knows, in schema order.
-    pub const ALL: [&'static str; 19] = [
+    pub const ALL: [&'static str; 20] = [
         Self::SYNTAX_ERROR,
         Self::UNKNOWN_CLASS,
         Self::UNKNOWN_PROPERTY,
@@ -134,6 +137,7 @@ impl Code {
         Self::INVALID_ENUM_VALUE,
         Self::INVALID_VALUE_RANGE,
         Self::UNKNOWN_TERM_IN_EXPRESSION,
+        Self::PROPERTY_MAY_BE_ABSENT,
         Self::CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY,
         Self::PROJECTED_VARIABLE_UNBOUND,
         Self::UNUSED_VARIABLE,

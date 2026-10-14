@@ -134,6 +134,7 @@
                 "INVALID_ENUM_VALUE",
                 "INVALID_VALUE_RANGE",
                 "UNKNOWN_TERM_IN_EXPRESSION",
+                "PROPERTY_MAY_BE_ABSENT",
                 "CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY",
                 "PROJECTED_VARIABLE_UNBOUND",
                 "UNUSED_VARIABLE"
