@@ -111,9 +111,15 @@ uploading it is what clears previously reported alerts.
 
 The `codequality` and `sarif` reports both carry a stable fingerprint per finding — `fingerprint`
 in Code Quality, `partialFingerprints["cimvocabcheckFinding/v1"]` in SARIF — and **the same finding
-has the same fingerprint in both**. It is derived from the file, code, position and offending term,
-deliberately *not* from the rendered message, so a finding stays trackable across runs even when its
-wording changes. Repeated identical findings in one run are disambiguated by their occurrence index.
+has the same fingerprint in both**. It is derived from the file, code and offending term. It
+deliberately leaves out:
+
+- **the position**, so editing a file above a finding does not close that finding and open a new
+  one in GitLab or GitHub code scanning;
+- **the rendered message**, so a finding stays trackable when its wording changes.
+
+Repeated findings with the same file, code and term are told apart by their order of occurrence in
+the file.
 
 ## Writing a binding
 

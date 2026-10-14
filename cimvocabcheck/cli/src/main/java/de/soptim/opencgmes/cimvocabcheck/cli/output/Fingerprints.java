@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.jena.graph.Node;
 
 /**
  * Assigns each finding of a run a stable fingerprint, so consumers that track findings across runs
@@ -53,15 +54,36 @@ final class Fingerprints {
   }
 
   /**
-   * The stable identity of a finding: file, rule, position and offending term. Deliberately
-   * excludes the rendered message — its profile list is not emitted in a deterministic order, so
-   * folding it into the fingerprint would make the same finding churn between otherwise-identical
-   * runs and break the consumer's ability to track it over time.
+   * The stable identity of a finding: file, rule and offending term. Deliberately excludes
+   *
+   * <ul>
+   *   <li>the position — otherwise an edit above an unchanged finding would close it and open a new
+   *       one in every consumer that tracks findings by fingerprint; repeated findings are told
+   *       apart by their occurrence index, which follows report order and so only shifts when an
+   *       equal finding earlier in the same file comes or goes;
+   *   <li>the rendered message — its profile list is not emitted in a deterministic order, so
+   *       folding it in would make the same finding churn between otherwise-identical runs.
+   * </ul>
    */
   private static String identity(String path, SparqlValidationAnnotation a) {
-    String term = a.term() != null && a.term().isURI() ? a.term().getURI() : "";
-    return String.join(
-        " ", path, a.code().name(), String.valueOf(a.line()), String.valueOf(a.column()), term);
+    return String.join(" ", path, a.code().name(), termKey(a.term()));
+  }
+
+  /** A run-independent spelling of the offending term; blank node labels are not. */
+  private static String termKey(Node term) {
+    if (term == null) {
+      return "";
+    }
+    if (term.isURI()) {
+      return term.getURI();
+    }
+    if (term.isVariable()) {
+      return "?" + term.getName();
+    }
+    if (term.isLiteral()) {
+      return term.getLiteralLexicalForm();
+    }
+    return "";
   }
 
   private static String sha256Hex(String input) {
