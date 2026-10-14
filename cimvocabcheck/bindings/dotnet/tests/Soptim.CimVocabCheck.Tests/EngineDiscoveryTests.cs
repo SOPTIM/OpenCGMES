@@ -179,6 +179,82 @@ public sealed class EngineDiscoveryTests
     }
 
     [Fact]
+    public void DockerMountsAConfigThatLiesAboveTheWorkingDirectory()
+    {
+        // Inside the container the engine's upward search stops at the mount, so it would miss the
+        // config and silently check syntax only.
+        using var directory = new TempDir();
+        directory.Write("opencgmes.jsonc", "{}");
+        directory.Write("queries/q.rq", "ASK {}");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "queries"));
+
+        var command = engine.BuildCommand(["--format", "json", "--", "q.rq"], false, null);
+
+        Assert.Contains($"{directory.Path}:/config:ro", command);
+        Assert.Equal(
+            ["--config", "/config/opencgmes.jsonc", "--format", "json", "--", "q.rq"],
+            command.Skip(command.ToList().IndexOf("cvc:test") + 1));
+    }
+
+    [Fact]
+    public void DockerPrefersTheJsoncConfigLikeTheEngineDoes()
+    {
+        using var directory = new TempDir();
+        directory.Write("opencgmes.json", "{}");
+        directory.Write("opencgmes.jsonc", "{}");
+        directory.Write("sub/q.rq", "ASK {}");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "sub"));
+
+        Assert.Contains("/config/opencgmes.jsonc", engine.BuildCommand(["q.rq"], false, null));
+    }
+
+    [Fact]
+    public void DockerLeavesAConfigInsideTheMountToTheEngine()
+    {
+        using var directory = new TempDir();
+        directory.Write("opencgmes.jsonc", "{}");
+        directory.Write("sub/opencgmes.json", "{}");
+
+        foreach (var cwd in new[] { directory.Path, Path.Combine(directory.Path, "sub") })
+        {
+            var command = new DockerEngine("cvc:test", "docker", cwd).BuildCommand(["q.rq"], false, null);
+            Assert.DoesNotContain("--config", command);
+            Assert.DoesNotContain(command, part => part.EndsWith(":/config:ro", StringComparison.Ordinal));
+        }
+    }
+
+    [Theory]
+    [InlineData("--config", "x.jsonc")]
+    [InlineData("--config=x.jsonc")]
+    [InlineData("-cx.jsonc")]
+    [InlineData("--schema", "profiles")]
+    [InlineData("-s", "profiles")]
+    [InlineData("--endpoint=http://h/q")]
+    [InlineData("-e", "http://h/q")]
+    public void DockerDoesNotAddAConfigWhenTheCallNamesASchemaSource(params string[] flags)
+    {
+        using var directory = new TempDir();
+        directory.Write("opencgmes.jsonc", "{}");
+        directory.Write("sub/q.rq", "ASK {}");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "sub"));
+
+        var command = engine.BuildCommand([.. flags, "--", "q.rq"], false, null);
+
+        Assert.DoesNotContain("/config/opencgmes.jsonc", command);
+    }
+
+    [Fact]
+    public void AnInputNamedLikeAFlagDoesNotSuppressTheConfig()
+    {
+        using var directory = new TempDir();
+        directory.Write("opencgmes.jsonc", "{}");
+        directory.Write("sub/q.rq", "ASK {}");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "sub"));
+
+        Assert.Contains("/config/opencgmes.jsonc", engine.BuildCommand(["--", "-s.rq"], false, null));
+    }
+
+    [Fact]
     public void DockerKeepsStandardInputOpenOnlyWhenItIsUsed()
     {
         using var directory = new TempDir();

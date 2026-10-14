@@ -39,6 +39,16 @@ pub const DEFAULT_IMAGE: &str = "ghcr.io/soptim/cimvocabcheck-cli:latest";
 /// Where the Docker fallback mounts the working directory — the image's own `WORKDIR`.
 pub const CONTAINER_WORKDIR: &str = "/work";
 
+/// Where the Docker fallback mounts, read-only, the directory of a config file that lies above the
+/// working directory and would otherwise be invisible to the engine.
+pub const CONTAINER_CONFIG_DIR: &str = "/config";
+
+/// Config file names the engine discovers, in the order it prefers them.
+pub const CONFIG_FILENAMES: [&str; 2] = ["opencgmes.jsonc", "opencgmes.json"];
+
+/// Flags that name a schema source. When a call passes one, the engine does no config discovery.
+const SCHEMA_SOURCE_FLAGS: [&str; 6] = ["-c", "--config", "-s", "--schema", "-e", "--endpoint"];
+
 /// Environment variable naming a fat JAR to run with `java -jar`.
 pub const ENV_JAR: &str = "CIMVOCABCHECK_JAR";
 /// Environment variable naming an executable engine.
@@ -107,11 +117,29 @@ impl Engine {
                 if stdin {
                     out.push("-i".into());
                 }
+                let mount = self.mount(cwd);
                 out.push("-v".into());
-                out.push(format!("{}:{CONTAINER_WORKDIR}", self.mount(cwd).display()));
+                out.push(format!("{}:{CONTAINER_WORKDIR}", mount.display()));
+                let config = if names_schema_source(args) {
+                    None
+                } else {
+                    config_above(&mount)
+                };
+                if let Some((directory, _)) = &config {
+                    // The engine discovers its config upward from the working directory, which
+                    // inside the container stops at the mount: a config above it would be
+                    // silently missed, leaving a syntax-only check that reports every query as
+                    // valid.
+                    out.push("-v".into());
+                    out.push(format!("{}:{CONTAINER_CONFIG_DIR}:ro", directory.display()));
+                }
                 out.push("-w".into());
                 out.push(CONTAINER_WORKDIR.into());
                 out.push(image.clone());
+                if let Some((_, name)) = config {
+                    out.push("--config".into());
+                    out.push(format!("{CONTAINER_CONFIG_DIR}/{name}"));
+                }
             }
         }
         out.extend(args.iter().cloned());
@@ -220,6 +248,40 @@ impl Engine {
         };
         normalize(&absolute(&base))
     }
+}
+
+/// The config file the engine would discover from `directory`, if it lies above it: its directory
+/// and file name.
+///
+/// `None` when the nearest config is inside `directory` (the engine finds that one itself) or
+/// when there is none at all.
+fn config_above(directory: &Path) -> Option<(PathBuf, &'static str)> {
+    for candidate in directory.ancestors() {
+        for name in CONFIG_FILENAMES {
+            if candidate.join(name).is_file() {
+                return (candidate != directory).then(|| (candidate.to_path_buf(), name));
+            }
+        }
+    }
+    None
+}
+
+/// Whether `args` choose a schema source themselves, so no config is discovered.
+fn names_schema_source(args: &[String]) -> bool {
+    for arg in args {
+        if arg == "--" {
+            return false;
+        }
+        let flag = if arg.starts_with("--") {
+            arg.split('=').next().unwrap_or_default()
+        } else {
+            arg.get(..2).unwrap_or_default()
+        };
+        if SCHEMA_SOURCE_FLAGS.contains(&flag) {
+            return true;
+        }
+    }
+    false
 }
 
 /// `path` made absolute against the current directory, without touching the filesystem.

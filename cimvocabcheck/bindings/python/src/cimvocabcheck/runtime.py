@@ -44,6 +44,16 @@ DEFAULT_IMAGE = "ghcr.io/soptim/cimvocabcheck-cli:latest"
 #: Where the Docker fallback mounts the working directory — the image's own WORKDIR.
 CONTAINER_WORKDIR = "/work"
 
+#: Where the Docker fallback mounts, read-only, the directory of a config file that lies above the
+#: working directory and would otherwise be invisible to the engine.
+CONTAINER_CONFIG_DIR = "/config"
+
+#: Config file names the engine discovers, in the order it prefers them.
+CONFIG_FILENAMES = ("opencgmes.jsonc", "opencgmes.json")
+
+#: Flags that name a schema source. When a call passes one, the engine does no config discovery.
+_SCHEMA_SOURCE_FLAGS = ("-c", "--config", "-s", "--schema", "-e", "--endpoint")
+
 #: An engine JAR placed here (by a packaging step, not by this repository) is used automatically.
 BUNDLED_JAR = Path(__file__).resolve().parent / "_bundled" / "cimvocabcheck-cli.jar"
 
@@ -164,12 +174,20 @@ class DockerEngine(Engine):
     def command(
         self, args: Sequence[str], *, stdin: bool = False, cwd: Path | None = None
     ) -> list[str]:
-        mount = f"{self._mount(cwd)}:{CONTAINER_WORKDIR}"
+        mount = self._mount(cwd)
         # Named, so a run that has to be killed can be found and removed again.
         run = [self.docker, "run", "--rm", "--name", f"cimvocabcheck-{uuid.uuid4().hex}"]
         if stdin:
             run.append("-i")
-        return [*run, "-v", mount, "-w", CONTAINER_WORKDIR, self.image, *args]
+        run += ["-v", f"{mount}:{CONTAINER_WORKDIR}"]
+        config = None if _names_schema_source(args) else _config_above(mount)
+        if config is not None:
+            # The engine discovers its config upward from the working directory, which inside the
+            # container stops at the mount: a config above it would be silently missed, leaving a
+            # syntax-only check that reports every query as valid.
+            run += ["-v", f"{config.parent}:{CONTAINER_CONFIG_DIR}:ro"]
+            args = ["--config", f"{CONTAINER_CONFIG_DIR}/{config.name}", *args]
+        return [*run, "-w", CONTAINER_WORKDIR, self.image, *args]
 
     def resolve_path(self, path: str, cwd: Path | None = None) -> str:
         if path == "-":
@@ -218,6 +236,32 @@ class DockerEngine(Engine):
 
     def describe(self) -> str:
         return f"{self.docker} run {self.image} (mounting {self.cwd})"
+
+
+def _config_above(directory: Path) -> Path | None:
+    """The config file the engine would discover from ``directory``, if it lies above it.
+
+    ``None`` when the nearest config is inside ``directory`` (the engine finds that one itself) or
+    when there is none at all.
+    """
+    for candidate in (directory, *directory.parents):
+        for name in CONFIG_FILENAMES:
+            if (candidate / name).is_file():
+                return None if candidate == directory else candidate / name
+    return None
+
+
+def _names_schema_source(args: Sequence[str]) -> bool:
+    """Whether ``args`` choose a schema source themselves, so no config is discovered."""
+    for arg in args:
+        if arg == "--":
+            return False
+        if arg.startswith("--"):
+            if arg.split("=", 1)[0] in _SCHEMA_SOURCE_FLAGS:
+                return True
+        elif arg[:2] in _SCHEMA_SOURCE_FLAGS:
+            return True
+    return False
 
 
 def find_java(env: Mapping[str, str] | None = None) -> str:

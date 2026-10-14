@@ -100,7 +100,9 @@ filter, rather than discarding findings you cannot then recover.
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 
 The Docker fallback mounts the working directory at the image's `/work`, so inputs must live
-inside it — a path outside is refused rather than silently unreadable. `CIMVOCABCHECK_DOCKER_IMAGE`
+inside it — a path outside is refused rather than silently unreadable. An `opencgmes.jsonc` above the working directory is mounted read-only alongside it and passed
+as `--config`, unless the call names its own schema source, so a run from a subdirectory sees
+the same config a local engine would. `CIMVOCABCHECK_DOCKER_IMAGE`
 pins a tag and `CIMVOCABCHECK_NO_DOCKER=1` takes it out of the chain. The first run pulls the
 image, and an `endpoint` on `localhost` is then the *container's* localhost.
 

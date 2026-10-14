@@ -361,3 +361,106 @@ fn a_relative_engine_path_is_pinned_to_where_it_was_found() {
         }
     );
 }
+
+fn docker_in(cwd: PathBuf) -> Engine {
+    Engine::Docker {
+        image: "cvc:test".into(),
+        docker: "docker".into(),
+        cwd,
+    }
+}
+
+fn strings(args: &[&str]) -> Vec<String> {
+    args.iter().map(|&arg| arg.to_owned()).collect()
+}
+
+#[test]
+fn docker_mounts_a_config_that_lies_above_the_working_directory() {
+    // Inside the container the engine's upward search stops at the mount, so it would miss the
+    // config and silently check syntax only.
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("queries/q.rq", "ASK {}");
+
+    let command = docker_in(dir.path().join("queries")).command(
+        &strings(&["--format", "json", "--", "q.rq"]),
+        false,
+        None,
+    );
+
+    assert!(command.contains(&format!("{}:/config:ro", dir.path().display())));
+    let image = command.iter().position(|a| a == "cvc:test").unwrap();
+    assert_eq!(
+        command[image + 1..],
+        strings(&[
+            "--config",
+            "/config/opencgmes.jsonc",
+            "--format",
+            "json",
+            "--",
+            "q.rq"
+        ])
+    );
+}
+
+#[test]
+fn docker_prefers_the_jsonc_config_like_the_engine_does() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.json", "{}");
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/q.rq", "ASK {}");
+
+    let command = docker_in(dir.path().join("sub")).command(&strings(&["q.rq"]), false, None);
+
+    assert!(command.contains(&"/config/opencgmes.jsonc".to_owned()));
+}
+
+#[test]
+fn docker_leaves_a_config_inside_the_mount_to_the_engine() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/opencgmes.json", "{}");
+
+    for cwd in [dir.path().to_path_buf(), dir.path().join("sub")] {
+        let command = docker_in(cwd).command(&strings(&["q.rq"]), false, None);
+        assert!(!command.contains(&"--config".to_owned()), "{command:?}");
+        assert!(!command.iter().any(|part| part.ends_with(":/config:ro")));
+    }
+}
+
+#[test]
+fn docker_does_not_add_a_config_when_the_call_names_a_schema_source() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/q.rq", "ASK {}");
+
+    for flags in [
+        &["--config", "x.jsonc"][..],
+        &["--config=x.jsonc"],
+        &["-cx.jsonc"],
+        &["--schema", "profiles"],
+        &["-s", "profiles"],
+        &["--endpoint=http://h/q"],
+        &["-e", "http://h/q"],
+    ] {
+        let mut args = strings(flags);
+        args.extend(strings(&["--", "q.rq"]));
+        let command = docker_in(dir.path().join("sub")).command(&args, false, None);
+        assert!(
+            !command.contains(&"/config/opencgmes.jsonc".to_owned()),
+            "{flags:?}"
+        );
+    }
+}
+
+#[test]
+fn an_input_named_like_a_flag_does_not_suppress_the_config() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/q.rq", "ASK {}");
+
+    let command =
+        docker_in(dir.path().join("sub")).command(&strings(&["--", "-s.rq"]), false, None);
+
+    assert!(command.contains(&"/config/opencgmes.jsonc".to_owned()));
+}

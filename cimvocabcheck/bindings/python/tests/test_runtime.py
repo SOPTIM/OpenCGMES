@@ -371,3 +371,76 @@ def test_a_killed_docker_run_removes_its_container(tmp_path):
     engine.abandon(first)
 
     assert log.read_text(encoding="utf-8").split() == ["rm", "--force", name]
+
+
+def test_docker_mounts_a_config_that_lies_above_the_working_directory(tmp_path):
+    """Inside the container the engine's upward search stops at the mount, so it would miss the
+    config and silently check syntax only."""
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    queries = tmp_path / "queries"
+    queries.mkdir()
+    engine = DockerEngine(docker="docker", cwd=queries)
+
+    command = engine.command(["--format", "json", "--", "q.rq"])
+
+    assert f"{tmp_path.resolve()}:/config:ro" in command
+    image = command.index(engine.image)
+    assert command[image + 1 :] == [
+        "--config",
+        "/config/opencgmes.jsonc",
+        "--format",
+        "json",
+        "--",
+        "q.rq",
+    ]
+
+
+def test_docker_prefers_the_jsonc_config_like_the_engine_does(tmp_path):
+    for name in ("opencgmes.json", "opencgmes.jsonc"):
+        (tmp_path / name).write_text("{}", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+
+    command = DockerEngine(cwd=tmp_path / "sub").command(["q.rq"])
+
+    assert "/config/opencgmes.jsonc" in command
+
+
+def test_docker_leaves_a_config_inside_the_mount_to_the_engine(tmp_path):
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "opencgmes.json").write_text("{}", encoding="utf-8")
+
+    for cwd in (tmp_path, tmp_path / "sub"):
+        command = DockerEngine(cwd=cwd).command(["q.rq"])
+        assert "--config" not in command
+        assert not any(part.endswith(":/config:ro") for part in command)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--config", "x.jsonc"],
+        ["--config=x.jsonc"],
+        ["-cx.jsonc"],
+        ["--schema", "profiles"],
+        ["-s", "profiles"],
+        ["--endpoint=http://h/q"],
+        ["-e", "http://h/q"],
+    ],
+)
+def test_docker_does_not_add_a_config_when_the_call_names_a_schema_source(tmp_path, flags):
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+
+    command = DockerEngine(cwd=tmp_path / "sub").command([*flags, "--", "q.rq"])
+
+    assert "/config/opencgmes.jsonc" not in command
+
+
+def test_an_input_named_like_a_flag_does_not_suppress_the_config(tmp_path):
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+
+    command = DockerEngine(cwd=tmp_path / "sub").command(["--", "-s.rq"])
+
+    assert "/config/opencgmes.jsonc" in command

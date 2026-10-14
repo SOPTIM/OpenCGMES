@@ -38,6 +38,15 @@ public abstract class Engine
     /// <summary>Where the Docker fallback mounts the working directory.</summary>
     public const string ContainerWorkdir = "/work";
 
+    /// <summary>
+    /// Where the Docker fallback mounts, read-only, the directory of a config file that lies above
+    /// the working directory and would otherwise be invisible to the engine.
+    /// </summary>
+    public const string ContainerConfigDirectory = "/config";
+
+    /// <summary>Config file names the engine discovers, in the order it prefers them.</summary>
+    public static readonly IReadOnlyList<string> ConfigFileNames = ["opencgmes.jsonc", "opencgmes.json"];
+
     /// <summary>Environment variable naming a fat JAR to run with <c>java -jar</c>.</summary>
     public const string JarVariable = "CIMVOCABCHECK_JAR";
 
@@ -321,11 +330,28 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             command.Add("-i");
         }
 
+        var mount = Mount(workingDirectory);
         command.Add("-v");
-        command.Add($"{Mount(workingDirectory)}:{ContainerWorkdir}");
+        command.Add($"{mount}:{ContainerWorkdir}");
+        var config = NamesSchemaSource(arguments) ? null : ConfigAbove(mount);
+        if (config is not null)
+        {
+            // The engine discovers its config upward from the working directory, which inside the
+            // container stops at the mount: a config above it would be silently missed, leaving a
+            // syntax-only check that reports every query as valid.
+            command.Add("-v");
+            command.Add($"{System.IO.Path.GetDirectoryName(config)}:{ContainerConfigDirectory}:ro");
+        }
+
         command.Add("-w");
         command.Add(ContainerWorkdir);
         command.Add(Image);
+        if (config is not null)
+        {
+            command.Add("--config");
+            command.Add($"{ContainerConfigDirectory}/{System.IO.Path.GetFileName(config)}");
+        }
+
         command.AddRange(arguments);
         return command;
     }
@@ -414,4 +440,52 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     /// </summary>
     private string Mount(string? workingDirectory) =>
         System.IO.Path.GetFullPath(workingDirectory ?? WorkingDirectory);
+
+    /// <summary>Flags that name a schema source; when a call passes one, no config is discovered.</summary>
+    private static readonly string[] SchemaSourceFlags =
+        ["-c", "--config", "-s", "--schema", "-e", "--endpoint"];
+
+    /// <summary>
+    /// The config file the engine would discover from <paramref name="directory"/>, if it lies
+    /// above it; <c>null</c> when the nearest config is inside the directory (the engine finds that
+    /// one itself) or when there is none at all.
+    /// </summary>
+    private static string? ConfigAbove(string directory)
+    {
+        for (var candidate = new DirectoryInfo(directory); candidate is not null; candidate = candidate.Parent)
+        {
+            foreach (var name in ConfigFileNames)
+            {
+                var file = System.IO.Path.Combine(candidate.FullName, name);
+                if (File.Exists(file))
+                {
+                    return candidate.FullName == new DirectoryInfo(directory).FullName ? null : file;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether <paramref name="arguments"/> choose a schema source themselves.</summary>
+    private static bool NamesSchemaSource(IReadOnlyList<string> arguments)
+    {
+        foreach (var argument in arguments)
+        {
+            if (argument == "--")
+            {
+                return false;
+            }
+
+            var flag = argument.StartsWith("--", StringComparison.Ordinal)
+                ? argument.Split('=', 2)[0]
+                : argument.Length >= 2 ? argument[..2] : argument;
+            if (SchemaSourceFlags.Contains(flag, StringComparer.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
