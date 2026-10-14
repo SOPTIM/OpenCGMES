@@ -307,17 +307,10 @@ public class ValidateCommand implements Callable<Integer> {
       }
       // Explicit --config, else an auto-discovered opencgmes.jsonc. There is no bundled default
       // schema: a config without schemas (or no config at all) means syntax-only.
-      CimvocabcheckConfig config;
-      Path base;
-      if (configFile != null) {
-        config = ConfigLoader.load(configFile);
-        base = configFile.toAbsolutePath().getParent();
-      } else {
-        config = ConfigLoader.discover(Path.of(".")).orElse(null);
-        base = Path.of(".").toAbsolutePath();
-      }
+      LocatedConfig located = LocatedConfig.of(configFile);
+      CimvocabcheckConfig config = located.config();
       RdfsSchemaIndex index =
-          (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
+          (config == null) ? null : SchemaLoader.load(config, located.base()).orElse(null);
       if (index == null) {
         System.err.println(
             "Info: no schema configured — checking syntax only. Use "
