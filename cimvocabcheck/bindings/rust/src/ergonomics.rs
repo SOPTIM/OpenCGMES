@@ -28,6 +28,7 @@ use crate::model::{Annotation, FileResult, Report};
 ///
 /// The report nests annotations under their file; most callers want them flat and still need to
 /// know where each came from.
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Finding<'a> {
     /// The input this was reported against, exactly as it was passed to the engine.

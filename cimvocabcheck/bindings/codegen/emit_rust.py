@@ -73,14 +73,20 @@ def camel(name: str) -> str:
 
 
 def rustdoc_safe(text: str) -> str:
-    """Angle-brackets bare URLs, which rustdoc's ``bare_urls`` lint otherwise reports."""
+    """Makes schema prose safe for rustdoc's Markdown.
+
+    Angle brackets are escaped, or ``"<stdin>"`` would be read as an HTML tag and vanish from the
+    rendered docs. Bare URLs are then angle-bracketed, which rustdoc's ``bare_urls`` lint otherwise
+    reports.
+    """
 
     def bracket(match: re.Match[str]) -> str:
         url = match.group(0)
         trailing = len(url) - len(url.rstrip(".,;:"))
         return f"<{url[: len(url) - trailing]}>{url[len(url) - trailing :]}" if url else url
 
-    return re.sub(r"https?://[^\s<>]+", bracket, text)
+    escaped = text.replace("<", "\\<").replace(">", "\\>")
+    return re.sub(r"https?://[^\s<>\\]+", bracket, escaped)
 
 
 def doc_comment(text: str, indent: str) -> list[str]:
@@ -193,6 +199,9 @@ def model_module(contract: Contract) -> str:
 
 def _klass(klass: Klass) -> list[str]:
     out = doc_comment(klass.doc or f"{klass.name}.", "")
+    # The contract adds fields in a minor version; without this, each one would break any caller
+    # that builds or fully destructures a result type, i.e. need a major version of the crate.
+    out.append("#[non_exhaustive]")
     out.append("#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]")
     out.append('#[serde(rename_all = "camelCase")]')
     out.append(f"pub struct {klass.name} {{")

@@ -56,6 +56,26 @@
 //! ([`CONTRACT_MAJOR`]). Within a major the contract only ever adds, so unknown fields are kept
 //! in each type's `extra` map and unknown rule codes are accepted —
 //! [`Annotation::is_known_code`] tells you which.
+//!
+//! The public structs and enums are `#[non_exhaustive]`, so a new contract field, engine kind or
+//! option arrives in a minor version rather than a major one. Read their fields freely, but match
+//! with a `_` arm and `..`, and build them with their constructors and builders —
+//! [`Engine::docker`], [`Discovery::new`], [`Options::new`] — rather than struct literals:
+//!
+//! ```compile_fail
+//! let engine = cimvocabcheck::Engine::Binary { path: "cimvocabcheck".into() };
+//! ```
+//!
+//! ```compile_fail
+//! let discovery = cimvocabcheck::Discovery { no_docker: true, ..Default::default() };
+//! ```
+//!
+//! ```compile_fail
+//! # fn total(report: &cimvocabcheck::Report) -> u64 {
+//! let cimvocabcheck::Summary { files, valid, invalid, errors, warnings, infos, extra } =
+//!     &report.summary;
+//! # *files }
+//! ```
 
 #![forbid(unsafe_code)]
 

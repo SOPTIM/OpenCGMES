@@ -32,6 +32,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// One finding. Position and term are present whenever the engine could resolve them.
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
@@ -81,10 +82,11 @@ pub struct Annotation {
 }
 
 /// One validated input and the findings reported against it.
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileResult {
-    /// The input as it was passed on the command line, or "<stdin>" for input read from stdin.
+    /// The input as it was passed on the command line, or "\<stdin\>" for input read from stdin.
     /// Invoke the CLI with repository-relative paths for findings to line up with a source tree.
     pub file: String,
 
@@ -102,6 +104,7 @@ pub struct FileResult {
 }
 
 /// Which engine produced the report.
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Tool {
@@ -120,6 +123,7 @@ pub struct Tool {
 /// Counts over this document. The finding counts are taken AFTER the --verbose filter, so they
 /// always account for exactly what "results" contains; "valid"/"invalid" are decided before
 /// filtering and are unaffected by it.
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Summary {
@@ -152,10 +156,11 @@ pub struct Summary {
 /// or removed — so a consumer must ignore properties and enum members it does not know. Breaking
 /// changes require a new major (a new file, cimvocabcheck-report-2.schema.json). The SARIF report
 /// (--format sarif) follows the OASIS SARIF 2.1.0 schema instead and is not described here.
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Report {
-    /// Version of this report contract, "<major>.<minor>" — independent of the tool version. A
+    /// Version of this report contract, "\<major\>.\<minor\>" — independent of the tool version. A
     /// consumer should accept any report whose major matches the one it was written against.
     pub contract_version: String,
 

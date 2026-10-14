@@ -39,14 +39,14 @@ fn an_explicit_jar_path_beats_everything_else() {
     std::fs::write(&jar, b"").unwrap();
     let java = dir.script("java", "exit 0");
 
-    let engine = discover(&Discovery {
-        engine_path: Some(jar.clone()),
-        env: Some(env(&[("PATH", dir.path().to_str().unwrap())])),
-        ..Discovery::default()
-    })
+    let engine = discover(
+        &Discovery::new()
+            .engine_path(jar.clone())
+            .env(env(&[("PATH", dir.path().to_str().unwrap())])),
+    )
     .expect("the configured jar");
 
-    assert_eq!(engine, Engine::Jar { jar, java });
+    assert_eq!(engine, Engine::jar(jar, java));
 }
 
 #[test]
@@ -57,13 +57,10 @@ fn the_jar_environment_variable_comes_before_path() {
     dir.script("java", "exit 0");
     dir.script("cimvocabcheck", "exit 0");
 
-    let engine = discover(&Discovery {
-        env: Some(env(&[
-            ("PATH", dir.path().to_str().unwrap()),
-            (ENV_JAR, jar.to_str().unwrap()),
-        ])),
-        ..Discovery::default()
-    })
+    let engine = discover(&Discovery::new().env(env(&[
+        ("PATH", dir.path().to_str().unwrap()),
+        (ENV_JAR, jar.to_str().unwrap()),
+    ])))
     .expect("the configured jar");
 
     assert!(matches!(engine, Engine::Jar { .. }), "{engine:?}");
@@ -74,13 +71,10 @@ fn an_engine_on_path_is_used_when_the_environment_is_silent() {
     let dir = TempDir::new();
     let binary = dir.script("cimvocabcheck", "exit 0");
 
-    let engine = discover(&Discovery {
-        env: Some(env(&[("PATH", dir.path().to_str().unwrap())])),
-        ..Discovery::default()
-    })
-    .expect("the engine on PATH");
+    let engine = discover(&Discovery::new().env(env(&[("PATH", dir.path().to_str().unwrap())])))
+        .expect("the engine on PATH");
 
-    assert_eq!(engine, Engine::Binary { path: binary });
+    assert_eq!(engine, Engine::binary(binary));
 }
 
 #[test]
@@ -88,11 +82,11 @@ fn docker_is_the_last_resort() {
     let dir = TempDir::new();
     let docker = dir.script("docker", "exit 0");
 
-    let engine = discover(&Discovery {
-        env: Some(env(&[("PATH", dir.path().to_str().unwrap())])),
-        cwd: Some(dir.path().to_path_buf()),
-        ..Discovery::default()
-    })
+    let engine = discover(
+        &Discovery::new()
+            .env(env(&[("PATH", dir.path().to_str().unwrap())]))
+            .cwd(dir.path().to_path_buf()),
+    )
     .expect("the docker fallback");
 
     match engine {
@@ -106,13 +100,10 @@ fn docker_can_be_switched_off() {
     let dir = TempDir::new();
     dir.script("docker", "exit 0");
 
-    let error = discover(&Discovery {
-        env: Some(env(&[
-            ("PATH", dir.path().to_str().unwrap()),
-            (ENV_NO_DOCKER, "1"),
-        ])),
-        ..Discovery::default()
-    })
+    let error = discover(&Discovery::new().env(env(&[
+        ("PATH", dir.path().to_str().unwrap()),
+        (ENV_NO_DOCKER, "1"),
+    ])))
     .expect_err("docker was taken out of the chain");
 
     assert!(matches!(error, Error::EngineNotFound { .. }), "{error}");
@@ -123,14 +114,14 @@ fn the_docker_image_is_overridable() {
     let dir = TempDir::new();
     dir.script("docker", "exit 0");
 
-    let engine = discover(&Discovery {
-        env: Some(env(&[
-            ("PATH", dir.path().to_str().unwrap()),
-            (ENV_IMAGE, "example.org/cvc:edge"),
-        ])),
-        cwd: Some(dir.path().to_path_buf()),
-        ..Discovery::default()
-    })
+    let engine = discover(
+        &Discovery::new()
+            .env(env(&[
+                ("PATH", dir.path().to_str().unwrap()),
+                (ENV_IMAGE, "example.org/cvc:edge"),
+            ]))
+            .cwd(dir.path().to_path_buf()),
+    )
     .expect("the docker fallback");
 
     assert!(engine
@@ -141,12 +132,8 @@ fn the_docker_image_is_overridable() {
 
 #[test]
 fn failure_names_everything_that_was_tried() {
-    let error = discover(&Discovery {
-        env: Some(bare_env()),
-        no_docker: true,
-        ..Discovery::default()
-    })
-    .expect_err("nothing to find");
+    let error =
+        discover(&Discovery::new().env(bare_env()).no_docker(true)).expect_err("nothing to find");
 
     let message = error.to_string();
     for expected in [ENV_JAR, ENV_BIN, "on PATH", "Docker"] {
@@ -156,11 +143,9 @@ fn failure_names_everything_that_was_tried() {
 
 #[test]
 fn a_configured_engine_that_does_not_exist_says_so() {
-    let error = discover(&Discovery {
-        env: Some(env(&[("PATH", ""), (ENV_JAR, "/nowhere/engine.jar")])),
-        ..Discovery::default()
-    })
-    .expect_err("the jar is not there");
+    let error =
+        discover(&Discovery::new().env(env(&[("PATH", ""), (ENV_JAR, "/nowhere/engine.jar")])))
+            .expect_err("the jar is not there");
 
     assert!(error.to_string().contains("/nowhere/engine.jar"), "{error}");
 }
@@ -171,12 +156,8 @@ fn a_jar_without_a_java_launcher_explains_the_requirement() {
     let jar = dir.path().join("engine.jar");
     std::fs::write(&jar, b"").unwrap();
 
-    let error = discover(&Discovery {
-        engine_path: Some(jar),
-        env: Some(bare_env()),
-        ..Discovery::default()
-    })
-    .expect_err("there is no java");
+    let error =
+        discover(&Discovery::new().engine_path(jar).env(bare_env())).expect_err("there is no java");
 
     assert!(error.to_string().contains("JRE 21"), "{error}");
 }
@@ -186,11 +167,7 @@ fn a_jar_without_a_java_launcher_explains_the_requirement() {
 #[test]
 fn docker_mounts_the_working_directory_and_addresses_inputs_inside_it() {
     let dir = TempDir::new();
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: dir.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
 
     let command = engine
         .command(&["-f".into(), "json".into()], false, None)
@@ -217,11 +194,7 @@ fn docker_mounts_the_working_directory_and_addresses_inputs_inside_it() {
 #[test]
 fn docker_keeps_stdin_open_only_when_it_is_used() {
     let dir = TempDir::new();
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: dir.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
 
     assert!(engine
         .command(&["-".into()], true, None)
@@ -238,11 +211,7 @@ fn docker_uses_the_working_directory_of_the_call_not_of_its_discovery() {
     // An engine is discovered once and then used from several directories.
     let discovered_in = TempDir::new();
     let called_from = TempDir::new();
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: discovered_in.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", "docker", discovered_in.path().to_path_buf());
 
     let command = engine
         .command(&[], false, Some(called_from.path()))
@@ -254,11 +223,7 @@ fn docker_uses_the_working_directory_of_the_call_not_of_its_discovery() {
 #[test]
 fn docker_refuses_a_path_it_could_not_mount() {
     let dir = TempDir::new();
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: dir.path().join("project"),
-    };
+    let engine = Engine::docker("cvc:test", "docker", dir.path().join("project"));
     std::fs::create_dir_all(dir.path().join("project")).unwrap();
 
     let error = engine
@@ -273,9 +238,7 @@ fn docker_refuses_a_path_it_could_not_mount() {
 
 #[test]
 fn local_engines_pass_paths_through_untouched() {
-    let engine = Engine::Binary {
-        path: PathBuf::from("/opt/cvc"),
-    };
+    let engine = Engine::binary(PathBuf::from("/opt/cvc"));
 
     assert_eq!(
         engine.resolve_path("../shared/q.rq", None).unwrap(),
@@ -286,11 +249,7 @@ fn local_engines_pass_paths_through_untouched() {
 #[test]
 fn docker_addresses_the_working_directory_itself() {
     let dir = TempDir::new();
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: dir.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
 
     assert_eq!(engine.resolve_path(".", None).unwrap(), ".");
     assert_eq!(
@@ -309,11 +268,7 @@ fn docker_accepts_an_absolute_path_spelled_through_a_symlink() {
     std::fs::create_dir_all(&real).unwrap();
     let link = dir.path().join("link");
     std::os::unix::fs::symlink(&real, &link).unwrap();
-    let docker = |cwd: &std::path::Path| Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: cwd.to_path_buf(),
-    };
+    let docker = |cwd: &std::path::Path| Engine::docker("cvc:test", "docker", cwd.to_path_buf());
 
     for (cwd, input) in [(&link, &link), (&link, &real), (&real, &link)] {
         assert_eq!(
@@ -336,11 +291,7 @@ fn docker_accepts_an_absolute_path_spelled_through_a_symlink() {
 #[test]
 fn docker_names_every_run_so_a_killed_one_can_be_removed() {
     let dir = TempDir::new();
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: dir.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
     let name = |command: Vec<String>| {
         command[command.iter().position(|arg| arg == "--name").unwrap() + 1].clone()
     };
@@ -355,27 +306,21 @@ fn docker_names_every_run_so_a_killed_one_can_be_removed() {
 fn a_relative_engine_path_is_pinned_to_where_it_was_found() {
     // The engine may run in another directory, where the relative path means something else.
     // Tests run in the crate directory, so its manifest is a relative path that exists.
-    let engine = discover(&Discovery {
-        engine_path: Some(PathBuf::from("Cargo.toml")),
-        env: Some(bare_env()),
-        ..Discovery::default()
-    })
+    let engine = discover(
+        &Discovery::new()
+            .engine_path(PathBuf::from("Cargo.toml"))
+            .env(bare_env()),
+    )
     .unwrap();
 
     assert_eq!(
         engine,
-        Engine::Binary {
-            path: std::env::current_dir().unwrap().join("Cargo.toml")
-        }
+        Engine::binary(std::env::current_dir().unwrap().join("Cargo.toml"))
     );
 }
 
 fn docker_in(cwd: PathBuf) -> Engine {
-    Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd,
-    }
+    Engine::docker("cvc:test", "docker", cwd)
 }
 
 fn strings(args: &[&str]) -> Vec<String> {
@@ -487,13 +432,8 @@ type LocaleCase<'a> = (&'a [(&'a str, &'a str)], Option<&'a str>);
 #[cfg(unix)]
 #[test]
 fn a_local_engine_never_runs_under_an_ascii_only_locale() {
-    let jar = Engine::Jar {
-        jar: "cli.jar".into(),
-        java: "java".into(),
-    };
-    let binary = Engine::Binary {
-        path: "cimvocabcheck".into(),
-    };
+    let jar = Engine::jar("cli.jar", "java");
+    let binary = Engine::binary("cimvocabcheck");
     // The environment, and the variable expected to be set to C.UTF-8.
     // Only locales every C library has, so the answer does not depend on what this machine has
     // installed; the unit tests in the crate cover locales that are named but missing.
@@ -516,11 +456,7 @@ fn a_local_engine_never_runs_under_an_ascii_only_locale() {
 
 #[test]
 fn the_docker_client_keeps_the_callers_locale() {
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker: "docker".into(),
-        cwd: ".".into(),
-    };
+    let engine = Engine::docker("cvc:test", "docker", ".");
 
     assert_eq!(engine.locale_override(Some(&env(&[("LANG", "C")]))), None);
 }

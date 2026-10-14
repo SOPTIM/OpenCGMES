@@ -37,9 +37,7 @@ fn scripted(dir: &TempDir, name: &str, stdout: &str, stderr: &str, code: i32) ->
         "cat <<'REPORT'\n{stdout}\nREPORT\nprintf '%s' {} >&2\nexit {code}",
         shell_quote(stderr)
     );
-    Engine::Binary {
-        path: dir.script(name, &body),
-    }
+    Engine::binary(dir.script(name, &body))
 }
 
 fn shell_quote(text: &str) -> String {
@@ -48,14 +46,12 @@ fn shell_quote(text: &str) -> String {
 
 /// An engine that writes its own argv to stdout, so a test can assert on the command line.
 fn echoing(dir: &TempDir, name: &str) -> Engine {
-    Engine::Binary {
-        path: dir.script(name, r#"for a in "$@"; do printf '%s\n' "$a"; done"#),
-    }
+    Engine::binary(dir.script(name, r#"for a in "$@"; do printf '%s\n' "$a"; done"#))
 }
 
 fn argv_of(engine: &Engine, options: &Options) -> Vec<String> {
     let output = std::process::Command::new(match engine {
-        Engine::Binary { path } => path,
+        Engine::Binary { path, .. } => path,
         _ => unreachable!("the echoing engine is always a binary"),
     })
     .args(build_args(&["q.rq".to_owned()], options))
@@ -218,9 +214,7 @@ fn unparseable_output_carries_what_the_engine_actually_printed() {
 fn a_timeout_is_its_own_error() {
     let _guard = exclusive();
     let dir = TempDir::new();
-    let engine = Engine::Binary {
-        path: dir.script("slow", "sleep 5"),
-    };
+    let engine = Engine::binary(dir.script("slow", "sleep 5"));
 
     let error = validate(
         &["q.rq"],
@@ -246,11 +240,7 @@ fn a_timed_out_docker_run_removes_its_container() {
             log.display()
         ),
     );
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker,
-        cwd: dir.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", docker, dir.path().to_path_buf());
 
     let error = validate(
         &["q.rq"],
@@ -272,9 +262,7 @@ fn a_timed_out_docker_run_removes_its_container() {
 
 #[test]
 fn an_engine_that_cannot_be_started_is_reported_clearly() {
-    let engine = Engine::Binary {
-        path: "/nowhere/does-not-exist".into(),
-    };
+    let engine = Engine::binary("/nowhere/does-not-exist");
 
     let error = validate(&["q.rq"], &Options::new().engine(engine)).expect_err("nothing to run");
 
@@ -297,9 +285,9 @@ fn tool_version_reports_the_engine_not_the_crate() {
 fn text_is_validated_through_stdin() {
     let _guard = exclusive();
     let dir = TempDir::new();
-    let engine = Engine::Binary {
+    let engine = Engine::binary(
         // Echo the query back inside a report, proving it arrived on stdin.
-        path: dir.script(
+        dir.script(
             "stdin",
             r#"read -r line
 cat <<REPORT
@@ -307,7 +295,7 @@ cat <<REPORT
  "summary":{"files":0,"valid":0,"invalid":0,"errors":0,"warnings":0,"infos":0},"results":[]}
 REPORT"#,
         ),
-    };
+    );
 
     let report = validate_text("SELECT-MARKER", &Options::new().engine(engine)).expect("a report");
 
@@ -318,15 +306,13 @@ REPORT"#,
 fn the_child_runs_in_the_requested_working_directory() {
     let _guard = exclusive();
     let dir = TempDir::new();
-    let engine = Engine::Binary {
-        path: dir.script(
-            "cwd",
-            r#"cat <<REPORT
+    let engine = Engine::binary(dir.script(
+        "cwd",
+        r#"cat <<REPORT
 {"contractVersion":"1.0","tool":{"name":"cimvocabcheck","version":"$(pwd -P)"},
  "summary":{"files":0,"valid":0,"invalid":0,"errors":0,"warnings":0,"infos":0},"results":[]}
 REPORT"#,
-        ),
-    };
+    ));
     let elsewhere = TempDir::new();
 
     let report = validate(
@@ -353,11 +339,7 @@ cat <<REPORT
             {"file":"$2","valid":true,"annotations":[]}]}
 REPORT"#,
     );
-    let engine = Engine::Docker {
-        image: "cvc:test".into(),
-        docker,
-        cwd: dir.path().to_path_buf(),
-    };
+    let engine = Engine::docker("cvc:test", docker, dir.path().to_path_buf());
     let absolute = dir.path().join("q.rq").display().to_string();
 
     let report = validate(

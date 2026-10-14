@@ -77,12 +77,23 @@ const NOT_INSIDE: [&str; 5] = [
 ];
 
 /// A host path the Docker engine bind-mounts, read-only, for one call.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mount {
     /// The path on the host.
     pub host: PathBuf,
     /// Where the engine sees it inside the container.
     pub container: String,
+}
+
+impl Mount {
+    /// Mounts `host` where the engine sees it as `container`.
+    pub fn new(host: impl Into<PathBuf>, container: impl Into<String>) -> Self {
+        Self {
+            host: host.into(),
+            container: container.into(),
+        }
+    }
 }
 
 /// Config file names the engine discovers, in the order it prefers them.
@@ -113,9 +124,14 @@ const ABANDON_LIMIT: Duration = Duration::from_secs(30);
 ///
 /// The variants differ only in how a command line is assembled; everything above this layer sees
 /// one type and one report format.
+///
+/// Engines and their fields may be added in a minor version, so a `match` needs a `_` arm and a
+/// pattern `..`; build one with [`Engine::jar`], [`Engine::binary`] or [`Engine::docker`].
+#[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Engine {
     /// A fat JAR run with `java -jar`.
+    #[non_exhaustive]
     Jar {
         /// The JAR to run.
         jar: PathBuf,
@@ -123,6 +139,7 @@ pub enum Engine {
         java: PathBuf,
     },
     /// An executable engine — the CLI's launcher script, or a native binary.
+    #[non_exhaustive]
     Binary {
         /// The executable.
         path: PathBuf,
@@ -132,6 +149,7 @@ pub enum Engine {
     /// Inputs are therefore addressed relative to the working directory. That is what the report
     /// contract asks for anyway: the paths in a report are the paths that were passed in, and CI
     /// annotations only line up when they are repository-relative.
+    #[non_exhaustive]
     Docker {
         /// The image to run.
         image: String,
@@ -143,6 +161,33 @@ pub enum Engine {
 }
 
 impl Engine {
+    /// A fat JAR, run with the Java launcher `java`.
+    pub fn jar(jar: impl Into<PathBuf>, java: impl Into<PathBuf>) -> Self {
+        Self::Jar {
+            jar: jar.into(),
+            java: java.into(),
+        }
+    }
+
+    /// An executable engine.
+    pub fn binary(path: impl Into<PathBuf>) -> Self {
+        Self::Binary { path: path.into() }
+    }
+
+    /// The container `image`, run with the `docker` executable, mounting `cwd` when a call does
+    /// not name a working directory of its own.
+    pub fn docker(
+        image: impl Into<String>,
+        docker: impl Into<PathBuf>,
+        cwd: impl Into<PathBuf>,
+    ) -> Self {
+        Self::Docker {
+            image: image.into(),
+            docker: docker.into(),
+            cwd: cwd.into(),
+        }
+    }
+
     /// Builds the argv to spawn.
     ///
     /// Never a shell string: inputs and schema paths contain spaces. `cwd` is the directory the
@@ -876,8 +921,14 @@ fn normalize(path: &Path) -> PathBuf {
     out
 }
 
-/// How to find an engine. Every field is optional; [`Discovery::default`] searches the real
-/// environment.
+/// How to find an engine. Every field is optional; [`Discovery::new`] searches the real
+/// environment, and each method narrows it.
+///
+/// ```
+/// use cimvocabcheck::Discovery;
+/// let options = Discovery::new().cwd("project").no_docker(true);
+/// ```
+#[non_exhaustive]
 #[derive(Clone, Debug, Default)]
 pub struct Discovery {
     /// An explicit engine path — a `.jar` is run with `java`, anything else is executed.
@@ -888,6 +939,42 @@ pub struct Discovery {
     pub cwd: Option<PathBuf>,
     /// Set to take the Docker fallback out of the chain.
     pub no_docker: bool,
+}
+
+impl Discovery {
+    /// Searches the real environment, in the documented order.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Uses this engine — a `.jar` is run with `java`, anything else is executed.
+    #[must_use]
+    pub fn engine_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.engine_path = Some(path.into());
+        self
+    }
+
+    /// Reads this environment instead of the process's own.
+    #[must_use]
+    pub fn env(mut self, env: HashMap<String, String>) -> Self {
+        self.env = Some(env);
+        self
+    }
+
+    /// The working directory a Docker engine should mount.
+    #[must_use]
+    pub fn cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
+        self.cwd = Some(cwd.into());
+        self
+    }
+
+    /// Takes the Docker fallback out of the chain, or puts it back.
+    #[must_use]
+    pub fn no_docker(mut self, no_docker: bool) -> Self {
+        self.no_docker = no_docker;
+        self
+    }
 }
 
 /// Returns the engine to run, searching in the documented order.

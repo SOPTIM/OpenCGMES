@@ -139,6 +139,11 @@ ever adds — new optional fields, new rule codes, new output formats — so the
 - accepts codes it does not know (`Annotation::is_known_code` tells you), because the contract
   requires an unrecognised code to be treated as a generic finding, never as an error.
 
+The public structs and enums are `#[non_exhaustive]`, so a new contract field, engine kind or
+option arrives in a minor version rather than a major one. Read their fields freely, but match
+with a `_` arm and `..`, and build them with `Engine::docker(…)`, `Discovery::new()` and
+`Options::new()` rather than struct literals.
+
 The contract itself is documented at <https://opencgmes.soptim.de/cimvocabcheck/report-contract>.
 
 ## Developing

@@ -131,5 +131,10 @@ any engine declaring the same [report contract](/cimvocabcheck/report-contract) 
 a major the contract only ever adds, so the crate keeps fields it does not know in each type's
 `extra` map and accepts codes it does not know — `Annotation::is_known_code` tells you which.
 
+The public structs and enums are `#[non_exhaustive]`, so a new contract field, engine kind or
+option arrives in a minor version rather than a major one. Read their fields freely, but match
+with a `_` arm and `..`, and build them with `Engine::docker(…)`, `Discovery::new()` and
+`Options::new()` rather than struct literals.
+
 The model is **generated** from the published JSON Schema by the generator shared with the Python
 and .NET bindings; CI fails when the two have drifted apart.

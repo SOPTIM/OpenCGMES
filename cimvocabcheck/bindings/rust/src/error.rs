@@ -71,6 +71,7 @@ pub enum Error {
 }
 
 /// What an engine did when it failed, kept together so a caller can log all of it.
+#[non_exhaustive]
 #[derive(Debug, Default)]
 pub struct ToolFailure {
     /// A sentence describing the failure.

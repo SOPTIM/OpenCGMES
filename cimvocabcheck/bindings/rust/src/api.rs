@@ -72,6 +72,7 @@ impl Strictness {
 /// let report = validate(&["queries/line-segments.rq"], &Options::new().schema("profiles"))?;
 /// # Ok::<(), cimvocabcheck::Error>(())
 /// ```
+#[non_exhaustive]
 #[derive(Clone, Debug)]
 pub struct Options {
     /// RDFS profile file(s), or directories of them.
