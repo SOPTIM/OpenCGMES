@@ -19,6 +19,8 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 
 import pytest
 
@@ -98,6 +100,80 @@ def test_our_own_console_script_is_never_discovered_as_the_engine(monkeypatch, t
 
     with pytest.raises(EngineNotFoundError):
         discover(env={"PATH": str(scripts)}, allow_docker=False)
+
+
+def test_directories_the_shim_chain_already_visited_are_skipped(tmp_path):
+    """Another interpreter's shim is not in our script directory; the chain is what rules it out."""
+    first, second = tmp_path / "py310" / "bin", tmp_path / "py313" / "bin"
+    executable(first, "cimvocabcheck")
+    binary = executable(second, "cimvocabcheck")
+
+    engine = discover(
+        env={
+            "PATH": os.pathsep.join([str(first), str(second)]),
+            runtime.ENV_SHIM_CHAIN: str(first),
+        }
+    )
+
+    assert isinstance(engine, BinaryEngine)
+    assert engine.binary == binary
+
+
+def test_the_shim_records_where_it_forwards_to():
+    engine = BinaryEngine("/opt/cimvocabcheck/bin/cimvocabcheck")
+
+    env = runtime.shim_environment(engine, {runtime.ENV_SHIM_CHAIN: "/earlier"})
+
+    chain = env[runtime.ENV_SHIM_CHAIN].split(os.pathsep)
+    assert chain[0] == os.path.normcase(os.path.realpath("/earlier"))
+    assert os.path.normcase(os.path.realpath("/opt/cimvocabcheck/bin")) in chain
+    assert set(runtime._script_directories()) <= set(chain)
+
+
+def test_a_bin_variable_pointing_back_into_the_shim_chain_is_refused(tmp_path, bare_env):
+    """Re-reading the same variable in the child would otherwise forward to the same shim again."""
+    shim = executable(tmp_path / "bin", "cimvocabcheck")
+
+    with pytest.raises(EngineNotFoundError) as raised:
+        discover(
+            env=dict(
+                bare_env,
+                CIMVOCABCHECK_BIN=str(shim),
+                CIMVOCABCHECK_SHIM_CHAIN=str(tmp_path / "bin"),
+            )
+        )
+
+    assert "shim" in str(raised.value)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the fake installs are shebang scripts")
+def test_two_installs_of_the_shim_on_path_do_not_forward_to_each_other(tmp_path):
+    """What two interpreters on one ``PATH`` used to do: spawn each other until the host died."""
+    installs = []
+    for name in ("py310", "py313"):
+        shim = tmp_path / name / "bin" / "cimvocabcheck"
+        shim.parent.mkdir(parents=True)
+        shim.write_text(
+            f"#!{sys.executable}\n"
+            "import sys\n"
+            "from cimvocabcheck.__main__ import main\n"
+            "sys.exit(main())\n",
+            encoding="utf-8",
+        )
+        shim.chmod(0o755)
+        installs.append(str(shim.parent))
+
+    finished = subprocess.run(
+        [os.path.join(installs[0], "cimvocabcheck"), "--version"],
+        env={"PATH": os.pathsep.join(installs), runtime.ENV_NO_DOCKER: "1"},
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert finished.returncode == 2
+    assert "no CIMVocabCheck engine found" in finished.stderr
 
 
 def test_docker_is_the_last_resort(tmp_path):

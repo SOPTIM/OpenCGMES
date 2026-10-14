@@ -28,7 +28,7 @@ import sys
 from collections.abc import Sequence
 
 from .errors import CimVocabCheckError
-from .runtime import discover
+from .runtime import discover, shim_environment
 
 #: Reports which engine was discovered and exits, without running a validation.
 PRINT_ENGINE_FLAG = "--print-engine"
@@ -50,7 +50,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return USAGE_EXIT
 
     try:
-        return subprocess.call(command)  # noqa: S603 - argv list, never a shell string
+        env = shim_environment(engine)
+        return subprocess.call(command, env=env)  # noqa: S603 - argv list, never a shell string
     except OSError as error:
         print(f"cimvocabcheck: could not start {engine.describe()}: {error}", file=sys.stderr)
         return USAGE_EXIT
