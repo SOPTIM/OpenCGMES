@@ -112,17 +112,19 @@ looked:
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
 else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
-engine gets `C.UTF-8` so it can open non-ASCII file names. A locale that is set but not installed
-(`LANG=en_US.UTF-8` without the locale package) falls back to ASCII too and is not detected;
-install it, or set `LC_ALL=C.UTF-8`.
+engine gets `C.UTF-8` so it can open non-ASCII file names. It does too when a locale the
+environment names is not installed (`LANG=en_US.UTF-8` without the locale package, going by
+`locale -a`): the C library then falls back to C for every category, so the engine gets
+`LC_ALL=C.UTF-8`.
 
 The Docker fallback mounts the working directory at the image's `/work`, so inputs must live
 inside it — an input outside it is refused rather than silently unreadable. A schema or config
-file outside it is mounted read-only instead (a config together with its directory, so relative paths
-in it keep working as long as they stay inside that directory), and an `opencgmes.jsonc` above the working directory is mounted
-the same way and passed
-as `--config`, unless the call names its own schema source, so a run from a subdirectory sees
-the same config a local engine would. `CIMVOCABCHECK_DOCKER_IMAGE`
+file outside it is mounted read-only instead, at `/host` followed by its host path, and so is
+an `opencgmes.jsonc` above the working directory, which is then passed as `--config` unless the
+call names its own schema source, so a run from a subdirectory sees the same config a local
+engine would. The schema paths a config names are mounted the same way wherever they lead, so
+its relative paths work as they do on the host; one that would land on a directory of the image
+itself (`../usr`, from a config in the working directory) is refused. `CIMVOCABCHECK_DOCKER_IMAGE`
 pins a tag and `CIMVOCABCHECK_NO_DOCKER=1` takes it out of the chain. The first run pulls the
 image, and an `endpoint` on `localhost` is then the *container's* localhost.
 
@@ -148,9 +150,8 @@ Installing the package puts a `cimvocabcheck` command on `PATH` that forwards to
 it discovers — same flags, same formats, same [exit codes](/cimvocabcheck/cli#exit-codes).
 `python -m cimvocabcheck` does the same.
 
-Unlike the library call, the command passes its arguments through untouched, so with the Docker
-engine every path it names (inputs, `--config`, `--schema`) must lie inside the working
-directory.
+With the Docker engine the command rewrites the paths it is given the way the library does: a
+config or schema outside the working directory is mounted, and an input outside it is refused.
 
 ```yaml
 repos:

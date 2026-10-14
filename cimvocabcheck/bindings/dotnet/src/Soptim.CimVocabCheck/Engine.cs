@@ -16,6 +16,7 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 
 namespace Soptim.CimVocabCheck;
 
@@ -39,16 +40,12 @@ public abstract class Engine
     public const string ContainerWorkdir = "/work";
 
     /// <summary>
-    /// Where the Docker fallback mounts, read-only, the directory of a config file that lies above
-    /// the working directory and would otherwise be invisible to the engine.
+    /// Where the Docker fallback mounts, read-only, what it has to reach outside the working
+    /// directory: a config, the schema paths it names, a schema passed in. Each goes to this
+    /// directory followed by its absolute host path (see <see cref="DockerEngine.ContainerPath"/>),
+    /// so a config's relative paths lead to the same places in the container as on the host.
     /// </summary>
-    public const string ContainerConfigDirectory = "/config";
-
-    /// <summary>
-    /// Where the Docker fallback mounts, read-only and one numbered directory each, schema paths
-    /// that lie outside the working directory.
-    /// </summary>
-    public const string ContainerSchemaDirectory = "/schemas";
+    public const string ContainerHostDirectory = "/host";
 
     /// <summary>Config file names the engine discovers, in the order it prefers them.</summary>
     public static readonly IReadOnlyList<string> ConfigFileNames = ["opencgmes.jsonc", "opencgmes.json"];
@@ -128,16 +125,30 @@ public abstract class Engine
     /// <remarks>
     /// A local engine is a JVM, which encodes file names in the locale's charset: under a C or
     /// POSIX locale (or none, as in many containers and CI images) a non-ASCII input name cannot
-    /// even be opened. The variable POSIX gives precedence to — <c>LC_ALL</c>, else
-    /// <c>LC_CTYPE</c>, else <c>LANG</c> — decides; when it is C, POSIX or unset the variable to set
-    /// to <see cref="Utf8Locale"/> is returned (<c>LC_ALL</c> when that is what is in force, so a
-    /// deliberate <c>LC_ALL=C</c> keeps everything but its charset). Windows takes no locale from
-    /// the environment.
+    /// even be opened. Two cases need a variable set to <see cref="Utf8Locale"/>. When the variable
+    /// POSIX gives precedence to — <c>LC_ALL</c>, else <c>LC_CTYPE</c>, else <c>LANG</c> — is C,
+    /// POSIX or unset, that one (<c>LC_ALL</c> when that is what is in force, so a deliberate
+    /// <c>LC_ALL=C</c> keeps everything but its charset, else <c>LC_CTYPE</c>). When a locale the
+    /// environment names is not installed, the C library falls back to C for <em>every</em>
+    /// category, so then <c>LC_ALL</c>. Windows takes no locale from the environment.
     /// </remarks>
     /// <param name="environment">The environment the engine will be spawned with.</param>
     /// <returns>The variable and its value, or <c>null</c> when the locale is usable as it is.</returns>
+    public (string Variable, string Value)? LocaleOverride(IDictionary<string, string?> environment) =>
+        LocaleOverride(environment, InstalledLocales());
+
+    /// <summary>
+    /// <see cref="LocaleOverride(IDictionary{string, string?})"/>, given the locales that are
+    /// installed.
+    /// </summary>
+    /// <param name="environment">The environment the engine will be spawned with.</param>
+    /// <param name="installedLocales">
+    /// What <c>locale -a</c> lists, as <see cref="InstalledLocales"/> returns it; <c>null</c> when
+    /// that is not known, in which case a named locale is trusted.
+    /// </param>
+    /// <returns>The variable and its value, or <c>null</c> when the locale is usable as it is.</returns>
     public virtual (string Variable, string Value)? LocaleOverride(
-        IDictionary<string, string?> environment)
+        IDictionary<string, string?> environment, IReadOnlySet<string>? installedLocales)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -148,6 +159,17 @@ public abstract class Engine
             environment.TryGetValue(name, out var value) && !string.IsNullOrEmpty(value) ? value : null;
 
         var all = NonEmpty("LC_ALL");
+        IEnumerable<string> named = all is not null
+            ? [all]
+            : environment
+                .Where(pair => (pair.Key == "LANG" || pair.Key.StartsWith("LC_", StringComparison.Ordinal))
+                    && !string.IsNullOrEmpty(pair.Value))
+                .Select(pair => pair.Value!);
+        if (installedLocales is not null && named.Any(name => !IsInstalled(name, installedLocales)))
+        {
+            return ("LC_ALL", Utf8Locale);
+        }
+
         var effective = all ?? NonEmpty("LC_CTYPE") ?? NonEmpty("LANG") ?? "";
         if (effective is not ("" or "C" or "POSIX"))
         {
@@ -155,6 +177,85 @@ public abstract class Engine
         }
 
         return (all is not null ? "LC_ALL" : "LC_CTYPE", Utf8Locale);
+    }
+
+    /// <summary>
+    /// The locales <c>locale -a</c> lists, or <c>null</c> when that cannot be found out.
+    /// </summary>
+    /// <remarks>
+    /// Asked once per process. Without a <c>locale</c> command (musl-based images have none, and
+    /// musl reads every locale as UTF-8 anyway) nothing is known.
+    /// </remarks>
+    /// <returns>The installed locales, or <c>null</c>.</returns>
+    public static IReadOnlySet<string>? InstalledLocales() => InstalledLocalesOnce.Value;
+
+    private static readonly Lazy<IReadOnlySet<string>?> InstalledLocalesOnce = new(ListInstalledLocales);
+
+    /// <summary>Locales the C library always has, whatever is installed.</summary>
+    private static readonly string[] BuiltinLocales = ["C", "POSIX", "C.utf8"];
+
+    private static HashSet<string>? ListInstalledLocales()
+    {
+        if (OperatingSystem.IsWindows() || Which("locale", new EngineDiscovery()) is not { } locale)
+        {
+            return null;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo(locale)
+            {
+                ArgumentList = { "-a" },
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+            };
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                return null;
+            }
+
+            var listed = process.StandardOutput.ReadToEnd();
+            if (!process.WaitForExit(10_000) || process.ExitCode != 0)
+            {
+                return null;
+            }
+
+            return listed
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException
+            or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Whether <paramref name="name"/> is one of <paramref name="installed"/>, however
+    /// the codeset is spelled.</summary>
+    private static bool IsInstalled(string name, IReadOnlySet<string> installed)
+    {
+        var wanted = LocaleKey(name);
+        return BuiltinLocales.Concat(installed).Any(entry => LocaleKey(entry) == wanted);
+    }
+
+    /// <summary><c>en_US.UTF-8</c> and <c>en_US.utf8</c> name one locale; this is what they have
+    /// in common.</summary>
+    private static string LocaleKey(string name)
+    {
+        var dot = name.IndexOf('.', StringComparison.Ordinal);
+        if (dot < 0)
+        {
+            return name;
+        }
+
+        var rest = name[(dot + 1)..];
+        var at = rest.IndexOf('@', StringComparison.Ordinal);
+        var codeset = at < 0 ? rest : rest[..at];
+        var modifier = at < 0 ? "" : rest[at..];
+        var key = new string(codeset.Where(c => c is not ('-' or '_')).Select(char.ToLowerInvariant).ToArray());
+        return $"{name[..dot]}.{key}{modifier}";
     }
 
     /// <summary>
@@ -415,20 +516,31 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             command.Add("-i");
         }
 
-        var mount = Mount(workingDirectory);
+        var workdir = Mount(workingDirectory);
         command.Add("-v");
-        command.Add($"{mount}:{ContainerWorkdir}");
-        var config = NamesSchemaSource(arguments) ? null : ConfigAbove(mount);
-        if (config is not null)
+        command.Add($"{workdir}:{ContainerWorkdir}");
+        var volumes = new List<VolumeMount>(mounts ?? []);
+        string? configFlag = null;
+        if (!NamesSchemaSource(arguments) && NearestConfig(workdir) is { } config)
         {
-            // The engine discovers its config upward from the working directory, which inside the
-            // container stops at the mount: a config above it would be silently missed, leaving a
-            // syntax-only check that reports every query as valid.
-            command.Add("-v");
-            command.Add($"{System.IO.Path.GetDirectoryName(config)}:{ContainerConfigDirectory}:ro");
+            string seen;
+            if (RelativeTo(System.IO.Path.GetDirectoryName(config)!, workdir) == ".")
+            {
+                seen = $"{ContainerWorkdir}/{System.IO.Path.GetFileName(config)}";
+            }
+            else
+            {
+                // The engine discovers its config upward from the working directory, which inside
+                // the container stops at the mount: a config above it would be silently missed,
+                // leaving a syntax-only check that reports every query as valid.
+                seen = MountConfig(config, workdir, volumes);
+                configFlag = seen;
+            }
+
+            MountConfigPaths(config, seen, workdir, volumes);
         }
 
-        foreach (var volume in mounts ?? [])
+        foreach (var volume in volumes)
         {
             command.Add("-v");
             command.Add($"{volume.Host}:{volume.Container}:ro");
@@ -437,10 +549,10 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         command.Add("-w");
         command.Add(ContainerWorkdir);
         command.Add(Image);
-        if (config is not null)
+        if (configFlag is not null)
         {
             command.Add("--config");
-            command.Add($"{ContainerConfigDirectory}/{System.IO.Path.GetFileName(config)}");
+            command.Add(configFlag);
         }
 
         command.AddRange(arguments);
@@ -458,26 +570,33 @@ public sealed class DockerEngine(string image, string docker, string workingDire
 
     /// <inheritdoc/>
     /// <remarks>
-    /// A config outside the working directory has its directory mounted read-only at
-    /// <see cref="Engine.ContainerConfigDirectory"/>, so its own relative schema paths keep
-    /// resolving — exactly as for a config discovered above the working directory.
+    /// A config outside the working directory has its directory mounted read-only under
+    /// <see cref="Engine.ContainerHostDirectory"/>. Either way, each schema path the config names
+    /// that the container could not otherwise reach is mounted too, so the config's own relative
+    /// paths resolve as they do on the host — exactly as for a config the engine discovers.
     /// </remarks>
+    /// <exception cref="CimVocabCheckException">The config names a path the container cannot have.</exception>
     public override string ResolveConfig(
         string path, string? workingDirectory, IList<VolumeMount> mounts)
     {
+        var workdir = Mount(workingDirectory);
         if (Outside(path, workingDirectory) is not { } host)
         {
-            return ResolvePath(path, workingDirectory);
+            var resolved = ResolvePath(path, workingDirectory);
+            var inside = PosixNormalize(PosixJoin(ContainerWorkdir, resolved));
+            MountConfigPaths(System.IO.Path.GetFullPath(path, workdir), inside, workdir, mounts);
+            return resolved;
         }
 
-        mounts.Add(new VolumeMount(System.IO.Path.GetDirectoryName(host)!, ContainerConfigDirectory));
-        return $"{ContainerConfigDirectory}/{System.IO.Path.GetFileName(host)}";
+        var seen = MountConfig(host, workdir, mounts);
+        MountConfigPaths(host, seen, workdir, mounts);
+        return seen;
     }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// A schema outside the working directory is mounted read-only in a directory of its own under
-    /// <see cref="Engine.ContainerSchemaDirectory"/>.
+    /// A schema outside the working directory is mounted read-only at its
+    /// <see cref="ContainerPath"/>.
     /// </remarks>
     public override string ResolveSchema(
         string path, string? workingDirectory, IList<VolumeMount> mounts)
@@ -487,9 +606,204 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             return ResolvePath(path, workingDirectory);
         }
 
-        var container = $"{ContainerSchemaDirectory}/{mounts.Count}/{System.IO.Path.GetFileName(host)}";
-        mounts.Add(new VolumeMount(host, container));
+        var container = ContainerPath(host);
+        AddMount(host, container, Mount(workingDirectory), mounts, null);
         return container;
+    }
+
+    /// <summary>
+    /// Where the Docker fallback mounts a host path: under <see cref="Engine.ContainerHostDirectory"/>,
+    /// mirroring its absolute path, so that <c>..</c> leads to the same place on both sides. A
+    /// Windows drive becomes a directory of its own: <c>C:\repo</c> is <c>/host/C/repo</c>.
+    /// </summary>
+    /// <param name="hostPath">The path on the host.</param>
+    /// <returns>Where the engine sees it inside the container.</returns>
+    public static string ContainerPath(string hostPath)
+    {
+        var full = System.IO.Path.GetFullPath(hostPath);
+        var root = System.IO.Path.GetPathRoot(full) ?? string.Empty;
+        var segments = new List<string>();
+        var drive = root.TrimEnd('\\', '/').TrimEnd(':');
+        if (drive.Length > 0)
+        {
+            segments.Add(drive);
+        }
+
+        segments.AddRange(full[root.Length..].Split(
+            [System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries));
+        return segments.Count == 0 ? ContainerHostDirectory : $"{ContainerHostDirectory}/{string.Join('/', segments)}";
+    }
+
+    /// <summary>Container paths a mount must neither be nor contain: the image's own directories
+    /// and the mounts this class makes.</summary>
+    private static readonly string[] ImagePaths =
+    [
+        ContainerWorkdir, ContainerHostDirectory, "/opt/cimvocabcheck", "/usr", "/bin", "/sbin", "/lib",
+        "/lib64", "/etc", "/tmp", "/var", "/proc", "/sys", "/dev",
+    ];
+
+    /// <summary>Container directories nothing may be mounted inside: other mounts, and the
+    /// kernel's.</summary>
+    private static readonly string[] NotInside = [ContainerWorkdir, ContainerHostDirectory, "/proc", "/sys", "/dev"];
+
+    /// <summary>
+    /// Mounts the directory of <paramref name="config"/>, which is outside the working directory;
+    /// returns where the engine sees the config.
+    /// </summary>
+    private static string MountConfig(string config, string workdir, IList<VolumeMount> mounts)
+    {
+        var directory = System.IO.Path.GetDirectoryName(config)!;
+        var container = ContainerPath(directory);
+        AddMount(directory, container, workdir, mounts, null);
+        return $"{container}/{System.IO.Path.GetFileName(config)}";
+    }
+
+    /// <summary>
+    /// Mounts each schema path <paramref name="config"/> names that the engine, reading the config
+    /// at <paramref name="seen"/>, would otherwise look for in a place the container does not have.
+    /// A path that does not exist is left alone: the engine reports it, and binding it would make
+    /// Docker create an empty directory in its place.
+    /// </summary>
+    private static void MountConfigPaths(string config, string seen, string workdir, IList<VolumeMount> mounts)
+    {
+        var directory = System.IO.Path.GetDirectoryName(config)!;
+        foreach (var path in ConfigSchemaPaths(config))
+        {
+            var drive = (path.Length >= 2 && path[1] == ':') || path.StartsWith(@"\\", StringComparison.Ordinal);
+            if (drive || (OperatingSystem.IsWindows() && System.IO.Path.IsPathRooted(path)))
+            {
+                throw new CimVocabCheckException(
+                    $"{config} names the schema path '{path}', a Windows path the Docker engine cannot "
+                    + "read. Make it relative to the config, or configure a local engine "
+                    + $"({JarVariable} / {BinaryVariable}).");
+            }
+
+            var host = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(path, directory));
+            if (!File.Exists(host) && !Directory.Exists(host))
+            {
+                continue;
+            }
+
+            var container = PosixNormalize(PosixJoin(PosixParent(seen), path.Replace('\\', '/')));
+            AddMount(host, container, workdir, mounts, $"{config} names the schema path '{path}'");
+        }
+    }
+
+    /// <summary>
+    /// Adds <paramref name="host"/> at <paramref name="container"/> to <paramref name="mounts"/>,
+    /// unless a mount already shows it there.
+    /// </summary>
+    /// <exception cref="CimVocabCheckException">
+    /// <paramref name="container"/> is one of the image's own directories, or inside a directory
+    /// nothing may be mounted in — except where <see cref="ContainerPath"/> put it.
+    /// </exception>
+    private static void AddMount(
+        string host, string container, string workdir, IList<VolumeMount> mounts, string? origin)
+    {
+        foreach (var (mounted, target) in mounts.Select(m => (m.Host, m.Container)).Prepend((workdir, ContainerWorkdir)))
+        {
+            if (RelativeTo(host, mounted) is { } rest
+                && PosixNormalize(PosixJoin(target, rest == "." ? "" : rest)) == container)
+            {
+                return;
+            }
+        }
+
+        var mirrored = container == ContainerPath(host) && container != ContainerHostDirectory;
+        if (!mirrored && !Mountable(container))
+        {
+            throw new CimVocabCheckException(
+                $"{origin ?? $"'{host}'"}, which the Docker engine would see at {container}, a path inside "
+                + "its image. Make the path lead somewhere else, pass the schema itself, or configure a "
+                + $"local engine ({JarVariable} / {BinaryVariable}).");
+        }
+
+        mounts.Add(new VolumeMount(host, container));
+    }
+
+    private static bool Mountable(string container) =>
+        container.StartsWith('/')
+        && container != "/"
+        && !ImagePaths.Any(own => own == container || own.StartsWith(container + "/", StringComparison.Ordinal))
+        && !NotInside.Any(directory => container.StartsWith(directory + "/", StringComparison.Ordinal));
+
+    /// <summary>The schema paths <paramref name="config"/> names, as written; none when it cannot be
+    /// read. A config the engine will reject anyway is the engine's to report.</summary>
+    private static List<string> ConfigSchemaPaths(string config)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(
+                File.ReadAllText(config),
+                new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("cimvocabcheck", out var section)
+                || section.ValueKind != JsonValueKind.Object)
+            {
+                return [];
+            }
+
+            var paths = new List<string>();
+            if (section.TryGetProperty("schemas", out var schemas) && schemas.ValueKind == JsonValueKind.Array)
+            {
+                paths.AddRange(schemas.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString()!));
+            }
+
+            if (section.TryGetProperty("schemasDirectory", out var directory)
+                && directory.ValueKind == JsonValueKind.String)
+            {
+                paths.Add(directory.GetString()!);
+            }
+
+            return paths;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string PosixParent(string path)
+    {
+        var slash = path.LastIndexOf('/');
+        return slash switch
+        {
+            < 0 => ".",
+            0 => "/",
+            _ => path[..slash],
+        };
+    }
+
+    private static string PosixJoin(string basePath, string path) =>
+        path.StartsWith('/') ? path : $"{basePath}/{path}";
+
+    /// <summary>Resolves <c>.</c> and <c>..</c> in a container path, lexically.</summary>
+    private static string PosixNormalize(string path)
+    {
+        var segments = new List<string>();
+        foreach (var segment in path.Split('/'))
+        {
+            switch (segment)
+            {
+                case "" or ".":
+                    break;
+                case "..":
+                    if (segments.Count > 0)
+                    {
+                        segments.RemoveAt(segments.Count - 1);
+                    }
+
+                    break;
+                default:
+                    segments.Add(segment);
+                    break;
+            }
+        }
+
+        return "/" + string.Join('/', segments);
     }
 
     /// <summary>
@@ -598,7 +912,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     /// <inheritdoc/>
     /// <remarks>The engine runs inside the image, under the image's locale.</remarks>
     public override (string Variable, string Value)? LocaleOverride(
-        IDictionary<string, string?> environment) => null;
+        IDictionary<string, string?> environment, IReadOnlySet<string>? installedLocales) => null;
 
     /// <inheritdoc/>
     public override async Task AbandonAsync(
@@ -681,12 +995,9 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     private static readonly string[] SchemaSourceFlags =
         ["-c", "--config", "-s", "--schema", "-e", "--endpoint"];
 
-    /// <summary>
-    /// The config file the engine would discover from <paramref name="directory"/>, if it lies
-    /// above it; <c>null</c> when the nearest config is inside the directory (the engine finds that
-    /// one itself) or when there is none at all.
-    /// </summary>
-    private static string? ConfigAbove(string directory)
+    /// <summary>The config file the engine would discover from <paramref name="directory"/>, or
+    /// <c>null</c>.</summary>
+    private static string? NearestConfig(string directory)
     {
         for (var candidate = new DirectoryInfo(directory); candidate is not null; candidate = candidate.Parent)
         {
@@ -695,7 +1006,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
                 var file = System.IO.Path.Combine(candidate.FullName, name);
                 if (File.Exists(file))
                 {
-                    return candidate.FullName == new DirectoryInfo(directory).FullName ? null : file;
+                    return file;
                 }
             }
         }

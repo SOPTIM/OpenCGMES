@@ -161,11 +161,20 @@ def test_the_shim_reports_which_engine_it_found(engine, capfd):
     assert capfd.readouterr().out.strip()
 
 
-def test_a_non_ascii_input_name_is_read_under_a_c_locale(engine, workspace):
-    """Containers and CI images often run with no locale, in which a JVM cannot open ``ü.rq``."""
+@pytest.mark.parametrize(
+    "locale",
+    [
+        {"LC_ALL": "C"},
+        # Named but never installed: the C library falls back to C for every category.
+        {"LANG": "xx_XX.UTF-8"},
+    ],
+)
+def test_a_non_ascii_input_name_is_read_under_an_ascii_only_locale(engine, workspace, locale):
+    """Containers and CI images often run with no usable locale, in which a JVM cannot open
+    ``ü.rq``."""
     name = write(workspace, "übersicht.rq", CLEAN_QUERY)
     env = {k: v for k, v in os.environ.items() if not k.startswith("LC_") and k != "LANG"}
-    env["LC_ALL"] = "C"
+    env.update(locale)
 
     report = validate([name], engine=engine, cwd=workspace, env=env)
 

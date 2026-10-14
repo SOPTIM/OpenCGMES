@@ -85,10 +85,14 @@ public sealed class EngineIntegrationTests
         Assert.Empty(report.Findings());
     }
 
-    [Fact]
-    public void ANonAsciiInputNameIsReadUnderACLocale()
+    [Theory]
+    [InlineData("LC_ALL", "C")]
+    [InlineData("LANG", "xx_XX.UTF-8")]
+    public void ANonAsciiInputNameIsReadUnderAnAsciiOnlyLocale(string variable, string locale)
     {
-        // Containers and CI images often run with no locale, in which a JVM cannot open ü.rq.
+        // Containers and CI images often run with no usable locale, in which a JVM cannot open
+        // ü.rq: none, or one that is named but never installed, for which the C library falls back
+        // to C in every category.
         var (workspace, options) = Engine();
         using var _ = workspace;
         var input = workspace.Write("übersicht.rq", CleanQuery);
@@ -97,7 +101,7 @@ public sealed class EngineIntegrationTests
             .Select(entry => ((string)entry.Key, (string?)entry.Value ?? ""))
             .Where(pair => !pair.Item1.StartsWith("LC_", StringComparison.Ordinal) && pair.Item1 != "LANG")
             .ToDictionary(pair => pair.Item1, pair => pair.Item2);
-        environment["LC_ALL"] = "C";
+        environment[variable] = locale;
 
         var report = Validator.Validate([input], options with { Environment = environment });
 

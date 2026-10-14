@@ -18,10 +18,14 @@
 
 from __future__ import annotations
 
+import json
 import os
+import posixpath
 import subprocess
 import sys
 import sysconfig
+from itertools import pairwise
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -35,6 +39,9 @@ from cimvocabcheck import (
     discover,
     runtime,
 )
+
+#: What ``locale -a`` lists on a machine with one locale beyond the built-in ones.
+INSTALLED = frozenset({"C", "C.utf8", "POSIX", "en_US.utf8"})
 
 
 @pytest.fixture
@@ -388,11 +395,12 @@ def test_docker_mounts_a_config_that_lies_above_the_working_directory(tmp_path):
 
     command = engine.command(["--format", "json", "--", "q.rq"])
 
-    assert f"{tmp_path.resolve()}:/config:ro" in command
+    mirror = runtime.container_path(tmp_path.resolve())
+    assert f"{tmp_path.resolve()}:{mirror}:ro" in command
     image = command.index(engine.image)
     assert command[image + 1 :] == [
         "--config",
-        "/config/opencgmes.jsonc",
+        f"{mirror}/opencgmes.jsonc",
         "--format",
         "json",
         "--",
@@ -407,7 +415,7 @@ def test_docker_prefers_the_jsonc_config_like_the_engine_does(tmp_path):
 
     command = DockerEngine(cwd=tmp_path / "sub").command(["q.rq"])
 
-    assert "/config/opencgmes.jsonc" in command
+    assert f"{runtime.container_path(tmp_path.resolve())}/opencgmes.jsonc" in command
 
 
 def test_docker_leaves_a_config_inside_the_mount_to_the_engine(tmp_path):
@@ -418,7 +426,7 @@ def test_docker_leaves_a_config_inside_the_mount_to_the_engine(tmp_path):
     for cwd in (tmp_path, tmp_path / "sub"):
         command = DockerEngine(cwd=cwd).command(["q.rq"])
         assert "--config" not in command
-        assert not any(part.endswith(":/config:ro") for part in command)
+        assert not any(part.endswith(":ro") for part in command)
 
 
 @pytest.mark.parametrize(
@@ -439,7 +447,7 @@ def test_docker_does_not_add_a_config_when_the_call_names_a_schema_source(tmp_pa
 
     command = DockerEngine(cwd=tmp_path / "sub").command([*flags, "--", "q.rq"])
 
-    assert "/config/opencgmes.jsonc" not in command
+    assert f"{runtime.container_path(tmp_path.resolve())}/opencgmes.jsonc" not in command
 
 
 def test_an_input_named_like_a_flag_does_not_suppress_the_config(tmp_path):
@@ -448,7 +456,7 @@ def test_an_input_named_like_a_flag_does_not_suppress_the_config(tmp_path):
 
     command = DockerEngine(cwd=tmp_path / "sub").command(["--", "-s.rq"])
 
-    assert "/config/opencgmes.jsonc" in command
+    assert f"{runtime.container_path(tmp_path.resolve())}/opencgmes.jsonc" in command
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows takes no locale from the environment")
@@ -460,13 +468,49 @@ def test_an_input_named_like_a_flag_does_not_suppress_the_config(tmp_path):
         ({"LANG": "POSIX"}, {"LANG": "POSIX", "LC_CTYPE": "C.UTF-8"}),
         ({"LC_ALL": "C", "LANG": "de_DE.UTF-8"}, {"LC_ALL": "C.UTF-8", "LANG": "de_DE.UTF-8"}),
         ({"LC_CTYPE": "C", "LANG": "C"}, {"LC_CTYPE": "C.UTF-8", "LANG": "C"}),
-        ({"LANG": "de_DE.UTF-8"}, {"LANG": "de_DE.UTF-8"}),
+        ({"LANG": "en_US.UTF-8"}, {"LANG": "en_US.UTF-8"}),
         ({"LC_CTYPE": "en_US.UTF-8", "LANG": "C"}, {"LC_CTYPE": "en_US.UTF-8", "LANG": "C"}),
+        # Set but not installed: the C library then drops every category back to C, so only
+        # LC_ALL gets the engine a UTF-8 charset again.
+        ({"LANG": "xx_XX.UTF-8"}, {"LANG": "xx_XX.UTF-8", "LC_ALL": "C.UTF-8"}),
+        (
+            {"LANG": "C.UTF-8", "LC_MESSAGES": "xx_XX.UTF-8"},
+            {"LANG": "C.UTF-8", "LC_MESSAGES": "xx_XX.UTF-8", "LC_ALL": "C.UTF-8"},
+        ),
+        ({"LC_ALL": "xx_XX.UTF-8"}, {"LC_ALL": "C.UTF-8"}),
+        # An unset LC_ALL is skipped, and the spellings of one codeset are one locale.
+        ({"LC_ALL": "", "LANG": "en_US.utf8"}, {"LC_ALL": "", "LANG": "en_US.utf8"}),
     ],
 )
-def test_a_local_engine_never_runs_under_an_ascii_only_locale(env, expected):
+def test_a_local_engine_never_runs_under_an_ascii_only_locale(env, expected, monkeypatch):
+    monkeypatch.setattr(runtime, "installed_locales", lambda: INSTALLED)
     assert JarEngine("cli.jar", java="java").environment(env) == expected
     assert BinaryEngine("cimvocabcheck").environment(env) == expected
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows takes no locale from the environment")
+def test_a_locale_is_trusted_when_the_installed_ones_cannot_be_listed(monkeypatch):
+    """Without a ``locale`` command (musl, say) nothing is known, and a named locale is kept."""
+    monkeypatch.setattr(runtime, "installed_locales", lambda: None)
+
+    assert JarEngine("cli.jar", java="java").environment({"LANG": "xx_XX.UTF-8"}) == {
+        "LANG": "xx_XX.UTF-8"
+    }
+
+
+def test_installed_locales_are_read_from_the_locale_command(tmp_path, monkeypatch):
+    executable(tmp_path, "locale").write_text(
+        "#!/bin/sh\nprintf 'C\\nC.utf8\\nPOSIX\\nen_US.utf8\\n'\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("PATH", str(tmp_path))
+    runtime.installed_locales.cache_clear()
+    try:
+        assert runtime.installed_locales() == frozenset({"C", "C.utf8", "POSIX", "en_US.utf8"})
+        monkeypatch.setenv("PATH", str(tmp_path / "nowhere"))
+        runtime.installed_locales.cache_clear()
+        assert runtime.installed_locales() is None
+    finally:
+        runtime.installed_locales.cache_clear()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Windows takes no locale from the environment")
@@ -494,11 +538,12 @@ def test_docker_mounts_an_explicit_config_outside_the_working_directory(tmp_path
     config = engine.resolve_config("../opencgmes.jsonc", None, mounts)
     command = engine.command(["--config", config, "--", "q.rq"], mounts=mounts)
 
-    assert config == "/config/opencgmes.jsonc"
-    assert f"{tmp_path.resolve()}:/config:ro" in command
+    mirror = runtime.container_path(tmp_path.resolve())
+    assert config == f"{mirror}/opencgmes.jsonc"
+    assert f"{tmp_path.resolve()}:{mirror}:ro" in command
 
 
-def test_docker_mounts_schemas_outside_the_working_directory_one_each(tmp_path):
+def test_docker_mounts_schemas_outside_the_working_directory_where_the_host_has_them(tmp_path):
     for name in ("profiles/a.rdf", "more/b.rdf", "project/profiles/inside.rdf"):
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / name).write_text("", encoding="utf-8")
@@ -511,10 +556,11 @@ def test_docker_mounts_schemas_outside_the_working_directory_one_each(tmp_path):
     ]
     command = engine.command([], mounts=mounts)
 
-    assert schemas == ["/schemas/0/profiles", "/schemas/1/b.rdf", "profiles/inside.rdf"]
     root = tmp_path.resolve()
-    assert f"{root / 'profiles'}:/schemas/0/profiles:ro" in command
-    assert f"{root / 'more' / 'b.rdf'}:/schemas/1/b.rdf:ro" in command
+    outside = [root / "profiles", root / "more" / "b.rdf"]
+    assert schemas == [*map(runtime.container_path, outside), "profiles/inside.rdf"]
+    for host in outside:
+        assert f"{host}:{runtime.container_path(host)}:ro" in command
 
 
 def test_docker_still_refuses_a_missing_schema_outside_the_working_directory(tmp_path):
@@ -526,3 +572,148 @@ def test_docker_still_refuses_a_missing_schema_outside_the_working_directory(tmp
     with pytest.raises(UnreachablePathError):
         engine.resolve_schema("../nowhere", None, mounts)
     assert mounts == []
+
+
+def seen_as(command, container):
+    """The host path the container sees at ``container``, going by the ``-v`` mounts in
+    ``command``; ``None`` when nothing mounted covers it."""
+    best = None
+    for flag, value in pairwise(command):
+        if flag != "-v":
+            continue
+        host, target = value.removesuffix(":ro").rsplit(":", 1)
+        covers = container == target or container.startswith(target.rstrip("/") + "/")
+        if covers and (best is None or len(target) > len(best[1])):
+            best = (host, target)
+    if best is None:
+        return None
+    host, target = best
+    rest = container[len(target) :].lstrip("/")
+    return Path(host) / rest if rest else Path(host)
+
+
+def config_path(directory, text):
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "opencgmes.jsonc").write_text(text, encoding="utf-8")
+    return directory / "opencgmes.jsonc"
+
+
+def config_argument(command):
+    return command[command.index("--config") + 1]
+
+
+def where_the_engine_looks(config, path):
+    """Where the engine resolves ``path`` from the config it was handed, inside the container."""
+    return posixpath.normpath(posixpath.join(posixpath.dirname(config), path))
+
+
+def test_docker_mounts_the_schemas_an_explicit_config_names_outside_its_directory(tmp_path):
+    """The config's relative paths are resolved against the config, which on the host lead out of
+    the directory mounted for it."""
+    config_path(
+        tmp_path / "conf",
+        """{
+          // shared between projects
+          "cimvocabcheck": {
+            "schemasDirectory": "../schemas/cgmes3",
+            "schemas": ["../extra/x.rdf",],
+          },
+        }""",
+    )
+    (tmp_path / "schemas" / "cgmes3").mkdir(parents=True)
+    (tmp_path / "extra").mkdir()
+    (tmp_path / "extra" / "x.rdf").write_text("", encoding="utf-8")
+    (tmp_path / "proj").mkdir()
+    engine = DockerEngine(docker="docker", cwd=tmp_path / "proj")
+    mounts: list[runtime.Mount] = []
+
+    config = engine.resolve_config("../conf/opencgmes.jsonc", None, mounts)
+    command = engine.command(["--config", config, "--", "q.rq"], mounts=mounts)
+
+    root = tmp_path.resolve()
+    for path, host in (("../schemas/cgmes3", "schemas/cgmes3"), ("../extra/x.rdf", "extra/x.rdf")):
+        assert seen_as(command, where_the_engine_looks(config, path)) == root / host
+
+
+def test_docker_mounts_the_schemas_a_discovered_config_names_outside_its_directory(tmp_path):
+    config_path(tmp_path / "repo", '{"cimvocabcheck": {"schemasDirectory": "../profiles"}}')
+    (tmp_path / "profiles").mkdir()
+    (tmp_path / "repo" / "queries").mkdir()
+
+    command = DockerEngine(cwd=tmp_path / "repo" / "queries").command(["--", "q.rq"])
+
+    config = config_argument(command)
+    assert seen_as(command, config) == (tmp_path / "repo" / "opencgmes.jsonc").resolve()
+    looked_at = where_the_engine_looks(config, "../profiles")
+    assert seen_as(command, looked_at) == (tmp_path / "profiles").resolve()
+
+
+def test_docker_mounts_what_a_config_in_the_working_directory_names_outside_it(tmp_path):
+    """The engine finds this config itself, at the mount, and resolves its paths from there."""
+    config_path(tmp_path / "proj", '{"cimvocabcheck": {"schemasDirectory": "../shared"}}')
+    (tmp_path / "shared").mkdir()
+
+    command = DockerEngine(cwd=tmp_path / "proj").command(["--", "q.rq"])
+
+    assert "--config" not in command
+    looked_at = where_the_engine_looks("/work/opencgmes.jsonc", "../shared")
+    assert seen_as(command, looked_at) == (tmp_path / "shared").resolve()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a Windows path means nothing inside the container")
+def test_docker_mounts_an_absolute_schema_path_a_config_names_where_it_is(tmp_path):
+    absolute = (tmp_path / "abs").resolve()
+    absolute.mkdir()
+    config_path(
+        tmp_path / "proj", json.dumps({"cimvocabcheck": {"schemasDirectory": str(absolute)}})
+    )
+
+    command = DockerEngine(cwd=tmp_path / "proj").command(["--", "q.rq"])
+
+    assert seen_as(command, absolute.as_posix()) == absolute
+
+
+def test_docker_adds_nothing_for_config_paths_inside_the_working_directory(tmp_path):
+    config_path(tmp_path, '{"cimvocabcheck": {"schemasDirectory": "profiles"}}')
+    (tmp_path / "profiles").mkdir()
+
+    command = DockerEngine(cwd=tmp_path).command(["--", "q.rq"])
+
+    assert [value for flag, value in pairwise(command) if flag == "-v"] == [
+        f"{tmp_path.resolve()}:/work"
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"cimvocabcheck": {"schemasDirectory": "../missing"}}',
+        "{ this is not json",
+        '{"cimvocabcheck": {"schemasDirectory": 3, "schemas": "x"}}',
+        "[]",
+    ],
+)
+def test_a_config_whose_paths_cannot_be_used_is_left_to_the_engine(tmp_path, text):
+    """The engine reports a missing schema or a broken config itself; binding a missing path would
+    make Docker create an empty directory in its place."""
+    config_path(tmp_path / "proj", text)
+
+    command = DockerEngine(cwd=tmp_path / "proj").command(["--", "q.rq"])
+
+    assert [value for flag, value in pairwise(command) if flag == "-v"] == [
+        f"{(tmp_path / 'proj').resolve()}:/work"
+    ]
+
+
+def test_docker_refuses_a_config_path_it_would_have_to_mount_over_the_image(tmp_path):
+    """``../usr`` from a config at ``/work`` is the container's own ``/usr``."""
+    config_path(tmp_path / "proj", '{"cimvocabcheck": {"schemasDirectory": "../usr"}}')
+    (tmp_path / "usr").mkdir()
+
+    with pytest.raises(UnreachablePathError, match="/usr"):
+        DockerEngine(cwd=tmp_path / "proj").command(["--", "q.rq"])
+
+
+def test_container_paths_mirror_the_host_path_under_one_directory():
+    assert runtime.container_path(Path("/srv/repo/profiles")) == "/host/srv/repo/profiles"
+    assert runtime.container_path(PureWindowsPath(r"C:\repo\profiles")) == "/host/C/repo/profiles"

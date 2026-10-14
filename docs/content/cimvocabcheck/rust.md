@@ -102,9 +102,10 @@ let typos = [Code::UNKNOWN_CLASS, Code::UNKNOWN_PROPERTY]
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,
 else `LC_CTYPE`, else `LANG`) is C, POSIX or unset, as in many containers and CI images, the
-engine gets `C.UTF-8` so it can open non-ASCII file names. A locale that is set but not installed
-(`LANG=en_US.UTF-8` without the locale package) falls back to ASCII too and is not detected;
-install it, or set `LC_ALL=C.UTF-8`.
+engine gets `C.UTF-8` so it can open non-ASCII file names. It does too when a locale the
+environment names is not installed (`LANG=en_US.UTF-8` without the locale package, going by
+`locale -a`): the C library then falls back to C for every category, so the engine gets
+`LC_ALL=C.UTF-8`.
 
 The Docker fallback
 mounts the working directory at the image's `/work`, so inputs must live inside it — see the

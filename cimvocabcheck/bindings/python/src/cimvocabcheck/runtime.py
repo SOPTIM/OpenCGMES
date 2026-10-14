@@ -25,13 +25,16 @@ empty, because "not found" is the failure mode a user actually has to fix.
 from __future__ import annotations
 
 import contextlib
+import functools
+import json
 import os
+import posixpath
 import shutil
 import subprocess
 import uuid
 from collections.abc import Mapping, Sequence
-from pathlib import Path
-from typing import Union
+from pathlib import Path, PurePath, PureWindowsPath
+from typing import Any, Union
 
 from .errors import EngineNotFoundError, UnreachablePathError
 
@@ -44,13 +47,33 @@ DEFAULT_IMAGE = "ghcr.io/soptim/cimvocabcheck-cli:latest"
 #: Where the Docker fallback mounts the working directory — the image's own WORKDIR.
 CONTAINER_WORKDIR = "/work"
 
-#: Where the Docker fallback mounts, read-only, the directory of a config file that lies above the
-#: working directory and would otherwise be invisible to the engine.
-CONTAINER_CONFIG_DIR = "/config"
+#: Where the Docker fallback mounts, read-only, what it has to reach outside the working directory:
+#: a config, the schema paths it names, a schema passed in. Each goes to this directory followed by
+#: its absolute host path (see :func:`container_path`), so a config's relative paths lead to the
+#: same places in the container as on the host.
+CONTAINER_HOST_DIR = "/host"
 
-#: Where the Docker fallback mounts, read-only and one numbered directory each, schema paths that
-#: lie outside the working directory.
-CONTAINER_SCHEMA_DIR = "/schemas"
+#: Container paths a mount must neither be nor contain: the image's own directories and the mounts
+#: this module makes.
+_IMAGE_PATHS = (
+    CONTAINER_WORKDIR,
+    CONTAINER_HOST_DIR,
+    "/opt/cimvocabcheck",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
+    "/etc",
+    "/tmp",
+    "/var",
+    "/proc",
+    "/sys",
+    "/dev",
+)
+
+#: Container directories nothing may be mounted inside: other mounts, and the kernel's.
+_NOT_INSIDE = (CONTAINER_WORKDIR, CONTAINER_HOST_DIR, "/proc", "/sys", "/dev")
 
 #: A host path the Docker engine bind-mounts read-only for one call, and where the engine sees it.
 Mount = tuple[Path, str]
@@ -84,6 +107,9 @@ _SHIM_SCAN_BYTES = 64 * 1024
 
 #: The locale a local engine is handed when the caller's would have it read file names as ASCII.
 UTF8_LOCALE = "C.UTF-8"
+
+#: Locales the C library always has, whatever is installed.
+_BUILTIN_LOCALES = frozenset({"C", "POSIX", "C.utf8"})
 
 EngineSpec = Union[str, "os.PathLike[str]", "Engine", None]
 
@@ -229,13 +255,18 @@ class DockerEngine(Engine):
         if stdin:
             run.append("-i")
         run += ["-v", f"{mount}:{CONTAINER_WORKDIR}"]
-        config = None if _names_schema_source(args) else _config_above(mount)
+        mounts = list(mounts)
+        config = None if _names_schema_source(args) else _nearest_config(mount)
         if config is not None:
-            # The engine discovers its config upward from the working directory, which inside the
-            # container stops at the mount: a config above it would be silently missed, leaving a
-            # syntax-only check that reports every query as valid.
-            run += ["-v", f"{config.parent}:{CONTAINER_CONFIG_DIR}:ro"]
-            args = ["--config", f"{CONTAINER_CONFIG_DIR}/{config.name}", *args]
+            if config.parent == mount:
+                seen = f"{CONTAINER_WORKDIR}/{config.name}"
+            else:
+                # The engine discovers its config upward from the working directory, which inside
+                # the container stops at the mount: a config above it would be silently missed,
+                # leaving a syntax-only check that reports every query as valid.
+                seen = self._mount_config(config, mount, mounts)
+                args = ["--config", seen, *args]
+            self._mount_config_paths(config, seen, mount, mounts)
         for host, container in mounts:
             run += ["-v", f"{host}:{container}:ro"]
         return [*run, "-w", CONTAINER_WORKDIR, self.image, *args]
@@ -243,27 +274,64 @@ class DockerEngine(Engine):
     def resolve_config(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
         """Like :meth:`resolve_path`, but a config outside the working directory is mounted.
 
-        Its directory goes to :data:`CONTAINER_CONFIG_DIR` read-only, so the config's own relative
-        schema paths keep resolving — exactly as for a config discovered above the working
-        directory.
+        Its directory is mounted read-only under :data:`CONTAINER_HOST_DIR`, and so is every schema
+        path the config names that the container could not otherwise reach, so the config's own
+        relative paths resolve as they do on the host — exactly as for a config the engine
+        discovers.
         """
+        mount = self._mount(cwd)
         host = self._outside(path, cwd)
         if host is None:
-            return self.resolve_path(path, cwd)
-        mounts.append((host.parent, CONTAINER_CONFIG_DIR))
-        return f"{CONTAINER_CONFIG_DIR}/{host.name}"
+            resolved = self.resolve_path(path, cwd)
+            seen = posixpath.normpath(posixpath.join(CONTAINER_WORKDIR, resolved))
+            self._mount_config_paths((mount / path).resolve(), seen, mount, mounts)
+            return resolved
+        seen = self._mount_config(host, mount, mounts)
+        self._mount_config_paths(host, seen, mount, mounts)
+        return seen
 
     def resolve_schema(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
         """Like :meth:`resolve_path`, but a schema outside the working directory is mounted.
 
-        Each goes read-only to its own directory under :data:`CONTAINER_SCHEMA_DIR`.
+        It is mounted read-only under :data:`CONTAINER_HOST_DIR`, at :func:`container_path`.
         """
         host = self._outside(path, cwd)
         if host is None:
             return self.resolve_path(path, cwd)
-        container = f"{CONTAINER_SCHEMA_DIR}/{len(mounts)}/{host.name}"
-        mounts.append((host, container))
+        container = container_path(host)
+        _add_mount(host, container, self._mount(cwd), mounts)
         return container
+
+    @staticmethod
+    def _mount_config(config: Path, mount: Path, mounts: list[Mount]) -> str:
+        """Mounts the directory of ``config``, which is outside the working directory; returns
+        where the engine sees the config."""
+        directory = container_path(config.parent)
+        _add_mount(config.parent, directory, mount, mounts)
+        return f"{directory}/{config.name}"
+
+    @staticmethod
+    def _mount_config_paths(config: Path, seen: str, mount: Path, mounts: list[Mount]) -> None:
+        """Mounts each schema path ``config`` names that the engine, reading the config at
+        ``seen``, would otherwise look for in a place the container does not have.
+
+        A path that does not exist is left alone: the engine reports it, and binding it would make
+        Docker create an empty directory in its place.
+        """
+        for path in _config_schema_paths(config):
+            if PureWindowsPath(path).drive or (os.name == "nt" and PurePath(path).is_absolute()):
+                raise UnreachablePathError(
+                    f"{config} names the schema path {path!r}, a Windows path the Docker engine "
+                    "cannot read. Make it relative to the config, or configure a local engine "
+                    f"({ENV_JAR} / {ENV_BIN})."
+                )
+            host = Path(os.path.normpath(config.parent / path))
+            if not host.exists():
+                continue
+            container = posixpath.normpath(
+                posixpath.join(posixpath.dirname(seen), PurePath(path).as_posix())
+            )
+            _add_mount(host, container, mount, mounts, f"{config} names the schema path {path!r}")
 
     def _outside(self, path: str, cwd: Path | None) -> Path | None:
         """The resolved host path when ``path`` exists but lies outside the mount, else ``None``.
@@ -335,34 +403,185 @@ class DockerEngine(Engine):
 
 
 def utf8_environment(env: Mapping[str, str] | None) -> dict[str, str] | None:
-    """``env`` with a C/POSIX/unset character locale replaced by :data:`UTF8_LOCALE`.
+    """``env`` changed so that the engine's character locale is UTF-8, when it would not be.
 
-    The variable that decides is the one POSIX gives precedence to — ``LC_ALL``, else ``LC_CTYPE``,
-    else ``LANG`` — and it is overridden in place, so a deliberate ``LC_ALL=C`` keeps its collation
-    and messages and only gains UTF-8. Returns ``None`` when ``env`` is ``None`` and nothing needed
+    Two cases need it. When the variable POSIX gives precedence to — ``LC_ALL``, else ``LC_CTYPE``,
+    else ``LANG`` — is C, POSIX or unset, that variable is set to :data:`UTF8_LOCALE`, so a
+    deliberate ``LC_ALL=C`` keeps its collation and messages and only gains UTF-8. When a locale
+    the environment names is not installed, the C library falls back to C for *every* category,
+    so then only ``LC_ALL`` helps. Returns ``None`` when ``env`` is ``None`` and nothing needed
     changing, so the child simply inherits. Windows takes no locale from the environment.
     """
     if os.name == "nt":
         return dict(env) if env is not None else None
     environ = dict(os.environ if env is None else env)
+    named = (
+        [environ["LC_ALL"]]
+        if environ.get("LC_ALL")
+        else [value for key, value in environ.items() if key == "LANG" or key.startswith("LC_")]
+    )
     effective = environ.get("LC_ALL") or environ.get("LC_CTYPE") or environ.get("LANG") or ""
-    if effective not in ("", "C", "POSIX"):
+    installed = installed_locales()
+    if installed is not None and any(not _is_installed(name, installed) for name in named if name):
+        environ["LC_ALL"] = UTF8_LOCALE
+    elif effective in ("", "C", "POSIX"):
+        environ["LC_ALL" if environ.get("LC_ALL") else "LC_CTYPE"] = UTF8_LOCALE
+    else:
         return dict(env) if env is not None else None
-    environ["LC_ALL" if environ.get("LC_ALL") else "LC_CTYPE"] = UTF8_LOCALE
     return environ
 
 
-def _config_above(directory: Path) -> Path | None:
-    """The config file the engine would discover from ``directory``, if it lies above it.
+@functools.lru_cache(maxsize=1)
+def installed_locales() -> frozenset[str] | None:
+    """The locales ``locale -a`` lists, or ``None`` when that cannot be found out.
 
-    ``None`` when the nearest config is inside ``directory`` (the engine finds that one itself) or
-    when there is none at all.
+    Asked once per process. Without a ``locale`` command (musl-based images have none, and musl
+    reads every locale as UTF-8 anyway) nothing is known, and a named locale is trusted.
     """
+    command = shutil.which("locale")
+    if command is None:
+        return None
+    try:
+        listed = subprocess.run(  # noqa: S603 - argv list, never a shell string
+            [command, "-a"], capture_output=True, text=True, timeout=10, check=True
+        ).stdout
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        return None
+    return frozenset(line.strip() for line in listed.splitlines() if line.strip())
+
+
+def _is_installed(name: str, installed: frozenset[str]) -> bool:
+    """Whether ``name`` is one of ``installed``, however the codeset is spelled."""
+    wanted = _locale_key(name)
+    return any(_locale_key(entry) == wanted for entry in _BUILTIN_LOCALES | installed)
+
+
+def _locale_key(name: str) -> str:
+    """``en_US.UTF-8`` and ``en_US.utf8`` name one locale; this is what they have in common."""
+    language, dot, rest = name.partition(".")
+    if not dot:
+        return name
+    codeset, at, modifier = rest.partition("@")
+    return f"{language}.{codeset.lower().replace('-', '').replace('_', '')}{at}{modifier}"
+
+
+def container_path(host: PurePath) -> str:
+    """Where the Docker fallback mounts the absolute host path ``host``: under
+    :data:`CONTAINER_HOST_DIR`, mirroring it, so that ``..`` leads to the same place on both sides.
+
+    A Windows drive becomes a directory of its own: ``C:\\repo`` is ``/host/C/repo``.
+    """
+    if isinstance(host, PureWindowsPath) or (os.name == "nt" and host.drive):
+        windows = PureWindowsPath(host)
+        rest = "/".join(windows.parts[1:])
+        return posixpath.join(CONTAINER_HOST_DIR, windows.drive.rstrip(":\\/"), rest).rstrip("/")
+    return posixpath.normpath(CONTAINER_HOST_DIR + "/" + PurePath(host).as_posix())
+
+
+def _add_mount(
+    host: Path, container: str, workdir: Path, mounts: list[Mount], origin: str | None = None
+) -> None:
+    """Adds ``host`` at ``container`` to ``mounts``, unless a mount already shows it there.
+
+    Raises:
+        UnreachablePathError: ``container`` is one of the image's own directories, or inside a
+            directory nothing may be mounted in — except where :func:`container_path` put it.
+    """
+    for mounted, target in ((workdir, CONTAINER_WORKDIR), *mounts):
+        try:
+            rest = host.relative_to(mounted).as_posix()
+        except ValueError:
+            continue
+        if posixpath.normpath(posixpath.join(target, rest)) == container:
+            return
+    mirrored = container == container_path(host) and container != CONTAINER_HOST_DIR
+    if not mirrored and not _mountable(container):
+        raise UnreachablePathError(
+            f"{origin or repr(str(host))}, which the Docker engine would see at {container}, a "
+            "path inside its image. Make the path lead somewhere else, pass the schema itself, or "
+            f"configure a local engine ({ENV_JAR} / {ENV_BIN})."
+        )
+    mounts.append((host, container))
+
+
+def _mountable(container: str) -> bool:
+    if not container.startswith("/") or container == "/":
+        return False
+    if any(own == container or own.startswith(container + "/") for own in _IMAGE_PATHS):
+        return False
+    return not any(container.startswith(directory + "/") for directory in _NOT_INSIDE)
+
+
+def _nearest_config(directory: Path) -> Path | None:
+    """The config file the engine would discover from ``directory``, or ``None``."""
     for candidate in (directory, *directory.parents):
         for name in CONFIG_FILENAMES:
             if (candidate / name).is_file():
-                return None if candidate == directory else candidate / name
+                return candidate / name
     return None
+
+
+def _config_schema_paths(config: Path) -> list[str]:
+    """The schema paths ``config`` names, as written; none when it cannot be read.
+
+    A config the engine will reject anyway is the engine's to report, with its own message.
+    """
+    try:
+        document: Any = json.loads(_strip_jsonc(config.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return []
+    section = document.get("cimvocabcheck") if isinstance(document, dict) else None
+    if not isinstance(section, dict):
+        return []
+    paths = section.get("schemas")
+    named = [path for path in paths if isinstance(path, str)] if isinstance(paths, list) else []
+    directory = section.get("schemasDirectory")
+    return [*named, directory] if isinstance(directory, str) else named
+
+
+def _strip_jsonc(text: str) -> str:
+    """``text`` without the comments and trailing commas the engine's JSON reader allows."""
+    out: list[str] = []
+    i, length = 0, len(text)
+    while i < length:
+        char = text[i]
+        if char == '"':
+            end = i + 1
+            while end < length and text[end] != '"':
+                end += 2 if text[end] == "\\" else 1
+            out.append(text[i : end + 1])
+            i = end + 1
+        elif text.startswith("//", i):
+            newline = text.find("\n", i)
+            i = length if newline < 0 else newline
+        elif text.startswith("/*", i):
+            close = text.find("*/", i + 2)
+            i = length if close < 0 else close + 2
+        elif char == ",":
+            following = _skip_jsonc_space(text, i + 1)
+            if following >= length or text[following] not in "]}":
+                out.append(char)
+            i += 1
+        else:
+            out.append(char)
+            i += 1
+    return "".join(out)
+
+
+def _skip_jsonc_space(text: str, i: int) -> int:
+    """The index of the next character of ``text`` from ``i`` that is neither space nor comment."""
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+        elif text.startswith("//", i):
+            newline = text.find("\n", i)
+            i = len(text) if newline < 0 else newline
+        elif text.startswith("/*", i):
+            close = text.find("*/", i + 2)
+            i = len(text) if close < 0 else close + 2
+        else:
+            break
+    return i
 
 
 def _names_schema_source(args: Sequence[str]) -> bool:

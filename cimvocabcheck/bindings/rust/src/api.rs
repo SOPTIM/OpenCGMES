@@ -277,7 +277,7 @@ pub fn validate_text(text: &str, options: &Options) -> Result<Report> {
 /// version is stamped into the JAR manifest at package time.
 pub fn tool_version(options: &Options) -> Result<String> {
     let engine = options.resolve_engine()?;
-    let command = engine.command(&["--version".to_owned()], false, options.cwd.as_deref());
+    let command = engine.command(&["--version".to_owned()], false, options.cwd.as_deref())?;
     let output = spawn(&engine, &command, None, options)?;
     if output.status != Some(EXIT_CLEAN) {
         return Err(Error::tool(ToolFailure {
@@ -369,7 +369,7 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
     };
 
     let args = build_args(&resolved, &effective);
-    let command = engine.command_with_mounts(&args, stdin_text.is_some(), cwd, &mounts);
+    let command = engine.command_with_mounts(&args, stdin_text.is_some(), cwd, &mounts)?;
     let output = spawn(&engine, &command, stdin_text, options)?;
 
     match output.status {

@@ -190,9 +190,10 @@ public sealed class EngineDiscoveryTests
 
         var command = engine.BuildCommand(["--format", "json", "--", "q.rq"], false, null);
 
-        Assert.Contains($"{directory.Path}:/config:ro", command);
+        var mirror = DockerEngine.ContainerPath(directory.Path);
+        Assert.Contains($"{directory.Path}:{mirror}:ro", command);
         Assert.Equal(
-            ["--config", "/config/opencgmes.jsonc", "--format", "json", "--", "q.rq"],
+            ["--config", $"{mirror}/opencgmes.jsonc", "--format", "json", "--", "q.rq"],
             command.Skip(command.ToList().IndexOf("cvc:test") + 1));
     }
 
@@ -205,7 +206,9 @@ public sealed class EngineDiscoveryTests
         directory.Write("sub/q.rq", "ASK {}");
         var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "sub"));
 
-        Assert.Contains("/config/opencgmes.jsonc", engine.BuildCommand(["q.rq"], false, null));
+        Assert.Contains(
+            $"{DockerEngine.ContainerPath(directory.Path)}/opencgmes.jsonc",
+            engine.BuildCommand(["q.rq"], false, null));
     }
 
     [Fact]
@@ -219,7 +222,7 @@ public sealed class EngineDiscoveryTests
         {
             var command = new DockerEngine("cvc:test", "docker", cwd).BuildCommand(["q.rq"], false, null);
             Assert.DoesNotContain("--config", command);
-            Assert.DoesNotContain(command, part => part.EndsWith(":/config:ro", StringComparison.Ordinal));
+            Assert.DoesNotContain(command, part => part.EndsWith(":ro", StringComparison.Ordinal));
         }
     }
 
@@ -240,7 +243,7 @@ public sealed class EngineDiscoveryTests
 
         var command = engine.BuildCommand([.. flags, "--", "q.rq"], false, null);
 
-        Assert.DoesNotContain("/config/opencgmes.jsonc", command);
+        Assert.DoesNotContain($"{DockerEngine.ContainerPath(directory.Path)}/opencgmes.jsonc", command);
     }
 
     [Fact]
@@ -251,7 +254,9 @@ public sealed class EngineDiscoveryTests
         directory.Write("sub/q.rq", "ASK {}");
         var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "sub"));
 
-        Assert.Contains("/config/opencgmes.jsonc", engine.BuildCommand(["--", "-s.rq"], false, null));
+        Assert.Contains(
+            $"{DockerEngine.ContainerPath(directory.Path)}/opencgmes.jsonc",
+            engine.BuildCommand(["--", "-s.rq"], false, null));
     }
 
     [Fact]
@@ -377,16 +382,25 @@ public sealed class EngineDiscoveryTests
         Assert.Equal("../shared/q.rq", new BinaryEngine("/opt/cvc").ResolvePath("../shared/q.rq", null));
     }
 
+    /// <summary>What <c>locale -a</c> lists on a machine with one locale beyond the built-in ones.</summary>
+    private static readonly HashSet<string> Installed = ["C", "C.utf8", "POSIX", "en_US.utf8"];
+
     [Theory]
-    [InlineData("", "", "", "LC_CTYPE")]
-    [InlineData("", "", "C", "LC_CTYPE")]
-    [InlineData("", "", "POSIX", "LC_CTYPE")]
-    [InlineData("C", "", "de_DE.UTF-8", "LC_ALL")]
-    [InlineData("", "C", "C", "LC_CTYPE")]
-    [InlineData("", "", "de_DE.UTF-8", null)]
-    [InlineData("", "en_US.UTF-8", "C", null)]
+    [InlineData("", "", "", "", "LC_CTYPE")]
+    [InlineData("", "", "C", "", "LC_CTYPE")]
+    [InlineData("", "", "POSIX", "", "LC_CTYPE")]
+    [InlineData("C", "", "en_US.UTF-8", "", "LC_ALL")]
+    [InlineData("", "C", "C", "", "LC_CTYPE")]
+    [InlineData("", "", "en_US.UTF-8", "", null)]
+    [InlineData("", "en_US.UTF-8", "C", "", null)]
+    [InlineData("", "", "en_US.utf8", "", null)]
+    // Set but not installed: the C library then drops every category back to C, so only LC_ALL
+    // gets the engine a UTF-8 charset again.
+    [InlineData("", "", "xx_XX.UTF-8", "", "LC_ALL")]
+    [InlineData("", "", "C.UTF-8", "xx_XX.UTF-8", "LC_ALL")]
+    [InlineData("xx_XX.UTF-8", "", "", "", "LC_ALL")]
     public void ALocalEngineNeverRunsUnderAnAsciiOnlyLocale(
-        string all, string ctype, string lang, string? expected)
+        string all, string ctype, string lang, string messages, string? expected)
     {
         Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows takes no locale from the environment");
         var environment = new Dictionary<string, string?>
@@ -394,14 +408,25 @@ public sealed class EngineDiscoveryTests
             ["LC_ALL"] = all,
             ["LC_CTYPE"] = ctype,
             ["LANG"] = lang,
+            ["LC_MESSAGES"] = messages,
         };
 
         foreach (Engine engine in new Engine[] { new JarEngine("cli.jar", "java"), new BinaryEngine("cimvocabcheck") })
         {
             Assert.Equal(
                 expected is null ? null : (expected, "C.UTF-8"),
-                engine.LocaleOverride(environment));
+                engine.LocaleOverride(environment, Installed));
         }
+    }
+
+    [Fact]
+    public void ALocaleIsTrustedWhenTheInstalledOnesCannotBeListed()
+    {
+        // Without a locale command (musl, say) nothing is known, and a named locale is kept.
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows takes no locale from the environment");
+        var environment = new Dictionary<string, string?> { ["LANG"] = "xx_XX.UTF-8" };
+
+        Assert.Null(new JarEngine("cli.jar", "java").LocaleOverride(environment, null));
     }
 
     [Fact]
@@ -425,14 +450,15 @@ public sealed class EngineDiscoveryTests
         var config = engine.ResolveConfig("../opencgmes.jsonc", null, mounts);
         var command = engine.BuildCommand(["--config", config, "--", "q.rq"], false, null, mounts);
 
-        Assert.Equal("/config/opencgmes.jsonc", config);
-        Assert.Contains($"{RealDirectory(directory.Path)}:/config:ro", command);
+        var mirror = DockerEngine.ContainerPath(RealDirectory(directory.Path));
+        Assert.Equal($"{mirror}/opencgmes.jsonc", config);
+        Assert.Contains($"{RealDirectory(directory.Path)}:{mirror}:ro", command);
     }
 
     private static readonly string[] SchemaPaths = ["../profiles", "../more/b.rdf", "profiles/inside.rdf"];
 
     [Fact]
-    public void DockerMountsSchemasOutsideTheWorkingDirectoryOneEach()
+    public void DockerMountsSchemasOutsideTheWorkingDirectoryWhereTheHostHasThem()
     {
         using var directory = new TempDir();
         directory.Write("profiles/a.rdf", "");
@@ -446,12 +472,13 @@ public sealed class EngineDiscoveryTests
             .ToList();
         var command = engine.BuildCommand([], false, null, mounts);
 
-        Assert.Equal(
-            new List<string> { "/schemas/0/profiles", "/schemas/1/b.rdf", "profiles/inside.rdf" },
-            schemas);
         var root = RealDirectory(directory.Path);
-        Assert.Contains($"{Path.Combine(root, "profiles")}:/schemas/0/profiles:ro", command);
-        Assert.Contains($"{Path.Combine(root, "more", "b.rdf")}:/schemas/1/b.rdf:ro", command);
+        string[] outside = [Path.Combine(root, "profiles"), Path.Combine(root, "more", "b.rdf")];
+        Assert.Equal([.. outside.Select(DockerEngine.ContainerPath), "profiles/inside.rdf"], schemas);
+        foreach (var host in outside)
+        {
+            Assert.Contains($"{host}:{DockerEngine.ContainerPath(host)}:ro", command);
+        }
     }
 
     [Fact]
@@ -468,6 +495,204 @@ public sealed class EngineDiscoveryTests
 
         Assert.Contains("outside the working directory", error.Message, StringComparison.Ordinal);
         Assert.Empty(mounts);
+    }
+
+    /// <summary>
+    /// The host path the container sees at <paramref name="container"/>, going by the <c>-v</c>
+    /// mounts in <paramref name="command"/>; <c>null</c> when nothing mounted covers it.
+    /// </summary>
+    private static string? SeenAs(IReadOnlyList<string> command, string container)
+    {
+        (string Host, string Target)? best = null;
+        for (var at = 0; at + 1 < command.Count; at++)
+        {
+            if (command[at] != "-v")
+            {
+                continue;
+            }
+
+            var volume = command[at + 1].EndsWith(":ro", StringComparison.Ordinal)
+                ? command[at + 1][..^3]
+                : command[at + 1];
+            var colon = volume.LastIndexOf(':');
+            var (host, target) = (volume[..colon], volume[(colon + 1)..]);
+            var covers = container == target || container.StartsWith(target + "/", StringComparison.Ordinal);
+            if (covers && (best is null || target.Length > best.Value.Target.Length))
+            {
+                best = (host, target);
+            }
+        }
+
+        if (best is not { } found)
+        {
+            return null;
+        }
+
+        var rest = container[found.Target.Length..].TrimStart('/');
+        return rest.Length == 0 ? found.Host : Path.Combine(found.Host, rest.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    /// <summary>Where the engine resolves <paramref name="path"/> from the config it was handed.</summary>
+    private static string WhereTheEngineLooks(string config, string path)
+    {
+        var segments = config.Split('/', StringSplitOptions.RemoveEmptyEntries).SkipLast(1).ToList();
+        foreach (var segment in path.Split('/'))
+        {
+            if (segment == "..")
+            {
+                segments.RemoveAt(segments.Count - 1);
+            }
+            else if (segment is not ("" or "."))
+            {
+                segments.Add(segment);
+            }
+        }
+
+        return "/" + string.Join('/', segments);
+    }
+
+    private static List<string> Volumes(IReadOnlyList<string> command) =>
+        [.. command.Zip(command.Skip(1)).Where(pair => pair.First == "-v").Select(pair => pair.Second)];
+
+    [Fact]
+    public void DockerMountsTheSchemasAnExplicitConfigNamesOutsideItsDirectory()
+    {
+        // The config's relative paths are resolved against the config, which on the host lead out
+        // of the directory mounted for it.
+        using var directory = new TempDir();
+        directory.Write("conf/opencgmes.jsonc", """
+            {
+              // shared between projects
+              "cimvocabcheck": {
+                "schemasDirectory": "../schemas/cgmes3",
+                "schemas": ["../extra/x.rdf",],
+              },
+            }
+            """);
+        directory.Write("schemas/cgmes3/a.rdf", "");
+        directory.Write("extra/x.rdf", "");
+        directory.Write("proj/q.rq", "ASK {}");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "proj"));
+        var mounts = new List<VolumeMount>();
+
+        var config = engine.ResolveConfig("../conf/opencgmes.jsonc", null, mounts);
+        var command = engine.BuildCommand(["--config", config, "--", "q.rq"], false, null, mounts);
+
+        var root = RealDirectory(directory.Path);
+        Assert.Equal(
+            Path.Combine(root, "schemas", "cgmes3"),
+            SeenAs(command, WhereTheEngineLooks(config, "../schemas/cgmes3")));
+        Assert.Equal(
+            Path.Combine(root, "extra", "x.rdf"),
+            SeenAs(command, WhereTheEngineLooks(config, "../extra/x.rdf")));
+    }
+
+    [Fact]
+    public void DockerMountsTheSchemasADiscoveredConfigNamesOutsideItsDirectory()
+    {
+        using var directory = new TempDir();
+        directory.Write("repo/opencgmes.jsonc", """{"cimvocabcheck": {"schemasDirectory": "../profiles"}}""");
+        directory.Write("profiles/a.rdf", "");
+        directory.Write("repo/queries/q.rq", "ASK {}");
+
+        var command = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "repo", "queries"))
+            .BuildCommand(["--", "q.rq"], false, null);
+
+        var config = command[command.ToList().IndexOf("--config") + 1];
+        Assert.Equal(
+            Path.Combine(directory.Path, "profiles"),
+            SeenAs(command, WhereTheEngineLooks(config, "../profiles")));
+    }
+
+    [Fact]
+    public void DockerMountsWhatAConfigInTheWorkingDirectoryNamesOutsideIt()
+    {
+        // The engine finds this config itself, at the mount, and resolves its paths from there.
+        using var directory = new TempDir();
+        directory.Write("proj/opencgmes.jsonc", """{"cimvocabcheck": {"schemasDirectory": "../shared"}}""");
+        directory.Write("shared/a.rdf", "");
+
+        var command = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "proj"))
+            .BuildCommand(["--", "q.rq"], false, null);
+
+        Assert.DoesNotContain("--config", command);
+        Assert.Equal(
+            Path.Combine(directory.Path, "shared"),
+            SeenAs(command, WhereTheEngineLooks("/work/opencgmes.jsonc", "../shared")));
+    }
+
+    [Fact]
+    public void DockerMountsAnAbsoluteSchemaPathAConfigNamesWhereItIs()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "a Windows path means nothing inside the container");
+        using var directory = new TempDir();
+        var absolute = Path.Combine(directory.Path, "abs");
+        Directory.CreateDirectory(absolute);
+        directory.Write(
+            "proj/opencgmes.jsonc",
+            $$$"""{"cimvocabcheck": {"schemasDirectory": "{{{absolute}}}"}}""");
+
+        var command = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "proj"))
+            .BuildCommand(["--", "q.rq"], false, null);
+
+        Assert.Equal(absolute, SeenAs(command, absolute));
+    }
+
+    [Fact]
+    public void DockerAddsNothingForConfigPathsInsideTheWorkingDirectory()
+    {
+        using var directory = new TempDir();
+        directory.Write("opencgmes.jsonc", """{"cimvocabcheck": {"schemasDirectory": "profiles"}}""");
+        directory.Write("profiles/a.rdf", "");
+
+        var command = new DockerEngine("cvc:test", "docker", directory.Path).BuildCommand(["--", "q.rq"], false, null);
+
+        Assert.Equal([$"{directory.Path}:/work"], Volumes(command));
+    }
+
+    [Theory]
+    [InlineData("""{"cimvocabcheck": {"schemasDirectory": "../missing"}}""")]
+    [InlineData("{ this is not json")]
+    [InlineData("""{"cimvocabcheck": {"schemasDirectory": 3, "schemas": "x"}}""")]
+    [InlineData("[]")]
+    public void AConfigWhosePathsCannotBeUsedIsLeftToTheEngine(string text)
+    {
+        // The engine reports a missing schema or a broken config itself; binding a missing path
+        // would make Docker create an empty directory in its place.
+        using var directory = new TempDir();
+        directory.Write("proj/opencgmes.jsonc", text);
+        var project = Path.Combine(directory.Path, "proj");
+
+        var command = new DockerEngine("cvc:test", "docker", project).BuildCommand(["--", "q.rq"], false, null);
+
+        Assert.Equal([$"{project}:/work"], Volumes(command));
+    }
+
+    [Fact]
+    public void DockerRefusesAConfigPathItWouldHaveToMountOverTheImage()
+    {
+        // ../usr from a config at /work is the container's own /usr.
+        using var directory = new TempDir();
+        directory.Write("proj/opencgmes.jsonc", """{"cimvocabcheck": {"schemasDirectory": "../usr"}}""");
+        directory.Write("usr/a.rdf", "");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "proj"));
+
+        var error = Assert.Throws<CimVocabCheckException>(() => engine.BuildCommand(["--", "q.rq"], false, null));
+
+        Assert.Contains("/usr", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ContainerPathsMirrorTheHostPathUnderOneDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal("/host/C/repo/profiles", DockerEngine.ContainerPath(@"C:\repo\profiles"));
+        }
+        else
+        {
+            Assert.Equal("/host/srv/repo/profiles", DockerEngine.ContainerPath("/srv/repo/profiles"));
+        }
     }
 
     /// <summary>The temp root may sit behind a symlink (macOS /var → /private/var).</summary>

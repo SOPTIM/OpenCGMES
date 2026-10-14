@@ -180,20 +180,24 @@ fn a_query_in_memory_is_validated_over_stdin() {
 }
 
 #[test]
-fn a_non_ascii_input_name_is_read_under_a_c_locale() {
-    // Containers and CI images often run with no locale, in which a JVM cannot open `ü.rq`.
-    with_engine(|workspace, options| {
-        let input = workspace.write("übersicht.rq", CLEAN_QUERY);
-        let mut env: HashMap<String, String> = std::env::vars()
-            .filter(|(name, _)| !name.starts_with("LC_") && name != "LANG")
-            .collect();
-        env.insert("LC_ALL".into(), "C".into());
+fn a_non_ascii_input_name_is_read_under_an_ascii_only_locale() {
+    // Containers and CI images often run with no usable locale, in which a JVM cannot open
+    // `ü.rq`: none, or one that is named but never installed, for which the C library falls back
+    // to C in every category.
+    for (variable, locale) in [("LC_ALL", "C"), ("LANG", "xx_XX.UTF-8")] {
+        with_engine(|workspace, options| {
+            let input = workspace.write("übersicht.rq", CLEAN_QUERY);
+            let mut env: HashMap<String, String> = std::env::vars()
+                .filter(|(name, _)| !name.starts_with("LC_") && name != "LANG")
+                .collect();
+            env.insert(variable.into(), locale.into());
 
-        let report = validate(&[input], &options.env(env)).expect("a report");
+            let report = validate(&[input], &options.env(env)).expect("a report");
 
-        assert!(report.ok(), "{:?}", report.results);
-        assert_eq!(report.results[0].file, "übersicht.rq");
-    });
+            assert!(report.ok(), "{variable}={locale}: {:?}", report.results);
+            assert_eq!(report.results[0].file, "übersicht.rq");
+        });
+    }
 }
 
 #[test]
