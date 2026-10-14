@@ -27,9 +27,11 @@ import pytest
 
 from cimvocabcheck import (
     BinaryEngine,
+    CimVocabCheckError,
     DockerEngine,
     EngineNotFoundError,
     JarEngine,
+    UnreachablePathError,
     discover,
     runtime,
 )
@@ -309,9 +311,11 @@ def test_docker_refuses_a_path_it_could_not_mount(tmp_path):
     engine = DockerEngine(cwd=tmp_path / "project")
     (tmp_path / "project").mkdir()
 
-    with pytest.raises(ValueError) as raised:
+    with pytest.raises(CimVocabCheckError) as raised:
         engine.resolve_path(str(tmp_path / "elsewhere" / "q.rq"))
 
+    assert isinstance(raised.value, UnreachablePathError)
+    assert isinstance(raised.value, ValueError), "what earlier versions raised"
     assert "outside the working directory" in str(raised.value)
 
 

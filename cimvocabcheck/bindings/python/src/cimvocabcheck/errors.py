@@ -47,6 +47,13 @@ class EngineNotFoundError(CimVocabCheckError):
         super().__init__(message)
 
 
+class UnreachablePathError(CimVocabCheckError, ValueError):
+    """An input lies where the engine cannot read it: outside the Docker engine's mount.
+
+    Also a :class:`ValueError`, which is what earlier versions raised.
+    """
+
+
 class ToolError(CimVocabCheckError):
     """The engine ran but did not deliver a usable report.
 

@@ -33,7 +33,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Union
 
-from .errors import EngineNotFoundError
+from .errors import EngineNotFoundError, UnreachablePathError
 
 #: Executable the engine installs as, looked up on ``PATH``.
 BINARY_NAME = "cimvocabcheck"
@@ -206,7 +206,7 @@ class DockerEngine(Engine):
                 return inside.relative_to(root).as_posix()
             except ValueError:
                 continue
-        raise ValueError(
+        raise UnreachablePathError(
             f"{path!r} is outside the working directory {mount}, which is the only path "
             "the Docker engine mounts. Pass paths relative to the working directory, run "
             "from a directory that contains them, or configure a local engine "

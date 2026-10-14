@@ -54,6 +54,7 @@ from .errors import (
     EngineTimeoutError,
     ReportParseError,
     ToolError,
+    UnreachablePathError,
 )
 from .runtime import BinaryEngine, DockerEngine, Engine, JarEngine, discover
 
@@ -87,6 +88,7 @@ __all__ = [
     "TURTLE_SUFFIXES",
     "Tool",
     "ToolError",
+    "UnreachablePathError",
     "__version__",
     "build_args",
     "discover",

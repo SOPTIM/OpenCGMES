@@ -129,6 +129,7 @@ python -m cimvocabcheck --print-engine     # which engine would be used here
 | `ToolError` | the engine reported a usage/config failure (exit 2), or failed outright |
 | `ReportParseError` | output was not a report of the contract major this binding targets |
 | `EngineTimeoutError` | `timeout` elapsed |
+| `UnreachablePathError` | an input lies outside the Docker engine's mount (also a `ValueError`) |
 
 `ToolError` carries `argv`, `returncode`, `stdout` and `stderr`, so a CI log can show what
 actually happened.
