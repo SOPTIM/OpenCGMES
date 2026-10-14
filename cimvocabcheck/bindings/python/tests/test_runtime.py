@@ -146,6 +146,7 @@ def test_an_engine_installed_where_python_keeps_its_scripts_is_found(directory, 
     an engine, and also where some interpreter keeps its console scripts. Only a copy of the shim
     may be skipped, never the directory."""
     candidate = os.path.join(directory, "cimvocabcheck")
+
     def which(name, path=None):
         return candidate if name == "cimvocabcheck" and path == directory else None
 

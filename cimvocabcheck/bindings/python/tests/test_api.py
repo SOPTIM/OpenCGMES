@@ -198,7 +198,7 @@ def test_a_usage_error_is_raised_with_the_engines_own_complaint():
 
 
 def test_an_undocumented_exit_code_is_reported_as_an_engine_failure():
-    engine = ScriptedEngine(stderr="Exception in thread \"main\"\n", code=137)
+    engine = ScriptedEngine(stderr='Exception in thread "main"\n', code=137)
 
     with pytest.raises(ToolError) as raised:
         validate(["q.rq"], engine=engine)
@@ -299,9 +299,7 @@ def test_results_are_addressed_by_the_names_the_caller_used_even_when_the_engine
         def resolve_path(self, path, cwd=None):
             return path.removeprefix("./")
 
-    results = [
-        {"file": name, "valid": True, "annotations": []} for name in ("q.rq", "other.rq")
-    ]
+    results = [{"file": name, "valid": True, "annotations": []} for name in ("q.rq", "other.rq")]
     engine = Rewriting(stdout=report_json(results=results))
 
     report = validate(["./q.rq", "other.rq"], engine=engine)

@@ -28,7 +28,7 @@ report = validate(["queries/line-segments.rq", "shapes/equipment.ttl"], schema="
 
 if not report.ok:
     for finding in report.errors:
-        print(finding)            # queries/line-segments.rq:3:12: ERROR[UNKNOWN_CLASS] Class …
+        print(finding)  # queries/line-segments.rq:3:12: ERROR[UNKNOWN_CLASS] Class …
 ```
 
 Findings are **data, not exceptions**: a file with errors comes back as a report whose `ok` is
@@ -49,13 +49,13 @@ Spawning the engine once per file turns a one-second job into a one-second-per-f
 ### Reading the report
 
 ```python
-report.ok                      # no input has an ERROR
-report.summary.errors          # counts, matching exactly what this report contains
-report.results                 # one FileResult per input, in the order they were passed
-report.errors                  # flat findings, each carrying the file it came from
+report.ok  # no input has an ERROR
+report.summary.errors  # counts, matching exactly what this report contains
+report.results  # one FileResult per input, in the order they were passed
+report.errors  # flat findings, each carrying the file it came from
 report.findings(code=Code.UNKNOWN_CLASS)
 report.for_file("queries/line-segments.rq")
-report.tool.version            # which engine produced this
+report.tool.version  # which engine produced this
 ```
 
 Each finding carries `severity`, `code`, `message`, and — when the engine could resolve them —
@@ -75,13 +75,14 @@ typos = report.findings(code=Code.UNKNOWN_CLASS) + report.findings(code=Code.UNK
 ```python
 validate(
     paths,
-    schema="profiles/",        # RDFS file(s) or directories; or …
+    schema="profiles/",  # RDFS file(s) or directories; or …
     config="opencgmes.jsonc",  # … a config file; or …
-    endpoint="http://localhost:3030/ds/query",   # … a SPARQL endpoint
+    endpoint="http://localhost:3030/ds/query",  # … a SPARQL endpoint
     profiles=["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"],
-    strictness="strict",       # permissive | default | strict | pedantic
-    verbose=True,              # include WARN/INFO — the default here, unlike the CLI
-    cwd="…", timeout=120,
+    strictness="strict",  # permissive | default | strict | pedantic
+    verbose=True,  # include WARN/INFO — the default here, unlike the CLI
+    cwd="…",
+    timeout=120,
 )
 ```
 

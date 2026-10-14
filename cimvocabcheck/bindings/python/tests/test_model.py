@@ -54,15 +54,17 @@ def test_reads_every_documented_field():
     assert (annotation.line, annotation.column) == (3, 12)
     assert annotation.term.endswith("ACLineSegmentt")
     assert annotation.graph == "http://example.org/graph"
-    assert annotation.found_in_other_profiles == (
-        "http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0",
-    )
+    assert annotation.found_in_other_profiles == ("http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0",)
 
 
 def test_omitted_optional_fields_are_none_not_missing():
-    annotation = Report.from_dict(
-        one_result({"severity": "WARN", "code": "UNUSED_VARIABLE", "message": "x"})
-    ).results[0].annotations[0]
+    annotation = (
+        Report.from_dict(
+            one_result({"severity": "WARN", "code": "UNUSED_VARIABLE", "message": "x"})
+        )
+        .results[0]
+        .annotations[0]
+    )
 
     assert annotation.line is None
     assert annotation.column is None
@@ -83,9 +85,13 @@ def test_unknown_fields_are_kept_rather_than_rejected():
 
 def test_unknown_code_is_a_finding_not_an_error():
     """New rule codes ship in minor versions — an unrecognised one must still parse."""
-    annotation = Report.from_dict(
-        one_result({"severity": "ERROR", "code": "A_RULE_FROM_THE_FUTURE", "message": "x"})
-    ).results[0].annotations[0]
+    annotation = (
+        Report.from_dict(
+            one_result({"severity": "ERROR", "code": "A_RULE_FROM_THE_FUTURE", "message": "x"})
+        )
+        .results[0]
+        .annotations[0]
+    )
 
     assert annotation.code == "A_RULE_FROM_THE_FUTURE"
     assert annotation.is_error
@@ -145,7 +151,7 @@ def test_newer_contract_minor_is_accepted():
 
 def test_output_that_is_not_json_is_a_parse_error():
     with pytest.raises(ReportParseError) as raised:
-        parse_report("Exception in thread \"main\" java.lang.NoClassDefFoundError\n")
+        parse_report('Exception in thread "main" java.lang.NoClassDefFoundError\n')
 
     assert "not JSON" in str(raised.value)
 
@@ -187,9 +193,11 @@ def test_finding_renders_as_a_compiler_style_line():
 
 
 def test_location_omits_positions_the_engine_could_not_resolve():
-    annotation = Report.from_dict(
-        one_result({"severity": "ERROR", "code": "SYNTAX_ERROR", "message": "x"})
-    ).results[0].annotations[0]
+    annotation = (
+        Report.from_dict(one_result({"severity": "ERROR", "code": "SYNTAX_ERROR", "message": "x"}))
+        .results[0]
+        .annotations[0]
+    )
 
     assert annotation.location("q.rq") == "q.rq"
 

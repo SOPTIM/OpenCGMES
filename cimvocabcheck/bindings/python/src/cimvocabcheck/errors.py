@@ -40,9 +40,7 @@ class EngineNotFoundError(CimVocabCheckError):
     def __init__(self, message: str, searched: Sequence[str] = ()) -> None:
         self.searched = tuple(searched)
         if self.searched:
-            listing = "\n".join(
-                f"  {i}. {where}" for i, where in enumerate(self.searched, start=1)
-            )
+            listing = "\n".join(f"  {i}. {where}" for i, where in enumerate(self.searched, start=1))
             message = f"{message}\nSearched, in order:\n{listing}"
         super().__init__(message)
 

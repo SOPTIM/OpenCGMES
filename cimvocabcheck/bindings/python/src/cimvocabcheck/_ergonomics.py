@@ -147,9 +147,7 @@ class ReportMixin:
         return tuple(
             finding
             for result in self.results
-            for finding in result.findings(
-                severity=severity, code=code, min_severity=min_severity
-            )
+            for finding in result.findings(severity=severity, code=code, min_severity=min_severity)
         )
 
     @property

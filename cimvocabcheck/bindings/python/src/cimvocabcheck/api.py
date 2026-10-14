@@ -346,8 +346,7 @@ def _run(
 
     if completed.returncode == EXIT_USAGE:
         raise ToolError(
-            "the engine failed (usage, configuration or internal error); no report was "
-            "produced.",
+            "the engine failed (usage, configuration or internal error); no report was produced.",
             argv=argv,
             returncode=completed.returncode,
             stdout=completed.stdout,

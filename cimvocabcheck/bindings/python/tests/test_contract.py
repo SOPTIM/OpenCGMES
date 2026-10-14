@@ -30,12 +30,10 @@ from pathlib import Path
 import pytest
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
-VENDORED_SCHEMA = PACKAGE_ROOT / "src" / "cimvocabcheck" / "schemas" / (
-    "cimvocabcheck-report-1.schema.json"
+VENDORED_SCHEMA = (
+    PACKAGE_ROOT / "src" / "cimvocabcheck" / "schemas" / "cimvocabcheck-report-1.schema.json"
 )
-CANONICAL_SCHEMA = (
-    PACKAGE_ROOT.parent.parent / "schemas" / "cimvocabcheck-report-1.schema.json"
-)
+CANONICAL_SCHEMA = PACKAGE_ROOT.parent.parent / "schemas" / "cimvocabcheck-report-1.schema.json"
 # One generator serves every binding, so it lives beside them rather than inside this package;
 # an installed distribution therefore has the model but not the tool that produced it.
 GENERATOR = PACKAGE_ROOT.parent / "codegen" / "generate_models.py"
