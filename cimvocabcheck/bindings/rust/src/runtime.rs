@@ -26,7 +26,8 @@ use std::env;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crate::error::{Error, Result};
 
@@ -57,6 +58,9 @@ pub const ENV_BIN: &str = "CIMVOCABCHECK_BIN";
 pub const ENV_IMAGE: &str = "CIMVOCABCHECK_DOCKER_IMAGE";
 /// Environment variable that takes the Docker fallback out of the chain when set.
 pub const ENV_NO_DOCKER: &str = "CIMVOCABCHECK_NO_DOCKER";
+
+/// How long [`Engine::abandon`] waits for `docker rm` before leaving the container behind.
+const ABANDON_LIMIT: Duration = Duration::from_secs(30);
 
 /// A way to invoke CIMVocabCheck.
 ///
@@ -199,6 +203,18 @@ impl Engine {
     /// Only the Docker engine leaves anything behind: killing `docker run` stops the client, not
     /// the container. Best effort — the failure that caused the kill matters more.
     pub fn abandon(&self, argv: &[String], env: Option<&HashMap<String, String>>) {
+        self.abandon_within(argv, env, ABANDON_LIMIT);
+    }
+
+    /// [`Engine::abandon`], giving up on the cleanup after `limit`: a Docker daemon that stopped
+    /// responding is a likely reason the run was killed, and a timeout that then waits on that
+    /// daemon is not a timeout.
+    fn abandon_within(
+        &self,
+        argv: &[String],
+        env: Option<&HashMap<String, String>>,
+        limit: Duration,
+    ) {
         let Self::Docker { docker, .. } = self else {
             return;
         };
@@ -218,7 +234,21 @@ impl Engine {
         if let Some(env) = env {
             command.env_clear().envs(env);
         }
-        let _ = command.status();
+        let Ok(mut child) = command.spawn() else {
+            return;
+        };
+        let deadline = Instant::now() + limit;
+        loop {
+            match child.try_wait() {
+                Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(20)),
+                Ok(None) => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return;
+                }
+                Ok(Some(_)) | Err(_) => return,
+            }
+        }
     }
 
     /// A one-line description, for diagnostics and error messages.
@@ -487,4 +517,37 @@ fn truthy(value: Option<&str>) -> bool {
             "" | "0" | "false" | "no"
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn abandoning_a_run_gives_up_on_a_docker_that_does_not_answer() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = env::temp_dir().join(format!("cimvocabcheck-abandon-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let docker = dir.join("docker");
+        std::fs::write(&docker, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        std::fs::set_permissions(&docker, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let engine = Engine::Docker {
+            image: "cvc:test".into(),
+            docker,
+            cwd: dir.clone(),
+        };
+        let argv = engine.command(&[], false, None);
+
+        let started = Instant::now();
+        engine.abandon_within(&argv, None, Duration::from_millis(200));
+
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "{:?}",
+            started.elapsed()
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
