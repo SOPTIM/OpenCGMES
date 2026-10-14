@@ -72,7 +72,7 @@
         <ver.jena>6.2.0</ver.jena>
 
         <!-- XML -->
-        <ver.stax2-api>4.3.1</ver.stax2-api>
+        <ver.stax2-api>4.3.2</ver.stax2-api>
         <ver.aalto-xml>1.4.0</ver.aalto-xml>
         <ver.woodstox-core>7.3.0</ver.woodstox-core>
 
@@ -95,14 +95,14 @@
         <ver.plugin.source>3.4.0</ver.plugin.source>
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
-        <ver.plugin.central-publishing>0.11.0</ver.plugin.central-publishing>
+        <ver.plugin.central-publishing>0.12.0</ver.plugin.central-publishing>
         <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
 
         <!-- TODO REMOVE THIS -->
         <cimxml.license.skip>true</cimxml.license.skip>
 
         <!-- Static analysis plugins -->
-        <ver.plugin.spotbugs-maven-plugin>4.10.4.1</ver.plugin.spotbugs-maven-plugin>
+        <ver.plugin.spotbugs-maven-plugin>4.10.5.0</ver.plugin.spotbugs-maven-plugin>
         <ver.plugin.maven-checkstyle-plugin>3.6.0</ver.plugin.maven-checkstyle-plugin>
         <ver.plugin.maven-jxr-plugin>3.6.0</ver.plugin.maven-jxr-plugin>
         <ver.plugin.cyclonedx-maven-plugin>2.9.3</ver.plugin.cyclonedx-maven-plugin>
