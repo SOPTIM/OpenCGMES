@@ -82,13 +82,13 @@
         <ver.plugin.source>3.4.0</ver.plugin.source>
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
-        <ver.plugin.central-publishing>0.11.0</ver.plugin.central-publishing>
+        <ver.plugin.central-publishing>0.12.0</ver.plugin.central-publishing>
         <ver.plugin.exec>3.6.4</ver.plugin.exec>
 
         <!-- Static analysis / formatting plugins -->
-        <ver.plugin.spotless>3.10.3</ver.plugin.spotless>
+        <ver.plugin.spotless>3.10.4</ver.plugin.spotless>
         <ver.googleJavaFormat>1.35.0</ver.googleJavaFormat>
-        <ver.plugin.spotbugs>4.10.4.1</ver.plugin.spotbugs>
+        <ver.plugin.spotbugs>4.10.5.0</ver.plugin.spotbugs>
         <ver.plugin.checkstyle-plugin>3.6.0</ver.plugin.checkstyle-plugin>
         <ver.checkstyle>14.3.0</ver.checkstyle>
         <ver.plugin.pmd>3.28.0</ver.plugin.pmd>
