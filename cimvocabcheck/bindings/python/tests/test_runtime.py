@@ -408,6 +408,47 @@ def test_docker_mounts_a_config_that_lies_above_the_working_directory(tmp_path):
     ]
 
 
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["explain", "q.rq"], ["explain", "--config", "{config}", "q.rq"]),
+        (
+            ["--format", "json", "explain", "q.rq"],
+            ["--format", "json", "explain", "--config", "{config}", "q.rq"],
+        ),
+        (["--format", "explain", "q.rq"], ["--config", "{config}", "--format", "explain", "q.rq"]),
+        (["--", "explain"], ["--config", "{config}", "--", "explain"]),
+    ],
+)
+def test_docker_hands_a_config_above_the_mount_to_the_command_that_reads_it(
+    tmp_path, args, expected
+):
+    """A flag before a subcommand belongs to the top level: ``explain`` would discover nothing and
+    explain without the schema."""
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    engine = DockerEngine(cwd=tmp_path / "sub")
+    config = f"{runtime.container_path(tmp_path.resolve())}/opencgmes.jsonc"
+
+    command = engine.command(args)
+
+    assert command[command.index(engine.image) + 1 :] == [
+        config if part == "{config}" else part for part in expected
+    ]
+
+
+@pytest.mark.parametrize("args", [["init", "--dir", "."], ["help", "explain"]])
+def test_docker_hands_no_config_to_a_subcommand_that_reads_no_schema(tmp_path, args):
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    engine = DockerEngine(cwd=tmp_path / "sub")
+
+    command = engine.command(args)
+
+    assert command[command.index(engine.image) + 1 :] == args
+    assert not any(part.endswith(":ro") for part in command)
+
+
 def test_docker_prefers_the_jsonc_config_like_the_engine_does(tmp_path):
     for name in ("opencgmes.json", "opencgmes.jsonc"):
         (tmp_path / name).write_text("{}", encoding="utf-8")

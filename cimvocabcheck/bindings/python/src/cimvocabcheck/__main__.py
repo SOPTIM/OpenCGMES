@@ -30,37 +30,19 @@ import sys
 from collections.abc import Callable, Sequence
 
 from .errors import CimVocabCheckError
-from .runtime import DockerEngine, Mount, discover, shim_environment
+from .runtime import (
+    SUBCOMMANDS,
+    VALUE_OPTIONS,
+    DockerEngine,
+    Mount,
+    discover,
+    shim_environment,
+)
 
 #: Reports which engine was discovered and exits, without running a validation.
 PRINT_ENGINE_FLAG = "--print-engine"
 
 USAGE_EXIT = 2
-
-#: The engine's subcommands. Each takes options of its own; the top level is under ``None``.
-_SUBCOMMANDS = ("explain", "init", "help")
-
-#: Per command, the options that take a value, and which of those values are paths: ``config``,
-#: ``schema`` and ``path`` (anything else, as ``-f`` for ``--format``, is passed through as is).
-#: ``-f`` is a flag of ``init`` (``--force``), which is why this cannot be one table.
-_VALUE_OPTIONS: dict[str | None, dict[str, str | None]] = {
-    None: {
-        "-c": "config",
-        "--config": "config",
-        "-s": "schema",
-        "--schema": "schema",
-        "-e": None,
-        "--endpoint": None,
-        "-p": None,
-        "--profile": None,
-        "-f": None,
-        "--format": None,
-        "--strictness": None,
-    },
-    "explain": {"-c": "config", "--config": "config", "-s": "schema", "--schema": "schema"},
-    "init": {"-d": "path", "--dir": "path"},
-    "help": {},
-}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -110,13 +92,13 @@ def docker_arguments(engine: DockerEngine, args: Sequence[str], mounts: list[Mou
     inputs_only = False
     positional = False
     for arg in args:
-        options = _VALUE_OPTIONS[command]
+        options = VALUE_OPTIONS[command]
         if pending is not None:
             out.append(pending(arg))
             pending = None
         elif inputs_only or arg == "-" or not arg.startswith("-"):
             # A subcommand can only be the first word that is not an option.
-            if not inputs_only and not positional and arg in _SUBCOMMANDS:
+            if not inputs_only and not positional and arg in SUBCOMMANDS:
                 command = arg
                 out.append(arg)
             else:

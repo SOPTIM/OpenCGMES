@@ -81,6 +81,34 @@ Mount = tuple[Path, str]
 #: Config file names the engine discovers, in the order it prefers them.
 CONFIG_FILENAMES = ("opencgmes.jsonc", "opencgmes.json")
 
+#: The engine's subcommands. Each takes options of its own; the top level is under ``None``.
+SUBCOMMANDS = ("explain", "init", "help")
+
+#: Per command, the options that take a value, and which of those values are paths: ``config``,
+#: ``schema`` and ``path`` (anything else, as ``-f`` for ``--format``, is passed through as is).
+#: ``-f`` is a flag of ``init`` (``--force``), which is why this cannot be one table.
+VALUE_OPTIONS: dict[str | None, dict[str, str | None]] = {
+    None: {
+        "-c": "config",
+        "--config": "config",
+        "-s": "schema",
+        "--schema": "schema",
+        "-e": None,
+        "--endpoint": None,
+        "-p": None,
+        "--profile": None,
+        "-f": None,
+        "--format": None,
+        "--strictness": None,
+    },
+    "explain": {"-c": "config", "--config": "config", "-s": "schema", "--schema": "schema"},
+    "init": {"-d": "path", "--dir": "path"},
+    "help": {},
+}
+
+#: Subcommands that read no schema, so are handed no discovered config.
+_SCHEMALESS_SUBCOMMANDS = ("init", "help")
+
 #: Flags that name a schema source. When a call passes one, the engine does no config discovery.
 _SCHEMA_SOURCE_FLAGS = ("-c", "--config", "-s", "--schema", "-e", "--endpoint")
 
@@ -256,16 +284,21 @@ class DockerEngine(Engine):
             run.append("-i")
         run += ["-v", f"{mount}:{CONTAINER_WORKDIR}"]
         mounts = list(mounts)
-        config = None if _names_schema_source(args) else _nearest_config(mount)
+        subcommand = _subcommand_at(args)
+        schemaless = subcommand is not None and args[subcommand] in _SCHEMALESS_SUBCOMMANDS
+        config = None if schemaless or _names_schema_source(args) else _nearest_config(mount)
         if config is not None:
             if config.parent == mount:
                 seen = f"{CONTAINER_WORKDIR}/{config.name}"
             else:
                 # The engine discovers its config upward from the working directory, which inside
                 # the container stops at the mount: a config above it would be silently missed,
-                # leaving a syntax-only check that reports every query as valid.
+                # leaving a syntax-only check that reports every query as valid. The flag goes to
+                # the command that reads it: one placed before a subcommand belongs to the top
+                # level, and the subcommand would discover nothing.
                 seen = self._mount_config(config, mount, mounts)
-                args = ["--config", seen, *args]
+                at = 0 if subcommand is None else subcommand + 1
+                args = [*args[:at], "--config", seen, *args[at:]]
             self._mount_config_paths(config, seen, mount, mounts)
         for host, container in mounts:
             run += ["-v", f"{host}:{container}:ro"]
@@ -582,6 +615,27 @@ def _skip_jsonc_space(text: str, i: int) -> int:
         else:
             break
     return i
+
+
+def _subcommand_at(args: Sequence[str]) -> int | None:
+    """The index of the subcommand in ``args``, or ``None`` when they run the top-level command.
+
+    A subcommand can only be the first word that is neither an option nor an option's value.
+    """
+    takes_value = VALUE_OPTIONS[None]
+    pending = False
+    for index, arg in enumerate(args):
+        if pending:
+            pending = False
+        elif arg == "--":
+            return None
+        elif arg == "-" or not arg.startswith("-"):
+            return index if arg in SUBCOMMANDS else None
+        elif arg.startswith("--"):
+            pending = "=" not in arg and arg in takes_value
+        else:
+            pending = len(arg) == 2 and arg in takes_value
+    return None
 
 
 def _names_schema_source(args: Sequence[str]) -> bool:

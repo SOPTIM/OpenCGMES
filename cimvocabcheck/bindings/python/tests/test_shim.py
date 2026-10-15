@@ -130,3 +130,13 @@ def test_the_shim_passes_values_that_are_not_paths_through(docker):
     _, argv = docker(*args)
 
     assert engine_arguments(argv) == args
+
+
+def test_the_shim_hands_a_config_above_the_working_directory_to_explain(tmp_path, docker):
+    """``explain`` reads the schema too; a ``--config`` in front of it would go to the top level."""
+    (tmp_path / "opencgmes.jsonc").write_text("{}", encoding="utf-8")
+
+    _, argv = docker("explain", "q.rq")
+
+    mirror = runtime.container_path(tmp_path.resolve())
+    assert engine_arguments(argv) == ["explain", "--config", f"{mirror}/opencgmes.jsonc", "q.rq"]
