@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.core.shacl;
 
 import de.soptim.opencgmes.cimvocabcheck.core.ExemptVocabulary;
+import de.soptim.opencgmes.cimvocabcheck.core.HeaderVocabulary;
 import de.soptim.opencgmes.cimvocabcheck.core.IriFormat;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlQueryValidator;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
@@ -187,6 +188,7 @@ public final class ShaclShapeAnalyzer {
         shapesGraph, PROPERTY_PAIR_PREDICATES, scope, localDefs, deactivated, out);
     checkIgnoredProperties(shapesGraph, scope, localDefs, deactivated, out);
     checkVocabularyTerms(shapesGraph, checkStandardVocabulary, true, out);
+    checkHeaderTerms(shapesGraph, deactivated, out);
 
     return List.copyOf(out);
   }
@@ -256,6 +258,7 @@ public final class ShaclShapeAnalyzer {
       Graph shapesGraph, boolean checkStandardVocabulary) {
     var out = new ArrayList<SparqlValidationAnnotation>();
     checkVocabularyTerms(shapesGraph, checkStandardVocabulary, false, out);
+    checkHeaderTerms(shapesGraph, collectDeactivatedShapes(shapesGraph), out);
     return List.copyOf(out);
   }
 
@@ -263,9 +266,10 @@ public final class ShaclShapeAnalyzer {
    * Flags typos in closed standard vocabularies ({@code rdf}/{@code rdfs}/{@code owl}/{@code sh})
    * used anywhere in the shapes graph — in subject, predicate or object position — e.g. {@code
    * sh:minCountt}, {@code sh:NodeShap}, {@code sh:nodeKind sh:IRII}, {@code sh:severity
-   * sh:Violatio}. Each distinct unknown term is reported once. Known terms, curated header
-   * extensions ({@code rdf:Statements.subject}), open namespaces (xsd, dcterms, …) and CIM terms
-   * are left alone; the latter are validated by the targeted shape checks above.
+   * sh:Violatio}. Each distinct unknown term is reported once. Known terms, the non-standard header
+   * terms ({@code rdf:Statements.subject}, see {@link #checkHeaderTerms}), open namespaces (xsd,
+   * dcterms, …) and CIM terms are left alone; the latter are validated by the targeted shape checks
+   * above.
    *
    * <p>Terms occupying {@code sh:targetClass}/{@code sh:class} object position or a {@code sh:path}
    * leaf are already validated (and, when they are typos, reported) by the targeted checks in the
@@ -295,6 +299,69 @@ public final class ShaclShapeAnalyzer {
     } finally {
       closeQuietly(it);
     }
+  }
+
+  /**
+   * Warns about the non-standard 552 header terms ({@link HeaderVocabulary}) wherever a shape uses
+   * them — in {@code sh:path}, {@code sh:in}, {@code sh:class} or any other predicate or object
+   * position. Each term is reported once per owning shape, so every shape that can never match is
+   * marked; deactivated shapes are skipped. Subject position is ignored: it declares a term rather
+   * than using it. Schema-independent.
+   */
+  private static void checkHeaderTerms(
+      Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
+    var seen = new HashSet<List<Node>>();
+    var it = g.find(Node.ANY, Node.ANY, Node.ANY);
+    try {
+      while (it.hasNext()) {
+        Triple t = it.next();
+        for (Node term : List.of(t.getPredicate(), t.getObject())) {
+          if (!HeaderVocabulary.isHeaderTerm(term)) {
+            continue;
+          }
+          Node owner = owningShape(g, t.getSubject());
+          if (deactivated.contains(owner) || !seen.add(List.of(term, owner))) {
+            continue;
+          }
+          out.add(
+              new SparqlValidationAnnotation(
+                  SparqlValidationSeverity.WARN,
+                  null,
+                  null,
+                  HeaderVocabulary.message(term),
+                  SparqlValidationCode.NON_STANDARD_HEADER_TERM,
+                  term,
+                  List.of(),
+                  List.of(),
+                  null,
+                  resolveHintNode(g, owner)));
+        }
+      }
+    } finally {
+      closeQuietly(it);
+    }
+  }
+
+  /**
+   * Climbs from {@code node} out of the anonymous structure it belongs to — RDF list cells of an
+   * {@code sh:in} or {@code sh:path} sequence, {@code sh:inversePath} nodes and the like — to the
+   * shape holding it: the first URI node, or the first blank node carrying an {@code sh:path}.
+   */
+  private static Node owningShape(Graph g, Node node) {
+    Node cur = node;
+    var visited = new HashSet<Node>();
+    while (cur.isBlank() && !g.contains(cur, Shacl.PATH, Node.ANY) && visited.add(cur)) {
+      var it = g.find(Node.ANY, Node.ANY, cur);
+      try {
+        if (!it.hasNext()) {
+          break;
+        }
+        cur = it.next().getSubject();
+      } finally {
+        closeQuietly(it);
+      }
+    }
+    return cur;
   }
 
   /**
@@ -717,9 +784,9 @@ public final class ShaclShapeAnalyzer {
         g,
         path,
         uri -> {
-          // sh:path values name data properties (CIM properties, or curated header extensions such
-          // as the CIM-552 header's rdf:Statements.subject). Accept known standard/open/header
-          // terms, local definitions and genuine CIM properties; report a closed-namespace typo
+          // sh:path values name data properties. Accept known standard/open terms, local
+          // definitions and genuine CIM properties; header terms such as rdf:Statements.subject are
+          // not missing either (checkHeaderTerms warns about them). Report a closed-namespace typo
           // (e.g. sh:path rdf:typ) as a vocabulary term; report an unknown CIM term as missing.
           Classification kind = termResolver.classify(uri, Role.PROPERTY, scope, localDefs);
           if (TermResolver.isAccepted(kind, Role.PROPERTY)) {

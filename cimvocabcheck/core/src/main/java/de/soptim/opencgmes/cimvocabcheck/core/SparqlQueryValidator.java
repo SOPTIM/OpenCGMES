@@ -317,6 +317,10 @@ public final class SparqlQueryValidator {
       Collection<VersionIri> selected = scopeProfiles(scope, c.graph());
       TermResolver.Classification kind =
           termResolver.classify(c.classNode(), TermResolver.Role.CLASS, selected, null);
+      if (kind == TermResolver.Classification.HEADER_EXTENSION) {
+        addHeaderTermAnnotation(annotations, c.classNode(), c.graph(), original, prefixes);
+        continue;
+      }
       if (TermResolver.isAccepted(kind, TermResolver.Role.CLASS)) {
         continue;
       }
@@ -357,6 +361,10 @@ public final class SparqlQueryValidator {
       Collection<VersionIri> selected = scopeProfiles(scope, p.graph());
       TermResolver.Classification kind =
           termResolver.classify(p.propertyNode(), TermResolver.Role.PROPERTY, selected, null);
+      if (kind == TermResolver.Classification.HEADER_EXTENSION) {
+        addHeaderTermAnnotation(annotations, p.propertyNode(), p.graph(), original, prefixes);
+        continue;
+      }
       if (TermResolver.isAccepted(kind, TermResolver.Role.PROPERTY)) {
         continue;
       }
@@ -425,8 +433,9 @@ public final class SparqlQueryValidator {
    * reported as an unknown vocabulary term; a constant compared against a variable whose property
    * context is an enumeration is checked for membership ({@link
    * SparqlValidationCode#INVALID_ENUM_VALUE}); a constant unknown to every schema index is reported
-   * as a warning ({@link SparqlValidationCode#UNKNOWN_TERM_IN_EXPRESSION}). Standard, open, header
-   * and already-known terms are accepted.
+   * as a warning ({@link SparqlValidationCode#UNKNOWN_TERM_IN_EXPRESSION}); a non-standard header
+   * term gets its own warning ({@link SparqlValidationCode#NON_STANDARD_HEADER_TERM}). Standard,
+   * open and already-known terms are accepted.
    */
   private void validateConstant(
       ConstantReference cr,
@@ -441,8 +450,12 @@ public final class SparqlQueryValidator {
       addVocabularyAnnotation(annotations, c, cr.graph(), original, prefixes);
       return;
     }
+    if (vocab == TermResolver.Classification.HEADER_EXTENSION) {
+      addHeaderTermAnnotation(annotations, c, cr.graph(), original, prefixes);
+      return;
+    }
     if (vocab != null) {
-      return; // known standard / open annotation / header extension — accept
+      return; // known standard / open annotation term — accept
     }
 
     Collection<VersionIri> selected = scopeProfiles(scope, cr.graph());
@@ -571,6 +584,25 @@ public final class SparqlQueryValidator {
             original,
             prefixes,
             "<" + term.getURI() + "> is not a term in the " + vocab + " vocabulary."));
+  }
+
+  private static void addHeaderTermAnnotation(
+      List<SparqlValidationAnnotation> annotations,
+      Node term,
+      Node graph,
+      String original,
+      PrefixMapping prefixes) {
+    annotations.add(
+        buildAnnotation(
+            SparqlValidationSeverity.WARN,
+            SparqlValidationCode.NON_STANDARD_HEADER_TERM,
+            term,
+            graph,
+            List.of(),
+            List.of(),
+            original,
+            prefixes,
+            HeaderVocabulary.message(term)));
   }
 
   // ---- message rendering -----------------------------------------------------------------
