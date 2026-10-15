@@ -71,7 +71,7 @@ def _as_paths(value: None | PathLike | Iterable[PathLike]) -> list[str]:
     """Normalises one path or an iterable of them.
 
     A bare ``str`` is a single path, never an iterable of characters — getting that wrong turns
-    ``validate("q.rq")`` into eight nonsense inputs.
+    ``validate("q.rq")`` into four nonsense inputs.
     """
     if value is None:
         return []

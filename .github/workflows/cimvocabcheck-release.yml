@@ -199,24 +199,13 @@ jobs:
             "cimvocabcheck/lsp/target/cimvocabcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
 
   # ---- Language bindings ---------------------------------------------------
-  # One job and one GitHub environment per registry. All three use OIDC trusted publishing:
-  # the job proves its identity to the registry with a short-lived GitHub token and receives a
-  # credential that expires in minutes, so there is no long-lived API token stored anywhere.
+  # One job and one GitHub environment per registry, all using OIDC trusted publishing (see
+  # docs/content/developer-guide/ci-and-releases.md). The environment name is part of each
+  # registry's policy, so renaming one breaks publishing. Job-level permissions replace the
+  # workflow default, so contents: read is repeated next to id-token: write.
   #
-  # The environment is part of that identity — each registry's trusted-publisher policy names
-  # this repository, this workflow file and the environment below, so a run from any other
-  # workflow, or the same workflow outside the environment, cannot mint a credential. Requiring
-  # a reviewer on the environment therefore gates the publish itself, not just the job.
-  #
-  # id-token: write is what lets the job request that GitHub token; job-level permissions
-  # replace the workflow default rather than adding to it, so contents: read is repeated.
-  #
-  # They depend only on validate-tag: a binding ships no Java, so it is not blocked by a Maven
-  # Central outage — same reasoning as the Docker image job.
-  #
-  # Each one rebuilds the engine from this tag and re-runs that binding's suite against it
-  # before publishing. A tag can point at a commit CI never saw, and none of these registries
-  # lets you take a version back.
+  # They depend only on validate-tag, like the Docker image job, and rebuild and re-test the
+  # engine from this tag before publishing: a tag can point at a commit CI never saw.
 
   # ---- PyPI (cimvocabcheck) ------------------------------------------------
   publish-pypi:

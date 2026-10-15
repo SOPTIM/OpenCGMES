@@ -121,7 +121,7 @@ internal sealed class TempDir : IDisposable
         }
         catch (IOException)
         {
-            // A test left something locked; the temp directory is the OS's problem now.
+            // Best effort: a file a test left locked stays in the temp directory.
         }
     }
 }

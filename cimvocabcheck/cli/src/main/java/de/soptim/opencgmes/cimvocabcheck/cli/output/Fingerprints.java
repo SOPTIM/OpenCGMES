@@ -33,9 +33,8 @@ import org.apache.jena.graph.Node;
  * <p>The fingerprint is shared by every machine-readable report format: one finding has one
  * identity regardless of which format it was rendered into.
  *
- * <p>An instance is scoped to a single report — it counts how many findings sharing the same
- * identity have already been emitted, so genuinely duplicate findings get distinct fingerprints
- * independent of the order they appear in.
+ * <p>An instance is scoped to a single report. It counts the findings already seen with the same
+ * identity, so repeated findings get distinct fingerprints that depend on report order.
  */
 final class Fingerprints {
 
@@ -54,17 +53,15 @@ final class Fingerprints {
   }
 
   /**
-   * The stable identity of a finding: file, rule and offending term. Deliberately excludes
+   * The stable identity of a finding: file, rule and offending term.
    *
-   * <ul>
-   *   <li>the position — otherwise an edit above an unchanged finding would close it and open a new
-   *       one in every consumer that tracks findings by fingerprint; repeated findings are told
-   *       apart by their occurrence index, which follows report order — source order, see {@code
-   *       ValidateCommand} — and so only shifts when an equal finding earlier in the same file
-   *       comes or goes;
-   *   <li>the rendered message — it is prose, and rewording it, or listing one more profile in
-   *       scope, must not turn the same finding into a new one.
-   * </ul>
+   * <p>The position is left out, so an edit above a finding does not turn it into a new one.
+   * Repeated findings are told apart by their occurrence index instead, which follows report order.
+   * {@code ValidateCommand} sorts that into source order, so the index only shifts when an equal
+   * finding earlier in the file comes or goes.
+   *
+   * <p>The message is left out too: rewording it, or listing one more profile, must not turn the
+   * same finding into a new one.
    */
   private static String identity(String path, SparqlValidationAnnotation a) {
     return String.join(" ", path, a.code().name(), termKey(a.term()));

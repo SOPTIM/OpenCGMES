@@ -116,7 +116,7 @@ impl Default for Options {
             strict_endpoint: false,
             profiles: Vec::new(),
             strictness: None,
-            // Not `bool::default()`: a library that silently drops warnings is a worse library.
+            // On by default; see the field's docs.
             verbose: true,
             engine: None,
             engine_path: None,
@@ -528,9 +528,8 @@ fn spawn(
                             ),
                             argv: command_line.to_vec(),
                             status: None,
-                            // Bounded, not blocking: a grandchild the engine spawned can hold
-                            // the pipe open long after the engine itself was killed, and a
-                            // timeout that waits for it is not a timeout.
+                            // Bounded: a grandchild the engine spawned can hold the pipe open
+                            // long after the engine itself was killed.
                             stdout: collect(&stdout, Some(GRACE)),
                             stderr: collect(&stderr, Some(GRACE)),
                         }));

@@ -94,9 +94,8 @@ public final class RdfsSchemaIndex implements SchemaIndex {
   private final Map<Node, List<VersionIri>> enumMemberToProfiles;
 
   private RdfsSchemaIndex(Map<VersionIri, ProfileSchema> profiles) {
-    // Ordered by IRI, so every profile list derived from here — the scope, where a term exists —
-    // reads the same whatever order the schema was loaded in. Map.copyOf would not do: the JDK
-    // randomises its iteration order per JVM, and findings would change from run to run.
+    // Ordered by IRI, so profile lists in findings do not depend on load order (or, with
+    // Map.copyOf, on the JVM run).
     var byIri = new LinkedHashMap<VersionIri, ProfileSchema>();
     profiles.entrySet().stream()
         .sorted(Map.Entry.comparingByKey(Comparator.comparing(VersionIri::iri)))

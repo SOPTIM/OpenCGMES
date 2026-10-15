@@ -24,7 +24,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 # No runtime dependencies on purpose: this package builds an argv, spawns a process and parses
-# JSON. A wrapper that drags a dependency tree into every CI image it runs in is a worse wrapper.
+# JSON.
 dependencies = []
 
 [project.optional-dependencies]

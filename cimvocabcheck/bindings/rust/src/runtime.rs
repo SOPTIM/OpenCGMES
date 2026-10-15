@@ -401,13 +401,15 @@ impl Engine {
     ///
     /// A local engine is a JVM, which encodes file names in the locale's charset: under a C or
     /// POSIX locale (or none, as in many containers and CI images) a non-ASCII input name cannot
-    /// even be opened. Two cases need a variable set to [`UTF8_LOCALE`]. When the variable POSIX
-    /// gives precedence to — `LC_ALL`, else `LC_CTYPE`, else `LANG` — is C, POSIX or unset, that
-    /// one (`LC_ALL` when that is what is in force, so a deliberate `LC_ALL=C` keeps everything
-    /// but its charset, else `LC_CTYPE`). When a locale the environment names is not installed,
-    /// the C library falls back to C for *every* category, so then `LC_ALL`. `env` is the child's
-    /// environment, `None` meaning this process's. The Docker engine runs under the image's locale
-    /// and never needs one, and Windows takes no locale from the environment.
+    /// even be opened. The variable set to [`UTF8_LOCALE`] is:
+    ///
+    /// - `LC_ALL` when a named locale is not installed, since the C library then falls back to C
+    ///   for every category;
+    /// - `LC_ALL` if set, else `LC_CTYPE`, when the locale in force is C, POSIX or unset, so a
+    ///   deliberate `LC_ALL=C` keeps everything but its charset.
+    ///
+    /// `env` is the child's environment, `None` meaning this process's. The Docker engine runs
+    /// under the image's locale, and Windows takes no locale from the environment.
     #[must_use]
     pub fn locale_override(
         &self,
@@ -477,9 +479,8 @@ impl Engine {
         self.abandon_within(argv, env, ABANDON_LIMIT);
     }
 
-    /// [`Engine::abandon`], giving up on the cleanup after `limit`: a Docker daemon that stopped
-    /// responding is a likely reason the run was killed, and a timeout that then waits on that
-    /// daemon is not a timeout.
+    /// [`Engine::abandon`], giving up on the cleanup after `limit`, so a Docker daemon that stopped
+    /// responding (a likely reason for the kill) cannot stall the timeout.
     fn abandon_within(
         &self,
         argv: &[String],

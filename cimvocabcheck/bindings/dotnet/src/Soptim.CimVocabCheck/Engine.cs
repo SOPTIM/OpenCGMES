@@ -125,12 +125,14 @@ public abstract class Engine
     /// <remarks>
     /// A local engine is a JVM, which encodes file names in the locale's charset: under a C or
     /// POSIX locale (or none, as in many containers and CI images) a non-ASCII input name cannot
-    /// even be opened. Two cases need a variable set to <see cref="Utf8Locale"/>. When the variable
-    /// POSIX gives precedence to — <c>LC_ALL</c>, else <c>LC_CTYPE</c>, else <c>LANG</c> — is C,
-    /// POSIX or unset, that one (<c>LC_ALL</c> when that is what is in force, so a deliberate
-    /// <c>LC_ALL=C</c> keeps everything but its charset, else <c>LC_CTYPE</c>). When a locale the
-    /// environment names is not installed, the C library falls back to C for <em>every</em>
-    /// category, so then <c>LC_ALL</c>. Windows takes no locale from the environment.
+    /// even be opened. The variable set to <see cref="Utf8Locale"/> is:
+    /// <list type="bullet">
+    /// <item><c>LC_ALL</c> when a named locale is not installed, since the C library then falls
+    /// back to C for every category;</item>
+    /// <item><c>LC_ALL</c> if set, else <c>LC_CTYPE</c>, when the locale in force is C, POSIX or
+    /// unset, so a deliberate <c>LC_ALL=C</c> keeps everything but its charset.</item>
+    /// </list>
+    /// Windows takes no locale from the environment.
     /// </remarks>
     /// <param name="environment">The environment the engine will be spawned with.</param>
     /// <returns>The variable and its value, or <c>null</c> when the locale is usable as it is.</returns>

@@ -31,9 +31,8 @@ import org.junit.Test;
  * Lists of profiles and classes in a finding come out in one defined order — by IRI — whatever
  * order the schema was loaded in.
  *
- * <p>They used to follow the iteration order of the JDK's immutable collections, which is
- * randomised per JVM, so the same query against the same schema could be reported differently on
- * every run. Eight entries make an accidentally sorted order a one-in-40320 event.
+ * <p>The fixture loads eight profiles in reverse order, so a list that is not sorted on purpose
+ * comes out sorted by accident only once in 40320 runs.
  */
 public class MessageOrderTest {
 

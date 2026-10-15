@@ -21,9 +21,8 @@ The schema under ``cimvocabcheck/schemas/`` is the contract; these models are de
 a contract minor — a new optional field, a new rule code — is picked up by re-running this script
 rather than by hand-editing three models and hoping they agree.
 
-One generator rather than one per language is the point: how the contract maps onto a typed model
-is decided once, in ``contract_ir.py``, and each ``emit_*.py`` only decides how to spell it. A
-fourth language is an emitter, not another reading of the schema.
+The mapping onto a typed model is decided once, in ``contract_ir.py``; each ``emit_*.py`` only
+decides how to spell it.
 
 Usage::
 
@@ -34,8 +33,7 @@ Usage::
 ``--check`` is what CI and the test suites run: it is the guard that a contract change cannot
 land with a model that no longer matches it.
 
-Python is a build-time dependency of the Rust and .NET packages only in the sense that their
-generated sources are committed — building or consuming either package never runs this.
+The generated sources are committed, so building the Rust or .NET package never runs Python.
 """
 
 from __future__ import annotations

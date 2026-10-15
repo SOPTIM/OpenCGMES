@@ -459,12 +459,15 @@ class DockerEngine(Engine):
 def utf8_environment(env: Mapping[str, str] | None) -> dict[str, str] | None:
     """``env`` changed so that the engine's character locale is UTF-8, when it would not be.
 
-    Two cases need it. When the variable POSIX gives precedence to — ``LC_ALL``, else ``LC_CTYPE``,
-    else ``LANG`` — is C, POSIX or unset, that variable is set to :data:`UTF8_LOCALE`, so a
-    deliberate ``LC_ALL=C`` keeps its collation and messages and only gains UTF-8. When a locale
-    the environment names is not installed, the C library falls back to C for *every* category,
-    so then only ``LC_ALL`` helps. Returns ``None`` when ``env`` is ``None`` and nothing needed
-    changing, so the child simply inherits. Windows takes no locale from the environment.
+    Sets :data:`UTF8_LOCALE` in one of two cases:
+
+    - A named locale is not installed: ``LC_ALL``, since the C library then falls back to C for
+      every category.
+    - The locale in force is C, POSIX or unset: ``LC_ALL`` if that is set, else ``LC_CTYPE``, so
+      a deliberate ``LC_ALL=C`` keeps everything but its charset.
+
+    Returns ``None`` when ``env`` is ``None`` and nothing needed changing, so the child inherits.
+    Windows takes no locale from the environment.
     """
     if os.name == "nt":
         return dict(env) if env is not None else None

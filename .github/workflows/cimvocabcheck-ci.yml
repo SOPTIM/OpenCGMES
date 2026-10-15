@@ -110,11 +110,8 @@ jobs:
           mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am clean verify
 
   # ---- Python binding ------------------------------------------------------
-  # The binding is a thin wrapper, so what needs guarding is the seam: that its generated model
-  # still matches the published schema, and that a real engine answers the way the wrapper assumes.
-  # It therefore builds the CLI fat JAR (analysis gates are the Java jobs' business) and points the
-  # suite at it, with CIMVOCABCHECK_TESTS_REQUIRE_ENGINE turning "no engine, skipping" into a
-  # failure so the engine-backed tests cannot silently stop running.
+  # Builds the CLI fat JAR (analysis gates are the Java jobs') and runs the suite against it.
+  # CIMVOCABCHECK_TESTS_REQUIRE_ENGINE fails engine-backed tests instead of skipping them.
   python-binding:
     runs-on: ubuntu-latest
     defaults:

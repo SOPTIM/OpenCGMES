@@ -14,8 +14,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 
-//! Shared test scaffolding. Deliberately dependency-free — the crate's whole claim is that a
-//! wrapper needs almost nothing, and that should hold for its tests too.
+//! Shared test scaffolding, dependency-free like the crate.
 
 #![allow(dead_code)]
 

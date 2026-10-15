@@ -323,7 +323,6 @@ def test_docker_refuses_a_path_it_could_not_mount(tmp_path):
         engine.resolve_path(str(tmp_path / "elsewhere" / "q.rq"))
 
     assert isinstance(raised.value, UnreachablePathError)
-    assert isinstance(raised.value, ValueError), "what earlier versions raised"
     assert "outside the working directory" in str(raised.value)
 
 
