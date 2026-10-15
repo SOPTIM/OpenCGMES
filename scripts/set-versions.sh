@@ -5,7 +5,7 @@
 #
 #   cimxml-version        - Maven version for cimxml (e.g. 1.0.2-SNAPSHOT or 1.0.1)
 #   cimvocabcheck-version - Maven version for the cimvocabcheck modules: core / cli / lsp
-#                           (e.g. 0.2.1-SNAPSHOT or 0.2.1). Omit to skip them.
+#                           (e.g. 0.2.1-SNAPSHOT, 0.2.1-rc.1 or 0.2.1). Omit to skip them.
 #   cimnotebook-version   - Version for the cimnotebook editor plugins: the IntelliJ plugin
 #                           (gradle.properties) and the VS Code extension (package.json).
 #                           Omit to skip them.
@@ -59,9 +59,9 @@ if [[ -n "${CIMVOCABCHECK_VERSION}" ]]; then
     PLAIN_VERSION="${CIMVOCABCHECK_VERSION%-SNAPSHOT}"
 
     # Python (PEP 440): a developmental release sorts before the release it leads to, which is
-    # what -SNAPSHOT means. X.Y.Z-SNAPSHOT -> X.Y.Z.dev0
-    PY_VERSION="${PLAIN_VERSION}"
-    if [[ "${PY_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
+    # what -SNAPSHOT means. X.Y.Z-SNAPSHOT -> X.Y.Z.dev0, X.Y.Z-rc.N -> X.Y.ZrcN
+    PY_VERSION="${PLAIN_VERSION/-rc./rc}"
+    if [[ "${PLAIN_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
         PY_VERSION="${PY_VERSION}.dev0"
     fi
     sed -i "s/^version = \".*\"/version = \"${PY_VERSION}\"/" \

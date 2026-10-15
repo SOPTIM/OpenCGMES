@@ -74,6 +74,7 @@ Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's 
 
 - **CIMXML release** — publishes a **GPG-signed** JAR to **Maven Central** (Sonatype Central Portal, `-Pcentral-release`), publishes the release to **GitHub Packages**, and creates a **draft GitHub Release** with the JAR attached.
 - **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**, and publishes the three [language bindings](/cimvocabcheck/python) to **PyPI**, **NuGet** and **crates.io**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
+- **CIMVocabCheck release candidate** — a tag `cimvocabcheck-vX.Y.Z-rc.N` runs the same workflow as a pre-release: the GitHub Release is marked as a pre-release, the image gets `:X.Y.Z-rc.N` but not `:latest`, and the bindings go out as `X.Y.ZrcN` on PyPI and `X.Y.Z-rc.N` on NuGet and crates.io, which installers skip unless asked for. Maven Central and GitHub Packages are skipped, because Central never deletes a version. RC tags are ignored by `compute-version.sh`, so they never become the base of the next snapshot or the version the docs and CIMNotebook pin.
 - **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
 
 :::note Cross-product dependency pinning at release time
@@ -147,6 +148,7 @@ Two scripts under `scripts/` derive and apply versions from Git state, so versio
 Prints the Maven version for `cimxml`, `cimvocabcheck`, or `cimnotebook`:
 
 - On a tagged release push (`<component>-vX.Y.Z`) → prints `X.Y.Z`.
+- Release candidate tags (`<component>-vX.Y.Z-rc.N`) are ignored in every mode.
 - On any other ref → finds the last `<component>-v*` tag **reachable from `HEAD`** (`git tag
   --merged HEAD`), bumps the patch by one, and appends `-SNAPSHOT`. Falls back to `0.0.0-SNAPSHOT`
   when no tag exists.
@@ -157,7 +159,7 @@ Prints the Maven version for `cimxml`, `cimvocabcheck`, or `cimnotebook`:
   pins to a version that does not exist in its own history.
 
 ### `set-versions.sh <cimxml> [<cimvocabcheck>] [<cimnotebook>]`
-Applies the computed versions across every build file: the cimxml pom; the cimvocabcheck core/cli/lsp poms and their inter-module dependency properties (`ver.cimxml`, `ver.cimvocabcheck-core`); and the cimnotebook plugin versions (`pluginVersion` in `gradle.properties`, `version` in `package.json`). The Gradle and npm toolchains strip the `-SNAPSHOT` suffix because they don't use Maven snapshot conventions. A cimnotebook build still needs a cimvocabcheck version because it bundles the LSP fat JAR.
+Applies the computed versions across every build file: the cimxml pom; the cimvocabcheck core/cli/lsp poms and their inter-module dependency properties (`ver.cimxml`, `ver.cimvocabcheck-core`); and the cimnotebook plugin versions (`pluginVersion` in `gradle.properties`, `version` in `package.json`). The Gradle and npm toolchains strip the `-SNAPSHOT` suffix because they don't use Maven snapshot conventions. A cimnotebook build still needs a cimvocabcheck version because it bundles the LSP fat JAR. The language bindings follow the cimvocabcheck version in each ecosystem's own pre-release spelling: `X.Y.Z-SNAPSHOT` becomes `X.Y.Z.dev0` for PyPI and `X.Y.Z-dev` for Cargo and NuGet, and `X.Y.Z-rc.N` becomes `X.Y.ZrcN` for PyPI and stays as is for the other two.
 
 The three trains are versioned **independently** — `cimvocabcheck` and `cimnotebook` carry separate version numbers.
 

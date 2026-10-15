@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_version: ${{ steps.validate.outputs.release_version }}
+      pypi_version: ${{ steps.validate.outputs.pypi_version }}
+      prerelease: ${{ steps.validate.outputs.prerelease }}
       cimxml_version: ${{ steps.validate.outputs.cimxml_version }}
     steps:
       - name: Checkout
@@ -32,12 +34,15 @@ jobs:
           set -euo pipefail
 
           TAG="${GITHUB_REF_NAME}"
-          if [[ ! "${TAG}" =~ ^cimvocabcheck-v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "Invalid tag format '${TAG}'. Expected cimvocabcheck-vX.Y.Z" >&2
+          if [[ ! "${TAG}" =~ ^cimvocabcheck-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            echo "Invalid tag format '${TAG}'. Expected cimvocabcheck-vX.Y.Z or cimvocabcheck-vX.Y.Z-rc.N" >&2
             exit 1
           fi
 
           RELEASE_VERSION="${TAG#cimvocabcheck-v}"
+          # A release candidate only publishes the GitHub Release, the image and the bindings, all marked
+          # as pre-releases (see the jobs below).
+          if [[ -n "${BASH_REMATCH[1]}" ]]; then PRERELEASE=true; else PRERELEASE=false; fi
 
           # Find the last cimxml release tag to use as the dependency version.
           # Maven Central rejects SNAPSHOT references, so we always pin to a release.
@@ -49,11 +54,15 @@ jobs:
           CIMXML_VERSION="${CIMXML_TAG#cimxml-v}"
 
           echo "release_version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "pypi_version=${RELEASE_VERSION/-rc./rc}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
           echo "cimxml_version=${CIMXML_VERSION}" >> "${GITHUB_OUTPUT}"
 
   # ---- Maven Central (cimvocabcheck-core only) -----------------------------
+  # Not for release candidates: Central never deletes a version.
   publish-maven-central:
     needs: validate-tag
+    if: needs.validate-tag.outputs.prerelease == 'false'
     runs-on: ubuntu-latest
     environment: Maven Central Deployment
     env:
@@ -104,7 +113,7 @@ jobs:
     needs:
       - validate-tag
       - publish-maven-central
-    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    if: always() && needs.validate-tag.result == 'success' && needs.validate-tag.outputs.prerelease == 'false' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -148,7 +157,7 @@ jobs:
     needs:
       - validate-tag
       - publish-maven-central
-    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure' || needs.publish-maven-central.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -189,11 +198,13 @@ jobs:
       - name: Create draft GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ needs.validate-tag.outputs.prerelease }}
         run: |
           gh release create "${{ github.ref_name }}" \
             --title "CIMVocabCheck ${{ env.RELEASE_VERSION }}" \
             --generate-notes \
             --draft \
+            --prerelease="${PRERELEASE}" \
             "cimvocabcheck/core/target/cimvocabcheck-core-${{ env.RELEASE_VERSION }}.jar" \
             "cimvocabcheck/cli/target/cimvocabcheck-cli-${{ env.RELEASE_VERSION }}.jar" \
             "cimvocabcheck/lsp/target/cimvocabcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
@@ -213,7 +224,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: PyPI Deployment
-      url: https://pypi.org/project/cimvocabcheck/${{ needs.validate-tag.outputs.release_version }}/
+      url: https://pypi.org/project/cimvocabcheck/${{ needs.validate-tag.outputs.pypi_version }}/
     permissions:
       contents: read
       id-token: write
@@ -475,9 +486,10 @@ jobs:
       packages: write
     uses: ./.github/workflows/docker-publish.yml
     with:
+      # A release candidate never moves :latest.
       tag-suffixes: |
         ${{ needs.validate-tag.outputs.release_version }}
-        latest
+        ${{ needs.validate-tag.outputs.prerelease == 'false' && 'latest' || '' }}
       apply-versions: true
       cimxml-version: ${{ needs.validate-tag.outputs.cimxml_version }}
       release-version: ${{ needs.validate-tag.outputs.release_version }}
