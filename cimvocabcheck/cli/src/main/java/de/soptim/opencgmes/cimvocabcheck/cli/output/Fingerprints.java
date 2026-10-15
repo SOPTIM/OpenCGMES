@@ -59,10 +59,11 @@ final class Fingerprints {
    * <ul>
    *   <li>the position — otherwise an edit above an unchanged finding would close it and open a new
    *       one in every consumer that tracks findings by fingerprint; repeated findings are told
-   *       apart by their occurrence index, which follows report order and so only shifts when an
-   *       equal finding earlier in the same file comes or goes;
-   *   <li>the rendered message — its profile list is not emitted in a deterministic order, so
-   *       folding it in would make the same finding churn between otherwise-identical runs.
+   *       apart by their occurrence index, which follows report order — source order, see {@code
+   *       ValidateCommand} — and so only shifts when an equal finding earlier in the same file
+   *       comes or goes;
+   *   <li>the rendered message — it is prose, and rewording it, or listing one more profile in
+   *       scope, must not turn the same finding into a new one.
    * </ul>
    */
   private static String identity(String path, SparqlValidationAnnotation a) {

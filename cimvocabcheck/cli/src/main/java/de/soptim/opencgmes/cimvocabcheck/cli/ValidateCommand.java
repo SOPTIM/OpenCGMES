@@ -52,6 +52,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -401,9 +402,30 @@ public class ValidateCommand implements Callable<Integer> {
         results.add(unreadable(source, e));
         continue;
       }
-      results.add(validateOne(schema, api, namedGraphScope, severities, input, source, text));
+      results.add(
+          inSourceOrder(
+              validateOne(schema, api, namedGraphScope, severities, input, source, text)));
     }
     return results;
+  }
+
+  /**
+   * Findings by position, then code, term and message — fully determined by the input. Checks emit
+   * in their own order, which for shapes follows a graph's per-run blank-node iteration; the
+   * reports tell repeated findings apart by their position in this list, so it must not vary.
+   */
+  private static final Comparator<SparqlValidationAnnotation> SOURCE_ORDER =
+      Comparator.comparing(
+              SparqlValidationAnnotation::line, Comparator.nullsLast(Comparator.naturalOrder()))
+          .thenComparing(
+              SparqlValidationAnnotation::column, Comparator.nullsLast(Comparator.naturalOrder()))
+          .thenComparing(a -> a.code().name())
+          .thenComparing(a -> a.term() == null ? "" : a.term().toString())
+          .thenComparing(SparqlValidationAnnotation::message);
+
+  private static FileResult inSourceOrder(FileResult r) {
+    return new FileResult(
+        r.source(), r.valid(), r.annotations().stream().sorted(SOURCE_ORDER).toList());
   }
 
   /**

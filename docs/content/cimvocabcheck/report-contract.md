@@ -119,7 +119,8 @@ deliberately leaves out:
 - **the rendered message**, so a finding stays trackable when its wording changes.
 
 Repeated findings with the same file, code and term are told apart by their order of occurrence in
-the file.
+the file. Every report lists a file's findings in source order — by line, then column — so that
+order is the same on every run over the same input.
 
 ## Writing a binding
 

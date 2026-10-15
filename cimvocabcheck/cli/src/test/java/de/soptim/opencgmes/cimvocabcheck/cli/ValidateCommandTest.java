@@ -286,6 +286,42 @@ public class ValidateCommandTest {
     assertTrue(out, out.contains("UNKNOWN_CLASS"));
   }
 
+  /**
+   * Findings in a shapes file are listed in source order. The shape analyzer walks a graph whose
+   * blank nodes iterate in a per-run order, and repeated findings are told apart in a report's
+   * fingerprints by their position in the list, so any other order moves fingerprints between
+   * identical runs.
+   */
+  @Test
+  public void shapeFindingsAreListedInSourceOrder() throws Exception {
+    Path schema = write("tiny.rdf", TINY_PROFILE);
+    var shapes =
+        new StringBuilder(
+            "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+                + "@prefix cim: <http://iec.ch/TC57/CIM100#> .\n"
+                + "@prefix ex: <http://example.org/> .\n");
+    for (int i = 0; i < 12; i++) {
+      shapes.append("ex:Shape").append(i).append(" a sh:NodeShape ;\n");
+      shapes.append("    sh:targetClass cim:Breaker ;\n");
+      shapes.append("    sh:property [ sh:path cim:Breaker.missing").append(i).append(" ] .\n");
+    }
+    Path file = write("shapes.ttl", shapes.toString());
+
+    JsonNode annotations =
+        new ObjectMapper()
+            .readTree(run("--format", "json", "--schema", schema.toString(), file.toString()))
+            .path("results")
+            .path(0)
+            .path("annotations");
+
+    assertEquals(annotations.toString(), 12, annotations.size());
+    for (int i = 0; i < annotations.size(); i++) {
+      assertTrue(
+          annotations.toString(),
+          annotations.get(i).path("term").asText().endsWith("Breaker.missing" + i));
+    }
+  }
+
   // ---- helpers ----------------------------------------------------------------------------
 
   private Path write(String name, String content) throws Exception {
