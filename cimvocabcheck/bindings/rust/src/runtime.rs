@@ -108,6 +108,25 @@ pub const UTF8_LOCALE: &str = "C.UTF-8";
 /// Locales the C library always has, whatever is installed.
 const BUILTIN_LOCALES: [&str; 3] = ["C", "POSIX", "C.utf8"];
 
+/// The variables that name a locale: `LANG` and the categories, POSIX's and glibc's. Not every
+/// `LC_` variable is one — terminals set `LC_TERMINAL`, and ssh forwards `LC_*` wholesale.
+const LOCALE_VARIABLES: [&str; 14] = [
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LC_COLLATE",
+    "LC_MESSAGES",
+    "LC_MONETARY",
+    "LC_NUMERIC",
+    "LC_TIME",
+    "LC_ADDRESS",
+    "LC_IDENTIFICATION",
+    "LC_MEASUREMENT",
+    "LC_NAME",
+    "LC_PAPER",
+    "LC_TELEPHONE",
+];
+
 /// Environment variable naming a fat JAR to run with `java -jar`.
 pub const ENV_JAR: &str = "CIMVOCABCHECK_JAR";
 /// Environment variable naming an executable engine.
@@ -428,7 +447,7 @@ impl Engine {
             None => vars
                 .iter()
                 .filter(|(key, value)| {
-                    (key == "LANG" || key.starts_with("LC_")) && !value.is_empty()
+                    LOCALE_VARIABLES.contains(&key.as_str()) && !value.is_empty()
                 })
                 .map(|(_, value)| value.as_str())
                 .collect(),
@@ -1163,8 +1182,10 @@ mod tests {
             java: "java".into(),
         };
         let installed = installed();
-        let cases: [LocaleCase; 6] = [
+        let cases: [LocaleCase; 7] = [
             (&[("LANG", "xx_XX.UTF-8")], Some("LC_ALL")),
+            // Not every LC_ variable names a locale: terminals set this one, and ssh forwards it.
+            (&[("LANG", "en_US.UTF-8"), ("LC_TERMINAL", "iTerm2")], None),
             (
                 &[("LANG", "C.UTF-8"), ("LC_MESSAGES", "xx_XX.UTF-8")],
                 Some("LC_ALL"),

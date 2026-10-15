@@ -162,8 +162,7 @@ public abstract class Engine
         IEnumerable<string> named = all is not null
             ? [all]
             : environment
-                .Where(pair => (pair.Key == "LANG" || pair.Key.StartsWith("LC_", StringComparison.Ordinal))
-                    && !string.IsNullOrEmpty(pair.Value))
+                .Where(pair => LocaleVariables.Contains(pair.Key) && !string.IsNullOrEmpty(pair.Value))
                 .Select(pair => pair.Value!);
         if (installedLocales is not null && named.Any(name => !IsInstalled(name, installedLocales)))
         {
@@ -193,6 +192,18 @@ public abstract class Engine
 
     /// <summary>Locales the C library always has, whatever is installed.</summary>
     private static readonly string[] BuiltinLocales = ["C", "POSIX", "C.utf8"];
+
+    /// <summary>
+    /// The variables that name a locale: <c>LANG</c> and the categories, POSIX's and glibc's. Not
+    /// every <c>LC_</c> variable is one — terminals set <c>LC_TERMINAL</c>, and ssh forwards
+    /// <c>LC_*</c> wholesale.
+    /// </summary>
+    private static readonly HashSet<string> LocaleVariables =
+    [
+        "LANG", "LC_ALL", "LC_CTYPE", "LC_COLLATE", "LC_MESSAGES", "LC_MONETARY", "LC_NUMERIC",
+        "LC_TIME", "LC_ADDRESS", "LC_IDENTIFICATION", "LC_MEASUREMENT", "LC_NAME", "LC_PAPER",
+        "LC_TELEPHONE",
+    ];
 
     private static HashSet<string>? ListInstalledLocales()
     {

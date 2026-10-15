@@ -521,6 +521,11 @@ def test_an_input_named_like_a_flag_does_not_suppress_the_config(tmp_path):
         ({"LC_ALL": "xx_XX.UTF-8"}, {"LC_ALL": "C.UTF-8"}),
         # An unset LC_ALL is skipped, and the spellings of one codeset are one locale.
         ({"LC_ALL": "", "LANG": "en_US.utf8"}, {"LC_ALL": "", "LANG": "en_US.utf8"}),
+        # Not every LC_ variable names a locale: terminals set these, and ssh forwards them.
+        (
+            {"LANG": "en_US.UTF-8", "LC_TERMINAL": "iTerm2", "LC_TERMINAL_VERSION": "3.5.0"},
+            {"LANG": "en_US.UTF-8", "LC_TERMINAL": "iTerm2", "LC_TERMINAL_VERSION": "3.5.0"},
+        ),
     ],
 )
 def test_a_local_engine_never_runs_under_an_ascii_only_locale(env, expected, monkeypatch):

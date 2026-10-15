@@ -136,6 +136,27 @@ _SHIM_SCAN_BYTES = 64 * 1024
 #: The locale a local engine is handed when the caller's would have it read file names as ASCII.
 UTF8_LOCALE = "C.UTF-8"
 
+#: The variables that name a locale: ``LANG`` and the categories, POSIX's and glibc's. Not every
+#: ``LC_`` variable is one — terminals set ``LC_TERMINAL``, and ssh forwards ``LC_*`` wholesale.
+_LOCALE_VARIABLES = frozenset(
+    {
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LC_COLLATE",
+        "LC_MESSAGES",
+        "LC_MONETARY",
+        "LC_NUMERIC",
+        "LC_TIME",
+        "LC_ADDRESS",
+        "LC_IDENTIFICATION",
+        "LC_MEASUREMENT",
+        "LC_NAME",
+        "LC_PAPER",
+        "LC_TELEPHONE",
+    }
+)
+
 #: Locales the C library always has, whatever is installed.
 _BUILTIN_LOCALES = frozenset({"C", "POSIX", "C.utf8"})
 
@@ -451,7 +472,7 @@ def utf8_environment(env: Mapping[str, str] | None) -> dict[str, str] | None:
     named = (
         [environ["LC_ALL"]]
         if environ.get("LC_ALL")
-        else [value for key, value in environ.items() if key == "LANG" or key.startswith("LC_")]
+        else [value for key, value in environ.items() if key in _LOCALE_VARIABLES]
     )
     effective = environ.get("LC_ALL") or environ.get("LC_CTYPE") or environ.get("LANG") or ""
     installed = installed_locales()

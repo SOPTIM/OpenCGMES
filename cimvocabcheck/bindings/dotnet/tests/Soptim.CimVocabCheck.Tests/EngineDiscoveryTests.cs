@@ -420,6 +420,21 @@ public sealed class EngineDiscoveryTests
     }
 
     [Fact]
+    public void OnlyVariablesThatNameALocaleAreCheckedForIt()
+    {
+        // Terminals set LC_TERMINAL, and ssh forwards it; it is no locale, installed or not.
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows takes no locale from the environment");
+        var environment = new Dictionary<string, string?>
+        {
+            ["LANG"] = "en_US.UTF-8",
+            ["LC_TERMINAL"] = "iTerm2",
+            ["LC_TERMINAL_VERSION"] = "3.5.0",
+        };
+
+        Assert.Null(new JarEngine("cli.jar", "java").LocaleOverride(environment, Installed));
+    }
+
+    [Fact]
     public void ALocaleIsTrustedWhenTheInstalledOnesCannotBeListed()
     {
         // Without a locale command (musl, say) nothing is known, and a named locale is kept.
