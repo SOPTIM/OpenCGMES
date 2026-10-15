@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.jena.graph.Node;
@@ -190,7 +191,8 @@ public final class DefaultPrefixes {
 
     var sb = new StringBuilder();
     int count = 0;
-    for (var e : prefixes.entrySet()) {
+    // Sorted: map order varies per JVM and would move syntax-error positions between runs.
+    for (var e : new TreeMap<>(prefixes).entrySet()) {
       if (!declared.contains(e.getKey().toLowerCase(Locale.ROOT))) {
         sb.append("PREFIX ").append(e.getKey()).append(": <").append(e.getValue()).append(">\n");
         count++;
