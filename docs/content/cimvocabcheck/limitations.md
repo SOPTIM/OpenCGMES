@@ -95,6 +95,8 @@ CIMVocabCheck makes **two passes** over a SHACL shapes graph.
 | `sh:nodeKind` + `rdfs:range` | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` |
 | `sh:datatype` / `sh:class` vs `rdfs:range` | `DATATYPE_INCOMPATIBLE_WITH_RANGE` / `CLASS_INCOMPATIBLE_WITH_RANGE`; a non-XSD-datatype `sh:datatype` is `UNKNOWN_VOCABULARY_TERM` |
 | `sh:minCount` + `sh:maxCount` | `INVALID_CARDINALITY` when min &gt; max; `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` when incompatible with the property's `cims:multiplicity` |
+| `sh:qualifiedValueShape` + `sh:qualifiedMinCount` / `sh:qualifiedMaxCount` | `INVALID_CARDINALITY` when the qualified minimum exceeds the qualified maximum or the shape's `sh:maxCount`; `INVALID_CONSTRAINT_PARAMETER` when neither qualified count is given |
+| `sh:minCount` / `sh:maxCount` / `sh:qualifiedMinCount` / `sh:qualifiedMaxCount` / `sh:minLength` / `sh:maxLength` | `INVALID_CONSTRAINT_PARAMETER` on a negative value |
 | `sh:in` / `sh:hasValue` | Enumeration-member and existence checks on the listed/required values |
 | `sh:minInclusive` / `sh:maxInclusive` / `sh:minExclusive` / `sh:maxExclusive` | `INVALID_VALUE_RANGE` on a contradictory bound |
 | `sh:targetSubjectsOf` / `sh:targetObjectsOf`, `sh:equals` / `sh:disjoint` / `sh:lessThan`(`OrEquals`), `sh:ignoredProperties` | Referenced property IRIs must exist |
@@ -107,9 +109,9 @@ the shape's `sh:targetClass`. `QUERY_IMPLIED_TYPE` is suppressed inside embedded
 intermediate bindings are transient and not expected to be type-annotated).
 
 **SHACL features not checked** (they require data or boolean-shape reasoning):
-`sh:pattern`/`sh:flags`, `sh:qualifiedValueShape`/`Min`/`MaxCount`, `sh:uniqueLang`,
-`sh:minLength`/`sh:maxLength`, `sh:or`/`sh:and`/`sh:not`/`sh:xone`, and `sh:targetNode`. The
-shape-declared **`sh:severity`** is not honored either — findings use CIMVocabCheck's own
+`sh:pattern`/`sh:flags`, `sh:uniqueLang`, the nested shape of `sh:qualifiedValueShape` (only its
+counts are checked), `sh:minLength`/`sh:maxLength` beyond negative values,
+`sh:or`/`sh:and`/`sh:not`/`sh:xone`, and `sh:targetNode`. The shape-declared **`sh:severity`** is not honored either — findings use CIMVocabCheck's own
 `ERROR`/`WARN` mapping (adjust it globally with [`strictness`](/cimvocabcheck/configuration#strictness))
 rather than the severity a shape declares.
 
@@ -123,7 +125,7 @@ IRI→file catalog, so there is nothing to resolve them against automatically.
 ## Roadmap
 
 - Tighter path-chain checks (inverse / alternative operators).
-- Remaining SHACL constraints (`sh:pattern`, qualified value shapes, logical constraints).
+- Remaining SHACL constraints (`sh:pattern`, logical constraints).
 - Honor shape-declared `sh:severity`.
 - `SERVICE` schema hints via config.
 - Completion in full-IRI (`<http://…`) position.

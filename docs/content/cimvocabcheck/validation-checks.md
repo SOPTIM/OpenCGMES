@@ -35,7 +35,8 @@ severity of an individual code can be overridden (or the code switched off) with
 | `NODE_KIND_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:nodeKind` conflicts with the property's `rdfs:range` |
 | `DATATYPE_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:datatype` used on an object property (range is a class) |
 | `CLASS_INCOMPATIBLE_WITH_RANGE` | WARN | SHACL | `sh:class` used on a datatype property (range is a literal type) |
-| `INVALID_CARDINALITY` | ERROR | SHACL | `sh:minCount` exceeds `sh:maxCount` on the same property shape |
+| `INVALID_CARDINALITY` | ERROR | SHACL | A count constraint is self-contradictory — `sh:minCount` exceeds `sh:maxCount`, or `sh:qualifiedMinCount` exceeds `sh:qualifiedMaxCount` or the shape's `sh:maxCount` |
+| `INVALID_CONSTRAINT_PARAMETER` | ERROR | SHACL | A constraint parameter is ill-formed — a negative count or length, or an `sh:qualifiedValueShape` without `sh:qualifiedMinCount` or `sh:qualifiedMaxCount` |
 | `INVALID_VALUE_RANGE` | ERROR | SHACL | A value-range constraint is self-contradictory — a lower bound (`sh:minInclusive`/`sh:minExclusive`) exceeds an upper bound (`sh:maxInclusive`/`sh:maxExclusive`) |
 | `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` | WARN | SHACL | `sh:minCount`/`sh:maxCount` cannot be satisfied given the property's declared CIM `cims:multiplicity` |
 | `PROJECTED_VARIABLE_UNBOUND` | WARN | Variables | A `SELECT`/`DESCRIBE`/`CONSTRUCT`-template variable appears nowhere in the query body |
@@ -188,7 +189,13 @@ for the full breakdown). On every property shape (any blank node with `sh:path`)
   datatype (or vice versa).
 - `DATATYPE_INCOMPATIBLE_WITH_RANGE` — `sh:datatype` on a property whose range is a class.
 - `CLASS_INCOMPATIBLE_WITH_RANGE` — `sh:class` on a property whose range is a literal datatype.
-- `INVALID_CARDINALITY` — `sh:minCount` exceeds `sh:maxCount`.
+- `INVALID_CARDINALITY` — `sh:minCount` exceeds `sh:maxCount`, or `sh:qualifiedMinCount` exceeds
+  `sh:qualifiedMaxCount` or `sh:maxCount`. The values that conform to the qualified shape are a subset
+  of all values, so they can never outnumber the overall upper bound.
+- `INVALID_CONSTRAINT_PARAMETER` — `sh:minCount`, `sh:maxCount`, `sh:qualifiedMinCount`,
+  `sh:qualifiedMaxCount`, `sh:minLength` or `sh:maxLength` is negative, or an `sh:qualifiedValueShape`
+  has neither qualified count (at least one is mandatory). A negative value is reported only here,
+  never also as a contradiction. These are checked on node shapes as well as property shapes.
 - `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` (WARN) — the shape's `sh:minCount`/`sh:maxCount`
   cannot be satisfied given the property's declared CIM `cims:multiplicity`: a `sh:minCount` above
   the schema's upper bound, or a `sh:maxCount` below its lower bound. A shape that is merely
