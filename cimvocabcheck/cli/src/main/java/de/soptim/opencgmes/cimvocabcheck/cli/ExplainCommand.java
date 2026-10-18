@@ -140,16 +140,10 @@ public class ExplainCommand implements Callable<Integer> {
       if (!schemaFiles.isEmpty()) {
         index = SchemaLoader.load(schemaFiles);
       } else {
-        Path base;
-        if (configFile != null) {
-          config = ConfigLoader.load(configFile);
-          base = configFile.toAbsolutePath().getParent();
-        } else {
-          config = ConfigLoader.discover(Path.of(".")).orElse(null);
-          base = Path.of(".").toAbsolutePath();
-        }
+        LocatedConfig located = LocatedConfig.of(configFile);
+        config = located.config();
         // No config, or a config without schemas → no schema; use static explain.
-        index = (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
+        index = (config == null) ? null : SchemaLoader.load(config, located.base()).orElse(null);
         if (index == null) {
           return null;
         }

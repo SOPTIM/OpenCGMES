@@ -21,6 +21,9 @@ CIMVocabCheck ships in several forms:
 | **CLI** | `cimvocabcheck-cli` — a command-line tool for CI pipelines | [CLI](/cimvocabcheck/cli) |
 | **CIMLangServer** | `cimvocabcheck-lsp` — an LSP 3.17 server over stdio | [Language server](/cimvocabcheck/language-server) |
 | **Editors** | The [CIMNotebook](/cimnotebook/overview) VS Code extension & IntelliJ plugin front the language server | [CIMNotebook](/cimnotebook/overview) |
+| **Python** | `cimvocabcheck` on PyPI — the CLI driven from Python, with a typed report | [Python](/cimvocabcheck/python) |
+| **.NET** | `Soptim.CimVocabCheck` on NuGet — the same, for .NET | [.NET](/cimvocabcheck/dotnet) |
+| **Rust** | the `cimvocabcheck` crate — the same, for Rust | [Rust](/cimvocabcheck/rust) |
 
 Inspired by [gdotv's "SPARQL Query Guardrails"](https://gdotv.com/blog/sparql-query-guardrails-etl-ready/).
 

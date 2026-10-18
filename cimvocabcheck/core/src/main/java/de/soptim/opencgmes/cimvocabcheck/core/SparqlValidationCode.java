@@ -97,5 +97,11 @@ public enum SparqlValidationCode {
    * A variable bound in a triple pattern, {@code BIND} or {@code VALUES} that is never projected,
    * filtered on, ordered/grouped by, or otherwise reused — a typo or a leftover from a query edit.
    */
-  UNUSED_VARIABLE
+  UNUSED_VARIABLE,
+  /**
+   * An input could not be read at all — it does not exist, is not readable, or its name cannot be
+   * represented in the platform's file name encoding. Reported against that input alone, so one bad
+   * path does not cost the rest of a batch its results.
+   */
+  UNREADABLE_INPUT
 }

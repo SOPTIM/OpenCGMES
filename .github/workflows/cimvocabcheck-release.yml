@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_version: ${{ steps.validate.outputs.release_version }}
+      pypi_version: ${{ steps.validate.outputs.pypi_version }}
+      prerelease: ${{ steps.validate.outputs.prerelease }}
       cimxml_version: ${{ steps.validate.outputs.cimxml_version }}
     steps:
       - name: Checkout
@@ -32,12 +34,15 @@ jobs:
           set -euo pipefail
 
           TAG="${GITHUB_REF_NAME}"
-          if [[ ! "${TAG}" =~ ^cimvocabcheck-v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "Invalid tag format '${TAG}'. Expected cimvocabcheck-vX.Y.Z" >&2
+          if [[ ! "${TAG}" =~ ^cimvocabcheck-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            echo "Invalid tag format '${TAG}'. Expected cimvocabcheck-vX.Y.Z or cimvocabcheck-vX.Y.Z-rc.N" >&2
             exit 1
           fi
 
           RELEASE_VERSION="${TAG#cimvocabcheck-v}"
+          # A release candidate only publishes the GitHub Release, the image and the bindings, all marked
+          # as pre-releases (see the jobs below).
+          if [[ -n "${BASH_REMATCH[1]}" ]]; then PRERELEASE=true; else PRERELEASE=false; fi
 
           # Find the last cimxml release tag to use as the dependency version.
           # Maven Central rejects SNAPSHOT references, so we always pin to a release.
@@ -49,11 +54,15 @@ jobs:
           CIMXML_VERSION="${CIMXML_TAG#cimxml-v}"
 
           echo "release_version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "pypi_version=${RELEASE_VERSION/-rc./rc}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
           echo "cimxml_version=${CIMXML_VERSION}" >> "${GITHUB_OUTPUT}"
 
   # ---- Maven Central (cimvocabcheck-core only) -----------------------------
+  # Not for release candidates: Central never deletes a version.
   publish-maven-central:
     needs: validate-tag
+    if: needs.validate-tag.outputs.prerelease == 'false'
     runs-on: ubuntu-latest
     environment: Maven Central Deployment
     env:
@@ -104,7 +113,7 @@ jobs:
     needs:
       - validate-tag
       - publish-maven-central
-    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    if: always() && needs.validate-tag.result == 'success' && needs.validate-tag.outputs.prerelease == 'false' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -148,7 +157,7 @@ jobs:
     needs:
       - validate-tag
       - publish-maven-central
-    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure')
+    if: always() && needs.validate-tag.result == 'success' && (needs.publish-maven-central.result == 'success' || needs.publish-maven-central.result == 'failure' || needs.publish-maven-central.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -189,14 +198,283 @@ jobs:
       - name: Create draft GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ needs.validate-tag.outputs.prerelease }}
         run: |
           gh release create "${{ github.ref_name }}" \
             --title "CIMVocabCheck ${{ env.RELEASE_VERSION }}" \
             --generate-notes \
             --draft \
+            --prerelease="${PRERELEASE}" \
             "cimvocabcheck/core/target/cimvocabcheck-core-${{ env.RELEASE_VERSION }}.jar" \
             "cimvocabcheck/cli/target/cimvocabcheck-cli-${{ env.RELEASE_VERSION }}.jar" \
             "cimvocabcheck/lsp/target/cimvocabcheck-lsp-${{ env.RELEASE_VERSION }}.jar"
+
+  # ---- Language bindings ---------------------------------------------------
+  # One job and one GitHub environment per registry, all using OIDC trusted publishing (see
+  # docs/content/developer-guide/ci-and-releases.md). The environment name is part of each
+  # registry's policy, so renaming one breaks publishing. Job-level permissions replace the
+  # workflow default, so contents: read is repeated next to id-token: write.
+  #
+  # They depend only on validate-tag, like the Docker image job, and rebuild and re-test the
+  # engine from this tag before publishing: a tag can point at a commit CI never saw.
+
+  # ---- PyPI (cimvocabcheck) ------------------------------------------------
+  publish-pypi:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    environment:
+      name: PyPI Deployment
+      url: https://pypi.org/project/cimvocabcheck/${{ needs.validate-tag.outputs.pypi_version }}/
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: cimvocabcheck/bindings/python
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+
+      - name: Apply release versions
+        working-directory: .
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Build the CLI fat JAR to test against
+        working-directory: .
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/cli -am package \
+            -DskipTests -Djacoco.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true \
+            -Dpmd.skip=true -Dcpd.skip=true -Dlicense.skip=true -Dspotless.check.skip=true
+          echo "CIMVOCABCHECK_JAR=$(ls "${GITHUB_WORKSPACE}"/cimvocabcheck/cli/target/cimvocabcheck-cli-*.jar)" >> "${GITHUB_ENV}"
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install the binding and its tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]" build==1.6.1 twine==7.0.0
+
+      # FAILS if the tag carries a model that no longer matches the schema it is generated from.
+      - name: Verify the generated model matches the published schema
+        working-directory: .
+        run: python3 cimvocabcheck/bindings/codegen/generate_models.py --check
+
+      - name: Test against the engine from this tag
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: python -m pytest
+
+      - name: Build the distributions
+        run: python -m build --outdir dist .
+
+      - name: Check the metadata PyPI will render
+        run: twine check --strict dist/*
+
+      # Trusted publishing: no credential is passed in, the action mints one from this job's
+      # OIDC identity. It also attaches PEP 740 attestations by default. skip-existing so
+      # re-running a release that failed half way is safe. packages-dir is relative to the
+      # workspace, not to this job's working-directory, which applies only to `run` steps.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: cimvocabcheck/bindings/python/dist
+          skip-existing: true
+
+  # ---- NuGet (Soptim.CimVocabCheck) ----------------------------------------
+  publish-nuget:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    environment:
+      name: NuGet Deployment
+      url: https://www.nuget.org/packages/Soptim.CimVocabCheck/${{ needs.validate-tag.outputs.release_version }}
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: cimvocabcheck/bindings/dotnet
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Not a credential — the NuGet.org account whose trusted-publishing policy this run has
+      # to match. Checked here so a missing variable fails by name rather than inside the
+      # token exchange.
+      - name: Validate required configuration
+        shell: bash
+        env:
+          NUGET_USER: ${{ vars.NUGET_USER }}
+        run: |
+          set -euo pipefail
+          [[ -n "${NUGET_USER}" ]] || (echo "repository variable NUGET_USER is missing" >&2; exit 1)
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+
+      - name: Apply release versions
+        working-directory: .
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Build the CLI fat JAR to test against
+        working-directory: .
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/cli -am package \
+            -DskipTests -Djacoco.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true \
+            -Dpmd.skip=true -Dcpd.skip=true -Dlicense.skip=true -Dspotless.check.skip=true
+          echo "CIMVOCABCHECK_JAR=$(ls "${GITHUB_WORKSPACE}"/cimvocabcheck/cli/target/cimvocabcheck-cli-*.jar)" >> "${GITHUB_ENV}"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+
+      # Warnings are errors here (Directory.Build.props), so this is the lint gate too.
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Test against the engine from this tag
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: dotnet test --configuration Release --no-build
+
+      - name: Pack
+        run: |
+          dotnet pack src/Soptim.CimVocabCheck/Soptim.CimVocabCheck.csproj \
+            --configuration Release --no-build --output artifacts
+
+      # Exchanges this job's OIDC identity for a short-lived NuGet API key.
+      - name: Authenticate to NuGet
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # --skip-duplicate so re-running a release that failed half way is safe.
+      - name: Publish to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "${NUGET_API_KEY}" \
+            --skip-duplicate
+
+  # ---- crates.io (cimvocabcheck) -------------------------------------------
+  publish-crates-io:
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    environment:
+      name: crates.io Deployment
+      url: https://crates.io/crates/cimvocabcheck/${{ needs.validate-tag.outputs.release_version }}
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: cimvocabcheck/bindings/rust
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+      CIMXML_VERSION: ${{ needs.validate-tag.outputs.cimxml_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+
+      - name: Apply release versions
+        working-directory: .
+        run: bash scripts/set-versions.sh "${CIMXML_VERSION}" "${RELEASE_VERSION}"
+
+      - name: Build the CLI fat JAR to test against
+        working-directory: .
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/cli -am package \
+            -DskipTests -Djacoco.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true \
+            -Dpmd.skip=true -Dcpd.skip=true -Dlicense.skip=true -Dspotless.check.skip=true
+          echo "CIMVOCABCHECK_JAR=$(ls "${GITHUB_WORKSPACE}"/cimvocabcheck/cli/target/cimvocabcheck-cli-*.jar)" >> "${GITHUB_ENV}"
+
+      # Rust is preinstalled on the runner image, so there is no toolchain action to pin here.
+      - name: Lint
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Format check
+        run: cargo fmt -- --check
+
+      - name: Test against the engine from this tag
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: cargo test
+
+      # crates.io has no --skip-duplicate, so ask first; that makes re-running a release that
+      # failed half way safe, and means no credential is minted when there is nothing to push.
+      - name: Check whether this version is already published
+        id: published
+        shell: bash
+        run: |
+          set -euo pipefail
+          if curl -sf -o /dev/null -H "User-Agent: opencgmes-release" \
+              "https://crates.io/api/v1/crates/cimvocabcheck/${RELEASE_VERSION}"; then
+            echo "cimvocabcheck ${RELEASE_VERSION} is already on crates.io; nothing to publish."
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      # Exchanges this job's OIDC identity for a crates.io token that expires in minutes.
+      - name: Authenticate to crates.io
+        if: steps.published.outputs.exists == 'false'
+        id: crates-auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+
+      # --allow-dirty because set-versions.sh stamps the version into Cargo.toml at build time:
+      # versions in this repository are derived from tags and are never committed.
+      - name: Publish to crates.io
+        if: steps.published.outputs.exists == 'false'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+        run: cargo publish --allow-dirty
 
   # ---- Public Docker image (GitHub Container Registry) ---------------------
   # Schema-less CLI image: users mount their own schema + inputs. Built from source so it does not
@@ -208,9 +486,10 @@ jobs:
       packages: write
     uses: ./.github/workflows/docker-publish.yml
     with:
+      # A release candidate never moves :latest.
       tag-suffixes: |
         ${{ needs.validate-tag.outputs.release_version }}
-        latest
+        ${{ needs.validate-tag.outputs.prerelease == 'false' && 'latest' || '' }}
       apply-versions: true
       cimxml-version: ${{ needs.validate-tag.outputs.cimxml_version }}
       release-version: ${{ needs.validate-tag.outputs.release_version }}
