@@ -51,6 +51,12 @@ A web application for uploading RDF Schema, SHACL shapes, and CIM XML files,
 querying the data using SPARQL, and validating the data against SHACL shapes.
 see [QueryAndValidationUI](./QueryAndValidationUI/README.md)
 
+## Third-Party Test Data
+
+This project includes the [ENTSO-E Application Profiles Library](https://github.com/entsoe/application-profiles-library)
+(v1.1.1) as a Git submodule under `cimxml/testing/application-profiles-library/` for testing purposes only.
+The Application Profiles Library is licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).

@@ -1,3 +1,12 @@
 [submodule "sparql-validation/testing/entsoe/application-profiles-library"]
 	path = cimvocabcheck/core/testing/entsoe/application-profiles-library
 	url = https://github.com/entsoe/application-profiles-library.git
+[submodule "cimxml/testing/application-profiles-library/cgmes2.4"]
+	path = cimxml/testing/application-profiles-library/cgmes2.4
+	url = https://github.com/entsoe/application-profiles-library.git
+[submodule "cimxml/testing/application-profiles-library/cgmes3.0"]
+	path = cimxml/testing/application-profiles-library/cgmes3.0
+	url = https://github.com/entsoe/application-profiles-library.git
+[submodule "cimxml/testing/application-profiles-library/v1.1.1"]
+	path = cimxml/testing/application-profiles-library/v1.1.1
+	url = https://github.com/entsoe/application-profiles-library.git
