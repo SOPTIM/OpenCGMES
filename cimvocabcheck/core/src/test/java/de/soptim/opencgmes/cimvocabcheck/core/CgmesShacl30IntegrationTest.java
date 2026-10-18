@@ -220,6 +220,26 @@ public class CgmesShacl30IntegrationTest {
   }
 
   /**
+   * The header profile names the non-standard {@code rdf:Statements*} terms in nine shapes (three
+   * {@code sh:in ( rdf:Statements )} lists and six {@code sh:path} sequences). None of them can
+   * match data, so each shape gets exactly one {@code NON_STANDARD_HEADER_TERM} warning.
+   */
+  @Test
+  public void headerProfileShapes_eachDeadShapeWarnedOnce() throws IOException {
+    var r = api.validateShacl(loadShacl(HEADER_SHACL));
+    var warnings =
+        r.shapeAnnotations().stream()
+            .filter(a -> a.code() == SparqlValidationCode.NON_STANDARD_HEADER_TERM)
+            .toList();
+    assertEquals(warnings.toString(), 9, warnings.size());
+    assertTrue(warnings.stream().allMatch(a -> a.severity() == SparqlValidationSeverity.WARN));
+    assertEquals(
+        "one warning per shape",
+        9,
+        warnings.stream().map(SparqlValidationAnnotation::locationHint).distinct().count());
+  }
+
+  /**
    * Equipment shapes use {@code rdf:type} in sh:path sequence paths — a known term, never flagged.
    */
   @Test
