@@ -31,6 +31,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.TermResolver.Role;
 import de.soptim.opencgmes.cimvocabcheck.core.VersionIri;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.Multiplicity;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
+import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,7 +40,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -49,6 +49,7 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
+import org.apache.jena.vocabulary.XSD;
 
 /**
  * Static analysis of SHACL shape structure against a CIM schema.
@@ -110,7 +111,9 @@ public final class ShaclShapeAnalyzer {
   private static final List<Node> PROPERTY_PAIR_PREDICATES =
       List.of(Shacl.EQUALS, Shacl.DISJOINT, Shacl.LESS_THAN, Shacl.LESS_THAN_OR_EQUALS);
 
-  /** Count and length parameters whose value SHACL restricts to non-negative integers. */
+  /**
+   * Count and length parameters whose value SHACL restricts to non-negative xsd:integer literals.
+   */
   private static final List<Node> NON_NEGATIVE_PARAMETERS =
       List.of(
           Shacl.MIN_COUNT,
@@ -193,6 +196,7 @@ public final class ShaclShapeAnalyzer {
     checkQualifiedCardinalities(shapesGraph, deactivated, out);
     checkConstraintParameters(shapesGraph, deactivated, out);
     checkValueRanges(shapesGraph, deactivated, out);
+    checkLengthRanges(shapesGraph, deactivated, out);
     checkDatatypeVocabulary(shapesGraph, deactivated, out);
     checkPropertyRefPredicates(shapesGraph, TARGET_PREDICATES, scope, localDefs, deactivated, out);
     checkPropertyRefPredicates(
@@ -552,17 +556,22 @@ public final class ShaclShapeAnalyzer {
       return;
     }
 
-    OptionalInt min = countValue(minNode);
-    OptionalInt max = countValue(maxNode);
+    Optional<BigInteger> min = countValue(minNode);
+    Optional<BigInteger> max = countValue(maxNode);
     if (min.isEmpty() || max.isEmpty()) {
       return;
     }
 
-    if (min.getAsInt() > max.getAsInt()) {
+    if (min.get().compareTo(max.get()) > 0) {
       Node term = pathNode.isURI() ? pathNode : null;
       out.add(
-          cardinalityAnnotation(
-              "sh:minCount", min.getAsInt(), "sh:maxCount", max.getAsInt(), term, hint));
+          contradictionAnnotation(
+              SparqlValidationCode.INVALID_CARDINALITY,
+              "sh:minCount " + min.get(),
+              "sh:maxCount " + max.get(),
+              "property shape",
+              term,
+              hint));
     }
   }
 
@@ -579,36 +588,39 @@ public final class ShaclShapeAnalyzer {
       if (deactivated.contains(shape)) {
         continue;
       }
-      OptionalInt qualifiedMin = countValue(singleObject(g, shape, Shacl.QUALIFIED_MIN_COUNT));
+      Optional<BigInteger> qualifiedMin =
+          countValue(singleObject(g, shape, Shacl.QUALIFIED_MIN_COUNT));
       if (qualifiedMin.isEmpty()) {
         continue;
       }
-      int lower = qualifiedMin.getAsInt();
-      OptionalInt qualifiedMax = countValue(singleObject(g, shape, Shacl.QUALIFIED_MAX_COUNT));
-      OptionalInt max = countValue(singleObject(g, shape, Shacl.MAX_COUNT));
-      Node term = simplePathProperty(g, shape);
-      Node hint = resolveHintNode(g, shape);
-      if (qualifiedMax.isPresent() && lower > qualifiedMax.getAsInt()) {
-        out.add(
-            cardinalityAnnotation(
-                "sh:qualifiedMinCount",
-                lower,
-                "sh:qualifiedMaxCount",
-                qualifiedMax.getAsInt(),
-                term,
-                hint));
-      } else if (max.isPresent() && lower > max.getAsInt()) {
-        out.add(
-            cardinalityAnnotation(
-                "sh:qualifiedMinCount", lower, "sh:maxCount", max.getAsInt(), term, hint));
+      BigInteger lower = qualifiedMin.get();
+      Optional<BigInteger> qualifiedMax =
+          countValue(singleObject(g, shape, Shacl.QUALIFIED_MAX_COUNT));
+      Optional<BigInteger> max = countValue(singleObject(g, shape, Shacl.MAX_COUNT));
+      String upper;
+      if (qualifiedMax.isPresent() && lower.compareTo(qualifiedMax.get()) > 0) {
+        upper = "sh:qualifiedMaxCount " + qualifiedMax.get();
+      } else if (max.isPresent() && lower.compareTo(max.get()) > 0) {
+        upper = "sh:maxCount " + max.get();
+      } else {
+        continue;
       }
+      out.add(
+          contradictionAnnotation(
+              SparqlValidationCode.INVALID_CARDINALITY,
+              "sh:qualifiedMinCount " + lower,
+              upper,
+              shapeKind(g, shape),
+              simplePathProperty(g, shape),
+              resolveHintNode(g, shape)));
     }
   }
 
   /**
-   * Flags ill-formed constraint parameters that SHACL-SHACL rejects: a negative count or length,
-   * and an {@code sh:qualifiedValueShape} with neither {@code sh:qualifiedMinCount} nor {@code
-   * sh:qualifiedMaxCount} (at least one is a mandatory parameter of that constraint component).
+   * Flags ill-formed constraint parameters that SHACL-SHACL rejects: a count or length that is not
+   * an {@code xsd:integer} literal or is negative, and an {@code sh:qualifiedValueShape} with
+   * neither {@code sh:qualifiedMinCount} nor {@code sh:qualifiedMaxCount} (at least one is a
+   * mandatory parameter of that constraint component).
    */
   private static void checkConstraintParameters(
       Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
@@ -618,16 +630,22 @@ public final class ShaclShapeAnalyzer {
         while (it.hasNext()) {
           Triple t = it.next();
           Node shape = t.getSubject();
-          OptionalInt value = parseLiteralInt(t.getObject());
-          if (deactivated.contains(shape) || value.isEmpty() || value.getAsInt() >= 0) {
+          if (deactivated.contains(shape)) {
             continue;
           }
-          String msg =
-              "sh:"
-                  + parameter.getLocalName()
-                  + " "
-                  + value.getAsInt()
-                  + " is negative: SHACL requires a non-negative integer.";
+          Optional<BigInteger> value = integerParameter(t.getObject());
+          String label = "sh:" + parameter.getLocalName() + " ";
+          String msg;
+          if (value.isEmpty()) {
+            msg =
+                label
+                    + describeValue(t.getObject())
+                    + " is not an xsd:integer literal: SHACL requires a non-negative integer.";
+          } else if (value.get().signum() < 0) {
+            msg = label + value.get() + " is negative: SHACL requires a non-negative integer.";
+          } else {
+            continue;
+          }
           out.add(
               constraintParameterAnnotation(
                   msg, simplePathProperty(g, shape), resolveHintNode(g, shape)));
@@ -655,13 +673,73 @@ public final class ShaclShapeAnalyzer {
   }
 
   /**
-   * Parses a count for the contradiction checks. A negative value is treated as absent: it is
-   * reported on its own as an ill-formed parameter, and comparing it would only add a second
-   * finding for the same mistake.
+   * Flags a self-contradictory length range: {@code sh:minLength} above {@code sh:maxLength}, so no
+   * string can satisfy both. Equal bounds are fine (exactly that length).
    */
-  private static OptionalInt countValue(Node n) {
-    OptionalInt v = parseLiteralInt(n);
-    return v.isPresent() && v.getAsInt() < 0 ? OptionalInt.empty() : v;
+  private static void checkLengthRanges(
+      Graph g, Set<Node> deactivated, List<SparqlValidationAnnotation> out) {
+    var shapes = new LinkedHashSet<Node>();
+    forEachSubject(g, Shacl.MIN_LENGTH, shapes::add);
+    for (Node shape : shapes) {
+      if (deactivated.contains(shape)) {
+        continue;
+      }
+      Optional<BigInteger> min = countValue(singleObject(g, shape, Shacl.MIN_LENGTH));
+      Optional<BigInteger> max = countValue(singleObject(g, shape, Shacl.MAX_LENGTH));
+      if (min.isPresent() && max.isPresent() && min.get().compareTo(max.get()) > 0) {
+        out.add(
+            contradictionAnnotation(
+                SparqlValidationCode.INVALID_VALUE_RANGE,
+                "sh:minLength " + min.get(),
+                "sh:maxLength " + max.get(),
+                shapeKind(g, shape),
+                simplePathProperty(g, shape),
+                resolveHintNode(g, shape)));
+      }
+    }
+  }
+
+  /**
+   * Parses a count or length for the contradiction checks. An ill-formed value — not an {@code
+   * xsd:integer} literal, or negative — is treated as absent: it is reported on its own as an
+   * ill-formed parameter, and comparing it would only add a second finding for the same mistake.
+   */
+  private static Optional<BigInteger> countValue(Node n) {
+    return integerParameter(n).filter(v -> v.signum() >= 0);
+  }
+
+  /**
+   * Parses a SHACL integer parameter: its value when {@code n} is a well-formed literal typed
+   * exactly {@code xsd:integer} (as SHACL-SHACL requires), else empty. A {@code "1"} string or a
+   * {@code 1.0} decimal is therefore not a count, even though its lexical form reads as one.
+   */
+  private static Optional<BigInteger> integerParameter(Node n) {
+    if (n == null || !n.isLiteral() || !XSD.integer.getURI().equals(n.getLiteralDatatypeURI())) {
+      return Optional.empty();
+    }
+    try {
+      return Optional.of(new BigInteger(n.getLiteralLexicalForm().strip()));
+    } catch (NumberFormatException e) {
+      return Optional.empty();
+    }
+  }
+
+  /** Renders a parameter value for a message: a literal with its datatype, else the node itself. */
+  private static String describeValue(Node n) {
+    if (!n.isLiteral()) {
+      return n.isURI() ? "<" + n.getURI() + ">" : "a blank node";
+    }
+    String datatype = n.getLiteralDatatypeURI();
+    String shortType =
+        datatype.startsWith(XSD.getURI())
+            ? "xsd:" + datatype.substring(XSD.getURI().length())
+            : "<" + datatype + ">";
+    return "\"" + n.getLiteralLexicalForm() + "\"^^" + shortType;
+  }
+
+  /** Names the kind of shape for messages: a property shape has an {@code sh:path}. */
+  private static String shapeKind(Graph g, Node shape) {
+    return g.contains(shape, Shacl.PATH, Node.ANY) ? "property shape" : "node shape";
   }
 
   /**
@@ -685,11 +763,15 @@ public final class ShaclShapeAnalyzer {
     }
     Multiplicity m = declared.get();
 
-    OptionalInt shMin = countValue(singleObject(g, shape, Shacl.MIN_COUNT));
-    OptionalInt shMax = countValue(singleObject(g, shape, Shacl.MAX_COUNT));
+    Optional<BigInteger> shMin = countValue(singleObject(g, shape, Shacl.MIN_COUNT));
+    Optional<BigInteger> shMax = countValue(singleObject(g, shape, Shacl.MAX_COUNT));
 
-    boolean exceedsUpper = m.max() != null && shMin.isPresent() && shMin.getAsInt() > m.max();
-    boolean belowLower = shMax.isPresent() && shMax.getAsInt() < m.min();
+    boolean exceedsUpper =
+        m.max() != null
+            && shMin.isPresent()
+            && shMin.get().compareTo(BigInteger.valueOf(m.max())) > 0;
+    boolean belowLower =
+        shMax.isPresent() && shMax.get().compareTo(BigInteger.valueOf(m.min())) < 0;
     if (exceedsUpper || belowLower) {
       out.add(multiplicityAnnotation(prop, m, shMin, shMax, scope, hint));
     }
@@ -743,17 +825,6 @@ public final class ShaclShapeAnalyzer {
       return; // mixed or class range — permissive
     }
     out.add(classIncompatibleAnnotation(prop, classNode, scope, hint));
-  }
-
-  private static OptionalInt parseLiteralInt(Node n) {
-    if (n == null || !n.isLiteral()) {
-      return OptionalInt.empty();
-    }
-    try {
-      return OptionalInt.of(Integer.parseInt(n.getLiteralLexicalForm()));
-    } catch (NumberFormatException e) {
-      return OptionalInt.empty();
-    }
   }
 
   private static boolean isDatatypeRange(String iri) {
@@ -1142,22 +1213,34 @@ public final class ShaclShapeAnalyzer {
     OptionalDouble minExc = literalDouble(singleObject(g, shape, Shacl.MIN_EXCLUSIVE));
     OptionalDouble maxInc = literalDouble(singleObject(g, shape, Shacl.MAX_INCLUSIVE));
     OptionalDouble maxExc = literalDouble(singleObject(g, shape, Shacl.MAX_EXCLUSIVE));
-    Node term = simplePathProperty(g, shape);
-    Node hint = resolveHintNode(g, shape);
 
     if (contradicts(minInc, maxInc, false)) {
-      out.add(
-          valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxInclusive", maxInc, term, hint));
+      addValueRange(g, shape, "sh:minInclusive", minInc, "sh:maxInclusive", maxInc, out);
     } else if (contradicts(minInc, maxExc, true)) {
-      out.add(
-          valueRangeAnnotation("sh:minInclusive", minInc, "sh:maxExclusive", maxExc, term, hint));
+      addValueRange(g, shape, "sh:minInclusive", minInc, "sh:maxExclusive", maxExc, out);
     } else if (contradicts(minExc, maxInc, true)) {
-      out.add(
-          valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxInclusive", maxInc, term, hint));
+      addValueRange(g, shape, "sh:minExclusive", minExc, "sh:maxInclusive", maxInc, out);
     } else if (contradicts(minExc, maxExc, true)) {
-      out.add(
-          valueRangeAnnotation("sh:minExclusive", minExc, "sh:maxExclusive", maxExc, term, hint));
+      addValueRange(g, shape, "sh:minExclusive", minExc, "sh:maxExclusive", maxExc, out);
     }
+  }
+
+  private static void addValueRange(
+      Graph g,
+      Node shape,
+      String lowerLabel,
+      OptionalDouble lower,
+      String upperLabel,
+      OptionalDouble upper,
+      List<SparqlValidationAnnotation> out) {
+    out.add(
+        contradictionAnnotation(
+            SparqlValidationCode.INVALID_VALUE_RANGE,
+            lowerLabel + " " + formatBound(lower.getAsDouble()),
+            upperLabel + " " + formatBound(upper.getAsDouble()),
+            shapeKind(g, shape),
+            simplePathProperty(g, shape),
+            resolveHintNode(g, shape)));
   }
 
   /**
@@ -1429,24 +1512,24 @@ public final class ShaclShapeAnalyzer {
         hint);
   }
 
-  private static SparqlValidationAnnotation cardinalityAnnotation(
-      String lowerLabel, int lower, String upperLabel, int upper, Node term, Node hint) {
-
-    String msg =
-        lowerLabel
-            + " "
-            + lower
-            + " exceeds "
-            + upperLabel
-            + " "
-            + upper
-            + ": property shape can never be satisfied.";
+  /**
+   * A lower bound that exceeds its upper bound, e.g. {@code lower} = {@code "sh:minCount 3"} and
+   * {@code upper} = {@code "sh:maxCount 1"}; {@code shapeKind} names the shape in the message.
+   */
+  private static SparqlValidationAnnotation contradictionAnnotation(
+      SparqlValidationCode code,
+      String lower,
+      String upper,
+      String shapeKind,
+      Node term,
+      Node hint) {
+    String msg = lower + " exceeds " + upper + ": " + shapeKind + " can never be satisfied.";
     return new SparqlValidationAnnotation(
         SparqlValidationSeverity.ERROR,
         null,
         null,
         msg,
-        SparqlValidationCode.INVALID_CARDINALITY,
+        code,
         term,
         List.of(),
         List.of(),
@@ -1472,8 +1555,8 @@ public final class ShaclShapeAnalyzer {
   private static SparqlValidationAnnotation multiplicityAnnotation(
       Node prop,
       Multiplicity declared,
-      OptionalInt shMin,
-      OptionalInt shMax,
+      Optional<BigInteger> shMin,
+      Optional<BigInteger> shMax,
       Collection<VersionIri> scope,
       Node hint) {
     var shacl = new StringBuilder();
@@ -1644,35 +1727,6 @@ public final class ShaclShapeAnalyzer {
         List.of(),
         List.of(),
         null);
-  }
-
-  private static SparqlValidationAnnotation valueRangeAnnotation(
-      String lowerLabel,
-      OptionalDouble lower,
-      String upperLabel,
-      OptionalDouble upper,
-      Node term,
-      Node hint) {
-    String msg =
-        lowerLabel
-            + " "
-            + formatBound(lower.getAsDouble())
-            + " exceeds "
-            + upperLabel
-            + " "
-            + formatBound(upper.getAsDouble())
-            + ": property shape can never be satisfied.";
-    return new SparqlValidationAnnotation(
-        SparqlValidationSeverity.ERROR,
-        null,
-        null,
-        msg,
-        SparqlValidationCode.INVALID_VALUE_RANGE,
-        term,
-        List.of(),
-        List.of(),
-        null,
-        hint);
   }
 
   /** Formats a numeric bound without a trailing {@code .0} for whole numbers. */

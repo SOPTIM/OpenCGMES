@@ -675,6 +675,169 @@ public class ShaclConstraintChecksTest {
   }
 
   // ============================================================================================
+  // Non-integer count and length parameters
+  // ============================================================================================
+
+  /**
+   * SHACL-SHACL requires an {@code xsd:integer} literal — a string, a decimal, another integer
+   * datatype or an IRI is ill-formed, even when its lexical form reads as a number.
+   */
+  @Test
+  public void nonIntegerParameters_areErrors() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:minCount \"1\" ;"
+                    + " sh:maxCount 1.0 ] ;\n"
+                    + "   sh:property [ sh:path cim:IdentifiedObject.name ;"
+                    + " sh:minLength \"2\"^^xsd:int ] ;\n"
+                    + "   sh:property [ "
+                    + QUALIFIED_PATH
+                    + "sh:qualifiedMinCount ex:one ] ."));
+    assertEquals(4, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+  }
+
+  /** The finding shows the offending literal with its datatype. */
+  @Test
+  public void nonIntegerParameter_annotation_namesLiteralAndDatatype() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:maxCount 1.0 ] ."));
+    var annotation =
+        r.shapeAnnotations().stream()
+            .filter(a -> a.code() == SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER)
+            .findFirst()
+            .orElseThrow();
+    assertTrue(
+        annotation.message(),
+        annotation
+            .message()
+            .contains("sh:maxCount \"1.0\"^^xsd:decimal is not an xsd:integer literal"));
+    assertEquals(PROP_R, annotation.term().getURI());
+  }
+
+  /**
+   * A non-integer bound is reported once as an ill-formed parameter and not compared as well —
+   * {@code sh:minCount 3.0 ; sh:maxCount 1.0} gives two parameter findings, no contradiction.
+   */
+  @Test
+  public void nonIntegerParameter_notAlsoReportedAsContradiction() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:minCount 3.0 ;"
+                    + " sh:maxCount 1.0 ] ."));
+    assertEquals(2, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+  }
+
+  /** Integers beyond the {@code int} range are still parsed: valid if positive, flagged if not. */
+  @Test
+  public void largeIntegerParameters_areParsed() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:ACLineSegment.r ; sh:minCount 1 ;"
+                    + " sh:maxCount 99999999999 ] ;\n"
+                    + "   sh:property [ sh:path cim:ACLineSegment.r ;"
+                    + " sh:minCount -99999999999 ] ;\n"
+                    + "   sh:property [ sh:path cim:ACLineSegment.r ; sh:minCount 99999999999 ;"
+                    + " sh:maxCount 1 ] ."));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CARDINALITY));
+  }
+
+  // ============================================================================================
+  // sh:minLength / sh:maxLength contradiction
+  // ============================================================================================
+
+  /** sh:minLength above sh:maxLength — no string can satisfy both. */
+  @Test
+  public void length_minAboveMax_isError() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:IdentifiedObject.name ; sh:minLength 5 ;"
+                    + " sh:maxLength 2 ] ."));
+    var annotations =
+        r.shapeAnnotations().stream()
+            .filter(a -> a.code() == SparqlValidationCode.INVALID_VALUE_RANGE)
+            .toList();
+    assertEquals(1, annotations.size());
+    var annotation = annotations.get(0);
+    assertEquals(SparqlValidationSeverity.ERROR, annotation.severity());
+    assertEquals(
+        "sh:minLength 5 exceeds sh:maxLength 2: property shape can never be satisfied.",
+        annotation.message());
+    assertEquals(CIM + "IdentifiedObject.name", annotation.term().getURI());
+  }
+
+  /** Equal length bounds admit exactly that length; a lone bound cannot contradict. */
+  @Test
+  public void length_consistentBounds_ok() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:IdentifiedObject.name ; sh:minLength 3 ;"
+                    + " sh:maxLength 3 ] ;\n"
+                    + "   sh:property [ sh:path cim:IdentifiedObject.name ; sh:minLength 9 ] ."));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_VALUE_RANGE));
+  }
+
+  /** A negative sh:maxLength is reported only as an ill-formed parameter. */
+  @Test
+  public void length_negativeBound_notAlsoReportedAsContradiction() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:property [ sh:path cim:IdentifiedObject.name ; sh:minLength 3 ;"
+                    + " sh:maxLength -1 ] ."));
+    assertEquals(1, count(r, SparqlValidationCode.INVALID_CONSTRAINT_PARAMETER));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_VALUE_RANGE));
+  }
+
+  /** A deactivated shape's length bounds are ignored. */
+  @Test
+  public void length_deactivated_ignored() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:S sh:deactivated true ; sh:property [ sh:path cim:IdentifiedObject.name ;"
+                    + " sh:minLength 5 ; sh:maxLength 2 ] ."));
+    assertEquals(0, count(r, SparqlValidationCode.INVALID_VALUE_RANGE));
+  }
+
+  // ============================================================================================
+  // Shape kind in contradiction messages
+  // ============================================================================================
+
+  /** A contradiction on a shape without sh:path is worded as a node shape, not a property shape. */
+  @Test
+  public void contradictionOnNodeShape_saysNodeShape() {
+    var r =
+        api.validateShacl(
+            parseShapes(
+                PREFIXES
+                    + "ex:Q sh:qualifiedValueShape [ sh:class cim:Substation ] ;"
+                    + " sh:qualifiedMinCount 2 ; sh:qualifiedMaxCount 1 .\n"
+                    + "ex:L sh:minLength 5 ; sh:maxLength 2 .\n"
+                    + "ex:V sh:minInclusive 5 ; sh:maxInclusive 2 ."));
+    var messages = r.shapeAnnotations().stream().map(SparqlValidationAnnotation::message).toList();
+    assertEquals(messages.toString(), 3, messages.size());
+    for (String m : messages) {
+      assertTrue(m, m.endsWith(": node shape can never be satisfied."));
+    }
+  }
+
+  // ============================================================================================
   // Helpers
   // ============================================================================================
 
