@@ -475,7 +475,7 @@
     },
     "dependencies": {
         "jsonc-parser": "^3.3.1",
-        "vscode-languageclient": "^10.0.0"
+        "vscode-languageclient": "^11.0.0"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
@@ -485,7 +485,7 @@
         "eslint": "^10.5.0",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.8.4",
-        "typescript": "^6.0.0",
+        "typescript": "^7.0.0",
         "typescript-eslint": "^8.61.1"
     }
 }
