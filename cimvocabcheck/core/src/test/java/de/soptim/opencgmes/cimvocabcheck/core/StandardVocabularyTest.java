@@ -136,15 +136,21 @@ public class StandardVocabularyTest {
     assertNoVocabError(r);
   }
 
-  /** Header extensions (rdf:Statements.subject) are accepted in SPARQL predicate position too. */
+  /**
+   * A 552 header term (rdf:Statements.subject) in SPARQL predicate position is neither a typo nor
+   * an unknown property, but it can never match data, so it gets its own warning.
+   */
   @Test
-  public void headerExtensionPredicateAccepted() {
+  public void headerTermPredicateWarnedNotTypo() {
     var r =
         api(true).validateSparql(PREAMBLE + "SELECT * WHERE { ?s rdf:Statements.subject ?o . }");
     assertNoVocabError(r);
     assertFalse(
-        "header extension must not be reported as an unknown property",
+        "header term must not be reported as an unknown property",
         r.annotations().stream().anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY));
+    assertEquals(
+        SparqlValidationSeverity.WARN,
+        single(r, SparqlValidationCode.NON_STANDARD_HEADER_TERM).severity());
   }
 
   @Test
@@ -225,20 +231,23 @@ public class StandardVocabularyTest {
 
   // ---- vocabulary typos are now caught in every position, header extensions accepted ----
 
-  /** The CIM-552 header coins rdf:Statements.subject under rdf:; accepted in sh:path position. */
+  /** The CIM-552 header coins rdf:Statements.subject under rdf:; warned, not a typo, in sh:path. */
   @Test
-  public void shaclHeaderExtensionInPathAccepted() {
+  public void shaclHeaderTermInPathWarnedNotTypo() {
     var r =
         shacl(
             true,
             SHACL_PREAMBLE
                 + "ex:S a sh:NodeShape ; sh:targetClass cim:ACLineSegment ;\n"
                 + "  sh:property [ sh:path rdf:Statements.subject ] .\n");
-    assertTrue("header extension must not be a vocabulary typo", vocabErrors(r).isEmpty());
+    assertTrue("header term must not be a vocabulary typo", vocabErrors(r).isEmpty());
     assertFalse(
-        "header extension must not be reported as an unknown property",
+        "header term must not be reported as an unknown property",
         r.shapeAnnotations().stream()
             .anyMatch(a -> a.code() == SparqlValidationCode.UNKNOWN_PROPERTY));
+    assertTrue(
+        r.shapeAnnotations().stream()
+            .anyMatch(a -> a.code() == SparqlValidationCode.NON_STANDARD_HEADER_TERM));
   }
 
   /** A closed-namespace typo in sh:path is no longer silently skipped. */
