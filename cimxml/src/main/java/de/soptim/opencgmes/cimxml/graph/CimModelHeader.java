@@ -177,10 +177,11 @@ public interface CimModelHeader extends CimGraph {
    *
    * @return A set of modeling authority set nodes (IRIs).
    */
-  default Set<Node> getModelingAuthoritySet() {
+  default Node getModelingAuthoritySet() {
     return stream(getModel(), CimHeaderVocabulary.PREDICATE_MODELING_AUTHORITY_SET, Node.ANY)
         .map(Triple::getObject)
-        .collect(Collectors.toUnmodifiableSet());
+        .findFirst()
+        .orElse(null);
   }
 
   /**
