@@ -80,6 +80,28 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
               }
           }
       """);
+  private static final Query classInfoQuery = QueryFactory.create(
+      """
+          PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
+          PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+          PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+          PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+    
+          SELECT ?class ?superClass ?isConcrete ?isDescription ?isEnum ?isCimDatatype ?isPrimitive
+          WHERE
+          {
+              ?class rdf:type rdfs:Class.
+              OPTIONAL
+              {
+                  ?class rdfs:subClassOf ?superClass.
+              }
+              BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#concrete>} AS ?isConcrete)
+              BIND (EXISTS{?class cims:stereotype "Description"} AS ?isDescription)
+              BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#enumeration>} AS ?isEnum)
+              BIND (EXISTS{?class cims:stereotype "CIMDatatype"} AS ?isCimDatatype)
+              BIND (EXISTS{?class cims:stereotype "Primitive"} AS ?isPrimitive)
+          }
+      """);
   private final ErrorHandler errorHandler;
   private final Map<Set<Node>, CimProfile> multiVersionIriProfiles = new ConcurrentHashMap<>();
   private final Map<Node, CimProfile> singleVersionIriProfiles = new ConcurrentHashMap<>();
@@ -87,6 +109,10 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
   private final Map<CimProfile, Map<Node, PropertyInfo>> profilePropertiesCache
       = new ConcurrentHashMap<>();
   private final Map<Set<CimProfile>, Map<Node, PropertyInfo>> profileSetPropertiesCache
+      = new ConcurrentHashMap<>();
+  private final Map<CimProfile, Map<Node, TypeInfo>> profileTypesCache
+      = new ConcurrentHashMap<>();
+  private final Map<Set<CimProfile>, Map<Node, TypeInfo>> profileSetTypesCache
       = new ConcurrentHashMap<>();
   private final Map<String, RDFDatatype> primitiveToRdfDatatypeMap;
 
@@ -164,6 +190,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
       }
       headerProfilesByCimNamespace.put(cimNamespace, cimProfile);
       profilePropertiesCache.put(cimProfile, getTypedProperties(cimProfile));
+      profileTypesCache.put(cimProfile, getClassInfos(cimProfile));
       return;
     }
 
@@ -187,6 +214,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
       multiVersionIriProfiles.put(owlVersionIris, cimProfile);
     }
     profilePropertiesCache.put(cimProfile, getTypedProperties(cimProfile));
+    profileTypesCache.put(cimProfile, getClassInfos(cimProfile));
   }
 
   @Override
@@ -299,6 +327,42 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
   }
 
   @Override
+  public Map<Node, TypeInfo> getTypeInfoMap(Set<Node> owlVersionIris) {
+    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
+      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
+    }
+
+    final var set = getMatchingProfiles(owlVersionIris);
+
+    if (set.size() == 1) {
+      return profileTypesCache.get(set.iterator().next());
+    }
+
+    Map<Node, TypeInfo> types = profileSetTypesCache.get(set);
+    if (types != null) {
+      return types;
+    }
+
+    types = new HashMap<>(1024);
+    for (var p : set) {
+      types.putAll(profileTypesCache.get(p));
+    }
+    types = Collections.unmodifiableMap(types);
+    profileSetTypesCache.put(set, types);
+    return types;
+  }
+
+  @Override
+  public Map<Node, TypeInfo> getHeaderTypeInfoMap(String cimNamespace) {
+    Objects.requireNonNull(cimNamespace, "cimNamespace");
+    final var profile = headerProfilesByCimNamespace.get(cimNamespace);
+    if (profile == null) {
+      return Collections.emptyMap();
+    }
+    return profileTypesCache.get(profile);
+  }
+
+  @Override
   public Map<String, RDFDatatype> getPrimitiveToRdfDatatypeMapping() {
     return Collections.unmodifiableMap(primitiveToRdfDatatypeMap);
   }
@@ -336,6 +400,32 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
               cimDatatype,
               rdfDataType,
               rdfDataType != null ? null : referenceType));
+        });
+    return Collections.unmodifiableMap(map);
+  }
+
+  private Map<Node, TypeInfo> getClassInfos(Graph g) {
+    final var map = new HashMap<Node, TypeInfo>(1024);
+    QueryExec.graph(g)
+        .query(classInfoQuery)
+        .select()
+        .forEachRemaining(vars -> {
+          final var classUri = vars.get("class");
+          final var superClass = vars.get("superClass");
+          final var isConcrete = (Boolean) vars.get("isConcrete").getLiteralValue();
+          final var isDescription = (Boolean) vars.get("isDescription").getLiteralValue();
+          final var isEnum = (Boolean) vars.get("isEnum").getLiteralValue();
+          final var isCIMDatatype = (Boolean) vars.get("isCimDatatype").getLiteralValue();
+          final var isPrimitive = (Boolean) vars.get("isPrimitive").getLiteralValue();
+          map.put(classUri, new TypeInfo(
+              classUri,
+              superClass,
+              isConcrete,
+              isDescription,
+              isEnum,
+              isCIMDatatype,
+              isPrimitive
+          ));
         });
     return Collections.unmodifiableMap(map);
   }

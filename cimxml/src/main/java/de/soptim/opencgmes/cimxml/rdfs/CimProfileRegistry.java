@@ -122,7 +122,7 @@ public interface CimProfileRegistry {
    *
    * @param owlVersionIris A set of profile IRIs as found in the model header.
    * @return A map of properties and their associated RDF datatypes. The map is thread-safe for
-   *     reading. Returns an empty map if one of the profile IRIs is not registered.
+   * reading. Returns an empty map if one of the profile IRIs is not registered.
    */
   Map<Node, PropertyInfo> getPropertiesAndDatatypes(Set<Node> owlVersionIris);
 
@@ -133,10 +133,14 @@ public interface CimProfileRegistry {
    *
    * @param cimNamespace The 'cim' namespace for which the header profile should be used.
    * @return A map of properties and their associated RDF datatypes. The map is thread-safe for
-   *     reading. Returns an empty map if no header profile is registered for the given 'cim'
-   *     namespace.
+   * reading. Returns an empty map if no header profile is registered for the given 'cim'
+   * namespace.
    */
   Map<Node, PropertyInfo> getHeaderPropertiesAndDatatypes(String cimNamespace);
+
+  Map<Node, TypeInfo> getTypeInfoMap(Set<Node> owlVersionIris);
+
+  Map<Node, TypeInfo> getHeaderTypeInfoMap(String cimNamespace);
 
   /**
    * Get a mapping of primitive type names to RDF datatypes for all registered profiles. This
@@ -186,6 +190,11 @@ public interface CimProfileRegistry {
    */
   record PropertyInfo(Node rdfType, Node property, Node cimDatatype, RDFDatatype primitiveType,
                       Node referenceType) {
+
+  }
+
+  record TypeInfo(Node classUri, Node superClass, boolean isConcrete, boolean isDescription,
+                  boolean isEnum, boolean isCIMDatatype, boolean isPrimitive) {
 
   }
 }
