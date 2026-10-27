@@ -110,6 +110,43 @@ public class TestCimProfileRegistryStd {
     assertTrue(registry.getRegisteredProfiles().contains(profile));
     assertEquals(1, registry.getRegisteredProfiles().size());
 
+    var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
+    assertNotNull(typeInfoMap);
+    assertEquals(3, typeInfoMap.size());
+
+    var classAType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA");
+    assertTrue(typeInfoMap.containsKey(classAType));
+    var typeInfo = typeInfoMap.get(classAType);
+    assertEquals(classAType, typeInfo.classUri());
+    assertEquals(NodeFactory.createURI("http://iec.ch/TC57/CIM100#IdentifiedObject"), typeInfo.superClass());
+    assertTrue(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCIMDatatype());
+    assertFalse(typeInfo.isPrimitive());
+
+    var floatType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#Float");
+    assertTrue(typeInfoMap.containsKey(floatType));
+    typeInfo = typeInfoMap.get(floatType);
+    assertEquals(floatType, typeInfo.classUri());
+    assertNull(typeInfo.superClass());
+    assertFalse(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCIMDatatype());
+    assertTrue(typeInfo.isPrimitive());
+
+    var stringtype = NodeFactory.createURI("http://iec.ch/TC57/CIM100#String");
+    assertTrue(typeInfoMap.containsKey(stringtype));
+    typeInfo = typeInfoMap.get(stringtype);
+    assertEquals(stringtype, typeInfo.classUri());
+    assertNull(typeInfo.superClass());
+    assertFalse(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCIMDatatype());
+    assertTrue(typeInfo.isPrimitive());
+
     var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
     assertNotNull(properties);
     assertEquals(2, properties.size());
@@ -345,9 +382,13 @@ public class TestCimProfileRegistryStd {
 
       assertTrue(registry.containsProfile(owlVersionIRIs));
       var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
+      var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
       assertNotNull(properties);
+      assertNotNull(typeInfoMap);
       assertTrue(properties.containsKey(
           NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA.floatProperty")));
+      assertTrue(typeInfoMap.containsKey(
+          NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA")));
     }
 
     {
@@ -356,9 +397,12 @@ public class TestCimProfileRegistryStd {
 
       assertTrue(registry.containsProfile(owlVersionIRIs));
       var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
+      var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
       assertNotNull(properties);
       assertTrue(properties.containsKey(
           NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassB.floatProperty")));
+      assertTrue(typeInfoMap.containsKey(
+          NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassB")));
     }
 
     {
@@ -367,9 +411,12 @@ public class TestCimProfileRegistryStd {
 
       assertTrue(registry.containsProfile(owlVersionIRIs));
       var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
+      var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
       assertNotNull(properties);
       assertTrue(properties.containsKey(
           NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA.floatProperty")));
+      assertTrue(typeInfoMap.containsKey(
+          NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA")));
     }
 
     {
@@ -378,6 +425,7 @@ public class TestCimProfileRegistryStd {
 
       assertFalse(registry.containsProfile(owlVersionIRIs));
       assertTrue(registry.getPropertiesAndDatatypes(owlVersionIRIs).isEmpty());
+      assertTrue(registry.getTypeInfoMap(owlVersionIRIs).isEmpty());
     }
   }
 

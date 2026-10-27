@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimxml.rdfs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -102,6 +103,43 @@ public class TestCimProfileRegistryStdTypeMapping {
 
     assertTrue(registry.getRegisteredProfiles().contains(profile));
     assertEquals(1, registry.getRegisteredProfiles().size());
+
+    var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
+    assertNotNull(typeInfoMap);
+    assertEquals(3, typeInfoMap.size());
+
+    var classAType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA");
+    assertTrue(typeInfoMap.containsKey(classAType));
+    var typeInfo = typeInfoMap.get(classAType);
+    assertEquals(classAType, typeInfo.classUri());
+    assertEquals(NodeFactory.createURI("http://iec.ch/TC57/CIM100#IdentifiedObject"), typeInfo.superClass());
+    assertTrue(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCIMDatatype());
+    assertFalse(typeInfo.isPrimitive());
+
+    var floatType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#Float");
+    assertTrue(typeInfoMap.containsKey(floatType));
+    typeInfo = typeInfoMap.get(floatType);
+    assertEquals(floatType, typeInfo.classUri());
+    assertNull(typeInfo.superClass());
+    assertFalse(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCIMDatatype());
+    assertTrue(typeInfo.isPrimitive());
+
+    var stringtype = NodeFactory.createURI("http://iec.ch/TC57/CIM100#String");
+    assertTrue(typeInfoMap.containsKey(stringtype));
+    typeInfo = typeInfoMap.get(stringtype);
+    assertEquals(stringtype, typeInfo.classUri());
+    assertNull(typeInfo.superClass());
+    assertFalse(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCIMDatatype());
+    assertTrue(typeInfo.isPrimitive());
 
     var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
     assertNotNull(properties);
