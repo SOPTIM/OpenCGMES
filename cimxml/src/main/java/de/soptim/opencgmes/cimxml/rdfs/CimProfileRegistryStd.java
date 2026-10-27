@@ -373,7 +373,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
           final var isConcrete = (Boolean) vars.get("isConcrete").getLiteralValue();
           final var isDescription = (Boolean) vars.get("isDescription").getLiteralValue();
           final var isEnum = (Boolean) vars.get("isEnum").getLiteralValue();
-          final var isCIMDatatype = (Boolean) vars.get("isCimDatatype").getLiteralValue();
+          final var isCimDatatype = (Boolean) vars.get("isCimDatatype").getLiteralValue();
           final var isPrimitive = (Boolean) vars.get("isPrimitive").getLiteralValue();
           map.put(classUri, new TypeInfo(
               classUri,
@@ -381,7 +381,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
               isConcrete,
               isDescription,
               isEnum,
-              isCIMDatatype,
+              isCimDatatype,
               isPrimitive
           ));
         });

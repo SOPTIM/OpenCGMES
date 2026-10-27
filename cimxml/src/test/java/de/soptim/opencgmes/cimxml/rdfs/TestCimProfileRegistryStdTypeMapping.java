@@ -116,7 +116,7 @@ public class TestCimProfileRegistryStdTypeMapping {
     assertTrue(typeInfo.isConcrete());
     assertFalse(typeInfo.isDescription());
     assertFalse(typeInfo.isEnum());
-    assertFalse(typeInfo.isCIMDatatype());
+    assertFalse(typeInfo.isCimDatatype());
     assertFalse(typeInfo.isPrimitive());
 
     var floatType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#Float");
@@ -127,7 +127,7 @@ public class TestCimProfileRegistryStdTypeMapping {
     assertFalse(typeInfo.isConcrete());
     assertFalse(typeInfo.isDescription());
     assertFalse(typeInfo.isEnum());
-    assertFalse(typeInfo.isCIMDatatype());
+    assertFalse(typeInfo.isCimDatatype());
     assertTrue(typeInfo.isPrimitive());
 
     var stringtype = NodeFactory.createURI("http://iec.ch/TC57/CIM100#String");
@@ -138,7 +138,7 @@ public class TestCimProfileRegistryStdTypeMapping {
     assertFalse(typeInfo.isConcrete());
     assertFalse(typeInfo.isDescription());
     assertFalse(typeInfo.isEnum());
-    assertFalse(typeInfo.isCIMDatatype());
+    assertFalse(typeInfo.isCimDatatype());
     assertTrue(typeInfo.isPrimitive());
 
     var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
