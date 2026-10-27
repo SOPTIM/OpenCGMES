@@ -292,28 +292,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
 
   @Override
   public Map<Node, PropertyInfo> getPropertiesAndDatatypes(Set<Node> owlVersionIris) {
-    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
-      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
-    }
-
-    final var set = getMatchingProfiles(owlVersionIris);
-
-    if (set.size() == 1) {
-      return profilePropertiesCache.get(set.iterator().next());
-    }
-
-    Map<Node, PropertyInfo> properties = profileSetPropertiesCache.get(set);
-    if (properties != null) {
-      return properties;
-    }
-
-    properties = new HashMap<>(1024);
-    for (var p : set) {
-      properties.putAll(profilePropertiesCache.get(p));
-    }
-    properties = Collections.unmodifiableMap(properties);
-    profileSetPropertiesCache.put(set, properties);
-    return properties;
+    return getProfileInfoMap(owlVersionIris, profilePropertiesCache, profileSetPropertiesCache);
   }
 
   @Override
@@ -328,28 +307,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
 
   @Override
   public Map<Node, TypeInfo> getTypeInfoMap(Set<Node> owlVersionIris) {
-    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
-      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
-    }
-
-    final var set = getMatchingProfiles(owlVersionIris);
-
-    if (set.size() == 1) {
-      return profileTypesCache.get(set.iterator().next());
-    }
-
-    Map<Node, TypeInfo> types = profileSetTypesCache.get(set);
-    if (types != null) {
-      return types;
-    }
-
-    types = new HashMap<>(1024);
-    for (var p : set) {
-      types.putAll(profileTypesCache.get(p));
-    }
-    types = Collections.unmodifiableMap(types);
-    profileSetTypesCache.put(set, types);
-    return types;
+    return getProfileInfoMap(owlVersionIris, profileTypesCache, profileSetTypesCache);
   }
 
   @Override
@@ -438,5 +396,33 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     errorHandler.warning("Unknown mapping from CIM primitive'" + primitiveType
         + "' to XSD datatype. Using xsd:string as fallback.", -1, -1);
     return XSDDatatype.XSDstring;
+  }
+
+  private <T> Map<Node, T> getProfileInfoMap(
+      Set<Node> owlVersionIris,
+      Map<CimProfile, Map<Node, T>> profileCache,
+      Map<Set<CimProfile>, Map<Node, T>> profileSetCache) {
+    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
+      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
+    }
+
+    final var set = getMatchingProfiles(owlVersionIris);
+
+    if (set.size() == 1) {
+      return profileCache.get(set.iterator().next());
+    }
+
+    Map<Node, T> info = profileSetCache.get(set);
+    if (info != null) {
+      return info;
+    }
+
+    info = new HashMap<>(1024);
+    for (var p : set) {
+      info.putAll(profileCache.get(p));
+    }
+    info = Collections.unmodifiableMap(info);
+    profileSetCache.put(set, info);
+    return info;
   }
 }
