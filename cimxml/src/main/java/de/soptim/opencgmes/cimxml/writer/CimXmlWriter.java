@@ -119,6 +119,18 @@ public class CimXmlWriter {
     }
   }
 
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given Writer. This will differentiate
+   * between rdf:ID and rdf:about based on whether an object's class is stereotyped with
+   * "Description" in the graph's profile.
+   *
+   * @param writer             the Writer receiving the CIMXML
+   * @param cimDatasetGraph    the input CIM Dataset Graph
+   * @param sorted             whether the resulting CIMXML should be sorted. This may impact
+   *                           performance
+   * @param cimProfileRegistry the CimProfileRegistry used to determine whether rdf:ID or rdf:about
+   *                           is used
+   */
   public void writeRdfIdAwareCimModel(final Writer writer, final CimDatasetGraph cimDatasetGraph,
       final boolean sorted, final CimProfileRegistry cimProfileRegistry) {
     this.writer.write(writer, cimDatasetGraph, null, sorted, cimProfileRegistry);
@@ -136,8 +148,11 @@ public class CimXmlWriter {
    * @param cimProfileRegistry the CimProfileRegistry used to determine whether rdf:ID or rdf:about
    *                           is used
    */
-  public void writeRdfIdAwareCimModel(final OutputStream outputStream, final CimDatasetGraph cimDatasetGraph,
-      final boolean sorted, final CimProfileRegistry cimProfileRegistry) {
+  public void writeRdfIdAwareCimModel(
+      final OutputStream outputStream,
+      final CimDatasetGraph cimDatasetGraph,
+      final boolean sorted,
+      final CimProfileRegistry cimProfileRegistry) {
     this.writer.write(outputStream, cimDatasetGraph, null, sorted, cimProfileRegistry);
   }
 
@@ -153,8 +168,11 @@ public class CimXmlWriter {
    * @param cimProfileRegistry the CimProfileRegistry used to determine whether rdf:ID or rdf:about
    *                           is used
    */
-  public void writeRdfIdAwareCimModel(final Path resultFilePath, final CimDatasetGraph cimDatasetGraph,
-      final boolean sorted, final CimProfileRegistry cimProfileRegistry) throws IOException {
+  public void writeRdfIdAwareCimModel(
+      final Path resultFilePath,
+      final CimDatasetGraph cimDatasetGraph,
+      final boolean sorted,
+      final CimProfileRegistry cimProfileRegistry) throws IOException {
     try (BufferedOutputStream outputStream = new BufferedOutputStream(
         Files.newOutputStream(resultFilePath), MAX_BUFFER_SIZE)) {
       this.writer.write(outputStream, cimDatasetGraph, null, sorted, cimProfileRegistry);

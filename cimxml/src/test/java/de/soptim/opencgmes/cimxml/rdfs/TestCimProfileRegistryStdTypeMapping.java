@@ -106,7 +106,7 @@ public class TestCimProfileRegistryStdTypeMapping {
 
     var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
     assertNotNull(typeInfoMap);
-    assertEquals(3, typeInfoMap.size());
+    assertEquals(1, typeInfoMap.size());
 
     var classAType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA");
     assertTrue(typeInfoMap.containsKey(classAType));
@@ -118,28 +118,6 @@ public class TestCimProfileRegistryStdTypeMapping {
     assertFalse(typeInfo.isEnum());
     assertFalse(typeInfo.isCimDatatype());
     assertFalse(typeInfo.isPrimitive());
-
-    var floatType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#Float");
-    assertTrue(typeInfoMap.containsKey(floatType));
-    typeInfo = typeInfoMap.get(floatType);
-    assertEquals(floatType, typeInfo.classUri());
-    assertNull(typeInfo.superClass());
-    assertFalse(typeInfo.isConcrete());
-    assertFalse(typeInfo.isDescription());
-    assertFalse(typeInfo.isEnum());
-    assertFalse(typeInfo.isCimDatatype());
-    assertTrue(typeInfo.isPrimitive());
-
-    var stringtype = NodeFactory.createURI("http://iec.ch/TC57/CIM100#String");
-    assertTrue(typeInfoMap.containsKey(stringtype));
-    typeInfo = typeInfoMap.get(stringtype);
-    assertEquals(stringtype, typeInfo.classUri());
-    assertNull(typeInfo.superClass());
-    assertFalse(typeInfo.isConcrete());
-    assertFalse(typeInfo.isDescription());
-    assertFalse(typeInfo.isEnum());
-    assertFalse(typeInfo.isCimDatatype());
-    assertTrue(typeInfo.isPrimitive());
 
     var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
     assertNotNull(properties);

@@ -48,62 +48,62 @@ import org.apache.jena.sparql.exec.QueryExec;
 public class CimProfileRegistryStd implements CimProfileRegistry {
 
   private static final Query typedPropertiesQuery = QueryFactory.create(
-      """
-          PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
-          PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-          PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-          PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
-    
-          SELECT ?rdfType ?property ?cimDatatype ?primitiveType ?referenceType
-          WHERE
-          {
-              ?rdfType rdf:type rdfs:Class .
-              ?property rdf:type rdf:Property ;
-                        rdfs:domain ?rdfType .
+          """
+              PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
+              PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+              PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+              PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+          
+              SELECT ?rdfType ?property ?cimDatatype ?primitiveType ?referenceType
+              WHERE
               {
-                  ?property rdfs:range ?referenceType.
-                  FILTER NOT EXISTS { ?property cims:AssociationUsed "No" } # Filter out associations that are not used as properties
-              }
-              UNION
-              {
-                  ?property cims:dataType ?cimDatatype.
+                  ?rdfType rdf:type rdfs:Class .
+                  ?property rdf:type rdf:Property ;
+                            rdfs:domain ?rdfType .
                   {
-                      ?cimDatatype cims:stereotype "Primitive";
-                                   rdfs:label ?primitiveType.
+                      ?property rdfs:range ?referenceType.
+                      FILTER NOT EXISTS { ?property cims:AssociationUsed "No" } # Filter out associations that are not used as properties
                   }
                   UNION
                   {
-                      ?cimDatatype cims:stereotype "CIMDatatype".
-                      BIND(IRI(CONCAT(STR(?cimDatatype), ".value")) AS ?parentTypeValue)
-                      ?parentTypeValue rdfs:domain ?cimDatatype;
-                                       cims:dataType/cims:stereotype "Primitive";
-                                   cims:dataType/rdfs:label ?primitiveType.
+                      ?property cims:dataType ?cimDatatype.
+                      {
+                          ?cimDatatype cims:stereotype "Primitive";
+                                       rdfs:label ?primitiveType.
+                      }
+                      UNION
+                      {
+                          ?cimDatatype cims:stereotype "CIMDatatype".
+                          BIND(IRI(CONCAT(STR(?cimDatatype), ".value")) AS ?parentTypeValue)
+                          ?parentTypeValue rdfs:domain ?cimDatatype;
+                                           cims:dataType/cims:stereotype "Primitive";
+                                       cims:dataType/rdfs:label ?primitiveType.
+                      }
                   }
               }
-          }
-      """);
+          """);
   private static final Query classInfoQuery = QueryFactory.create(
-      """
-          PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
-          PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-          PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-          PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
-    
-          SELECT ?class ?superClass ?isConcrete ?isDescription ?isEnum ?isCimDatatype ?isPrimitive
-          WHERE
-          {
-              ?class rdf:type rdfs:Class.
-              OPTIONAL
+          """
+              PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
+              PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+              PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+              PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+          
+              SELECT ?class ?superClass ?isConcrete ?isDescription ?isEnum ?isCimDatatype ?isPrimitive
+              WHERE
               {
-                  ?class rdfs:subClassOf ?superClass.
+                  ?class rdf:type rdfs:Class.
+                  OPTIONAL
+                  {
+                      ?class rdfs:subClassOf ?superClass.
+                  }
+                  BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#concrete>} AS ?isConcrete)
+                  BIND (EXISTS{?class cims:stereotype "Description"} AS ?isDescription)
+                  BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#enumeration>} AS ?isEnum)
+                  BIND (EXISTS{?class cims:stereotype "CIMDatatype"} AS ?isCimDatatype)
+                  BIND (EXISTS{?class cims:stereotype "Primitive"} AS ?isPrimitive)
               }
-              BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#concrete>} AS ?isConcrete)
-              BIND (EXISTS{?class cims:stereotype "Description"} AS ?isDescription)
-              BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#enumeration>} AS ?isEnum)
-              BIND (EXISTS{?class cims:stereotype "CIMDatatype"} AS ?isCimDatatype)
-              BIND (EXISTS{?class cims:stereotype "Primitive"} AS ?isPrimitive)
-          }
-      """);
+          """);
   private final ErrorHandler errorHandler;
   private final Map<Set<Node>, CimProfile> multiVersionIriProfiles = new ConcurrentHashMap<>();
   private final Map<Node, CimProfile> singleVersionIriProfiles = new ConcurrentHashMap<>();
@@ -247,10 +247,9 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
       throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
     }
 
-    owlVersionIris = owlVersionIris.stream().map(iriNode -> {
-      if (iriNode.isLiteral()) return NodeFactory.createURI(iriNode.getLiteralLexicalForm());
-      else return iriNode;
-    }).collect(Collectors.toSet());
+    owlVersionIris = owlVersionIris.stream()
+        .map(CimProfileRegistryStd::mapToUriNode)
+        .collect(Collectors.toSet());
 
     if (owlVersionIris.size() == 1) {
       var versionIri = owlVersionIris.iterator().next();
@@ -431,5 +430,12 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     info = Collections.unmodifiableMap(info);
     profileSetCache.put(set, info);
     return info;
+  }
+
+  private static Node mapToUriNode(Node iriNode) {
+    if (iriNode.isLiteral()) {
+      return NodeFactory.createURI(iriNode.getLiteralLexicalForm());
+    }
+    return iriNode;
   }
 }

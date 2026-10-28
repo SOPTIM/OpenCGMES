@@ -168,12 +168,14 @@ class SerializerCimXmlStaxSr {
     }
   }
 
-  private void writeDefinitionElementStartElement(Node typeNode, Node subjectNode) throws XMLStreamException {
+  private void writeDefinitionElementStartElement(Node typeNode, Node subjectNode)
+      throws XMLStreamException {
     xmlStreamWriter.writeStartElement(typeNode.getNameSpace(), typeNode.getLocalName());
     if (!rdfIdAware || typeInfoMap.get(typeNode).isDescription()) {
       xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
     } else {
-      xmlStreamWriter.writeAttribute(rdfUri, id, replaceUrnUuidWithUnderscore(subjectNode.getURI()));
+      xmlStreamWriter.writeAttribute(
+          rdfUri, id, replaceUrnUuidWithUnderscore(subjectNode.getURI()));
     }
   }
 
