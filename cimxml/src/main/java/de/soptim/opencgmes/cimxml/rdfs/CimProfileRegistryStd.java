@@ -26,12 +26,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.apache.jena.datatypes.RDFDatatype;
 import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.datatypes.xsd.impl.RDFLangString;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.riot.system.ErrorHandler;
@@ -244,6 +246,11 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     if (owlVersionIris == null || owlVersionIris.isEmpty()) {
       throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
     }
+
+    owlVersionIris = owlVersionIris.stream().map(iriNode -> {
+      if (iriNode.isLiteral()) return NodeFactory.createURI(iriNode.getLiteralLexicalForm());
+      else return iriNode;
+    }).collect(Collectors.toSet());
 
     if (owlVersionIris.size() == 1) {
       var versionIri = owlVersionIris.iterator().next();
