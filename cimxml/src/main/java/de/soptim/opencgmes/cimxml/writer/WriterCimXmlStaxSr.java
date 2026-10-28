@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimxml.writer;
 
+import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
 import java.io.OutputStream;
 import java.io.Writer;
@@ -104,10 +105,27 @@ public class WriterCimXmlStaxSr {
    */
   public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
+    write(out, cimDatasetGraph, prefixMap, sorted, null);
+  }
+
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given OutputStream.
+   *
+   * @param out                the OutputStream receiving the CIMXML
+   * @param cimDatasetGraph    the input CIM Dataset Graph
+   * @param prefixMap          the prefixMap to be used in the CIMXML - uses prefixes from the CIM
+   *                           Dataset Graph if null
+   * @param sorted             whether the resulting CIMXML should be sorted. This may impact
+   *                           performance
+   * @param cimProfileRegistry a CimProfileRegistry used to determine whether to use rdf:ID or
+   *                           rdf:about for subjects, may be null
+   */
+  public void write(OutputStream out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
+      boolean sorted, CimProfileRegistry cimProfileRegistry) {
     try {
       var xmlStreamWriter = new IndentingXmlStreamWriter(
           (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out));
-      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
+      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted, cimProfileRegistry);
       xmlStreamWriter.close();
     } catch (XMLStreamException ex) {
       throw new RiotException("Failed to create the XMLStreamWriter", ex);
@@ -136,10 +154,27 @@ public class WriterCimXmlStaxSr {
    */
   public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
       boolean sorted) {
+    write(out, cimDatasetGraph, prefixMap, sorted, null);
+  }
+
+  /**
+   * Writes CIMXML for the given CIM Dataset Graph to the given Writer.
+   *
+   * @param out                the Writer receiving the CIMXML
+   * @param cimDatasetGraph    the input CIM Dataset Graph
+   * @param prefixMap          the prefixMap to be used in the CIMXML - uses prefixes from the CIM
+   *                           Dataset Graph if null
+   * @param sorted             whether the resulting CIMXML should be sorted. This may impact
+   *                           performance
+   * @param cimProfileRegistry a CimProfileRegistry used to determine whether to use rdf:ID or
+   *                           rdf:about for subjects, may be null
+   */
+  public void write(Writer out, CimDatasetGraph cimDatasetGraph, PrefixMap prefixMap,
+      boolean sorted, CimProfileRegistry cimProfileRegistry) {
     try {
       var xmlStreamWriter = new IndentingXmlStreamWriter(
           (XMLStreamWriter2) xmlOutputFactory.createXMLStreamWriter(out));
-      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted);
+      serialize(xmlStreamWriter, cimDatasetGraph, prefixMap, sorted, cimProfileRegistry);
       xmlStreamWriter.close();
     } catch (XMLStreamException ex) {
       throw new RiotException("Failed to create the XMLStreamWriter", ex);
@@ -147,13 +182,14 @@ public class WriterCimXmlStaxSr {
   }
 
   private void serialize(XMLStreamWriter xmlStreamWriter, CimDatasetGraph cimDatasetGraph,
-      PrefixMap prefixMap, boolean sorted) {
+      PrefixMap prefixMap, boolean sorted, CimProfileRegistry cimProfileRegistry) {
     var serializer = new SerializerCimXmlStaxSr(
         xmlStreamWriter,
         cimDatasetGraph,
         prefixMap,
         sorted,
-        errorHandler);
+        errorHandler,
+        cimProfileRegistry);
     try {
       serializer.serialize();
     } catch (Exception e) {
