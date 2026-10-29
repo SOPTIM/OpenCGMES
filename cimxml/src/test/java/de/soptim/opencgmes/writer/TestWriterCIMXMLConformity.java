@@ -21,9 +21,12 @@ package de.soptim.opencgmes.writer;
 import static org.junit.Assert.assertEquals;
 
 import de.soptim.opencgmes.cimxml.CimHeaderVocabulary;
+import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
+import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistryStd;
 import de.soptim.opencgmes.cimxml.sparql.core.LinkedCimDatasetGraph;
 import de.soptim.opencgmes.cimxml.writer.WriterCimXmlStaxSr;
 import java.io.ByteArrayOutputStream;
+import java.io.StringReader;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.riot.system.PrefixMap;
@@ -342,6 +345,127 @@ public class TestWriterCIMXMLConformity {
     final var writer = new WriterCimXmlStaxSr();
     var byteArrayOutputStream = new ByteArrayOutputStream();
     writer.write(byteArrayOutputStream, cimDatasetGraph, null, true);
+    assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
+  }
+
+  @Test
+  public void writeFullModelGraphRdfIdAware() {
+
+    final var rdfxmlProfile = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rdf:RDF
+           xmlns:cim="http://iec.ch/TC57/CIM100#"
+           xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+           xmlns:dcat="http://www.w3.org/ns/dcat#"
+           xmlns:owl="http://www.w3.org/2002/07/owl#"
+           xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+           xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+           xml:base ="http://iec.ch/TC57/CIM100">
+            <!-- ······························································································· -->
+            <rdf:Description rdf:about="http://iec.ch/TC57/ns/CIM/CoreEquipment-EU#Ontology">
+                <dcat:keyword>MYCUST</dcat:keyword>
+                <owl:versionIRI rdf:resource="http://example.org/MyCustom/1/1"/>
+               <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#Ontology"/>
+            </rdf:Description>
+            <!-- ······························································································· -->
+            <rdf:Description rdf:about="#ClassA">
+                <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+                <rdfs:subClassOf rdf:resource="#IdentifiedObject"/>
+                <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+            </rdf:Description>
+            <!-- ······························································································· -->
+            <rdf:Description rdf:about="#ClassA.floatProperty">
+                <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+                <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+                <rdfs:domain rdf:resource="#ClassA"/>
+                <cims:dataType rdf:resource="#Float"/>
+            </rdf:Description>
+            <!-- ······························································································· -->
+            <rdf:Description rdf:about="#ClassB">
+                <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+                <rdfs:subClassOf rdf:resource="#IdentifiedObject"/>
+                <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+                <cims:stereotype>Description</cims:stereotype>
+            </rdf:Description>
+            <!-- ······························································································· -->
+            <rdf:Description rdf:about="#ClassB.floatProperty">
+                <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+                <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+                <rdfs:domain rdf:resource="#ClassB"/>
+                <cims:dataType rdf:resource="#Float"/>
+            </rdf:Description>
+            <!-- ······························································································· -->
+            <rdf:Description rdf:about="#Float">
+                <rdfs:label xml:lang="en">Float</rdfs:label>
+                <cims:stereotype>Primitive</cims:stereotype>
+                <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+            </rdf:Description>
+        </rdf:RDF>
+        """;
+
+    var profile = new RdfXmlParser().parseCimProfile(new StringReader(rdfxmlProfile));
+
+    var registry = new CimProfileRegistryStd();
+    registry.register(profile);
+
+    var graph = GraphFactory.createDefaultGraph();
+    graph.add(
+        NodeFactory.createURI("urn:uuid:594bb6e5-8da5-45c2-892e-59a648f2f862"),
+        NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassB")
+    );
+    graph.add(
+        NodeFactory.createURI("urn:uuid:594bb6e5-8da5-45c2-892e-59a648f2f862"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassB.floatProperty"),
+        NodeFactory.createLiteral("47.11", null, XSDDatatype.XSDfloat)
+    );
+    graph.add(
+        NodeFactory.createURI("urn:uuid:49f26e7a-2ea9-4763-ba5f-560694d880fa"),
+        NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA")
+    );
+    graph.add(
+        NodeFactory.createURI("urn:uuid:49f26e7a-2ea9-4763-ba5f-560694d880fa"),
+        NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA.floatProperty"),
+        NodeFactory.createLiteral("08.15", null, XSDDatatype.XSDfloat)
+    );
+    var modelHeaderGraph = GraphFactory.createDefaultGraph();
+    modelHeaderGraph.add(
+        NodeFactory.createURI("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6"),
+        NodeFactory.createURI("http://iec.ch/TC57/61970-552/ModelDescription/1#Model.profile"),
+        NodeFactory.createLiteralString("http://example.org/MyCustom/1/1")
+    );
+    modelHeaderGraph.add(
+        NodeFactory.createURI("urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6"),
+        NodeFactory.createURI("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        NodeFactory.createURI("http://iec.ch/TC57/61970-552/ModelDescription/1#FullModel")
+    );
+    var cimDatasetGraph = new LinkedCimDatasetGraph(graph);
+    cimDatasetGraph.addGraph(CimHeaderVocabulary.TYPE_FULL_MODEL, modelHeaderGraph);
+    PrefixMap prefixes = cimDatasetGraph.prefixes();
+    prefixes.add("cim", "http://iec.ch/TC57/CIM100#");
+    prefixes.add("md", "http://iec.ch/TC57/61970-552/ModelDescription/1#");
+    prefixes.add("rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+    modelHeaderGraph.getPrefixMapping().setNsPrefixes(prefixes.getMapping());
+
+    final var cimxmlInstanceData = """
+        <?xml version='1.0' encoding='UTF-8'?>
+        <?iec61970-552 version="2.0"?>
+        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#" xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#" xml:base="urn:uuid:">
+          <md:FullModel rdf:about="urn:uuid:08984e27-811f-4042-9125-1531ae0de0f6">
+            <md:Model.profile>http://example.org/MyCustom/1/1</md:Model.profile>
+          </md:FullModel>
+          <cim:ClassA rdf:ID="_49f26e7a-2ea9-4763-ba5f-560694d880fa">
+            <cim:ClassA.floatProperty>08.15</cim:ClassA.floatProperty>
+          </cim:ClassA>
+          <cim:ClassB rdf:about="#_594bb6e5-8da5-45c2-892e-59a648f2f862">
+            <cim:ClassB.floatProperty>47.11</cim:ClassB.floatProperty>
+          </cim:ClassB>
+        </rdf:RDF>""";
+
+    final var writer = new WriterCimXmlStaxSr();
+    var byteArrayOutputStream = new ByteArrayOutputStream();
+    writer.write(byteArrayOutputStream, cimDatasetGraph, null, true, registry);
     assertEquals(cimxmlInstanceData, byteArrayOutputStream.toString());
   }
 }
