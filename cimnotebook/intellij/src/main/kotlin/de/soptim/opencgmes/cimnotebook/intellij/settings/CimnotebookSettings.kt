@@ -36,6 +36,7 @@ class CimnotebookSettings : PersistentStateComponent<CimnotebookSettings.State> 
         // that logic and break the plugin on machines where "java" is not on PATH (common on Windows).
         @JvmField var javaExecutable: String = "",
         @JvmField var javaArgs: String = "",
+        @JvmField var rdfArchitectUrl: String = "",
     )
 
     private var _state = State()
@@ -68,6 +69,16 @@ class CimnotebookSettings : PersistentStateComponent<CimnotebookSettings.State> 
         get() = _state.javaArgs
         set(v) {
             _state.javaArgs = v
+        }
+
+    /**
+     * URL of a running RDFArchitect instance (local or hosted — RDFArchitect is not bundled),
+     * shown in the RDFArchitect tool window. Empty means "not configured".
+     */
+    var rdfArchitectUrl: String
+        get() = _state.rdfArchitectUrl
+        set(v) {
+            _state.rdfArchitectUrl = v
         }
 
     companion object {
