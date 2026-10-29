@@ -56,6 +56,7 @@
     <modules>
         <module>cimxml</module>
         <module>cimvocabcheck</module>
+        <module>cimreader</module>
     </modules>
 
     <properties>

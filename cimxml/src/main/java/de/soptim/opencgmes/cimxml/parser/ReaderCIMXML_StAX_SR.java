@@ -123,4 +123,62 @@ public class ReaderCIMXML_StAX_SR
             destination.finish();
         }
     }
+
+    public void readHeader(InputStream input, StreamCimXml output) {
+        readHeader(input, null, null, output);
+    }
+
+    public void readHeader(InputStream input, CimProfileRegistry cimProfileRegistry, StreamCimXml output) {
+        readHeader(input, cimProfileRegistry, null, output);
+    }
+
+    public void readHeader(InputStream input, String xmlBase, StreamCimXml output) {
+        readHeader(input, null, xmlBase, output);
+    }
+
+    public void readHeader(InputStream input, CimProfileRegistry cimProfileRegistry, String xmlBase, StreamCimXml output) {
+        try {
+            var xmlStreamReader = (XMLStreamReader2) xmlInputFactory.createXMLStreamReader(input);
+            parseHeader(xmlStreamReader, cimProfileRegistry, xmlBase, output);
+        } catch (XMLStreamException ex) {
+            throw new RiotException("Failed to create the XMLEventReader", ex);
+        }
+    }
+
+    public void readHeader(Reader reader, StreamCimXml output) {
+        readHeader(reader, null, null, output);
+    }
+
+    public void readHeader(Reader reader, String xmlBase, StreamCimXml output) {
+        readHeader(reader, null, xmlBase, output);
+    }
+
+    public void readHeader(Reader reader, CimProfileRegistry cimProfileRegistry, StreamCimXml output) {
+        readHeader(reader, cimProfileRegistry, null, output);
+    }
+
+    public void readHeader(Reader reader, CimProfileRegistry cimProfileRegistry, String xmlBase, StreamCimXml output) {
+        try {
+            var xmlStreamReader = (XMLStreamReader2) xmlInputFactory.createXMLStreamReader(reader);
+            parseHeader(xmlStreamReader, cimProfileRegistry, xmlBase, output);
+        } catch (XMLStreamException ex) {
+            throw new RiotException("Failed to create the XMLEventReader", ex);
+        }
+    }
+
+    private void parseHeader(XMLStreamReader2 xmlStreamReader, CimProfileRegistry cimProfileRegistry, String xmlBase,
+        StreamCimXml destination) {
+        var parser = new ParserCIMXML_StAX_SR(xmlStreamReader, cimProfileRegistry, xmlBase, destination, errorHandler);
+        destination.start();
+        try {
+            parser.parseHeader();
+        } catch (RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new RiotException(ex);
+        }
+        finally {
+            destination.finish();
+        }
+    }
 }
