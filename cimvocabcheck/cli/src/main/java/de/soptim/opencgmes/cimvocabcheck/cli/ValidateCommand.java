@@ -22,6 +22,7 @@ import de.soptim.opencgmes.cimvocabcheck.cli.output.CodeQualityFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.FileResult;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.Format;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.JsonFormatter;
+import de.soptim.opencgmes.cimvocabcheck.cli.output.SarifFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.output.TextFormatter;
 import de.soptim.opencgmes.cimvocabcheck.cli.schema.SchemaLoader;
 import de.soptim.opencgmes.cimvocabcheck.core.DefaultPrefixes;
@@ -45,10 +46,13 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -85,10 +89,10 @@ import picocli.CommandLine.Parameters;
       "Schema is loaded from a config file (auto-discovered or --config),",
       "or from explicit schema files passed with --schema.",
       "",
-      "Exit codes: 0=valid  1=has errors  2=usage/config error"
+      "Exit codes: 0=valid  1=has errors  2=usage/config/internal error"
     },
     mixinStandardHelpOptions = true,
-    version = "1.0.0",
+    versionProvider = ToolVersion.class,
     sortOptions = false,
     subcommands = {ExplainCommand.class, InitCommand.class})
 public class ValidateCommand implements Callable<Integer> {
@@ -148,7 +152,8 @@ public class ValidateCommand implements Callable<Integer> {
   @Option(
       names = {"-f", "--format"},
       paramLabel = "<format>",
-      description = "Output format: text (default), json, or codequality (GitLab Code Quality).",
+      description =
+          "Output format: text (default), json, codequality (GitLab Code Quality) or sarif.",
       defaultValue = "text")
   private String formatName;
 
@@ -304,17 +309,10 @@ public class ValidateCommand implements Callable<Integer> {
       }
       // Explicit --config, else an auto-discovered opencgmes.jsonc. There is no bundled default
       // schema: a config without schemas (or no config at all) means syntax-only.
-      CimvocabcheckConfig config;
-      Path base;
-      if (configFile != null) {
-        config = ConfigLoader.load(configFile);
-        base = configFile.toAbsolutePath().getParent();
-      } else {
-        config = ConfigLoader.discover(Path.of(".")).orElse(null);
-        base = Path.of(".").toAbsolutePath();
-      }
+      LocatedConfig located = LocatedConfig.of(configFile);
+      CimvocabcheckConfig config = located.config();
       RdfsSchemaIndex index =
-          (config == null) ? null : SchemaLoader.load(config, base).orElse(null);
+          (config == null) ? null : SchemaLoader.load(config, located.base()).orElse(null);
       if (index == null) {
         System.err.println(
             "Info: no schema configured — checking syntax only. Use "
@@ -401,12 +399,54 @@ public class ValidateCommand implements Callable<Integer> {
           text = readInput(input);
         }
       } catch (IOException e) {
-        System.err.println("Error reading " + source + ": " + e.getMessage());
-        throw new AbortException(ExitCode.USAGE);
+        results.add(unreadable(source, e));
+        continue;
       }
-      results.add(validateOne(schema, api, namedGraphScope, severities, input, source, text));
+      results.add(
+          inSourceOrder(
+              validateOne(schema, api, namedGraphScope, severities, input, source, text)));
     }
     return results;
+  }
+
+  /**
+   * Findings by position, then code, term and message — fully determined by the input. Checks emit
+   * in their own order, which for shapes follows a graph's per-run blank-node iteration; the
+   * reports tell repeated findings apart by their position in this list, so it must not vary.
+   */
+  private static final Comparator<SparqlValidationAnnotation> SOURCE_ORDER =
+      Comparator.comparing(
+              SparqlValidationAnnotation::line, Comparator.nullsLast(Comparator.naturalOrder()))
+          .thenComparing(
+              SparqlValidationAnnotation::column, Comparator.nullsLast(Comparator.naturalOrder()))
+          .thenComparing(a -> a.code().name())
+          .thenComparing(a -> a.term() == null ? "" : a.term().toString())
+          .thenComparing(SparqlValidationAnnotation::message);
+
+  private static FileResult inSourceOrder(FileResult r) {
+    return new FileResult(
+        r.source(), r.valid(), r.annotations().stream().sorted(SOURCE_ORDER).toList());
+  }
+
+  /**
+   * The result for an input that could not be read. Not subject to the severity policy: a file that
+   * was never checked must not pass a gate because a strictness level hides its findings.
+   */
+  private static FileResult unreadable(String source, IOException e) {
+    String reason =
+        e instanceof NoSuchFileException ? "no such file" : String.valueOf(e.getMessage());
+    var annotation =
+        new SparqlValidationAnnotation(
+            SparqlValidationSeverity.ERROR,
+            null,
+            null,
+            "Cannot read input: " + reason,
+            SparqlValidationCode.UNREADABLE_INPUT,
+            null,
+            null,
+            null,
+            null);
+    return new FileResult(source, false, List.of(annotation));
   }
 
   private FileResult validateOne(
@@ -446,6 +486,7 @@ public class ValidateCommand implements Callable<Integer> {
       case TEXT -> new TextFormatter(writer, verbose).write(results);
       case JSON -> new JsonFormatter(writer, verbose).write(results);
       case CODEQUALITY -> new CodeQualityFormatter(writer, verbose).write(results);
+      case SARIF -> new SarifFormatter(writer, verbose).write(results);
       default -> throw new IllegalStateException("Unexpected output format: " + format);
     }
     writer.flush();
@@ -625,7 +666,18 @@ public class ValidateCommand implements Callable<Integer> {
   }
 
   private static String readInput(String input) throws IOException {
-    return Files.readString(Path.of(input), StandardCharsets.UTF_8);
+    Path path;
+    try {
+      path = Path.of(input);
+    } catch (InvalidPathException e) {
+      // Typically a non-ASCII name under a POSIX/C locale, where the JVM cannot encode it.
+      throw new IOException(
+          e.getMessage()
+              + " (the name cannot be represented in this platform's file name encoding; "
+              + "running under a UTF-8 locale, e.g. LC_ALL=C.UTF-8, usually fixes this)",
+          e);
+    }
+    return Files.readString(path, StandardCharsets.UTF_8);
   }
 
   private static FileResult applySeverities(FileResult r, SeverityPolicy severities) {

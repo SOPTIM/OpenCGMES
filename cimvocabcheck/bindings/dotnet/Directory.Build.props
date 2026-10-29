@@ -1,0 +1,31 @@
+<!--
+    Copyright (c) 2026 SOPTIM AG
+    SPDX-License-Identifier: Apache-2.0
+
+    Settings shared by the package and its tests.
+-->
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>SOPTIM AG</Authors>
+    <Company>SOPTIM AG</Company>
+    <Copyright>Copyright (c) 2026 SOPTIM AG</Copyright>
+    <!--
+        Placeholder, like every other build file in this repository: real versions are derived
+        from git tags by scripts/compute-version.sh and applied by scripts/set-versions.sh.
+        Never edit by hand.
+    -->
+    <Version>0.0.0</Version>
+  </PropertyGroup>
+
+</Project>

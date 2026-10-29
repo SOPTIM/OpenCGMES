@@ -20,6 +20,7 @@ package de.soptim.opencgmes.cimvocabcheck.core;
 
 import static org.junit.Assert.*;
 
+import java.util.LinkedHashMap;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFParser;
@@ -58,6 +59,27 @@ public class SyntaxOnlyValidationTest {
     // be flagged as a syntax error by the fallback.
     var result = SparqlValidationApi.checkSyntaxOnly("SELECT * WHERE { ?s a cim:ACLineSegment }");
     assertTrue(result.annotations().isEmpty());
+  }
+
+  /**
+   * The injected PREFIX block must not depend on how the prefix map happens to iterate: the parser
+   * reports error positions relative to the injected text, so a varying order would make the
+   * position — and the fingerprint a CI report derives from it — differ between runs over identical
+   * input.
+   */
+  @Test
+  public void prefixInjectionDoesNotDependOnMapOrder() {
+    var oneOrder = new LinkedHashMap<String, String>();
+    oneOrder.put("ex", "http://example.org/");
+    oneOrder.put("cim", "http://iec.ch/TC57/CIM100#");
+    var otherOrder = new LinkedHashMap<String, String>();
+    otherOrder.put("cim", "http://iec.ch/TC57/CIM100#");
+    otherOrder.put("ex", "http://example.org/");
+
+    String query = "SELECT * WHERE { ?s a cim:ACLineSegment }";
+    assertEquals(
+        DefaultPrefixes.inject(query, oneOrder).text(),
+        DefaultPrefixes.inject(query, otherOrder).text());
   }
 
   // ---- SHACL syntax-only fallback: schema-independent vocabulary-typo check ----------------
