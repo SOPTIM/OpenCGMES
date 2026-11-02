@@ -22,7 +22,9 @@ import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry.TypeInfo;
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.graph.Graph;
@@ -52,6 +54,7 @@ class SerializerCimXmlStaxSr {
   private final ErrorHandler errorHandler;
   private final boolean rdfIdAware;
   private final Map<Node, TypeInfo> typeInfoMap;
+  private final Set<Node> typesNotFound;
 
   private boolean isDifferenceModel;
   private Graph currentGraph;
@@ -76,7 +79,8 @@ class SerializerCimXmlStaxSr {
     this.errorHandler = errorHandler;
     this.rdfIdAware = cimProfileRegistry != null;
     this.typeInfoMap = rdfIdAware ? cimProfileRegistry.getTypeInfoMap(
-        cimDatasetGraph.getModelHeader().getProfiles()) : Map.of();
+        cimDatasetGraph.getModelHeader().getProfiles()) : null;
+    this.typesNotFound = rdfIdAware ? new HashSet<>() : null;
   }
 
   void serialize() throws XMLStreamException {
@@ -171,12 +175,20 @@ class SerializerCimXmlStaxSr {
   private void writeDefinitionElementStartElement(Node typeNode, Node subjectNode)
       throws XMLStreamException {
     xmlStreamWriter.writeStartElement(typeNode.getNameSpace(), typeNode.getLocalName());
-    if (!rdfIdAware || typeInfoMap.get(typeNode).isDescription()) {
-      xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
-    } else {
-      xmlStreamWriter.writeAttribute(
-          rdfUri, id, replaceUrnUuidWithUnderscore(subjectNode.getURI()));
+    if (rdfIdAware && !typesNotFound.contains(typeNode)) {
+      var typeInfo = typeInfoMap.get(typeNode);
+      if (typeInfo == null) {
+        warn("The type URI " + typeNode.getURI() + " was not found in the CimProfileRegistry."
+            + " Instances of this type will be printed as rdf:about.");
+        typesNotFound.add(typeNode);
+      } else if (!typeInfo.isDescription()) {
+        xmlStreamWriter.writeAttribute(
+            rdfUri, id, replaceUrnUuidWithUnderscore(subjectNode.getURI()));
+        return;
+      }
     }
+    xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
+
   }
 
   // Section 7.2.3.6 Description element
