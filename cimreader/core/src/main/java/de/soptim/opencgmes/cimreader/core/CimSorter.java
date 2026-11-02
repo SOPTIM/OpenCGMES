@@ -18,11 +18,11 @@
 
 package de.soptim.opencgmes.cimreader.core;
 
-import de.soptim.opencgmes.cimreader.core.source.HeaderSource;
-import de.soptim.opencgmes.cimxml.graph.CimModelHeader;
+import de.soptim.opencgmes.cimreader.core.source.ModelSource;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -30,52 +30,56 @@ import java.util.TreeMap;
 
 public class CimSorter {
 
-  public static List<List<HeaderSource>> sort(List<HeaderSource> headerSources) {
-    Map<String, Map<String, Map<Integer, List<HeaderSource>>>> m = new TreeMap<>();
-    for (var headerSource : headerSources) {
-      m.computeIfAbsent(getModelAuthoritySet(headerSource.header()), _ -> new TreeMap<>())
-          .computeIfAbsent(getProfiles(headerSource.header()), _ -> new TreeMap<>())
-          .computeIfAbsent(getVersion(headerSource.header()), _ -> new ArrayList<>())
-          .add(headerSource);
-    }
-    List<List<HeaderSource>> result = new LinkedList<>();
-    for (var masEntry : m.entrySet()) {
-      for (var profileEntry : masEntry.getValue().entrySet()) {
-        for (var versionEntry : profileEntry.getValue().entrySet()) {
-          List<HeaderSource> sortedList = versionEntry.getValue();
-          sortedList.sort(Comparator.comparing(h -> getScenarioTime(h.header())));
-          result.add(sortedList);
-        }
-      }
-    }
+  private CimSorter() {
+  }
 
+  public static List<List<ModelSource>> groupAndSort(Iterable<ModelSource> modelSources) {
+    Map<ModelSourceKey, List<ModelSource>> m = new HashMap<>();
+    for (var modelSource : modelSources) {
+      m.computeIfAbsent(
+              new ModelSourceKey(getModelAuthoritySet(modelSource), getProfiles(modelSource),
+                  getVersion(modelSource)), _ -> new ArrayList<>())
+          .add(modelSource);
+    }
+    List<List<ModelSource>> result = new ArrayList<>(m.size());
+    for (var entry : m.entrySet()) {
+      List<ModelSource> sortedList = entry.getValue();
+      sortedList.sort(Comparator.comparing(CimSorter::getScenarioTime));
+      result.add(sortedList);
+    }
     return result;
   }
 
-  private static String getModelAuthoritySet(CimModelHeader header) {
-    return header.getModelingAuthoritySet() == null ? null : header.getModelingAuthoritySet().getLiteralLexicalForm().trim();
+  private static String getModelAuthoritySet(ModelSource modelSource) {
+    return modelSource.header().getModelingAuthoritySet() == null ? null
+        : modelSource.header().getModelingAuthoritySet().getLiteralLexicalForm().trim();
   }
 
-  private static int getVersion(CimModelHeader header) {
-    return header.getVersion() == null ? -1 : Integer.parseInt(header.getVersion()
-        .getLiteralLexicalForm().trim());
+  private static int getVersion(ModelSource modelSource) {
+    return modelSource.header().getVersion() == null ? -1
+        : Integer.parseInt(modelSource.header().getVersion()
+            .getLiteralLexicalForm().trim());
   }
 
-  private static Instant getScenarioTime(CimModelHeader header) {
-    return header.getScenarioTime() == null ? Instant.MIN : Instant.parse(header.getScenarioTime().getLiteralLexicalForm().trim());
+  private static Instant getScenarioTime(ModelSource modelSource) {
+    return modelSource.header().getScenarioTime() == null ? Instant.MIN
+        : Instant.parse(modelSource.header().getScenarioTime().getLiteralLexicalForm().trim());
   }
 
-  private static String getProfiles(CimModelHeader header) {
-    if (header.getProfiles() == null || header.getProfiles().isEmpty()) {
+  private static String getProfiles(ModelSource modelSource) {
+    if (modelSource.header().getProfiles() == null || modelSource.header().getProfiles()
+        .isEmpty()) {
       return null;
     }
     StringBuilder builder = new StringBuilder();
-    for (var profile : header.getProfiles()) {
+    for (var profile : modelSource.header().getProfiles()) {
       builder.append(profile.getLiteralLexicalForm().trim()).append(",");
     }
     return builder.substring(0, builder.length() - 1);
   }
 
+  private record ModelSourceKey(String modelAuthoritySet, String profiles, int version) {
 
+  }
 
 }

@@ -30,4 +30,8 @@ public record PathSource(Path path) implements XmlSource {
     return Files.newInputStream(path);
   }
 
+  @Override
+  public String toString() {
+    return path.toString();
+  }
 }

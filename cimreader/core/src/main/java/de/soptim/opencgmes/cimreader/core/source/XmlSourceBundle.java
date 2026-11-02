@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.zip.ZipFile;
 
 public class XmlSourceBundle implements AutoCloseable {
 
@@ -31,15 +32,13 @@ public class XmlSourceBundle implements AutoCloseable {
   private final List<Closeable> resources = new ArrayList<>();
 
   public XmlSourceBundle add(Path path) throws IOException {
-    XmlSourceSet sourceSet = XmlSources.fromPath(path);
-    resources.add(sourceSet);
-    sources.addAll(sourceSet.getSources());
+    fromPath(path);
     return this;
   }
 
   public XmlSourceBundle addAll(Collection<Path> paths) throws IOException {
     for (Path path : paths) {
-      add(path);
+      fromPath(path);
     }
     return this;
   }
@@ -64,6 +63,18 @@ public class XmlSourceBundle implements AutoCloseable {
     }
     if (exceptions != null) {
       throw exceptions;
+    }
+  }
+
+  private void fromPath(Path path) throws IOException {
+    if (path.getFileName().toString().toLowerCase().endsWith(".xml")) {
+      sources.add(new PathSource(path));
+    } else if (path.getFileName().toString().toLowerCase().endsWith(".zip")) {
+      ZipFile zipFile = new ZipFile(path.toFile());
+      zipFile.stream()
+          .filter(entry -> entry.getName().toLowerCase().endsWith(".xml"))
+          .forEach(entry -> sources.add(new ZipSource(zipFile, entry)));
+      resources.add(zipFile);
     }
   }
 }

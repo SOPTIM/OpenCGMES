@@ -18,29 +18,8 @@
 
 package de.soptim.opencgmes.cimreader.core.source;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.List;
+import de.soptim.opencgmes.cimxml.graph.CimModelHeader;
 
-public class XmlSourceSet implements Closeable {
-
-  private final List<XmlSource> sources;
-  private final Closeable resource;
-
-  public XmlSourceSet(List<XmlSource> xmlSources, Closeable resource) {
-    this.sources = xmlSources;
-    this.resource = resource;
-  }
-
-  public List<XmlSource> getSources() {
-    return sources;
-  }
-
-  @Override
-  public void close() throws IOException {
-    if (resource != null) {
-      resource.close();
-    }
-  }
+public record ModelSource(CimModelHeader header, XmlSource xmlSource) {
 
 }

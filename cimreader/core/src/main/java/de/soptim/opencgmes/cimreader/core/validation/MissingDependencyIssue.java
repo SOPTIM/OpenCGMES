@@ -18,20 +18,20 @@
 
 package de.soptim.opencgmes.cimreader.core.validation;
 
-import de.soptim.opencgmes.cimreader.core.source.HeaderSource;
+import de.soptim.opencgmes.cimxml.graph.CimModelHeader;
 
 public class MissingDependencyIssue implements ValidationIssue {
 
-  private final HeaderSource source;
+  private final CimModelHeader header;
   private final String missingDependency;
 
-  public MissingDependencyIssue(HeaderSource source, String missingDependency) {
-    this.source = source;
+  public MissingDependencyIssue(CimModelHeader source, String missingDependency) {
+    this.header = source;
     this.missingDependency = missingDependency;
   }
 
   @Override
   public String getMessage() {
-    return source.header().getModel() + " has missing dependency " + missingDependency;
+    return header.getModel() + " has missing dependency " + missingDependency;
   }
 }

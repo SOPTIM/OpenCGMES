@@ -18,7 +18,7 @@
 
 package de.soptim.opencgmes.cimreader.core.exception;
 
-public class ImportException extends RuntimeException {
+public class ImportException extends Exception {
 
   public ImportException(String message) {
     super(message);

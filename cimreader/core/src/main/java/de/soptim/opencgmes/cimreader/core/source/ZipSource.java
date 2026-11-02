@@ -30,4 +30,8 @@ public record ZipSource(ZipFile zipFile, ZipEntry zipEntry) implements XmlSource
     return zipFile.getInputStream(zipEntry);
   }
 
+  @Override
+  public String toString() {
+    return zipFile.getName() + "!" + zipEntry.getName();
+  }
 }

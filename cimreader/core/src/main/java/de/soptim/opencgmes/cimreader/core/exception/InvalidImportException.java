@@ -18,23 +18,24 @@
 
 package de.soptim.opencgmes.cimreader.core.exception;
 
-import de.soptim.opencgmes.cimreader.core.validation.CimValidator;
+import de.soptim.opencgmes.cimreader.core.validation.ValidationIssue;
+import java.util.List;
 
 public class InvalidImportException extends ImportException {
 
-  private final CimValidator validator;
+  private final List<ValidationIssue> issues;
 
-  public InvalidImportException(CimValidator validator) {
-    this.validator = validator;
+  public InvalidImportException(List<ValidationIssue> issues) {
+    this.issues = issues;
     StringBuilder message = new StringBuilder();
     message.append("Import failed due to validation errors:\n");
-    for (var issue : validator.getIssues()) {
+    for (var issue : issues) {
       message.append("- ").append(issue.getMessage()).append("\n");
     }
     super(message.toString());
   }
 
-  public CimValidator getValidator() {
-    return validator;
+  public List<ValidationIssue> getIssues() {
+    return issues;
   }
 }

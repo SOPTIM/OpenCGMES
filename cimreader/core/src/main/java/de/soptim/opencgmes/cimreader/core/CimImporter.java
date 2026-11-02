@@ -23,7 +23,6 @@ import de.soptim.opencgmes.cimreader.core.exception.InvalidImportException;
 import de.soptim.opencgmes.cimreader.core.source.XmlSourceBundle;
 import de.soptim.opencgmes.cimreader.core.validation.CimValidator;
 import de.soptim.opencgmes.cimxml.parser.CimXmlParser;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Collection;
 
@@ -35,24 +34,23 @@ public class CimImporter {
     this.cimHeaderReader = new CimHeaderReader();
   }
 
-  public void importCim(Collection<Path> paths) {
+  public void importCim(Collection<Path> paths) throws ImportException {
     try (var sourceBundle = new XmlSourceBundle()) {
       sourceBundle.addAll(paths);
       var validator = new CimValidator();
       var xmlSources = sourceBundle.sources();
       var headers = cimHeaderReader.readHeaders(xmlSources);
-      validator.validateHeaders(headers);
-      validator.validateDependencies(headers);
+      validator.validate(headers);
       if (validator.hasErrors()) {
-        throw new InvalidImportException(validator);
+        throw new InvalidImportException(validator.getIssues());
       }
-      var sorted = CimSorter.sort(headers);
+      var sorted = CimSorter.groupAndSort(headers);
       CimXmlParser parser = new CimXmlParser();
       for (var source : sorted) {
         for (var headerSource : source) {
-          InputStream inputStream = headerSource.xmlSource().open();
-          var model = parser.parseCimModel(inputStream);
-          inputStream.close();
+          try (var inputStream = headerSource.xmlSource().open()) {
+            var model = parser.parseCimModel(inputStream);
+          }
         }
       }
     } catch (InvalidImportException e) {

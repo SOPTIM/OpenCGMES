@@ -18,9 +18,10 @@
 
 package de.soptim.opencgmes.cimreader.core.validation;
 
-import de.soptim.opencgmes.cimreader.core.source.HeaderSource;
+import de.soptim.opencgmes.cimreader.core.source.ModelSource;
 import de.soptim.opencgmes.cimxml.graph.CimModelHeader;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class CimValidator {
@@ -45,20 +46,26 @@ public class CimValidator {
     }
   }
 
-  public void validateHeaders(List<HeaderSource> headers) {
+  public void validateHeaders(Collection<ModelSource> headers) {
     for (var source : headers) {
       validateHeader(source.header());
     }
   }
 
-  public void validateDependencies(List<HeaderSource> sources) {
+  public void validateDependencies(Collection<ModelSource> sources) {
     for (var source : sources) {
+      validateHeader(source.header());
       source.header().getDependentOn().forEach(dependency -> {
         if (sources.stream().noneMatch(s -> s.header().getModel().equals(dependency))) {
-          issues.add(new MissingDependencyIssue(source, dependency.toString()));
+          issues.add(new MissingDependencyIssue(source.header(), dependency.toString()));
         }
       });
     }
+  }
+
+  public void validate(Collection<ModelSource> sources) {
+    validateHeaders(sources);
+    validateDependencies(sources);
   }
 
   public List<ValidationIssue> getIssues() {

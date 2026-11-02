@@ -18,7 +18,7 @@
 
 package de.soptim.opencgmes.cimreader.core;
 
-import de.soptim.opencgmes.cimreader.core.source.HeaderSource;
+import de.soptim.opencgmes.cimreader.core.source.ModelSource;
 import de.soptim.opencgmes.cimreader.core.source.XmlSource;
 import de.soptim.opencgmes.cimxml.parser.CimXmlParser;
 import java.io.IOException;
@@ -27,18 +27,24 @@ import java.util.List;
 
 public class CimHeaderReader {
 
-  public List<HeaderSource> readHeaders(List<XmlSource> sources) {
-    List<HeaderSource> result = new ArrayList<>();
+  public List<ModelSource> readHeaders(List<XmlSource> sources) throws IOException {
+    List<ModelSource> result = new ArrayList<>();
+    List<Exception> failures = new ArrayList<>();
     CimXmlParser parser = new CimXmlParser();
     for (XmlSource source : sources) {
-      try {
-        var inputStream = source.open();
-        result.add(new HeaderSource(parser.parseCimModelHeader(inputStream), source));
-        inputStream.close();
-      } catch (IOException ignored) {
+      try (var inputStream = source.open()) {
+        result.add(new ModelSource(parser.parseCimModelHeader(inputStream), source));
+      } catch (IOException | IllegalStateException e) {
+        failures.add(new IOException("Failed to read header from source: " + source, e));
       }
+    }
+    if (!failures.isEmpty()) {
+      var exception = new IOException(
+          "Failed to read " + failures.size() + " of " + sources.size() + " headers");
+      failures.forEach(exception::addSuppressed);
+      throw exception;
     }
     return result;
   }
-  
+
 }
