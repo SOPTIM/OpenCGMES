@@ -39,7 +39,7 @@ public final class CimHeaderVocabulary {
   public static final Node PREDICATE_DEPENDENT_ON
       = NodeFactory.createURI(NS_MD + "Model.DependentOn");
   public static final Node PREDICATE_SCENARIO_TIME
-      = NodeFactory.createURI(NS_MD + "Model.ScenarioTime");
+      = NodeFactory.createURI(NS_MD + "Model.scenarioTime");
   public static final Node PREDICATE_VERSION = NodeFactory.createURI(NS_MD + "Model.version");
   public static final Node PREDICATE_MODELING_AUTHORITY_SET
       = NodeFactory.createURI(NS_MD + "Model.modelingAuthoritySet");
