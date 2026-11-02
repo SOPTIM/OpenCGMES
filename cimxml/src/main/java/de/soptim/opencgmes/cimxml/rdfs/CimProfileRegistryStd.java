@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,7 +49,7 @@ import org.apache.jena.sparql.exec.QueryExec;
 public class CimProfileRegistryStd implements CimProfileRegistry {
 
   private static final Query typedPropertiesQuery = QueryFactory.create(
-          """
+      """
               PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
               PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
               PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
@@ -83,7 +84,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
               }
           """);
   private static final Query classInfoQuery = QueryFactory.create(
-          """
+      """
               PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
               PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
               PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
@@ -298,7 +299,28 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
 
   @Override
   public Map<Node, PropertyInfo> getPropertiesAndDatatypes(Set<Node> owlVersionIris) {
-    return getProfileInfoMap(owlVersionIris, profilePropertiesCache, profileSetPropertiesCache);
+    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
+      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
+    }
+
+    final var set = getMatchingProfiles(owlVersionIris);
+
+    if (set.size() == 1) {
+      return profilePropertiesCache.get(set.iterator().next());
+    }
+
+    Map<Node, PropertyInfo> properties = profileSetPropertiesCache.get(set);
+    if (properties != null) {
+      return properties;
+    }
+
+    properties = new HashMap<>(1024);
+    for (var p : set) {
+      properties.putAll(profilePropertiesCache.get(p));
+    }
+    properties = Collections.unmodifiableMap(properties);
+    profileSetPropertiesCache.put(set, properties);
+    return properties;
   }
 
   @Override
@@ -313,7 +335,38 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
 
   @Override
   public Map<Node, TypeInfo> getTypeInfoMap(Set<Node> owlVersionIris) {
-    return getProfileInfoMap(owlVersionIris, profileTypesCache, profileSetTypesCache);
+    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
+      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
+    }
+
+    final var matchingProfiles = getMatchingProfiles(owlVersionIris);
+
+    if (matchingProfiles.size() == 1) {
+      return profileTypesCache.get(matchingProfiles.iterator().next());
+    }
+
+    Map<Node, TypeInfo> typeInfos = profileSetTypesCache.get(matchingProfiles);
+    if (typeInfos != null) {
+      return typeInfos;
+    }
+
+    typeInfos = new HashMap<>(1024);
+    for (var profile : matchingProfiles) {
+      Map<Node, TypeInfo> typeInfoForProfile = profileTypesCache.get(profile);
+      for (Entry<Node, TypeInfo> entry : typeInfoForProfile.entrySet()) {
+        typeInfos.merge(entry.getKey(), entry.getValue(), this::mergeTypeInfos);
+      }
+    }
+    typeInfos = Collections.unmodifiableMap(typeInfos);
+    profileSetTypesCache.put(matchingProfiles, typeInfos);
+    return typeInfos;
+  }
+
+  private TypeInfo mergeTypeInfos(TypeInfo typeInfoA, TypeInfo typeInfoB) {
+    // A type may be stereotyped with "Description" in one profile, but not the other.
+    // In this case, we return the TypeInfo where it is not a Description
+    if (typeInfoA.isDescription() && !typeInfoB.isDescription()) return typeInfoB;
+    return typeInfoA;
   }
 
   @Override
@@ -402,34 +455,6 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     errorHandler.warning("Unknown mapping from CIM primitive'" + primitiveType
         + "' to XSD datatype. Using xsd:string as fallback.", -1, -1);
     return XSDDatatype.XSDstring;
-  }
-
-  private <T> Map<Node, T> getProfileInfoMap(
-      Set<Node> owlVersionIris,
-      Map<CimProfile, Map<Node, T>> profileCache,
-      Map<Set<CimProfile>, Map<Node, T>> profileSetCache) {
-    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
-      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
-    }
-
-    final var set = getMatchingProfiles(owlVersionIris);
-
-    if (set.size() == 1) {
-      return profileCache.get(set.iterator().next());
-    }
-
-    Map<Node, T> info = profileSetCache.get(set);
-    if (info != null) {
-      return info;
-    }
-
-    info = new HashMap<>(1024);
-    for (var p : set) {
-      info.putAll(profileCache.get(p));
-    }
-    info = Collections.unmodifiableMap(info);
-    profileSetCache.put(set, info);
-    return info;
   }
 
   private static Node mapToUriNode(Node iriNode) {
