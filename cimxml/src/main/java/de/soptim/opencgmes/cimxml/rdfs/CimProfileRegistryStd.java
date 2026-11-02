@@ -49,7 +49,7 @@ import org.apache.jena.sparql.exec.QueryExec;
 public class CimProfileRegistryStd implements CimProfileRegistry {
 
   private static final Query typedPropertiesQuery = QueryFactory.create(
-      """
+          """
               PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
               PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
               PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
@@ -84,7 +84,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
               }
           """);
   private static final Query classInfoQuery = QueryFactory.create(
-      """
+          """
               PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
               PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
               PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
@@ -365,7 +365,9 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
   private TypeInfo mergeTypeInfos(TypeInfo typeInfoA, TypeInfo typeInfoB) {
     // A type may be stereotyped with "Description" in one profile, but not the other.
     // In this case, we return the TypeInfo where it is not a Description
-    if (typeInfoA.isDescription() && !typeInfoB.isDescription()) return typeInfoB;
+    if (typeInfoA.isDescription() && !typeInfoB.isDescription()) {
+      return typeInfoB;
+    }
     return typeInfoA;
   }
 
