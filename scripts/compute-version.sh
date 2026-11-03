@@ -16,6 +16,9 @@
 #   no -SNAPSHOT).  This is the version published to Maven Central — a global fact, so it is NOT
 #   filtered by reachability from HEAD (a docs/release build off a branch behind the latest release
 #   tag still reports the true latest).  Falls back to 0.0.0-SNAPSHOT if no tag exists.
+#
+# Release candidates (<component>-vX.Y.Z-rc.N) are ignored in both modes: an RC is neither the
+# version users should depend on nor the base for the next snapshot.
 
 set -euo pipefail
 
@@ -42,10 +45,11 @@ fi
 # --released reports the global latest published version (no reachability filter); the default
 # SNAPSHOT mode bumps from this branch's own history, so there it is filtered to --merged HEAD.
 if [[ "${RELEASED}" -eq 1 ]]; then
-    LAST_TAG="$(git tag --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
+    TAGS="$(git tag --sort=-version:refname --list "${COMPONENT}-v*")"
 else
-    LAST_TAG="$(git tag --merged HEAD --sort=-version:refname --list "${COMPONENT}-v*" | head -1)"
+    TAGS="$(git tag --merged HEAD --sort=-version:refname --list "${COMPONENT}-v*")"
 fi
+LAST_TAG="$(grep -E "^${COMPONENT}-v[0-9]+\.[0-9]+\.[0-9]+$" <<< "${TAGS}" | head -1 || true)"
 if [[ -z "${LAST_TAG}" ]]; then
     echo "0.0.0-SNAPSHOT"
     exit 0

@@ -1,0 +1,6 @@
+# .NET build output. The generated model (Model.g.cs, Codes.g.cs) is deliberately NOT ignored:
+# it is committed so the package builds without running the generator, and CI checks it against
+# the schema.
+bin/
+obj/
+*.user

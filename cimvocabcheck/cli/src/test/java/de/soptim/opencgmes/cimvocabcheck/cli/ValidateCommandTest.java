@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,6 +59,22 @@ public class ValidateCommandTest {
           + "\n"
           + "ex:Shape a sh:NodeShape ;\n"
           + "    sh:taaargetClass ex:Foo .\n";
+
+  /** The smallest file the schema loader accepts as a CIM profile: one class, cim:Breaker. */
+  private static final String TINY_PROFILE =
+      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+          + "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\""
+          + " xmlns:cim=\"http://iec.ch/TC57/CIM100#\" xmlns:dcat=\"http://www.w3.org/ns/dcat#\""
+          + " xmlns:owl=\"http://www.w3.org/2002/07/owl#\">\n"
+          + "  <rdf:Description rdf:about=\"http://example.org/Tiny#Ontology\">\n"
+          + "    <rdf:type rdf:resource=\"http://www.w3.org/2002/07/owl#Ontology\"/>\n"
+          + "    <dcat:keyword>TN</dcat:keyword>\n"
+          + "    <owl:versionIRI rdf:resource=\"http://example.org/Tiny/1.0\"/>\n"
+          + "  </rdf:Description>\n"
+          + "  <rdf:Description rdf:about=\"http://iec.ch/TC57/CIM100#Breaker\">\n"
+          + "    <rdf:type rdf:resource=\"http://www.w3.org/2000/01/rdf-schema#Class\"/>\n"
+          + "  </rdf:Description>\n"
+          + "</rdf:RDF>\n";
 
   @Test
   public void codeQualityReportsRealTurtleLineForEmbeddedSyntaxError() throws Exception {
@@ -101,6 +118,33 @@ public class ValidateCommandTest {
         out.contains("UNKNOWN_VOCABULARY_TERM"));
   }
 
+  @Test
+  public void anUnreadableInputIsReportedWithoutCostingTheRestOfTheBatch() throws Exception {
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
+    Path query = write("q.rq", "SELECT * WHERE { ?s ?p ?o }");
+    String missing = tmp.getRoot().toPath().resolve("missing.rq").toString();
+    String[] args = {"--config", config.toString(), "--format", "json", query.toString(), missing};
+
+    JsonNode results = new ObjectMapper().readTree(run(args)).path("results");
+
+    assertEquals(1, exitOf(args));
+    assertEquals(2, results.size());
+    assertTrue("the readable input is still validated", results.get(0).path("valid").asBoolean());
+    JsonNode unreadable = results.get(1);
+    assertEquals(missing, unreadable.path("file").asText());
+    assertFalse(unreadable.path("valid").asBoolean());
+    assertEquals("UNREADABLE_INPUT", unreadable.path("annotations").get(0).path("code").asText());
+    assertEquals("ERROR", unreadable.path("annotations").get(0).path("severity").asText());
+  }
+
+  @Test
+  public void anUnreadableInputFailsEvenAPermissiveRun() throws Exception {
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
+    String missing = tmp.getRoot().toPath().resolve("missing.rq").toString();
+
+    assertEquals(1, exitOf("--config", config.toString(), "--strictness", "permissive", missing));
+  }
+
   // ---- syntax-only SPARQL, valid input, output formats ------------------------------------
 
   @Test
@@ -138,13 +182,6 @@ public class ValidateCommandTest {
     // Default (text) format, verbose to include all findings.
     String out = run("--config", config.toString(), "--verbose", shapes.toString());
     assertTrue("text output must mention the syntax error: " + out, out.contains("SYNTAX_ERROR"));
-  }
-
-  @Test
-  public void unreadableInput_returnsUsageError() throws Exception {
-    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
-    int exit = exitOf("--config", config.toString(), tmp.getRoot() + "/does-not-exist.ttl");
-    assertEquals(2, exit);
   }
 
   /**
@@ -194,6 +231,97 @@ public class ValidateCommandTest {
       </rdf:RDF>
       """;
 
+  @Test
+  public void anInputNameThePlatformCannotEncodeIsAReadErrorNotACrash() {
+    // A NUL is unrepresentable everywhere; a non-ASCII name under a C locale fails the same way.
+    String input = "q\u0000.rq";
+
+    assertEquals(1, exitOf("--format", "json", input));
+    String out = run("--format", "json", input);
+    assertTrue(out, out.contains("UNREADABLE_INPUT") && out.contains("file name encoding"));
+  }
+
+  @Test
+  public void aCrashExitsWithTheToolFailureCodeNotTheFindingsCode() throws Exception {
+    // Exit 1 means "the report has errors"; a crash produced no report.
+    CommandLine commandLine = Main.commandLine();
+    var errors = new ByteArrayOutputStream();
+    commandLine.setErr(new PrintWriter(errors, true, StandardCharsets.UTF_8));
+
+    int code =
+        commandLine
+            .getExecutionExceptionHandler()
+            .handleExecutionException(
+                new IllegalStateException("boom"), commandLine, commandLine.parseArgs("q.rq"));
+
+    assertEquals(2, code);
+    assertTrue(errors.toString(StandardCharsets.UTF_8).contains("boom"));
+  }
+
+  @Test
+  public void anAutoDiscoveredConfigResolvesItsPathsAgainstItsOwnDirectory() throws Exception {
+    // Run from a subdirectory: the config is found above it, and "profiles" means the directory
+    // next to the config, not one next to wherever the CLI happens to run.
+    write("opencgmes.jsonc", "{\"cimvocabcheck\": {\"schemasDirectory\": \"profiles\"}}");
+    tmp.newFolder("profiles");
+    write("profiles/tiny.rdf", TINY_PROFILE);
+    tmp.newFolder("queries");
+    write("queries/q.rq", "PREFIX cim: <http://iec.ch/TC57/CIM100#> SELECT * { ?b a cim:Breakr }");
+
+    Process process =
+        new ProcessBuilder(
+                Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp",
+                System.getProperty("java.class.path"),
+                Main.class.getName(),
+                "--format",
+                "json",
+                "q.rq")
+            .directory(tmp.getRoot().toPath().resolve("queries").toFile())
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start();
+    String out = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+    assertEquals("the schema must load and the typo be reported: " + out, 1, process.waitFor());
+    assertTrue(out, out.contains("UNKNOWN_CLASS"));
+  }
+
+  /**
+   * Findings in a shapes file are listed in source order. The shape analyzer walks a graph whose
+   * blank nodes iterate in a per-run order, and repeated findings are told apart in a report's
+   * fingerprints by their position in the list, so any other order moves fingerprints between
+   * identical runs.
+   */
+  @Test
+  public void shapeFindingsAreListedInSourceOrder() throws Exception {
+    Path schema = write("tiny.rdf", TINY_PROFILE);
+    var shapes =
+        new StringBuilder(
+            "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+                + "@prefix cim: <http://iec.ch/TC57/CIM100#> .\n"
+                + "@prefix ex: <http://example.org/> .\n");
+    for (int i = 0; i < 12; i++) {
+      shapes.append("ex:Shape").append(i).append(" a sh:NodeShape ;\n");
+      shapes.append("    sh:targetClass cim:Breaker ;\n");
+      shapes.append("    sh:property [ sh:path cim:Breaker.missing").append(i).append(" ] .\n");
+    }
+    Path file = write("shapes.ttl", shapes.toString());
+
+    JsonNode annotations =
+        new ObjectMapper()
+            .readTree(run("--format", "json", "--schema", schema.toString(), file.toString()))
+            .path("results")
+            .path(0)
+            .path("annotations");
+
+    assertEquals(annotations.toString(), 12, annotations.size());
+    for (int i = 0; i < annotations.size(); i++) {
+      assertTrue(
+          annotations.toString(),
+          annotations.get(i).path("term").asText().endsWith("Breaker.missing" + i));
+    }
+  }
+
   // ---- helpers ----------------------------------------------------------------------------
 
   private Path write(String name, String content) throws Exception {
@@ -207,7 +335,7 @@ public class ValidateCommandTest {
     var buffer = new ByteArrayOutputStream();
     System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
     try {
-      new CommandLine(new ValidateCommand()).execute(args);
+      Main.commandLine().execute(args);
     } finally {
       System.setOut(originalOut);
     }
@@ -222,7 +350,7 @@ public class ValidateCommandTest {
     System.setOut(outSink);
     System.setErr(new PrintStream(errBuffer, true, StandardCharsets.UTF_8));
     try {
-      new CommandLine(new ValidateCommand()).execute(args);
+      Main.commandLine().execute(args);
     } finally {
       System.setOut(originalOut);
       System.setErr(originalErr);
@@ -237,7 +365,7 @@ public class ValidateCommandTest {
     System.setOut(sink);
     System.setErr(sink);
     try {
-      return new CommandLine(new ValidateCommand()).execute(args);
+      return Main.commandLine().execute(args);
     } finally {
       System.setOut(originalOut);
       System.setErr(originalErr);

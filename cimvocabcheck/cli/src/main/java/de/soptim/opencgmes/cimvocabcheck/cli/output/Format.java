@@ -31,20 +31,27 @@ public enum Format {
    * Quality</a> report — a bare JSON array of one issue per finding, suitable for an {@code
    * artifacts:reports:codequality} CI artifact.
    */
-  CODEQUALITY;
+  CODEQUALITY,
+  /**
+   * A <a href="https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html">SARIF 2.1.0</a>
+   * log — one run holding one result per finding, consumed by GitHub code scanning and most IDE
+   * result viewers.
+   */
+  SARIF;
 
   /**
-   * Parses {@code value} ("text", "json" or "codequality"/"gitlab", case-insensitive) into a {@link
-   * Format}.
+   * Parses {@code value} ("text", "json", "codequality"/"gitlab" or "sarif", case-insensitive) into
+   * a {@link Format}.
    */
   public static Format parse(String value) {
     return switch (value.toLowerCase(Locale.ROOT)) {
       case "text" -> TEXT;
       case "json" -> JSON;
       case "codequality", "gitlab" -> CODEQUALITY;
+      case "sarif" -> SARIF;
       default ->
           throw new IllegalArgumentException(
-              "Unknown format '" + value + "'. Use 'text', 'json' or 'codequality'.");
+              "Unknown format '" + value + "'. Use 'text', 'json', 'codequality' or 'sarif'.");
     };
   }
 }

@@ -25,11 +25,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,19 +71,14 @@ public final class CodeQualityFormatter {
   /** Writes {@code results} as a single Code Quality JSON array. */
   public void write(List<FileResult> results) {
     var issues = new ArrayList<Map<String, Object>>();
-    // Counts how many findings sharing the same identity have already been emitted, so genuinely
-    // duplicate findings get distinct fingerprints — independent of the order findings appear in.
-    var occurrences = new HashMap<String, Integer>();
+    var fingerprints = new Fingerprints();
     for (FileResult r : results) {
-      String path = stripDotSlash(r.source());
+      String path = Fingerprints.normalizePath(r.source());
       for (SparqlValidationAnnotation a : r.annotations()) {
         if (!shouldInclude(a)) {
           continue;
         }
-        String identity = identity(path, a);
-        int occurrence = occurrences.merge(identity, 1, Integer::sum) - 1;
-        String fingerprint = sha256Hex(identity + ' ' + occurrence);
-        issues.add(toIssue(path, a, fingerprint));
+        issues.add(toIssue(path, a, fingerprints.of(path, a)));
       }
     }
     try {
@@ -123,38 +114,6 @@ public final class CodeQualityFormatter {
       case WARN -> "minor";
       case INFO -> "info";
     };
-  }
-
-  /**
-   * The stable identity of a finding: file, rule, position and offending term. Deliberately
-   * excludes the rendered message — its profile list is not emitted in a deterministic order, so
-   * folding it into the fingerprint would make the same finding churn between otherwise-identical
-   * runs and break GitLab's ability to track it over time.
-   */
-  private static String identity(String path, SparqlValidationAnnotation a) {
-    String term = a.term() != null && a.term().isURI() ? a.term().getURI() : "";
-    return String.join(
-        " ", path, a.code().name(), String.valueOf(a.line()), String.valueOf(a.column()), term);
-  }
-
-  private static String sha256Hex(String input) {
-    MessageDigest digest;
-    try {
-      digest = MessageDigest.getInstance("SHA-256");
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 not available", e);
-    }
-    byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-    var sb = new StringBuilder(hash.length * 2);
-    for (byte b : hash) {
-      sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-      sb.append(Character.forDigit(b & 0xF, 16));
-    }
-    return sb.toString();
-  }
-
-  private static String stripDotSlash(String path) {
-    return path.startsWith("./") ? path.substring(2) : path;
   }
 
   private boolean shouldInclude(SparqlValidationAnnotation a) {

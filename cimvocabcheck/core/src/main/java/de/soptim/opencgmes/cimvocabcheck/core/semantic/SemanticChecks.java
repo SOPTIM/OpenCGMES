@@ -29,6 +29,7 @@ import de.soptim.opencgmes.cimvocabcheck.core.analysis.TriplePatternReference;
 import de.soptim.opencgmes.cimvocabcheck.core.schema.SchemaIndex;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -505,7 +506,8 @@ public final class SemanticChecks {
   private static String setOfUris(Collection<Node> nodes) {
     var sb = new StringBuilder("[");
     boolean first = true;
-    for (Node n : nodes) {
+    // Sorted: these come from sets whose iteration order the JDK randomises per JVM.
+    for (Node n : nodes.stream().sorted(Comparator.comparing(Node::toString)).toList()) {
       if (!first) {
         sb.append(", ");
       }
@@ -518,7 +520,7 @@ public final class SemanticChecks {
   private static String quoteIris(Collection<String> uris) {
     var sb = new StringBuilder("[");
     boolean first = true;
-    for (String u : uris) {
+    for (String u : uris.stream().sorted().toList()) {
       if (!first) {
         sb.append(", ");
       }
