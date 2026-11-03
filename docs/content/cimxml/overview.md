@@ -15,6 +15,8 @@ difference models, with profile-driven datatype resolution and automatic UUID no
 
 - **CIMXML parser** — a specialized StAX-based parser optimized for CIMXML documents, built on
   Apache Jena's RDF/XML parsing machinery.
+- **CIMXML writer** — a serializer to write CIMXML documents from a `CimDatasetGraph`, supporting 
+  both `FullModel` and `DifferenceModel` graphs.
 - **CIM version support** — handles CIM versions 16, 17, and 18 out of the box, detected
   automatically from the document's namespace declarations, and any other CIM namespace via the
   `CimNamespaceFactoryRegistry`, which lets you map additional namespace URIs to custom `CimProfile`

@@ -6,7 +6,7 @@ sidebar_position: 8
 # Library Usage
 
 This page shows how to use CIMXML as a dependency inside your own project — in particular, how to
-parse a model and assert on it from a unit test. Everything below uses only public API:
+parse a model, assert on it from a unit test, and write a model back to a CIMXML file. Everything below uses only public API:
 [`CimXmlParser`](/cimxml/architecture), [`CimDatasetGraph`](/cimxml/architecture), and
 [`CimModelHeader`](/cimxml/architecture). Add the dependency first (see
 [Installation](/cimxml/installation)).
@@ -105,3 +105,38 @@ appear, and removed elements are gone — using `Graph#contains(...)` on the res
 If your tests run SPARQL against parsed models, consider validating those queries statically with
 [CIMVocabCheck](/cimvocabcheck/overview) so schema mistakes fail fast in the same test suite.
 :::
+
+## Writing CIMXML
+
+A given `CimDatasetGraph`, whether it is created manually or obtained by modifying a graph that was
+previously parsed, can be written back to a CIMXML file. To accomplish this, use the `CimXmlWriter`
+class:
+
+```java
+CimDatasetGraph cimDatasetGraph; // previously created
+
+CimXmlWriter writer = new CimXmlWriter();
+
+// export to File
+writer.writeCimModel(Path.of("result.xml"), cimDatasetGraph, true);
+
+// export to any Writer or OutputStream
+writer.writeCimModel(new ByteArrayOutputStream(), cimDatasetGraph, true);
+```
+
+The boolean parameter determines whether the result should be sorted. This is useful for 
+comparability and versioning, but may decrease performance.
+
+Additionally, there is an option to use rdf:ID and rdf:about depending on whether the type of a
+given object is stereotyped with "Description" in the model's profile. Some applications based on
+older versions of the CIM standard may expect this behavior. In this case, the profile must be
+registered in a `CimProfileRegistry` that is given to the method:
+
+```java
+CimDatasetGraph cimDatasetGraph; // previously created
+CimProfileRegistry cimProfileRegistry; // must contain the profile being serialized
+
+CimXmlWriter writer = new CimXmlWriter();
+
+writer.writeRdfIdAwareCimModel(Path.of("result.xml"), cimDatasetGraph, true, cimProfileRegistry);
+```
