@@ -13,7 +13,7 @@ OpenCGMES ships its three products on **three independent CI/release trains**. E
 | --- | --- | --- | --- | --- |
 | **CIMXML** | `cimxml-ci.yml` | `cimxml-release.yml` | `cimxml-vX.Y.Z` | Maven Central + GitHub Packages JAR; GitHub Release |
 | **CIMVocabCheck** | `cimvocabcheck-ci.yml` | `cimvocabcheck-release.yml` | `cimvocabcheck-vX.Y.Z` | `cimvocabcheck-core` to Maven Central + GitHub Packages; core/cli/lsp JARs on the GitHub Release; `cimvocabcheck-cli` image to GHCR |
-| **CIMNotebook** | `cimnotebook-ci.yml` | `cimnotebook-release.yml` | `cimnotebook-vX.Y.Z` | VSIX + IntelliJ zip on the GitHub Release; plugin to JetBrains Marketplace |
+| **CIMNotebook** | `cimnotebook-ci.yml` | `cimnotebook-release.yml` | `cimnotebook-vX.Y.Z` | VSIX + IntelliJ zip on the GitHub Release; extension to the Visual Studio Marketplace + Open VSX; plugin to JetBrains Marketplace |
 
 Each CI workflow is scoped by path filters, so it only runs when files it owns change (CIMVocabCheck and CIMNotebook CI also trigger on `cimxml/**` and the shared scripts, because they build against CIMXML).
 
@@ -40,7 +40,7 @@ graph TD
     REL --> CENTRAL["Maven Central<br/>signed (GPG)"]
     REL --> GHPKG["GitHub Packages<br/>release"]
     REL --> GHREL["GitHub Release<br/>draft + binaries"]
-    REL --> MKT["JetBrains Marketplace<br/>(CIMNotebook only)"]
+    REL --> MKT["VS Marketplace · Open VSX<br/>JetBrains Marketplace<br/>(CIMNotebook only)"]
 
     classDef ci fill:#009EE0,stroke:#14162B,color:#fff;
     classDef rel fill:#E74890,stroke:#14162B,color:#fff;
@@ -73,7 +73,7 @@ Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's 
 
 - **CIMXML release** — publishes a **GPG-signed** JAR to **Maven Central** (Sonatype Central Portal, `-Pcentral-release`), publishes the release to **GitHub Packages**, and creates a **draft GitHub Release** with the JAR attached.
 - **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, and calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
-- **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
+- **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, publishes that same VSIX to the **Visual Studio Marketplace** and **Open VSX**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
 
 :::note Cross-product dependency pinning at release time
 CI builds use each component's own in-repo SNAPSHOT version. Releases instead pin cross-product
@@ -83,6 +83,15 @@ dependency is **required**: a cimvocabcheck or cimnotebook release fails if no `
 exists. The cimnotebook release resolves the bundled cimvocabcheck version with
 `compute-version.sh cimvocabcheck --released` and falls back — with a warning — to the in-repo
 `0.0.0-SNAPSHOT` LSP only until the first `cimvocabcheck-v*` tag exists.
+:::
+
+:::info Trusted publishing for the VS Code registries
+The Visual Studio Marketplace and Open VSX jobs authenticate with **OIDC trusted publishing**, so
+no registry token is stored in the repository. Each registry holds a policy that names this
+repository, `cimnotebook-release.yml` and the job's GitHub environment
+(`Visual Studio Marketplace Deployment`, `Open VSX Registry Deployment`). Renaming the workflow file
+or an environment breaks publishing until the policy is updated. Both jobs skip a version the
+registry already has, so re-running a partially failed release is safe.
 :::
 
 ## Versioning
