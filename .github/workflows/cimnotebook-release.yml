@@ -4,6 +4,11 @@ name: cimnotebook-release
 # which bundles the in-repo (snapshot) CIMVocabCheck LSP — a release bundles the LSP at the
 # **latest released cimvocabcheck version** (resolved from the newest cimvocabcheck-v* tag),
 # mirroring how releases pin their cimxml dependency to a release rather than a SNAPSHOT.
+#
+# A tag publishes to a draft GitHub Release, the JetBrains Marketplace, the Visual Studio
+# Marketplace and Open VSX. The two VS Code registries use OIDC trusted publishing: no stored
+# token, and the registry-side policies name this workflow file and each job's environment, so
+# renaming either breaks publishing until the policy is updated.
 on:
   push:
     tags:
@@ -11,6 +16,13 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # Trusted publishing needs vsce >= 4.1.0 and ovsx >= 1.2.0.
+  # renovate: datasource=npm depName=@vscode/vsce
+  VSCE_VERSION: "4.1.0"
+  # renovate: datasource=npm depName=ovsx
+  OVSX_VERSION: "1.3.0"
 
 concurrency:
   group: cimnotebook-release-${{ github.ref }}
@@ -128,8 +140,16 @@ jobs:
       - name: Build and package VS Code extension
         run: |
           npm run bundle
-          npx @vscode/vsce package --out "cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix"
+          npx "@vscode/vsce@${VSCE_VERSION}" package --out "cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix"
         working-directory: cimnotebook/vscode
+
+      # The marketplace jobs publish this exact file, so every channel ships the same bytes.
+      - name: Upload VSIX for the marketplace jobs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cimnotebook-vsix
+          path: cimnotebook/vscode/cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix
+          if-no-files-found: error
 
       - name: Build IntelliJ plugin
         run: gradle buildPlugin
@@ -145,6 +165,61 @@ jobs:
             --draft \
             "cimnotebook/vscode/cimnotebook-vscode-${{ env.RELEASE_VERSION }}.vsix" \
             cimnotebook/intellij/build/distributions/cimnotebook-intellij-*.zip
+
+  # ---- Visual Studio Marketplace (OIDC trusted publishing) -----------------
+  publish-vs-marketplace:
+    needs: [validate-tag, publish-release-assets]
+    runs-on: ubuntu-latest
+    environment: Visual Studio Marketplace Deployment
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+    steps:
+      - name: Download VSIX
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cimnotebook-vsix
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+
+      # --skip-duplicate makes re-running a partially failed release safe.
+      - name: Publish extension to Visual Studio Marketplace
+        run: >-
+          npx "@vscode/vsce@${VSCE_VERSION}" publish --oidc --skip-duplicate
+          --packagePath "cimnotebook-vscode-${RELEASE_VERSION}.vsix"
+
+  # ---- Open VSX Registry (OIDC trusted publishing) -------------------------
+  publish-open-vsx:
+    needs: [validate-tag, publish-release-assets]
+    runs-on: ubuntu-latest
+    environment: Open VSX Registry Deployment
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate-tag.outputs.release_version }}
+    steps:
+      - name: Download VSIX
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cimnotebook-vsix
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+
+      # Without --trusted-publishing, a missing OIDC token makes ovsx fall back to prompting for
+      # an access token; with it, the job fails with an actionable error.
+      - name: Publish extension to Open VSX
+        run: >-
+          npx "ovsx@${OVSX_VERSION}" publish "cimnotebook-vscode-${RELEASE_VERSION}.vsix"
+          --trusted-publishing --skip-duplicate
 
   # ---- JetBrains Marketplace -----------------------------------------------
   publish-jetbrains-marketplace:
