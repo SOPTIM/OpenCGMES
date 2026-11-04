@@ -77,9 +77,14 @@ class SerializerCimXmlStaxSr {
         prefixMap == null ? cimDatasetGraph.prefixes().getMapping() : prefixMap.getMapping();
     this.sorted = sorted;
     this.errorHandler = errorHandler;
-    this.rdfIdAware = cimProfileRegistry != null;
-    this.typeInfoMap = rdfIdAware ? cimProfileRegistry.getTypeInfoMap(
-        cimDatasetGraph.getModelHeader().getProfiles()) : null;
+    var registryPresent = cimProfileRegistry != null;
+    var profiles = registryPresent ? cimDatasetGraph.getModelHeader().getProfiles() : null;
+    if (registryPresent && profiles.isEmpty()) {
+      warn("There are no profiles specified in the model. Type information cannot be retrieved "
+          + "from the registry and rdf:about will be used for all subjects.");
+    }
+    this.rdfIdAware = registryPresent && !profiles.isEmpty();
+    this.typeInfoMap = rdfIdAware ? cimProfileRegistry.getTypeInfoMap(profiles) : null;
     this.typesNotFound = rdfIdAware ? new HashSet<>() : null;
   }
 
@@ -181,7 +186,7 @@ class SerializerCimXmlStaxSr {
         warn("The type URI " + typeNode.getURI() + " was not found in the CimProfileRegistry."
             + " Instances of this type will be printed as rdf:about.");
         typesNotFound.add(typeNode);
-      } else if (!typeInfo.isDescription()) {
+      } else if (!typeInfo.isDescription() && subjectNode.getURI().startsWith(baseUri)) {
         xmlStreamWriter.writeAttribute(
             rdfUri, id, replaceUrnUuidWithUnderscore(subjectNode.getURI()));
         return;
