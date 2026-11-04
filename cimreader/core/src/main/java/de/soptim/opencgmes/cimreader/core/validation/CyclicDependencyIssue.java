@@ -18,12 +18,24 @@
 
 package de.soptim.opencgmes.cimreader.core.validation;
 
+import de.soptim.opencgmes.cimreader.core.source.ModelSource;
+import java.util.List;
+
 public class CyclicDependencyIssue implements ValidationIssue {
 
+  private final List<ModelSource> cycle;
 
+  public CyclicDependencyIssue(List<ModelSource> cycle) {
+    this.cycle = cycle;
+  }
 
   @Override
   public String getMessage() {
-    return "";
+    StringBuilder builder = new StringBuilder();
+    builder.append("Found cyclic supersedes dependencies: ");
+    for (var source : cycle) {
+      builder.append("- ").append(source.header().getModel());
+    }
+    return builder.toString();
   }
 }
