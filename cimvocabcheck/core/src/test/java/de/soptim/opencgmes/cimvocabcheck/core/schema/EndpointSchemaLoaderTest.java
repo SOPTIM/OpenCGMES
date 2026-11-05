@@ -116,6 +116,63 @@ public class EndpointSchemaLoaderTest {
   }
 
   @Test
+  public void reportsWhichGraphDeclaresEachProfile() {
+    // What lets a caller open a term in the profile the user picked, rather than in whichever
+    // profile happens to declare it first.
+    EndpointSchema es =
+        EndpointSchemaLoader.load(new DatasetSparqlGraphSource(datasetWithSchema()));
+
+    assertEquals("http://ex.org/schema/eq", es.graphOf(VersionIri.of(EQ_VERSION)));
+    assertEquals("http://ex.org/schema/tp", es.graphOf(VersionIri.of(TP_VERSION)));
+    assertEquals(2, es.profileGraphs().size());
+  }
+
+  @Test
+  public void loadsADatasetWhoseGraphsAreNamedAfterFiles() {
+    // RDFArchitect names a graph after the file it was imported from, so a graph name is routinely
+    // not something SPARQL can write as an <IRI> — a space in it makes the query text unparseable.
+    // Sampling such a graph's terms must not take the whole load down with it.
+    Dataset ds = DatasetFactory.createGeneral();
+    ds.addNamedModel("EQ profile.rdf", parse(EQ_SCHEMA));
+    ds.addNamedModel(
+        "EQ instance data.xml",
+        parse("<http://ex.org/l1> a <http://iec.ch/TC57/CIM100#ACLineSegment> ."));
+
+    EndpointSchema es = EndpointSchemaLoader.load(new DatasetSparqlGraphSource(ds));
+
+    assertTrue("schema should be resolved", es.hasSchema());
+    assertEquals("EQ profile.rdf", es.graphOf(VersionIri.of(EQ_VERSION)));
+    assertEquals(
+        VersionIri.of(EQ_VERSION),
+        es.namedGraphScope().get(NodeFactory.createURI("EQ instance data.xml")).iterator().next());
+  }
+
+  @Test
+  public void samplesTheTermsOfAGraphNamedAfterAFile() {
+    Dataset ds = DatasetFactory.createGeneral();
+    ds.addNamedModel(
+        "EQ instance data.xml",
+        parse("<http://ex.org/l1> a <http://iec.ch/TC57/CIM100#ACLineSegment> ."));
+
+    var terms = new DatasetSparqlGraphSource(ds).sampleTerms("EQ instance data.xml", 10);
+
+    assertTrue(
+        "the rdf:type object is sampled: " + terms,
+        terms.contains(NodeFactory.createURI("http://iec.ch/TC57/CIM100#ACLineSegment")));
+  }
+
+  @Test
+  public void hasNoProfileGraphsWhenNoSchemaResolved() {
+    Dataset ds = DatasetFactory.createGeneral();
+    ds.addNamedModel("http://ex.org/data", parse("<http://ex.org/a> <http://ex.org/b> 1 ."));
+
+    EndpointSchema es = EndpointSchemaLoader.load(new DatasetSparqlGraphSource(ds));
+
+    assertFalse(es.hasSchema());
+    assertTrue(es.profileGraphs().isEmpty());
+  }
+
+  @Test
   public void reportsGraphsWithNoMatchingProfileAsUnmatched() {
     Dataset ds = datasetWithSchema();
     ds.addNamedModel(

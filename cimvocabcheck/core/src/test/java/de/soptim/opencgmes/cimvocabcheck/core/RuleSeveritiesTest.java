@@ -119,7 +119,15 @@ public class RuleSeveritiesTest {
   public void configExposesParsedRules() {
     var config =
         new de.soptim.opencgmes.cimvocabcheck.core.config.CimvocabcheckConfig(
-            null, null, null, null, null, null, null, Map.of("PROPERTY_MAY_BE_ABSENT", "off"));
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Map.of("PROPERTY_MAY_BE_ABSENT", "off"));
     assertEquals(
         java.util.Set.of(SparqlValidationCode.PROPERTY_MAY_BE_ABSENT),
         config.ruleSeverities().configuredCodes());

@@ -153,19 +153,42 @@ export function standardVocabularyDescription(value: string | undefined): string
 
 /**
  * There is no bundled default schema and no implicit directory: with the directory unset,
- * validation runs on the listed schema files alone — or syntax-only when there are none.
+ * validation runs on the listed schema files alone, or syntax-only when there are none. A named
+ * RDFArchitect model takes precedence over both the directory and the schema files, matching the
+ * language server and the CLI.
  */
 export function schemasDirectoryDescription(
     value: string | undefined,
     schemaFileCount: number,
+    rdfArchitect?: string,
 ): string {
     const trimmed = value?.trim();
+    if (rdfArchitect?.trim()) {
+        return trimmed
+            ? `${trimmed} (unused: the RDFArchitect model below is used)`
+            : "not set (the RDFArchitect model below is used)";
+    }
     if (trimmed) {
         return trimmed;
     }
     return schemaFileCount > 0
         ? "not set (schema files below are used)"
         : "not set (validation is syntax-only)";
+}
+
+/**
+ * The `rdfArchitect` row: a dataset name is read from the RDFArchitect view open in the IDE, a
+ * link (`?dataset=` or `?snapshot=`) from the instance it names — which the description says,
+ * because the difference decides whether the feature works without the view.
+ */
+export function rdfArchitectDescription(value: string | undefined): string {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+        return "not set";
+    }
+    return trimmed.includes("://")
+        ? `${trimmed} (link)`
+        : `${trimmed} (workspace in the open view)`;
 }
 
 /** Selecting the schema's own default value clears the field, keeping the file minimal. */
