@@ -374,13 +374,21 @@ public class ParserCIMXML_StAX_SR {
         return xmlNS.equals(qName.getNamespaceURI());
     }
 
+    void parse() {
+        parse(false);
+    }
+
+    void parseHeader() {
+        parse(true);
+    }
+
     // start: whole doc
     //   6.2.8 Production doc
     //   6.2.11 Production nodeElement
     // doc or production nodeElement.
     // start:
     //  6.2.9 Production RDF
-    void parse() {
+    private void parse(boolean onlyHeader) {
 
         int eventType = nextEventAny();
 
@@ -414,7 +422,7 @@ public class ParserCIMXML_StAX_SR {
 
         incIndent();
         if ( hasRDF )
-            nodeElementLoop(eventType);
+            nodeElementLoop(eventType, onlyHeader);
         else
             nodeElementSingle(eventType);
         decIndent();
@@ -437,7 +445,7 @@ public class ParserCIMXML_StAX_SR {
      * Top level node element loop inside &lt;rdf:RDF&gt;, &lt;/rdf:RDF&gt;.
      * This is zero or more node elements.
      */
-    private void nodeElementLoop(int eventType) {
+    private void nodeElementLoop(int eventType, boolean onlyHeader) {
         // There was an rdf:RDF
         // ---- Node Loop - sequence of zero or more RDF/XML node elements.
         // generic move over multiple elements
@@ -446,6 +454,8 @@ public class ParserCIMXML_StAX_SR {
                 break;
             nodeElement();
             eventType = nextEventTag();
+            if (onlyHeader && isCimXmlModel)
+                break;
         }
     }
 
@@ -762,7 +772,7 @@ public class ParserCIMXML_StAX_SR {
                             && oldContext == CimXmlDocumentContext.differenceModel ) { // else already in diff model
                         initCimModelHeaderCurrentProfileAndCurrentDatatypeMap(location);
                     }
-                    nodeElementLoop(nextEventTag());
+                    nodeElementLoop(nextEventTag(), false);
                     return;
                 }
                 case parseTypePlain -> {

@@ -18,6 +18,7 @@
 
 package de.soptim.opencgmes.cimxml.parser;
 
+import de.soptim.opencgmes.cimxml.graph.CimModelHeader;
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import de.soptim.opencgmes.cimxml.parser.system.StreamCimXmlToDatasetGraph;
 import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
@@ -174,5 +175,55 @@ public class CimXmlParser {
       this.reader.read(is, cimProfileRegistry, streamRdfProfile);
     }
     return streamRdfProfile.getCimDatasetGraph();
+  }
+
+  /**
+   * Parses the CIMXML-Header from the given reader and returns the resulting CIM model header.
+   *
+   * @param reader the reader containing the CIMXML
+   * @return the resulting CIM model header
+   * @throws IllegalStateException if the header cannot be parsed or does not exist
+   */
+  public CimModelHeader parseCimModelHeader(final Reader reader) throws IllegalStateException {
+    final var streamRdfProfile = new StreamCimXmlToDatasetGraph();
+    this.reader.readHeader(reader, cimProfileRegistry, streamRdfProfile);
+    return streamRdfProfile.getCimDatasetGraph().getModelHeader();
+  }
+
+  /**
+   * Parses the CIMXML-Header from the given reader and returns the resulting CIM model header.
+   *
+   * @param inputStream the input stream containing the CIMXML
+   * @return the resulting CIM model header
+   * @throws IllegalStateException if the header cannot be parsed or does not exist
+   */
+  public CimModelHeader parseCimModelHeader(final InputStream inputStream)
+      throws IllegalStateException {
+    final var streamRdfProfile = new StreamCimXmlToDatasetGraph();
+    this.reader.readHeader(inputStream, cimProfileRegistry, streamRdfProfile);
+    return streamRdfProfile.getCimDatasetGraph().getModelHeader();
+  }
+
+  /**
+   * Parses the CIMXML-Header from the given reader and returns the resulting CIM model header.
+   *
+   * @param pathToCimModel the path to the CIMXML file
+   * @return the resulting CIM model header
+   * @throws IOException if an I/O error occurs
+   * @throws IllegalStateException if the header cannot be parsed or does not exist
+   */
+  public CimModelHeader parseCimModelHeader(final Path pathToCimModel)
+      throws IOException, IllegalStateException {
+    final var fileSize = Files.size(pathToCimModel);
+    final var streamRdfProfile = new StreamCimXmlToDatasetGraph();
+    try (var is = new BufferedFileChannelInputStream.Builder()
+        .setPath(pathToCimModel)
+        .setOpenOptions(StandardOpenOption.READ)
+        .setBufferSize((fileSize > RdfXmlParser.MAX_BUFFER_SIZE) ? RdfXmlParser.MAX_BUFFER_SIZE
+            : (int) fileSize)
+        .get()) {
+      this.reader.readHeader(is, cimProfileRegistry, streamRdfProfile);
+    }
+    return streamRdfProfile.getCimDatasetGraph().getModelHeader();
   }
 }
