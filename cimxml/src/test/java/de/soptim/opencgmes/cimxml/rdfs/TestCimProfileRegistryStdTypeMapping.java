@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimxml.rdfs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -102,6 +103,21 @@ public class TestCimProfileRegistryStdTypeMapping {
 
     assertTrue(registry.getRegisteredProfiles().contains(profile));
     assertEquals(1, registry.getRegisteredProfiles().size());
+
+    var typeInfoMap = registry.getTypeInfoMap(owlVersionIRIs);
+    assertNotNull(typeInfoMap);
+    assertEquals(1, typeInfoMap.size());
+
+    var classAType = NodeFactory.createURI("http://iec.ch/TC57/CIM100#ClassA");
+    assertTrue(typeInfoMap.containsKey(classAType));
+    var typeInfo = typeInfoMap.get(classAType);
+    assertEquals(classAType, typeInfo.classUri());
+    assertEquals(NodeFactory.createURI("http://iec.ch/TC57/CIM100#IdentifiedObject"), typeInfo.superClass());
+    assertTrue(typeInfo.isConcrete());
+    assertFalse(typeInfo.isDescription());
+    assertFalse(typeInfo.isEnum());
+    assertFalse(typeInfo.isCimDatatype());
+    assertFalse(typeInfo.isPrimitive());
 
     var properties = registry.getPropertiesAndDatatypes(owlVersionIRIs);
     assertNotNull(properties);

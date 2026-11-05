@@ -23,15 +23,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.apache.jena.datatypes.RDFDatatype;
 import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.datatypes.xsd.impl.RDFLangString;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.riot.system.ErrorHandler;
@@ -46,40 +49,62 @@ import org.apache.jena.sparql.exec.QueryExec;
 public class CimProfileRegistryStd implements CimProfileRegistry {
 
   private static final Query typedPropertiesQuery = QueryFactory.create(
-      """
-          PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
-          PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-          PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
-          PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
-    
-          SELECT ?rdfType ?property ?cimDatatype ?primitiveType ?referenceType
-          WHERE
-          {
-              ?rdfType rdf:type rdfs:Class .
-              ?property rdf:type rdf:Property ;
-                        rdfs:domain ?rdfType .
+          """
+              PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
+              PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+              PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+              PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+          
+              SELECT ?rdfType ?property ?cimDatatype ?primitiveType ?referenceType
+              WHERE
               {
-                  ?property rdfs:range ?referenceType.
-                  FILTER NOT EXISTS { ?property cims:AssociationUsed "No" } # Filter out associations that are not used as properties
-              }
-              UNION
-              {
-                  ?property cims:dataType ?cimDatatype.
+                  ?rdfType rdf:type rdfs:Class .
+                  ?property rdf:type rdf:Property ;
+                            rdfs:domain ?rdfType .
                   {
-                      ?cimDatatype cims:stereotype "Primitive";
-                                   rdfs:label ?primitiveType.
+                      ?property rdfs:range ?referenceType.
+                      FILTER NOT EXISTS { ?property cims:AssociationUsed "No" } # Filter out associations that are not used as properties
                   }
                   UNION
                   {
-                      ?cimDatatype cims:stereotype "CIMDatatype".
-                      BIND(IRI(CONCAT(STR(?cimDatatype), ".value")) AS ?parentTypeValue)
-                      ?parentTypeValue rdfs:domain ?cimDatatype;
-                                       cims:dataType/cims:stereotype "Primitive";
-                                   cims:dataType/rdfs:label ?primitiveType.
+                      ?property cims:dataType ?cimDatatype.
+                      {
+                          ?cimDatatype cims:stereotype "Primitive";
+                                       rdfs:label ?primitiveType.
+                      }
+                      UNION
+                      {
+                          ?cimDatatype cims:stereotype "CIMDatatype".
+                          BIND(IRI(CONCAT(STR(?cimDatatype), ".value")) AS ?parentTypeValue)
+                          ?parentTypeValue rdfs:domain ?cimDatatype;
+                                           cims:dataType/cims:stereotype "Primitive";
+                                       cims:dataType/rdfs:label ?primitiveType.
+                      }
                   }
               }
-          }
-      """);
+          """);
+  private static final Query classInfoQuery = QueryFactory.create(
+          """
+              PREFIX cims:    <http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#>
+              PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+              PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+              PREFIX xsd:     <http://www.w3.org/2001/XMLSchema#>
+          
+              SELECT ?class ?superClass ?isConcrete ?isDescription ?isEnum ?isCimDatatype ?isPrimitive
+              WHERE
+              {
+                  ?class rdf:type rdfs:Class.
+                  OPTIONAL
+                  {
+                      ?class rdfs:subClassOf ?superClass.
+                  }
+                  BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#concrete>} AS ?isConcrete)
+                  BIND (EXISTS{?class cims:stereotype "Description"} AS ?isDescription)
+                  BIND (EXISTS{?class cims:stereotype <http://iec.ch/TC57/NonStandard/UML#enumeration>} AS ?isEnum)
+                  BIND (EXISTS{?class cims:stereotype "CIMDatatype"} AS ?isCimDatatype)
+                  BIND (EXISTS{?class cims:stereotype "Primitive"} AS ?isPrimitive)
+              }
+          """);
   private final ErrorHandler errorHandler;
   private final Map<Set<Node>, CimProfile> multiVersionIriProfiles = new ConcurrentHashMap<>();
   private final Map<Node, CimProfile> singleVersionIriProfiles = new ConcurrentHashMap<>();
@@ -87,6 +112,10 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
   private final Map<CimProfile, Map<Node, PropertyInfo>> profilePropertiesCache
       = new ConcurrentHashMap<>();
   private final Map<Set<CimProfile>, Map<Node, PropertyInfo>> profileSetPropertiesCache
+      = new ConcurrentHashMap<>();
+  private final Map<CimProfile, Map<Node, TypeInfo>> profileTypesCache
+      = new ConcurrentHashMap<>();
+  private final Map<Set<CimProfile>, Map<Node, TypeInfo>> profileSetTypesCache
       = new ConcurrentHashMap<>();
   private final Map<String, RDFDatatype> primitiveToRdfDatatypeMap;
 
@@ -164,6 +193,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
       }
       headerProfilesByCimNamespace.put(cimNamespace, cimProfile);
       profilePropertiesCache.put(cimProfile, getTypedProperties(cimProfile));
+      profileTypesCache.put(cimProfile, getClassInfos(cimProfile));
       return;
     }
 
@@ -187,6 +217,7 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
       multiVersionIriProfiles.put(owlVersionIris, cimProfile);
     }
     profilePropertiesCache.put(cimProfile, getTypedProperties(cimProfile));
+    profileTypesCache.put(cimProfile, getClassInfos(cimProfile));
   }
 
   @Override
@@ -216,6 +247,10 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     if (owlVersionIris == null || owlVersionIris.isEmpty()) {
       throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
     }
+
+    owlVersionIris = owlVersionIris.stream()
+        .map(CimProfileRegistryStd::mapToUriNode)
+        .collect(Collectors.toSet());
 
     if (owlVersionIris.size() == 1) {
       var versionIri = owlVersionIris.iterator().next();
@@ -299,6 +334,54 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
   }
 
   @Override
+  public Map<Node, TypeInfo> getTypeInfoMap(Set<Node> owlVersionIris) {
+    if (owlVersionIris == null || owlVersionIris.isEmpty()) {
+      throw new IllegalArgumentException("At least one profile owlVersionIRI must be provided.");
+    }
+
+    final var matchingProfiles = getMatchingProfiles(owlVersionIris);
+
+    if (matchingProfiles.size() == 1) {
+      return profileTypesCache.get(matchingProfiles.iterator().next());
+    }
+
+    Map<Node, TypeInfo> typeInfos = profileSetTypesCache.get(matchingProfiles);
+    if (typeInfos != null) {
+      return typeInfos;
+    }
+
+    typeInfos = new HashMap<>(1024);
+    for (var profile : matchingProfiles) {
+      Map<Node, TypeInfo> typeInfoForProfile = profileTypesCache.get(profile);
+      for (Entry<Node, TypeInfo> entry : typeInfoForProfile.entrySet()) {
+        typeInfos.merge(entry.getKey(), entry.getValue(), this::mergeTypeInfos);
+      }
+    }
+    typeInfos = Collections.unmodifiableMap(typeInfos);
+    profileSetTypesCache.put(matchingProfiles, typeInfos);
+    return typeInfos;
+  }
+
+  private TypeInfo mergeTypeInfos(TypeInfo typeInfoA, TypeInfo typeInfoB) {
+    // A type may be stereotyped with "Description" in one profile, but not the other.
+    // In this case, we return the TypeInfo where it is not a Description
+    if (typeInfoA.isDescription() && !typeInfoB.isDescription()) {
+      return typeInfoB;
+    }
+    return typeInfoA;
+  }
+
+  @Override
+  public Map<Node, TypeInfo> getHeaderTypeInfoMap(String cimNamespace) {
+    Objects.requireNonNull(cimNamespace, "cimNamespace");
+    final var profile = headerProfilesByCimNamespace.get(cimNamespace);
+    if (profile == null) {
+      return Collections.emptyMap();
+    }
+    return profileTypesCache.get(profile);
+  }
+
+  @Override
   public Map<String, RDFDatatype> getPrimitiveToRdfDatatypeMapping() {
     return Collections.unmodifiableMap(primitiveToRdfDatatypeMap);
   }
@@ -340,6 +423,32 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     return Collections.unmodifiableMap(map);
   }
 
+  private Map<Node, TypeInfo> getClassInfos(Graph g) {
+    final var map = new HashMap<Node, TypeInfo>(1024);
+    QueryExec.graph(g)
+        .query(classInfoQuery)
+        .select()
+        .forEachRemaining(vars -> {
+          final var classUri = vars.get("class");
+          final var superClass = vars.get("superClass");
+          final var isConcrete = (Boolean) vars.get("isConcrete").getLiteralValue();
+          final var isDescription = (Boolean) vars.get("isDescription").getLiteralValue();
+          final var isEnum = (Boolean) vars.get("isEnum").getLiteralValue();
+          final var isCimDatatype = (Boolean) vars.get("isCimDatatype").getLiteralValue();
+          final var isPrimitive = (Boolean) vars.get("isPrimitive").getLiteralValue();
+          map.put(classUri, new TypeInfo(
+              classUri,
+              superClass,
+              isConcrete,
+              isDescription,
+              isEnum,
+              isCimDatatype,
+              isPrimitive
+          ));
+        });
+    return Collections.unmodifiableMap(map);
+  }
+
   private RDFDatatype getXsdDatatype(String primitiveType) {
     var dt = primitiveToRdfDatatypeMap.get(primitiveType);
     if (dt != null) {
@@ -348,5 +457,12 @@ public class CimProfileRegistryStd implements CimProfileRegistry {
     errorHandler.warning("Unknown mapping from CIM primitive'" + primitiveType
         + "' to XSD datatype. Using xsd:string as fallback.", -1, -1);
     return XSDDatatype.XSDstring;
+  }
+
+  private static Node mapToUriNode(Node iriNode) {
+    if (iriNode.isLiteral()) {
+      return NodeFactory.createURI(iriNode.getLiteralLexicalForm());
+    }
+    return iriNode;
   }
 }
