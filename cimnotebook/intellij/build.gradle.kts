@@ -18,7 +18,7 @@
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.4.21"
-    id("org.jetbrains.intellij.platform") version "2.19.0"
+    id("org.jetbrains.intellij.platform") version "2.20.0"
     id("org.cyclonedx.bom") version "3.5.1"
     id("com.diffplug.spotless") version "8.11.0"
 }
