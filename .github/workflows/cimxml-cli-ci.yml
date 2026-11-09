@@ -1,0 +1,116 @@
+name: cimxml-cli-ci
+
+on:
+  pull_request:
+    paths:
+      - "cimxml-cli/**"
+      - "cimxml/**"
+      - "cimvocabcheck/google_checks.xml"
+      - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/compute-version.sh"
+      - "scripts/set-versions.sh"
+      - ".github/workflows/cimxml-cli-ci.yml"
+  push:
+    paths:
+      - "cimxml-cli/**"
+      - "cimxml/**"
+      - "cimvocabcheck/google_checks.xml"
+      - "pom.xml"
+      - "scripts/generate-sbom.sh"
+      - "scripts/compute-version.sh"
+      - "scripts/set-versions.sh"
+      - ".github/workflows/cimxml-cli-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cimxml-cli-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---- Java lint -----------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimxml-cli/pom.xml
+
+      # Treat any javac warning as a build error.
+      - name: "Lint: compiler warnings as errors"
+        run: |
+          mvn -B -ntp -pl cimxml-cli -am clean compile test-compile \
+            -Dmaven.compiler.failOnWarning=true \
+            -Dmaven.compiler.showWarnings=true \
+            -Dmaven.compiler.showDeprecation=true
+
+      # Spotless/google-java-format, Checkstyle, SpotBugs, PMD/CPD and the pom.xml license
+      # header. Tests and JaCoCo run in build-test.
+      - name: "Lint: static analysis (Spotless, Checkstyle, SpotBugs, PMD)"
+        run: mvn -B -ntp -pl cimxml-cli -am verify -DskipTests -Djacoco.skip=true
+
+  # ---- Java build + tests --------------------------------------------------
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimxml-cli/pom.xml
+
+      # -am also builds cimxml in dependency order.
+      - name: Build and test cimxml-cli
+        run: mvn -B -ntp -pl cimxml-cli -am clean verify
+
+  # ---- SBOM (maven) --------------------------------------------------------
+  # cimxml-cli is part of the aggregate Maven SBOM under cimvocabcheck/sbom/maven, so a
+  # dependency change here must be reflected there as well.
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Setup Java 21
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimxml-cli/pom.xml
+
+      - name: Generate maven SBOM + enforce license allow-list
+        run: bash scripts/generate-sbom.sh maven
+
+      - name: Verify committed SBOMs are up to date
+        run: |
+          if ! git diff --exit-code -- cimvocabcheck/sbom; then
+            echo "::error::cimvocabcheck/sbom is out of date. Run 'scripts/generate-sbom.sh maven' and commit the result."
+            exit 1
+          fi

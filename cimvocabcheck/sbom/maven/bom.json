@@ -1257,6 +1257,29 @@
       "purl" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-reactor@0.0.0-SNAPSHOT?type=pom"
     },
     {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/de.soptim.opencgmes/cimxml-cli@0.0.0-SNAPSHOT?type=jar",
+      "publisher" : "SOPTIM",
+      "group" : "de.soptim.opencgmes",
+      "name" : "cimxml-cli",
+      "version" : "0.0.0-SNAPSHOT",
+      "description" : "Command-line tool (cimxml2jsonld) that converts the CIMXML files of a CGMES IGM into a queryable JSON-LD dataset.",
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/de.soptim.opencgmes/cimxml-cli@0.0.0-SNAPSHOT?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://github.com/SOPTIM/OpenCGMES"
+        }
+      ]
+    },
+    {
       "type" : "application",
       "bom-ref" : "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
       "publisher" : "SOPTIM",
@@ -3179,6 +3202,16 @@
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimvocabcheck-reactor@0.0.0-SNAPSHOT?type=pom",
       "dependsOn" : []
+    },
+    {
+      "ref" : "pkg:maven/de.soptim.opencgmes/cimxml-cli@0.0.0-SNAPSHOT?type=jar",
+      "dependsOn" : [
+        "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
+        "pkg:maven/info.picocli/picocli@4.7.7?type=jar",
+        "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
+        "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
+      ]
     },
     {
       "ref" : "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",

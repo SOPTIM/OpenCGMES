@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Apply computed versions to all build files.
 #
-# Usage: set-versions.sh <cimxml-version> [<cimvocabcheck-version>] [<cimnotebook-version>]
+# Usage: set-versions.sh <cimxml-version> [<cimvocabcheck-version>] [<cimnotebook-version>] [<cimxml-cli-version>]
 #
 #   cimxml-version        - Maven version for cimxml (e.g. 1.0.2-SNAPSHOT or 1.0.1)
 #   cimvocabcheck-version - Maven version for the cimvocabcheck modules: core / cli / lsp
@@ -9,9 +9,11 @@
 #   cimnotebook-version   - Version for the cimnotebook editor plugins: the IntelliJ plugin
 #                           (gradle.properties) and the VS Code extension (package.json).
 #                           Omit to skip them.
+#   cimxml-cli-version    - Maven version for the cimxml-cli tool (cimxml2jsonld). Pass an empty
+#                           string for the arguments before it to skip those trains. Omit to skip.
 #
-# The three trains are independent: cimvocabcheck (core/cli/lsp) and cimnotebook
-# (intellij/vscode) are versioned separately. A cimnotebook build still needs a
+# The trains are independent: cimvocabcheck (core/cli/lsp), cimnotebook
+# (intellij/vscode) and cimxml-cli are versioned separately. A cimnotebook build still needs a
 # cimvocabcheck-version because it bundles the cimvocabcheck LSP fat JAR.
 #
 # Gradle (IntelliJ) and npm (VS Code) strip the -SNAPSHOT suffix because those
@@ -19,9 +21,10 @@
 
 set -euo pipefail
 
-CIMXML_VERSION="${1:?usage: set-versions.sh <cimxml-version> [<cimvocabcheck-version>] [<cimnotebook-version>]}"
+CIMXML_VERSION="${1:?usage: set-versions.sh <cimxml-version> [<cimvocabcheck-version>] [<cimnotebook-version>] [<cimxml-cli-version>]}"
 CIMVOCABCHECK_VERSION="${2:-}"
 CIMNOTEBOOK_VERSION="${3:-}"
+CIMXML_CLI_VERSION="${4:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MVN="mvn -B -ntp"
@@ -65,4 +68,13 @@ if [[ -n "${CIMNOTEBOOK_VERSION}" ]]; then
     # VS Code extension (package.json)
     sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${CIMNOTEBOOK_PLAIN}\"/" \
         "${REPO_ROOT}/cimnotebook/vscode/package.json"
+fi
+
+# --- cimxml-cli pom version + its dependency on cimxml ---
+if [[ -n "${CIMXML_CLI_VERSION}" ]]; then
+    ${MVN} -f "${REPO_ROOT}/cimxml-cli/pom.xml" \
+        ${VERSIONS_PLUGIN}:set -DnewVersion="${CIMXML_CLI_VERSION}" -DgenerateBackupPoms=false
+    ${MVN} -f "${REPO_ROOT}/cimxml-cli/pom.xml" \
+        ${VERSIONS_PLUGIN}:set-property -Dproperty=ver.cimxml \
+        -DnewVersion="${CIMXML_VERSION}" -DgenerateBackupPoms=false
 fi
