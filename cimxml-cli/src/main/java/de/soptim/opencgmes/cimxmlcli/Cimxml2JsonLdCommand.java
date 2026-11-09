@@ -18,8 +18,13 @@
 
 package de.soptim.opencgmes.cimxmlcli;
 
+import de.soptim.opencgmes.cimxmlcli.validation.ConversionException;
+import de.soptim.opencgmes.cimxmlcli.validation.Problem;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ExitCode;
@@ -98,8 +103,34 @@ public final class Cimxml2JsonLdCommand implements Callable<Integer> {
   @Override
   public Integer call() {
     validateOptions();
-    spec.commandLine().getErr().println("cimxml2jsonld: the conversion is not implemented yet.");
+    // All messages go to stderr; stdout stays empty
+    final var err = spec.commandLine().getErr();
+    try {
+      final var context =
+          Cimxml2JsonLdConverter.createDefault().readAndValidate(schemaFolder, modelFolder);
+      printWarnings(err, context.warnings());
+      err.println(
+          "cimxml2jsonld: "
+              + context.schemas().size()
+              + " RDFS profiles and "
+              + context.models().size()
+              + " CIMXML models are valid; writing the dataset is not implemented yet.");
+    } catch (ConversionException e) {
+      printWarnings(err, e.getWarnings());
+      err.println("cimxml2jsonld: " + e.getProblems().size() + " problem(s) found:");
+      e.getProblems().forEach(p -> err.println("  " + indent(p)));
+    } catch (IOException e) {
+      err.println("cimxml2jsonld: " + e.getMessage());
+    }
     return ExitCode.SOFTWARE;
+  }
+
+  private static void printWarnings(PrintWriter err, List<Problem> warnings) {
+    warnings.forEach(w -> err.println("cimxml2jsonld: warning: " + indent(w)));
+  }
+
+  private static String indent(Problem problem) {
+    return problem.format().replace("\n", "\n  ");
   }
 
   private void validateOptions() {

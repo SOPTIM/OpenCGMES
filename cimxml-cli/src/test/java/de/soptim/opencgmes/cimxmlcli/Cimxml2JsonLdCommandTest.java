@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Path;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -102,6 +103,28 @@ public class Cimxml2JsonLdCommandTest {
     final var file = tmp.newFile("igm.xml").getPath();
     assertEquals(2, run("-s", schema, "-m", file, "-o", output));
     assertTrue(err.toString(), err.toString().contains("--model"));
+  }
+
+  @Test
+  public void reportsValidInputs() {
+    TestData.copyMiniRdfs(Path.of(schema));
+    TestData.copyMiniModels(Path.of(model));
+
+    assertEquals(1, run("-s", schema, "-m", model, "-o", output));
+    assertTrue(
+        err.toString(), err.toString().contains("6 RDFS profiles and 5 CIMXML models are valid"));
+  }
+
+  @Test
+  public void listsAllProblems() {
+    TestData.copyMiniModels(Path.of(model));
+
+    assertEquals(1, run("-s", schema, "-m", model, "-o", output));
+    final var text = err.toString();
+    assertTrue(text, text.contains("problem(s) found:"));
+    assertTrue(text, text.contains("contains no .rdf files"));
+    assertTrue(text, text.contains("MINI_EQ.xml: no RDFS profile in the schema folder matches"));
+    assertTrue(text, text.contains("    hint: Add the RDFS file(s)"));
   }
 
   @Test

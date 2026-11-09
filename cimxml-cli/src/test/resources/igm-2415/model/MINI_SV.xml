@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written mini IGM for the cimxml-cli tests (CGMES 2.4.15 style, not real ENTSO-E data).
+  Copyright (c) 2026 SOPTIM AG, SPDX-License-Identifier: Apache-2.0
+-->
+<rdf:RDF
+    xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+    xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <md:FullModel rdf:about="urn:uuid:cc615128-304e-5450-91c3-0466de77087d">
+    <md:Model.profile>http://entsoe.eu/CIM/StateVariables/4/1</md:Model.profile>
+  </md:FullModel>
+  <cim:SvVoltage rdf:ID="_84a18bb6-4832-586c-89da-bd3368a86880">
+    <cim:SvVoltage.v>110.3</cim:SvVoltage.v>
+  </cim:SvVoltage>
+</rdf:RDF>
