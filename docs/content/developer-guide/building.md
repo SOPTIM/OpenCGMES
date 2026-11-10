@@ -68,6 +68,23 @@ mvn -pl cimvocabcheck/cli -am -DskipTests clean package
 # Output: cimvocabcheck/cli/target/cimvocabcheck-cli-<version>.jar
 ```
 
+### cimxml2jsonld
+
+```bash
+mvn -pl cimxml-cli -am -DskipTests clean package
+# Output: cimxml-cli/target/cimxml-cli-<version>.jar  (fat JAR)
+#         cimxml-cli/target/cimxml-cli-<version>.zip  (distribution with start scripts)
+```
+
+Its integration tests use the ReliCapGrid submodule under `cimxml-cli/testing/entsoe/ReliCapGrid`
+and the application profiles library; both are initialised by the `git submodule update` above.
+
+The Docker image is built from the repository root:
+
+```bash
+docker build -f cimxml-cli/Dockerfile -t cimxml-cli .
+```
+
 :::warning Build the LSP JAR *before* the editor plugins
 Both editor integrations **bundle** `cimvocabcheck-lsp.jar` so end users don't need a Java toolchain to build it. If you package the VSIX or the IntelliJ plugin before the LSP JAR exists (or after changing LSP code without rebuilding it), the plugin ships a stale or missing server. Always run the `mvn ... package` step above first, then copy/bundle the freshly built JAR.
 :::

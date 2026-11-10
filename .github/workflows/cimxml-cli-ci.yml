@@ -11,6 +11,8 @@ on:
       - "scripts/compute-version.sh"
       - "scripts/set-versions.sh"
       - ".github/workflows/cimxml-cli-ci.yml"
+      - ".github/workflows/cimxml-cli-release.yml"
+      - ".github/workflows/docker-publish.yml"
   push:
     paths:
       - "cimxml-cli/**"
@@ -21,6 +23,8 @@ on:
       - "scripts/compute-version.sh"
       - "scripts/set-versions.sh"
       - ".github/workflows/cimxml-cli-ci.yml"
+      - ".github/workflows/cimxml-cli-release.yml"
+      - ".github/workflows/docker-publish.yml"
 
 permissions:
   contents: read
@@ -114,3 +118,17 @@ jobs:
             echo "::error::cimvocabcheck/sbom is out of date. Run 'scripts/generate-sbom.sh maven' and commit the result."
             exit 1
           fi
+
+  # ---- Edge Docker image (main only) ---------------------------------------
+  publish-edge-image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - lint
+      - build-test
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      component: cimxml-cli
+      tag-suffixes: edge

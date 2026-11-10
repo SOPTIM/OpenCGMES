@@ -68,6 +68,10 @@
         <ver.plugin.jacoco>0.8.16</ver.plugin.jacoco>
         <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
 
+        <!-- Default maximum heap set by the start scripts of the distribution ZIP -->
+        <default.heap>4g</default.heap>
+        <ver.plugin.assembly>3.8.0</ver.plugin.assembly>
+
         <!-- JaCoCo coverage floors (calibrated per module; raise as tests grow) -->
         <jacoco.min.instruction>0.40</jacoco.min.instruction>
         <jacoco.min.branch>0.30</jacoco.min.branch>
@@ -193,6 +197,26 @@
                                     </excludes>
                                 </filter>
                             </filters>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Distribution ZIP with start scripts; runs after the shade plugin in the same phase -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>${ver.plugin.assembly}</version>
+                <executions>
+                    <execution>
+                        <id>dist</id>
+                        <phase>package</phase>
+                        <goals><goal>single</goal></goals>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>src/assembly/dist.xml</descriptor>
+                            </descriptors>
+                            <appendAssemblyId>false</appendAssemblyId>
                         </configuration>
                     </execution>
                 </executions>

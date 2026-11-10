@@ -135,6 +135,12 @@ const config = {
           },
           {
             type: 'docSidebar',
+            sidebarId: 'cimxmlCliSidebar',
+            position: 'left',
+            label: 'cimxml2jsonld',
+          },
+          {
+            type: 'docSidebar',
             sidebarId: 'cimnotebookSidebar',
             position: 'left',
             label: 'CIMNotebook',
@@ -181,6 +187,7 @@ const config = {
               { label: 'Getting Started', to: '/getting-started' },
               { label: 'CIMXML', to: '/cimxml/overview' },
               { label: 'CIMVocabCheck', to: '/cimvocabcheck/overview' },
+              { label: 'cimxml2jsonld', to: '/cimxml-cli/overview' },
               { label: 'CIMNotebook', to: '/cimnotebook/overview' },
             ],
           },
