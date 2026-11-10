@@ -63,7 +63,7 @@
 
         <!-- Supply-chain tooling (SBOM + license compliance) -->
         <ver.plugin.cyclonedx>2.9.3</ver.plugin.cyclonedx>
-        <ver.plugin.license>2.7.1</ver.plugin.license>
+        <ver.plugin.license>2.9.0</ver.plugin.license>
 
         <!-- Source license-header enforcement (mycila) -->
         <ver.plugin.license-header>5.1.2</ver.plugin.license-header>
