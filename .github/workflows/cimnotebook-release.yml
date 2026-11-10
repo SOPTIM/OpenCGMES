@@ -22,7 +22,7 @@ env:
   # renovate: datasource=npm depName=@vscode/vsce
   VSCE_VERSION: "4.1.0"
   # renovate: datasource=npm depName=ovsx
-  OVSX_VERSION: "1.3.0"
+  OVSX_VERSION: "1.4.0"
 
 concurrency:
   group: cimnotebook-release-${{ github.ref }}
