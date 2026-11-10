@@ -27,30 +27,18 @@ public final class ConversionException extends Exception {
   @Serial private static final long serialVersionUID = 1L;
 
   private final List<Problem> problems;
-  private final List<Problem> warnings;
 
   /** Creates the exception for the given, non-empty list of problems. */
   public ConversionException(List<Problem> problems) {
-    this(problems, List.of());
-  }
-
-  /** Creates the exception for the given, non-empty list of problems and additional warnings. */
-  public ConversionException(List<Problem> problems, List<Problem> warnings) {
     super(problems.size() + " problem(s) found");
     if (problems.isEmpty()) {
       throw new IllegalArgumentException("At least one problem is required.");
     }
     this.problems = List.copyOf(problems);
-    this.warnings = List.copyOf(warnings);
   }
 
   /** Returns the problems in the order they were found. */
   public List<Problem> getProblems() {
     return problems;
-  }
-
-  /** Returns the warnings found along with the problems. */
-  public List<Problem> getWarnings() {
-    return warnings;
   }
 }

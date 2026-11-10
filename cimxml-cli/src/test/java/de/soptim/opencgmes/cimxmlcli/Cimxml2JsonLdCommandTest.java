@@ -19,12 +19,14 @@
 package de.soptim.opencgmes.cimxmlcli;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.Before;
 import org.junit.Rule;
@@ -106,13 +108,31 @@ public class Cimxml2JsonLdCommandTest {
   }
 
   @Test
-  public void reportsValidInputs() {
+  public void writesTheDataset() {
     TestData.copyMiniRdfs(Path.of(schema));
     TestData.copyMiniModels(Path.of(model));
 
-    assertEquals(1, run("-s", schema, "-m", model, "-o", output));
-    assertTrue(
-        err.toString(), err.toString().contains("6 RDFS profiles and 5 CIMXML models are valid"));
+    assertEquals(0, run("-s", schema, "-m", model, "-o", output));
+    assertTrue(Files.isRegularFile(Path.of(output)));
+    final var text = err.toString();
+    assertTrue(text, text.contains("[ 1] EQ     <- MINI_EQ.xml"));
+    assertTrue(text, text.contains("Done: " + output));
+    assertEquals("", out.toString());
+  }
+
+  @Test
+  public void quietPrintsNothingOnSuccess() {
+    TestData.copyMiniRdfs(Path.of(schema));
+    TestData.copyMiniModels(Path.of(model));
+
+    assertEquals(0, run("-q", "-s", schema, "-m", model, "-o", output));
+    assertEquals("", err.toString());
+  }
+
+  @Test
+  public void invalidOutputExtensionIsUsageError() {
+    assertEquals(2, run("-s", schema, "-m", model, "-o", output + ".ttl"));
+    assertTrue(err.toString(), err.toString().contains("must end with .jsonld or .jsonld.gz"));
   }
 
   @Test
@@ -121,10 +141,18 @@ public class Cimxml2JsonLdCommandTest {
 
     assertEquals(1, run("-s", schema, "-m", model, "-o", output));
     final var text = err.toString();
-    assertTrue(text, text.contains("problem(s) found:"));
+    assertTrue(text, text.contains("problem(s) found, nothing was written:"));
+    assertTrue(Files.notExists(Path.of(output)));
     assertTrue(text, text.contains("contains no .rdf files"));
     assertTrue(text, text.contains("MINI_EQ.xml: no RDFS profile in the schema folder matches"));
     assertTrue(text, text.contains("    hint: Add the RDFS file(s)"));
+  }
+
+  @Test
+  public void recognizesWrappedOutOfMemoryErrors() {
+    final var wrapped = new IllegalStateException("writing", new OutOfMemoryError("heap"));
+    assertTrue(Cimxml2JsonLdCommand.causedByOutOfMemory(wrapped));
+    assertFalse(Cimxml2JsonLdCommand.causedByOutOfMemory(new IllegalStateException("other")));
   }
 
   @Test

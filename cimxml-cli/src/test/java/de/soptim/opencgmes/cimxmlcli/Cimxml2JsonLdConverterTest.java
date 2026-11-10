@@ -30,6 +30,7 @@ import static org.junit.Assert.fail;
 
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
 import de.soptim.opencgmes.cimxmlcli.model.ParsedModel;
+import de.soptim.opencgmes.cimxmlcli.progress.ProgressListener;
 import de.soptim.opencgmes.cimxmlcli.validation.ConversionContext;
 import de.soptim.opencgmes.cimxmlcli.validation.ConversionException;
 import de.soptim.opencgmes.cimxmlcli.validation.Problem;
@@ -63,7 +64,8 @@ public class Cimxml2JsonLdConverterTest {
   }
 
   private ConversionContext convert() throws ConversionException, IOException {
-    return Cimxml2JsonLdConverter.createDefault().readAndValidate(rdfs, models);
+    return Cimxml2JsonLdConverter.createDefault(false, ProgressListener.NONE)
+        .readAndValidate(rdfs, models);
   }
 
   private List<Problem> problems() throws IOException {

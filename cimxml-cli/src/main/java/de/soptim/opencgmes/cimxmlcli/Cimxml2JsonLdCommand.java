@@ -18,14 +18,17 @@
 
 package de.soptim.opencgmes.cimxmlcli;
 
+import de.soptim.opencgmes.cimxmlcli.output.OutputTarget;
+import de.soptim.opencgmes.cimxmlcli.progress.ConsoleProgressReporter;
+import de.soptim.opencgmes.cimxmlcli.progress.Verbosity;
 import de.soptim.opencgmes.cimxmlcli.validation.ConversionException;
-import de.soptim.opencgmes.cimxmlcli.validation.Problem;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.Callable;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ExitCode;
 import picocli.CommandLine.Model.CommandSpec;
@@ -102,43 +105,87 @@ public final class Cimxml2JsonLdCommand implements Callable<Integer> {
 
   @Override
   public Integer call() {
-    validateOptions();
+    final var target = validateOptions();
+    final var verbosity = verbosity();
+    configureLogging(verbosity);
     // All messages go to stderr; stdout stays empty
     final var err = spec.commandLine().getErr();
+    final var progress = new ConsoleProgressReporter(err, verbosity);
     try {
-      final var context =
-          Cimxml2JsonLdConverter.createDefault().readAndValidate(schemaFolder, modelFolder);
-      printWarnings(err, context.warnings());
-      err.println(
-          "cimxml2jsonld: "
-              + context.schemas().size()
-              + " RDFS profiles and "
-              + context.models().size()
-              + " CIMXML models are valid; writing the dataset is not implemented yet.");
+      Cimxml2JsonLdConverter.createDefault(compact, progress)
+          .convert(schemaFolder, modelFolder, target);
+      return ExitCode.OK;
     } catch (ConversionException e) {
-      printWarnings(err, e.getWarnings());
-      err.println("cimxml2jsonld: " + e.getProblems().size() + " problem(s) found:");
-      e.getProblems().forEach(p -> err.println("  " + indent(p)));
+      err.println(
+          "cimxml2jsonld: " + e.getProblems().size() + " problem(s) found, nothing was written:");
+      e.getProblems().forEach(p -> err.println("  " + p.format().replace("\n", "\n  ")));
     } catch (IOException e) {
       err.println("cimxml2jsonld: " + e.getMessage());
+      printStackTrace(err, e, verbosity);
+    } catch (OutOfMemoryError e) {
+      err.println(outOfMemoryMessage());
+      printStackTrace(err, e, verbosity);
+    } catch (RuntimeException e) {
+      // Jena wraps an OutOfMemoryError while writing JSON-LD
+      err.println(
+          causedByOutOfMemory(e) ? outOfMemoryMessage() : "cimxml2jsonld: unexpected error: " + e);
+      printStackTrace(err, e, verbosity);
     }
     return ExitCode.SOFTWARE;
   }
 
-  private static void printWarnings(PrintWriter err, List<Problem> warnings) {
-    warnings.forEach(w -> err.println("cimxml2jsonld: warning: " + indent(w)));
+  static boolean causedByOutOfMemory(Throwable e) {
+    for (var cause = e; cause != null; cause = cause.getCause()) {
+      if (cause instanceof OutOfMemoryError) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  private static String indent(Problem problem) {
-    return problem.format().replace("\n", "\n  ");
+  private String outOfMemoryMessage() {
+    final var maxHeapMb = Runtime.getRuntime().maxMemory() / (1024 * 1024);
+    return "cimxml2jsonld: not enough memory (maximum heap: "
+        + maxHeapMb
+        + " MB). Increase it, e.g. CIMXML2JSONLD_OPTS=-Xmx8g"
+        + (compact ? ", or omit --compact." : ".");
   }
 
-  private void validateOptions() {
+  private static void printStackTrace(PrintWriter err, Throwable e, Verbosity verbosity) {
+    if (verbosity == Verbosity.VERBOSE) {
+      e.printStackTrace(err);
+    }
+  }
+
+  private Verbosity verbosity() {
+    if (quiet) {
+      return Verbosity.QUIET;
+    }
+    return verbose ? Verbosity.VERBOSE : Verbosity.NORMAL;
+  }
+
+  /** Diagnostics: WARN by default, ERROR when quiet; verbose adds INFO and our own DEBUG. */
+  private static void configureLogging(Verbosity verbosity) {
+    if (verbosity == Verbosity.VERBOSE) {
+      // Jena's DEBUG output (locks, location mapping) would drown everything else
+      Configurator.setRootLevel(Level.INFO);
+      Configurator.setLevel("de.soptim.opencgmes", Level.DEBUG);
+    } else {
+      Configurator.setRootLevel(verbosity == Verbosity.QUIET ? Level.ERROR : Level.WARN);
+    }
+  }
+
+  private OutputTarget validateOptions() {
     if (quiet && verbose) {
       throw usageError("--quiet and --verbose cannot be combined.");
     }
     requireDirectory(schemaFolder, "--schema");
     requireDirectory(modelFolder, "--model");
+    try {
+      return OutputTarget.of(outputFile);
+    } catch (IllegalArgumentException e) {
+      throw usageError("--output: " + e.getMessage() + ".");
+    }
   }
 
   private void requireDirectory(Path folder, String option) {

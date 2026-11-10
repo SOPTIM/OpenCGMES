@@ -18,6 +18,9 @@
 
 package de.soptim.opencgmes.cimxmlcli;
 
+import de.soptim.opencgmes.cimxmlcli.progress.ProgressListener;
+import de.soptim.opencgmes.cimxmlcli.validation.ConversionContext;
+import de.soptim.opencgmes.cimxmlcli.validation.ConversionException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -26,8 +29,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.jena.sparql.core.DatasetGraph;
 
 /** Test data: the hand-written CGMES 2.4.15 mini IGM and helpers to vary it. */
 public final class TestData {
@@ -63,6 +68,32 @@ public final class TestData {
       copy("/igm-2415/model/" + name, folder.resolve(name));
     }
     return folder;
+  }
+
+  /** Reads and validates the mini IGM copied into {@code rdfs} and {@code models}. */
+  public static ConversionContext miniContext(Path rdfs, Path models) {
+    copyMiniRdfs(rdfs);
+    copyMiniModels(models);
+    return validate(rdfs, models);
+  }
+
+  /** Reads and validates the given folders; fails if there is any problem. */
+  public static ConversionContext validate(Path rdfs, Path models) {
+    try {
+      return Cimxml2JsonLdConverter.createDefault(false, ProgressListener.NONE)
+          .readAndValidate(rdfs, models);
+    } catch (ConversionException | IOException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /** Returns graph name to number of triples, for comparing datasets. */
+  public static Map<String, Long> graphSizes(DatasetGraph dataset) {
+    final var sizes = new TreeMap<String, Long>();
+    dataset
+        .listGraphNodes()
+        .forEachRemaining(g -> sizes.put(g.getURI(), (long) dataset.getGraph(g).size()));
+    return sizes;
   }
 
   /** Returns the content of a test resource. */

@@ -60,9 +60,7 @@ public final class CountingErrorHandler implements ErrorHandler {
 
   @Override
   public void warning(String message, long line, long col) {
-    final var formatted = format(message, line, col);
-    LOG.debug("{}", formatted);
-    warnings.add(formatted);
+    warnings.add(format(message, line, col));
   }
 
   /** The cimxml parser throws right after reporting an error, so only the message is kept. */

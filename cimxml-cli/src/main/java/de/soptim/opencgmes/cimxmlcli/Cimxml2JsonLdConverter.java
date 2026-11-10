@@ -20,9 +20,13 @@ package de.soptim.opencgmes.cimxmlcli;
 
 import de.soptim.opencgmes.cimxml.parser.CimXmlParser;
 import de.soptim.opencgmes.cimxml.parser.RdfXmlParser;
+import de.soptim.opencgmes.cimxmlcli.dataset.DatasetAssembler;
 import de.soptim.opencgmes.cimxmlcli.model.CimXmlModelReader;
 import de.soptim.opencgmes.cimxmlcli.model.CountingErrorHandler;
 import de.soptim.opencgmes.cimxmlcli.model.ParsedModel;
+import de.soptim.opencgmes.cimxmlcli.output.JsonLdDatasetWriter;
+import de.soptim.opencgmes.cimxmlcli.output.OutputTarget;
+import de.soptim.opencgmes.cimxmlcli.progress.ProgressListener;
 import de.soptim.opencgmes.cimxmlcli.schema.CimXmlSchemaLoader;
 import de.soptim.opencgmes.cimxmlcli.schema.LoadedSchema;
 import de.soptim.opencgmes.cimxmlcli.source.CimSource;
@@ -38,12 +42,15 @@ import de.soptim.opencgmes.cimxmlcli.validation.SingleSourcePerGraphRule;
 import de.soptim.opencgmes.cimxmlcli.validation.ValidationRule;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.jena.graph.Graph;
 
 /**
  * Orchestrates the conversion: loads and registers all RDFS profiles, parses all CIMXML models
- * sequentially and validates the result. All problems are collected and reported together.
+ * sequentially, validates the result and writes the assembled dataset. All problems are collected
+ * and reported together.
  */
 public final class Cimxml2JsonLdConverter {
 
@@ -52,6 +59,8 @@ public final class Cimxml2JsonLdConverter {
   private final CimXmlSchemaLoader schemaLoader;
   private final CimXmlModelReader modelReader;
   private final List<ValidationRule> rules;
+  private final JsonLdDatasetWriter writer;
+  private final ProgressListener progress;
 
   /** Creates a converter from its parts. */
   public Cimxml2JsonLdConverter(
@@ -59,16 +68,23 @@ public final class Cimxml2JsonLdConverter {
       FileTreeSourceProvider modelSources,
       CimXmlSchemaLoader schemaLoader,
       CimXmlModelReader modelReader,
-      List<ValidationRule> rules) {
+      List<ValidationRule> rules,
+      JsonLdDatasetWriter writer,
+      ProgressListener progress) {
     this.schemaSources = schemaSources;
     this.modelSources = modelSources;
     this.schemaLoader = schemaLoader;
     this.modelReader = modelReader;
     this.rules = List.copyOf(rules);
+    this.writer = writer;
+    this.progress = progress;
   }
 
-  /** Creates a converter for {@code .rdf} schema files and {@code .xml} model files. */
-  public static Cimxml2JsonLdConverter createDefault() {
+  /**
+   * Creates a converter for {@code .rdf} schema files and {@code .xml} model files that writes
+   * expanded or, with {@code compact}, compacted JSON-LD.
+   */
+  public static Cimxml2JsonLdConverter createDefault(boolean compact, ProgressListener progress) {
     final var warnings = new CountingErrorHandler();
     final var parser = new CimXmlParser(warnings);
     return new Cimxml2JsonLdConverter(
@@ -76,16 +92,38 @@ public final class Cimxml2JsonLdConverter {
         new FileTreeSourceProvider(".xml"),
         new CimXmlSchemaLoader(new RdfXmlParser(), parser.getCimProfileRegistry()),
         new CimXmlModelReader(parser, warnings),
-        defaultRules());
+        defaultRules(),
+        new JsonLdDatasetWriter(compact),
+        progress);
   }
 
-  /** Returns the validation rules applied by {@link #createDefault()}. */
+  /** Returns the validation rules applied by {@link #createDefault}. */
   public static List<ValidationRule> defaultRules() {
     return List.of(
         new FullModelOnlyRule(),
         new SchemaAvailableRule(),
         new SingleCimVersionRule(),
         new SingleSourcePerGraphRule());
+  }
+
+  /**
+   * Reads and validates both folders, then writes the dataset to {@code target}.
+   *
+   * @return the validated input that was written
+   * @throws ConversionException if any problem was found; nothing is written then
+   * @throws IOException if a folder cannot be listed or the output cannot be written
+   */
+  public ConversionContext convert(Path schemaFolder, Path modelFolder, OutputTarget target)
+      throws ConversionException, IOException {
+    final var context = readAndValidate(schemaFolder, modelFolder);
+    final var dataset = new DatasetAssembler().assemble(context);
+    progress.writingStarted(target.path());
+    final var start = System.nanoTime();
+    final var bytes = writer.write(dataset, target);
+    final var quads = dataset.getGraphs().stream().mapToLong(Graph::size).sum();
+    progress.writingFinished(
+        target.path(), quads, bytes, Duration.ofNanos(System.nanoTime() - start));
+    return context;
   }
 
   /**
@@ -99,12 +137,34 @@ public final class Cimxml2JsonLdConverter {
     final var problems = new ArrayList<Problem>();
     // Parse all RDFS before registering, so duplicates can be resolved
     final var loaded = new ArrayList<LoadedSchema>();
-    readAll(schemaSources, schemaFolder, ".rdf", problems, s -> loaded.add(schemaLoader.load(s)));
+    progress.schemaReadingStarted(schemaFolder);
+    readAll(
+        schemaSources,
+        schemaFolder,
+        ".rdf",
+        problems,
+        (index, source) -> {
+          final var schema = schemaLoader.load(source);
+          loaded.add(schema);
+          progress.schemaLoaded(index, schema);
+        });
     final var registration = schemaLoader.registerAll(loaded);
     problems.addAll(registration.problems());
+    registration.warnings().forEach(progress::warning);
     // Parsed after registration: the parser needs the profiles
     final var models = new ArrayList<ParsedModel>();
-    readAll(modelSources, modelFolder, ".xml", problems, s -> models.add(modelReader.read(s)));
+    progress.modelReadingStarted(modelFolder);
+    readAll(
+        modelSources,
+        modelFolder,
+        ".xml",
+        problems,
+        (index, source) -> {
+          final var start = System.nanoTime();
+          final var model = modelReader.read(source);
+          models.add(model);
+          progress.modelParsed(index, model, Duration.ofNanos(System.nanoTime() - start));
+        });
 
     final var context =
         new ConversionContext(registration.registered(), models, registration.warnings());
@@ -113,7 +173,7 @@ public final class Cimxml2JsonLdConverter {
       problems.addAll(rule.check(context));
     }
     if (!problems.isEmpty()) {
-      throw new ConversionException(problems, context.warnings());
+      throw new ConversionException(problems);
     }
     return context;
   }
@@ -130,7 +190,7 @@ public final class Cimxml2JsonLdConverter {
       while (sources.hasNext()) {
         found++;
         try {
-          handler.handle(sources.next());
+          handler.handle(found, sources.next());
         } catch (SourceException e) {
           // Only this source failed; continue with the next one
           problems.add(e.getProblem());
@@ -146,9 +206,9 @@ public final class Cimxml2JsonLdConverter {
     }
   }
 
-  /** Handles one source; may fail for this source only. */
+  /** Handles the {@code index}-th source (1-based); may fail for this source only. */
   @FunctionalInterface
   private interface SourceHandler {
-    void handle(CimSource source) throws SourceException;
+    void handle(int index, CimSource source) throws SourceException;
   }
 }

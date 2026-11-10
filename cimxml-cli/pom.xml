@@ -102,11 +102,11 @@
             <version>${ver.log4j2}</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- compile scope: the CLI sets the log level for -q / -v via Configurator -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <version>${ver.log4j2}</version>
-            <scope>runtime</scope>
         </dependency>
 
         <!-- Test -->

@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimxmlcli.validation;
 
 import de.soptim.opencgmes.cimxml.graph.CimProfile;
+import de.soptim.opencgmes.cimxmlcli.dataset.GraphNames;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
@@ -33,12 +34,6 @@ import java.util.TreeMap;
  * file that declares several profiles counts for the model graph of each of them.
  */
 public final class SingleSourcePerGraphRule implements ValidationRule {
-
-  /** Graph name prefix of the model graphs. */
-  public static final String MODEL_GRAPH_PREFIX = "cgmes:model:";
-
-  /** Graph name prefix of the schema graphs. */
-  public static final String SCHEMA_GRAPH_PREFIX = "cgmes:schema:";
 
   @Override
   public List<Problem> check(ConversionContext context) {
@@ -60,7 +55,7 @@ public final class SingleSourcePerGraphRule implements ValidationRule {
           if (paths.size() > 1) {
             problems.add(
                 new Problem(
-                    MODEL_GRAPH_PREFIX + keyword,
+                    GraphNames.MODEL_PREFIX + keyword,
                     paths.size() + " CIMXML files map to the same graph: " + paths,
                     "Only one IGM per run is supported (one file per profile); remove all but"
                         + " one of them."));
@@ -87,7 +82,7 @@ public final class SingleSourcePerGraphRule implements ValidationRule {
           if (paths.size() > 1) {
             problems.add(
                 new Problem(
-                    SCHEMA_GRAPH_PREFIX + keyword,
+                    GraphNames.SCHEMA_PREFIX + keyword,
                     "the models reference "
                         + paths.size()
                         + " RDFS files for the same graph: "
