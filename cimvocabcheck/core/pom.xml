@@ -67,7 +67,7 @@
         <!-- Main dependencies -->
         <ver.jena>6.2.0</ver.jena>
         <ver.cimxml>0.0.0-SNAPSHOT</ver.cimxml>
-        <ver.jackson>2.22.4</ver.jackson>
+        <ver.jackson>2.23.0</ver.jackson>
 
         <!-- Logging -->
         <ver.slf4j>2.0.20</ver.slf4j>
@@ -83,7 +83,7 @@
         <ver.plugin.javadoc>3.12.0</ver.plugin.javadoc>
         <ver.plugin.gpg>3.2.8</ver.plugin.gpg>
         <ver.plugin.central-publishing>0.12.0</ver.plugin.central-publishing>
-        <ver.plugin.exec>3.6.4</ver.plugin.exec>
+        <ver.plugin.exec>3.7.0</ver.plugin.exec>
 
         <!-- Static analysis / formatting plugins -->
         <ver.plugin.spotless>3.11.0</ver.plugin.spotless>
