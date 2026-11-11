@@ -1662,45 +1662,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+      "bom-ref" : "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.commons",
       "name" : "commons-lang3",
-      "version" : "3.21.0",
+      "version" : "3.22.0",
       "description" : "Apache Commons Lang is a package of Java utility classes for the Java lang packages, classes that could be considered standard to justify their existence in java.lang. The code is tested using the latest revision of the JDK for supported LTS releases: 8, 11, 17, 21, and 25. See https://github.com/apache/commons-lang/blob/master/.github/workflows/maven.yml Please ensure your build environment is up-to-date and kindly report any build issues. Starting with Commons Lang 3.9, we target Java 8 and use those features. For advice on upgrading from 2.x to 3.x, see https://commons.apache.org/lang/article3_0.html",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "74a94a62f74cf1566767a085b3b9c758"
+          "content" : "7e31774c9e2adfe616856c0be006b288"
         },
         {
           "alg" : "SHA-1",
-          "content" : "7bad013a5acee0a078d75fc352a906baa57acb74"
+          "content" : "fda38d1637719132fa12b5b96ea99958fc7150e7"
         },
         {
           "alg" : "SHA-256",
-          "content" : "a2af247ec4db6eb8947e18e23e0433e4871a7c5d0a40e1f92e46ede54ae1defe"
+          "content" : "2ea88052c8662bf51874f4159467ba24b040b22dfd54d2596e11936896c76192"
         },
         {
           "alg" : "SHA-512",
-          "content" : "839bd4a0e63a82334c46f7acad520dac56900c8c4ea3e663811c1e8863de416df2bb8ff334c407caf6cb6d20fb892c6c730d7f271bd59c5c973611ed2f890b37"
+          "content" : "cb464ed16c44587100bcbd801f77612376c5cd079463357d9add8b2e70314be4c4691537f8f888e040e0f0c96153063aca3b0645e70b26b68b40f32a40ca289b"
         },
         {
           "alg" : "SHA-384",
-          "content" : "39615b3093cf020161bcdfa6813d0d608892b6a69b6e7d413bc27a9b8c2e4500cb4d0a64f1b2ffd9d0c3b9f611687872"
+          "content" : "193844995941ff3564b537b2f4454945ca06f40d8a87b4250d4db4f9f010ac70878f94d6ee702e32a8553adac4629221"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "54b8b1d35b30254d17751cd0ea42fd51cb8d6511c9aa761b76752396af67e14b16bce998aa8d31da9faa7846ee9cd478"
+          "content" : "f52f2107e59fb9b1ccadb0997d863c8c859d5bedb8b61ac6d6c007ababf00ea1e21ae6c1a8319aa69687919ea248a9ee"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "d4c089ab0bf23ff52bfb24f2bb9e2cb629b66efcd43fa263fe4ae5affcbc567f"
+          "content" : "718728988627e098aa81054c55c50d0d0e25ae21ec83838ff4fd79cc4bb802d9"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "8bf09495990791415be6bbb9f72f2f3f40f4517b2b56501329e8c5ca716381c1858ea75a734b86346b37d8f5a7697f3361c204f3affe3f8fee656ee68a72480f"
+          "content" : "3cb4017d7622e21e8d7df83ea28e040446bea418c757c2b462b86a65f7683e48efb5326c3e0c8a35ba2033d710b3582b4f1414cd0b3b294c6ce700f6ef40303c"
         }
       ],
       "licenses" : [
@@ -1711,7 +1711,7 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+      "purl" : "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -3186,7 +3186,7 @@
         "pkg:maven/com.fasterxml.woodstox/woodstox-core@7.3.0?type=jar",
         "pkg:maven/com.fasterxml/aalto-xml@1.4.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
         "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
         "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
@@ -3209,7 +3209,7 @@
       "dependsOn" : [
         "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar"
+        "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar"
       ]
     },
     {
@@ -3224,7 +3224,7 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+      "ref" : "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
       "dependsOn" : []
     },
     {
@@ -3233,7 +3233,7 @@
         "pkg:maven/com.apicatalog/titanium-json-ld@1.7.0?type=jar",
         "pkg:maven/com.google.code.gson/gson@2.14.0?type=jar",
         "pkg:maven/com.google.protobuf/protobuf-java@4.35.1?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
         "pkg:maven/org.apache.jena/jena-core@6.2.0?type=jar",
         "pkg:maven/org.apache.thrift/libthrift@0.24.0?type=jar",
         "pkg:maven/org.glassfish/jakarta.json@2.0.1?type=jar",
@@ -3250,7 +3250,7 @@
         "pkg:maven/org.apache.commons/commons-collections4@4.5.0?type=jar",
         "pkg:maven/org.apache.commons/commons-compress@1.28.0?type=jar",
         "pkg:maven/org.apache.commons/commons-csv@1.14.1?type=jar",
-        "pkg:maven/org.apache.commons/commons-lang3@3.21.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
       ]
     },
