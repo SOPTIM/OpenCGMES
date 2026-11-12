@@ -2,7 +2,7 @@
 # Compute the Maven version for a component from git state.
 #
 # Usage: compute-version.sh <component> [--released]
-#   component: cimxml | cimvocabcheck | cimnotebook
+#   component: cimxml | cimvocabcheck | cimnotebook | cimxml-cli
 #
 # Default mode (for building/publishing):
 #   On a tagged release push (GITHUB_REF_TYPE=tag, GITHUB_REF_NAME=<component>-vX.Y.Z):

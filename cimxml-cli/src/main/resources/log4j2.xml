@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Logging config for the cimxml2jsonld fat JAR.
+    Progress output is written directly to stderr by the CLI; the logger only carries
+    diagnostics (library warnings, debug output). Everything goes to stderr so stdout
+    stays clean. The level is adjusted at runtime by -q / -v.
+-->
+<Configuration status="OFF">
+    <Appenders>
+        <Console name="Stderr" target="SYSTEM_ERR">
+            <PatternLayout pattern="[%level] %logger{1} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="WARN">
+            <AppenderRef ref="Stderr"/>
+        </Root>
+    </Loggers>
+</Configuration>

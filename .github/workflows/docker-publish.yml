@@ -1,11 +1,17 @@
 name: docker-publish
 
-# Reusable workflow that builds and pushes the schema-less cimvocabcheck-cli image to GHCR.
-# Called by cimvocabcheck-ci (edge image on main) and cimvocabcheck-release (versioned + latest).
+# Reusable workflow that builds and pushes a CLI image to GHCR: the schema-less cimvocabcheck-cli
+# image (called by cimvocabcheck-ci and cimvocabcheck-release) or the cimxml-cli image (called by
+# cimxml-cli-ci and cimxml-cli-release). Edge image on main, versioned + latest on release.
 
 on:
   workflow_call:
     inputs:
+      component:
+        description: "Image to build: 'cimvocabcheck' (cimvocabcheck-cli) or 'cimxml-cli'."
+        required: false
+        default: cimvocabcheck
+        type: string
       tag-suffixes:
         description: "Newline-separated image tag suffixes (e.g. 'edge' or '1.2.3\\nlatest')."
         required: true
@@ -41,14 +47,26 @@ jobs:
 
       - name: Apply release versions
         if: ${{ inputs.apply-versions }}
-        run: bash scripts/set-versions.sh "${{ inputs.cimxml-version }}" "${{ inputs.release-version }}"
+        shell: bash
+        run: |
+          if [ "${{ inputs.component }}" = "cimxml-cli" ]; then
+            bash scripts/set-versions.sh "${{ inputs.cimxml-version }}" "" "" "${{ inputs.release-version }}"
+          else
+            bash scripts/set-versions.sh "${{ inputs.cimxml-version }}" "${{ inputs.release-version }}"
+          fi
 
       - name: Compose image tags and labels
         id: meta
         shell: bash
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          image="ghcr.io/${owner}/cimvocabcheck-cli"
+          if [ "${{ inputs.component }}" = "cimxml-cli" ]; then
+            image="ghcr.io/${owner}/cimxml-cli"
+            echo "dockerfile=cimxml-cli/Dockerfile" >> "${GITHUB_OUTPUT}"
+          else
+            image="ghcr.io/${owner}/cimvocabcheck-cli"
+            echo "dockerfile=cimvocabcheck/Dockerfile" >> "${GITHUB_OUTPUT}"
+          fi
           {
             echo "tags<<EOF"
             while IFS= read -r suffix; do
@@ -80,7 +98,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          file: cimvocabcheck/Dockerfile
+          file: ${{ steps.meta.outputs.dockerfile }}
           push: true
           platforms: linux/amd64
           provenance: false

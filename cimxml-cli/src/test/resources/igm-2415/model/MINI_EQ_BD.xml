@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written mini IGM for the cimxml-cli tests (CGMES 2.4.15 style, not real ENTSO-E data).
+  Copyright (c) 2026 SOPTIM AG, SPDX-License-Identifier: Apache-2.0
+-->
+<rdf:RDF
+    xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+    xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <md:FullModel rdf:about="urn:uuid:7179b618-9062-5208-80c6-26e2389ff17a">
+    <md:Model.profile>http://entsoe.eu/CIM/EquipmentBoundary/3/1</md:Model.profile>
+  </md:FullModel>
+  <cim:ConnectivityNode rdf:ID="_08535e79-6ecc-57ef-9de1-14d4262e6d86">
+    <cim:ConnectivityNode.boundaryName>Border 1</cim:ConnectivityNode.boundaryName>
+  </cim:ConnectivityNode>
+</rdf:RDF>

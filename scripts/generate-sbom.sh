@@ -4,7 +4,7 @@
 # Usage: scripts/generate-sbom.sh [maven] [vscode] [intellij]   (no args = all three)
 #
 #   maven    -> cimvocabcheck/sbom/maven/{bom.json,THIRD-PARTY.txt}
-#               Java library/CLI/LSP: cimxml + cimvocabcheck-core/cli/lsp and shipped deps.
+#               Java library/CLI/LSP: cimxml + cimvocabcheck-core/cli/lsp + cimxml-cli and shipped deps.
 #   vscode   -> cimnotebook/sbom/vscode/{bom.json,THIRD-PARTY.txt}
 #               VS Code extension shipped npm deps (vscode-languageclient, ...).
 #   intellij -> cimnotebook/sbom/intellij/{bom.json,THIRD-PARTY.txt}
@@ -133,7 +133,7 @@ PY
 }
 
 # ---------------------------------------------------------------------------
-# 1. Maven (cimxml + cimvocabcheck-core/cli/lsp)  ->  cimvocabcheck/sbom/maven
+# 1. Maven (cimxml + cimvocabcheck-core/cli/lsp + cimxml-cli)  ->  cimvocabcheck/sbom/maven
 # ---------------------------------------------------------------------------
 if want maven; then
     echo ">> [maven] Generating CycloneDX SBOM (aggregate) ..."

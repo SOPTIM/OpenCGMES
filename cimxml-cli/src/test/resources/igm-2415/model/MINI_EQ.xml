@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written mini IGM for the cimxml-cli tests (CGMES 2.4.15 style, not real ENTSO-E data).
+  Copyright (c) 2026 SOPTIM AG, SPDX-License-Identifier: Apache-2.0
+-->
+<rdf:RDF
+    xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+    xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <md:FullModel rdf:about="urn:uuid:b3a2caf9-c2e8-56c9-82e5-bccce87d409b">
+    <md:Model.profile>http://entsoe.eu/CIM/EquipmentCore/3/1</md:Model.profile>
+  </md:FullModel>
+  <cim:ACLineSegment rdf:ID="_26d998ba-5218-5f6c-be6f-bd3aaaa4de61">
+    <cim:IdentifiedObject.name>Line 1</cim:IdentifiedObject.name>
+    <cim:ACLineSegment.r>0.5</cim:ACLineSegment.r>
+  </cim:ACLineSegment>
+  <cim:ACLineSegment rdf:ID="_ddd396cc-83cd-5215-8763-fa1afb2cd5a6">
+    <cim:IdentifiedObject.name>Line 2</cim:IdentifiedObject.name>
+    <cim:ACLineSegment.r>1.25</cim:ACLineSegment.r>
+  </cim:ACLineSegment>
+</rdf:RDF>

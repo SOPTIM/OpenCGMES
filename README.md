@@ -8,7 +8,8 @@ Suite of tools for CGMES / CIM (IEC 61970) RDF - RDFS, SHACL and CIMXML
 
 📖 **Full documentation: <https://opencgmes.soptim.de>** — guides, API reference, and examples for
 [CIMXML](https://opencgmes.soptim.de/cimxml/overview),
-[CIMVocabCheck](https://opencgmes.soptim.de/cimvocabcheck/overview), and
+[CIMVocabCheck](https://opencgmes.soptim.de/cimvocabcheck/overview),
+[cimxml2jsonld](https://opencgmes.soptim.de/cimxml-cli/overview), and
 [CIMNotebook](https://opencgmes.soptim.de/cimnotebook/overview).
 
 ## Build
@@ -29,6 +30,12 @@ release workflows operate on the module poms directly.
 A Java library for parsing CIMXML files into RDF graphs using Apache Jena. 
 It supports both full models and difference models as defined in IEC 61970-552.
 see [CimXmlParser](cimxml/README.md)
+
+## cimxml2jsonld
+
+A command-line tool that converts the CIMXML files of one CGMES IGM, together with the RDFS
+profiles they reference, into a JSON-LD dataset that can be queried with SPARQL.
+see [cimxml2jsonld](cimxml-cli/README.md)
 
 ## CIMVocabCheck
 

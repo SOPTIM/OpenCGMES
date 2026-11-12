@@ -1,0 +1,28 @@
+#!/bin/sh
+#    Copyright (c) 2026 SOPTIM AG
+#    SPDX-License-Identifier: Apache-2.0
+#
+# Starts cimxml2jsonld. The JVM gets a default maximum heap of @default.heap@; to change it or to
+# pass other JVM options, set CIMXML2JSONLD_OPTS (or JAVA_OPTS), e.g. CIMXML2JSONLD_OPTS=-Xmx8g.
+# Uses $JAVA_HOME/bin/java if JAVA_HOME is set, otherwise java from the PATH.
+
+# Resolve symlinks, so that the script also works when linked into a bin folder on the PATH
+script="$0"
+while [ -h "$script" ]; do
+  target=$(ls -ld "$script" | sed 's/.*-> //')
+  case "$target" in
+    /*) script="$target" ;;
+    *) script="$(dirname "$script")/$target" ;;
+  esac
+done
+home=$(cd "$(dirname "$script")/.." && pwd)
+
+if [ -n "$JAVA_HOME" ]; then
+  java="$JAVA_HOME/bin/java"
+else
+  java=java
+fi
+
+# Later options win: the defaults come first, user options last
+# shellcheck disable=SC2086
+exec "$java" -Xmx@default.heap@ $JAVA_OPTS $CIMXML2JSONLD_OPTS -jar "$home/lib/cimxml-cli-${project.version}.jar" "$@"
