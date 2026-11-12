@@ -51,6 +51,9 @@ import org.apache.jena.graph.Graph;
  * Orchestrates the conversion: loads and registers all RDFS profiles, parses all CIMXML models
  * sequentially, validates the result and writes the assembled dataset. All problems are collected
  * and reported together.
+ *
+ * <p>A converter runs once: the profile registry and the warnings of its parser keep the state of
+ * the run. Create a new converter for every conversion.
  */
 public final class Cimxml2JsonLdConverter {
 
@@ -61,6 +64,7 @@ public final class Cimxml2JsonLdConverter {
   private final List<ValidationRule> rules;
   private final JsonLdDatasetWriter writer;
   private final ProgressListener progress;
+  private boolean used;
 
   /** Creates a converter from its parts. */
   public Cimxml2JsonLdConverter(
@@ -112,6 +116,7 @@ public final class Cimxml2JsonLdConverter {
    * @return the validated input that was written
    * @throws ConversionException if any problem was found; nothing is written then
    * @throws IOException if a folder cannot be listed or the output cannot be written
+   * @throws IllegalStateException if this converter has already run
    */
   public ConversionContext convert(Path schemaFolder, Path modelFolder, OutputTarget target)
       throws ConversionException, IOException {
@@ -131,9 +136,14 @@ public final class Cimxml2JsonLdConverter {
    *
    * @throws ConversionException if any problem was found
    * @throws IOException if a folder cannot be listed
+   * @throws IllegalStateException if this converter has already run
    */
   public ConversionContext readAndValidate(Path schemaFolder, Path modelFolder)
       throws ConversionException, IOException {
+    if (used) {
+      throw new IllegalStateException("a converter runs only once; create a new one");
+    }
+    used = true;
     final var problems = new ArrayList<Problem>();
     // Parse all RDFS before registering, so duplicates can be resolved
     final var loaded = new ArrayList<LoadedSchema>();

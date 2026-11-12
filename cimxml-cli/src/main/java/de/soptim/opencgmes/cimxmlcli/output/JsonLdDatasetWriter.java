@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.zip.GZIPOutputStream;
@@ -50,7 +51,8 @@ public final class JsonLdDatasetWriter {
   }
 
   /**
-   * Writes {@code dataset} to {@code target}. On failure the target is left untouched.
+   * Writes {@code dataset} to {@code target}. On failure the target is left untouched; a replaced
+   * target keeps its POSIX permissions.
    *
    * @return the size of the written file in bytes
    */
@@ -69,6 +71,7 @@ public final class JsonLdDatasetWriter {
         RDFDataMgr.write(
             out, dataset, compact ? RDFFormat.JSONLD11_PRETTY : RDFFormat.JSONLD11_PLAIN);
       }
+      copyPermissions(path, tmp);
       move(tmp, path);
       return Files.size(path);
     } finally {
@@ -89,6 +92,16 @@ public final class JsonLdDatasetWriter {
       out.close();
       throw e;
     }
+  }
+
+  /** Keeps the POSIX permissions of a file that is replaced, e.g. an owner-only 0600 file. */
+  private static void copyPermissions(Path from, Path to) throws IOException {
+    final var source = Files.getFileAttributeView(from, PosixFileAttributeView.class);
+    final var target = Files.getFileAttributeView(to, PosixFileAttributeView.class);
+    if (source == null || target == null || !Files.exists(from)) {
+      return;
+    }
+    target.setPermissions(source.readAttributes().permissions());
   }
 
   private static void move(Path from, Path to) throws IOException {

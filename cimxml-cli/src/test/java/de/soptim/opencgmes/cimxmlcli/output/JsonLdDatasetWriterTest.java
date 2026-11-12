@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import de.soptim.opencgmes.cimxmlcli.TestData;
 import de.soptim.opencgmes.cimxmlcli.dataset.DatasetAssembler;
@@ -30,6 +31,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.stream.Stream;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.riot.RDFDataMgr;
@@ -93,6 +96,19 @@ public class JsonLdDatasetWriterTest {
   public void replacesAnExistingFile() throws IOException {
     Files.writeString(out.resolve("igm.jsonld"), "old");
     assertRoundtrip("igm.jsonld", false);
+  }
+
+  @Test
+  public void keepsThePermissionsOfAReplacedFile() throws IOException {
+    final var file = out.resolve("igm.jsonld");
+    Files.writeString(file, "old");
+    assumeTrue(Files.getFileAttributeView(file, PosixFileAttributeView.class) != null);
+    final var ownerOnly = PosixFilePermissions.fromString("rw-------");
+    Files.setPosixFilePermissions(file, ownerOnly);
+
+    assertRoundtrip("igm.jsonld", false);
+
+    assertEquals(ownerOnly, Files.getPosixFilePermissions(file));
   }
 
   @Test

@@ -70,11 +70,17 @@ public final class PrefixSanitizer {
 
   private static void addScheme(Node node, Set<String> schemes) {
     if (node.isURI()) {
-      final var uri = node.getURI();
-      final var colon = uri.indexOf(':');
-      if (colon > 0) {
-        schemes.add(uri.substring(0, colon).toLowerCase(Locale.ROOT));
-      }
+      addScheme(node.getURI(), schemes);
+    } else if (node.isLiteral()) {
+      // Datatype IRIs become compacted @type values too
+      addScheme(node.getLiteralDatatypeURI(), schemes);
+    }
+  }
+
+  private static void addScheme(String uri, Set<String> schemes) {
+    final var colon = uri.indexOf(':');
+    if (colon > 0) {
+      schemes.add(uri.substring(0, colon).toLowerCase(Locale.ROOT));
     }
   }
 }

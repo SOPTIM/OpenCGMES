@@ -25,6 +25,7 @@ import static de.soptim.opencgmes.cimxmlcli.TestData.read;
 import static de.soptim.opencgmes.cimxmlcli.TestData.write;
 import static de.soptim.opencgmes.cimxmlcli.TestData.zip;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -112,6 +113,14 @@ public class Cimxml2JsonLdConverterTest {
     assertEquals("MINI_EQ.xml", eq.displayPath());
     assertEquals(CIM16, eq.cimNamespace());
     assertEquals(0, eq.warnings().total());
+  }
+
+  @Test
+  public void runsOnlyOnce() throws Exception {
+    final var converter = Cimxml2JsonLdConverter.createDefault(false, ProgressListener.NONE);
+    converter.readAndValidate(rdfs, models);
+
+    assertThrows(IllegalStateException.class, () -> converter.readAndValidate(rdfs, models));
   }
 
   @Test

@@ -64,4 +64,21 @@ public class PrefixSanitizerTest {
 
     assertEquals(Set.of("URN"), PrefixSanitizer.sanitize(dataset));
   }
+
+  @Test
+  public void keepsDatatypeIrisIntactInCompactedJsonLd() throws IOException {
+    final var dataset = DatasetGraphFactory.create();
+    final var graph = NodeFactory.createURI("cgmes:model:EQ");
+    final var node = NodeFactory.createURI("http://example.org/x");
+    final var literal = NodeFactory.createLiteralDT("1", NodeFactory.getType("custom:type"));
+    dataset.add(graph, node, node, literal);
+    dataset.prefixes().add("custom", "http://example.org/custom#");
+    final var target = OutputTarget.of(tmp.getRoot().toPath().resolve("x.jsonld"));
+
+    new JsonLdDatasetWriter(true).write(dataset, target);
+
+    final var read = RDFDataMgr.loadDatasetGraph(target.path().toString());
+    assertTrue(read.contains(graph, node, node, literal));
+    assertTrue(dataset.prefixes().getMapping().isEmpty());
+  }
 }
