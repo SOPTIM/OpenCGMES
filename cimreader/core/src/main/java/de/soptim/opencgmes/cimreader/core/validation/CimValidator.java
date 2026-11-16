@@ -33,24 +33,25 @@ public class CimValidator {
   private final List<ValidationIssue> issues = new ArrayList<>();
 
   public void validateHeader(CimModelHeader header) {
-    if (header.getModel() == null) {
+    if (!header.isFullModel() && !header.isDifferenceModel()) {
       issues.add(new MissingHeaderFieldIssue(header, "model"));
-    }
-    if (header.getVersion() == null) {
-      issues.add(new MissingHeaderFieldIssue(header, "version"));
-    }
-    if (header.getModelingAuthoritySet() == null) {
-      issues.add(new MissingHeaderFieldIssue(header, "modelingAuthoritySet"));
-    }
-    if (header.getProfiles() == null || header.getProfiles().isEmpty()) {
-      issues.add(new MissingHeaderFieldIssue(header, "profiles"));
-    }
-    if (header.getScenarioTime() == null) {
-      issues.add(new MissingHeaderFieldIssue(header, "scenarioTime"));
-    }
-    if (header.isDifferenceModel() && (header.getSupersedes() == null || header.getSupersedes()
-        .isEmpty())) {
-      issues.add(new MissingHeaderFieldIssue(header, "supersedes"));
+    } else {
+      if (header.getVersion() == null) {
+        issues.add(new MissingHeaderFieldIssue(header, "version"));
+      }
+      if (header.getModelingAuthoritySet() == null) {
+        issues.add(new MissingHeaderFieldIssue(header, "modelingAuthoritySet"));
+      }
+      if (header.getProfiles() == null || header.getProfiles().isEmpty()) {
+        issues.add(new MissingHeaderFieldIssue(header, "profiles"));
+      }
+      if (header.getScenarioTime() == null) {
+        issues.add(new MissingHeaderFieldIssue(header, "scenarioTime"));
+      }
+      if (header.isDifferenceModel() && (header.getSupersedes() == null || header.getSupersedes()
+          .isEmpty())) {
+        issues.add(new MissingHeaderFieldIssue(header, "supersedes"));
+      }
     }
   }
 

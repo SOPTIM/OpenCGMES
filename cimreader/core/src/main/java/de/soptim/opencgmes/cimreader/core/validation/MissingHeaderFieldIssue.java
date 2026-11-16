@@ -32,7 +32,7 @@ public class MissingHeaderFieldIssue implements ValidationIssue {
 
   @Override
   public String getMessage() {
-    if (header.getModel() == null) {
+    if ((!header.isFullModel() && !header.isDifferenceModel()) || header.getModel() == null) {
       return "Missing field '" + missingField + "' in header";
     }
     return "Missing field '" + missingField + "' in header of model '" + header.getModel() + "'";
