@@ -20,11 +20,12 @@ package de.soptim.opencgmes.cimreader.core;
 
 import de.soptim.opencgmes.cimreader.core.exception.ImportException;
 import de.soptim.opencgmes.cimreader.core.exception.InvalidImportException;
+import de.soptim.opencgmes.cimreader.core.loader.LoadStrategy;
 import de.soptim.opencgmes.cimreader.core.source.XmlSourceBundle;
 import de.soptim.opencgmes.cimreader.core.validation.CimValidator;
-import de.soptim.opencgmes.cimxml.parser.CimXmlParser;
 import java.nio.file.Path;
 import java.util.Collection;
+import org.apache.jena.sparql.core.DatasetGraph;
 
 public class CimImporter {
 
@@ -34,7 +35,7 @@ public class CimImporter {
     this.cimHeaderReader = new CimHeaderReader();
   }
 
-  public void importCim(Collection<Path> paths) throws ImportException {
+  public DatasetGraph importCim(Collection<Path> paths, LoadStrategy strategy) throws ImportException {
     try (var sourceBundle = new XmlSourceBundle()) {
       sourceBundle.addAll(paths);
       var validator = new CimValidator();
@@ -45,14 +46,7 @@ public class CimImporter {
         throw new InvalidImportException(validator.getIssues());
       }
       var sorted = CimSorter.groupAndSort(headers);
-      CimXmlParser parser = new CimXmlParser();
-      for (var source : sorted) {
-        for (var headerSource : source) {
-          try (var inputStream = headerSource.xmlSource().open()) {
-            var model = parser.parseCimModel(inputStream);
-          }
-        }
-      }
+      return strategy.load(sorted);
     } catch (InvalidImportException e) {
       throw e;
     } catch (Exception e) {
