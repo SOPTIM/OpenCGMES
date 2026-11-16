@@ -148,6 +148,67 @@ public interface CimModelHeader extends CimGraph {
   }
 
   /**
+   * Get the scenario time associated with the model.
+   *
+   * @return The scenario time node or null if not present.
+   */
+  default Node getScenarioTime() {
+    return stream(getModel(), CimHeaderVocabulary.PREDICATE_SCENARIO_TIME, Node.ANY)
+        .map(Triple::getObject)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Get the version associated with the model.
+   *
+   * @return The version node or null if not present.
+   */
+  default Node getVersion() {
+    return stream(getModel(), CimHeaderVocabulary.PREDICATE_VERSION, Node.ANY)
+        .map(Triple::getObject)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Get the modeling authority set(s) associated with the model. Each modeling authority set is
+   * referenced by its IRI.
+   *
+   * @return A set of modeling authority set nodes (IRIs).
+   */
+  default Node getModelingAuthoritySet() {
+    return stream(getModel(), CimHeaderVocabulary.PREDICATE_MODELING_AUTHORITY_SET, Node.ANY)
+        .map(Triple::getObject)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Get the creation date associated with the model.
+   *
+   * @return The creation date node or null if not present.
+   */
+  default Node getCreated() {
+    return stream(getModel(), CimHeaderVocabulary.PREDICATE_CREATED, Node.ANY)
+        .map(Triple::getObject)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
+   * Get the description associated with the model.
+   *
+   * @return The description node or null if not present.
+   */
+  default Node getDescription() {
+    return stream(getModel(), CimHeaderVocabulary.PREDICATE_DESCRIPTION, Node.ANY)
+        .map(Triple::getObject)
+        .findFirst()
+        .orElse(null);
+  }
+
+  /**
    * An implementation of {@link CimModelHeader} that wraps a {@link Graph}.
    */
   class CimModelHeaderGraphWrapper extends GraphWrapper implements CimModelHeader {
