@@ -106,8 +106,7 @@ looked:
 | 1 | the `engine=` argument | a path to a JAR or binary, or an `Engine` object |
 | 2 | `$CIMVOCABCHECK_JAR`, then `$CIMVOCABCHECK_BIN` | a fat JAR (run with `java`), or an executable |
 | 3 | `cimvocabcheck` on `PATH` | |
-| 4 | a JAR bundled into the package | populated by a packaging step |
-| 5 | `docker run ghcr.io/soptim/cimvocabcheck-cli:latest` | last resort |
+| 4 | `docker run ghcr.io/soptim/cimvocabcheck-cli:latest` | last resort |
 
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,

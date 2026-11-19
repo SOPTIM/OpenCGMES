@@ -272,7 +272,7 @@ def test_failure_names_everything_that_was_tried(bare_env):
         discover(env=bare_env, allow_docker=False)
 
     message = str(raised.value)
-    for expected in (runtime.ENV_JAR, runtime.ENV_BIN, "on PATH", "bundled", "Docker"):
+    for expected in (runtime.ENV_JAR, runtime.ENV_BIN, "on PATH", "Docker"):
         assert expected in message
 
 

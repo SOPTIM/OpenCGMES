@@ -11,5 +11,3 @@ dist/
 .mypy_cache/
 .ruff_cache/
 .coverage
-# An engine dropped here by a packaging step; never committed.
-src/cimvocabcheck/_bundled/

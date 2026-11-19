@@ -17,9 +17,9 @@
 """Finding the engine to run.
 
 This package ships no engine of its own; it drives the CIMVocabCheck CLI. :func:`discover` looks
-for one in a fixed order — an explicitly configured path, the environment, ``PATH``, an artifact
-bundled into this package, and finally Docker — and reports every place it looked when it comes up
-empty, because "not found" is the failure mode a user actually has to fix.
+for one in a fixed order — an explicitly configured path, the environment, ``PATH``, and finally
+Docker — and reports every place it looked when it comes up empty, because "not found" is the
+failure mode a user actually has to fix.
 """
 
 from __future__ import annotations
@@ -111,9 +111,6 @@ _SCHEMALESS_SUBCOMMANDS = ("init", "help")
 
 #: Flags that name a schema source. When a call passes one, the engine does no config discovery.
 _SCHEMA_SOURCE_FLAGS = ("-c", "--config", "-s", "--schema", "-e", "--endpoint")
-
-#: An engine JAR placed here (by a packaging step, not by this repository) is used automatically.
-BUNDLED_JAR = Path(__file__).resolve().parent / "_bundled" / "cimvocabcheck-cli.jar"
 
 ENV_JAR = "CIMVOCABCHECK_JAR"
 ENV_BIN = "CIMVOCABCHECK_BIN"
@@ -786,10 +783,6 @@ def discover(
     on_path = _which_engine(environ)
     if on_path is not None:
         return BinaryEngine(on_path)
-
-    searched.append(f"a JAR bundled in this package ({BUNDLED_JAR})")
-    if BUNDLED_JAR.is_file():
-        return JarEngine(BUNDLED_JAR, java=find_java(environ))
 
     image = environ.get(ENV_IMAGE) or DEFAULT_IMAGE
     docker_disabled = _truthy(environ.get(ENV_NO_DOCKER)) or not allow_docker
