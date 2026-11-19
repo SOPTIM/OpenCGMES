@@ -162,6 +162,18 @@ public abstract class Engine
         ResolvePath(path, workingDirectory);
 
     /// <summary>
+    /// Rewrites an input path. The Docker engine mounts one outside the working directory
+    /// instead of refusing it.
+    /// </summary>
+    /// <param name="path">The path as the caller gave it.</param>
+    /// <param name="workingDirectory">Where the process will start.</param>
+    /// <param name="mounts">Collects what <see cref="BuildCommand"/> has to mount.</param>
+    /// <returns>The path as the engine should see it.</returns>
+    public virtual string ResolveInput(
+        string path, string? workingDirectory, IList<VolumeMount> mounts) =>
+        ResolvePath(path, workingDirectory);
+
+    /// <summary>
     /// The locale variable to set when spawning this engine, if its environment needs one.
     /// </summary>
     /// <remarks>
@@ -675,9 +687,10 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     }
 
     /// <inheritdoc/>
+    /// <exception cref="UnreachablePathException">The path is outside the working directory.</exception>
     public override string ResolvePath(string path, string? workingDirectory) =>
         TryResolvePath(path, workingDirectory)
-        ?? throw new CimVocabCheckException(
+        ?? throw new UnreachablePathException(
             $"'{path}' is outside the working directory {Mount(workingDirectory)}, which is the "
             + "only path the Docker engine mounts. Pass paths relative to the working directory, "
             + "run from a directory that contains them, or configure a local engine "
@@ -690,7 +703,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     /// that the container could not otherwise reach is mounted too, so the config's own relative
     /// paths resolve as they do on the host — exactly as for a config the engine discovers.
     /// </remarks>
-    /// <exception cref="CimVocabCheckException">The config names a path the container cannot have.</exception>
+    /// <exception cref="UnreachablePathException">The config names a path the container cannot have.</exception>
     public override string ResolveConfig(
         string path, string? workingDirectory, IList<VolumeMount> mounts)
     {
@@ -706,6 +719,32 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         var seen = MountConfig(host, workdir, mounts);
         MountConfigPaths(host, seen, workdir, mounts);
         return seen;
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// An input outside the working directory is mounted read-only at its
+    /// <see cref="ContainerPath"/>, so a batch behaves as with a local engine and one input
+    /// elsewhere does not cost the rest their results. One that does not exist is handed over
+    /// unmounted, where the engine reports it as unreadable, as a local engine does; binding it
+    /// would make Docker create an empty directory in its place.
+    /// </remarks>
+    public override string ResolveInput(
+        string path, string? workingDirectory, IList<VolumeMount> mounts)
+    {
+        if (TryResolvePath(path, workingDirectory) is { } inside)
+        {
+            return inside;
+        }
+
+        if (Outside(path, workingDirectory) is not { } host)
+        {
+            return ContainerPath(System.IO.Path.GetFullPath(path, Mount(workingDirectory)));
+        }
+
+        var container = ContainerPath(host);
+        AddMount(host, container, Mount(workingDirectory), mounts, null);
+        return container;
     }
 
     /// <inheritdoc/>
@@ -788,7 +827,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
             var drive = (path.Length >= 2 && path[1] == ':') || path.StartsWith(@"\\", StringComparison.Ordinal);
             if (drive || (OperatingSystem.IsWindows() && System.IO.Path.IsPathRooted(path)))
             {
-                throw new CimVocabCheckException(
+                throw new UnreachablePathException(
                     $"{config} names the schema path '{path}', a Windows path the Docker engine cannot "
                     + "read. Make it relative to the config, or configure a local engine "
                     + $"({JarVariable} / {BinaryVariable}).");
@@ -809,7 +848,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
     /// Adds <paramref name="host"/> at <paramref name="container"/> to <paramref name="mounts"/>,
     /// unless a mount already shows it there.
     /// </summary>
-    /// <exception cref="CimVocabCheckException">
+    /// <exception cref="UnreachablePathException">
     /// <paramref name="container"/> is one of the image's own directories, or inside a directory
     /// nothing may be mounted in — except where <see cref="ContainerPath"/> put it.
     /// </exception>
@@ -828,7 +867,7 @@ public sealed class DockerEngine(string image, string docker, string workingDire
         var mirrored = container == ContainerPath(host) && container != ContainerHostDirectory;
         if (!mirrored && !Mountable(container))
         {
-            throw new CimVocabCheckException(
+            throw new UnreachablePathException(
                 $"{origin ?? $"'{host}'"}, which the Docker engine would see at {container}, a path inside "
                 + "its image. Make the path lead somewhere else, pass the schema itself, or configure a "
                 + $"local engine ({JarVariable} / {BinaryVariable}).");

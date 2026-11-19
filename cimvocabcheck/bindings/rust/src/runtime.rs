@@ -387,6 +387,35 @@ impl Engine {
         }
     }
 
+    /// Rewrites an input path for this engine.
+    ///
+    /// Like [`Engine::resolve_path`], except that the Docker engine does not refuse an input
+    /// outside the working directory: it mounts it read-only at its [`container_path`], adding to
+    /// `mounts`, so a batch behaves as with a local engine and one input elsewhere does not cost
+    /// the rest their results. One that does not exist is handed over unmounted, where the engine
+    /// reports it as unreadable, as a local engine does; binding it would make Docker create an
+    /// empty directory in its place.
+    pub fn resolve_input(
+        &self,
+        path: &str,
+        cwd: Option<&Path>,
+        mounts: &mut Vec<Mount>,
+    ) -> Result<String> {
+        match self.resolve_path(path, cwd) {
+            Err(Error::UnreachablePath(_)) => {
+                let workdir = self.mount(cwd);
+                let lexical = normalize(&workdir.join(path));
+                let Some(host) = existing(&lexical) else {
+                    return Ok(container_path(&lexical));
+                };
+                let container = container_path(&host);
+                add_mount(&host, &container, &workdir, mounts, None)?;
+                Ok(container)
+            }
+            resolved => resolved,
+        }
+    }
+
     /// Rewrites one path for this engine. Only the Docker engine needs to.
     pub fn resolve_path(&self, path: &str, cwd: Option<&Path>) -> Result<String> {
         let Self::Docker { .. } = self else {

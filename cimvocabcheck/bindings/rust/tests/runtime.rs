@@ -21,7 +21,7 @@ mod common;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use cimvocabcheck::runtime::{container_path, ENV_BIN, ENV_IMAGE, ENV_JAR, ENV_NO_DOCKER};
+use cimvocabcheck::runtime::{container_path, Mount, ENV_BIN, ENV_IMAGE, ENV_JAR, ENV_NO_DOCKER};
 use cimvocabcheck::{discover, Discovery, Engine, Error};
 use common::{bare_env, TempDir};
 
@@ -582,6 +582,73 @@ fn docker_mounts_schemas_outside_the_working_directory_where_the_host_has_them()
         let volume = format!("{}:{}:ro", host.display(), container_path(&host));
         assert!(command.contains(&volume), "{volume} in {command:?}");
     }
+}
+
+#[test]
+fn docker_mounts_an_input_outside_the_working_directory() {
+    // As a local engine would read it: one input elsewhere must not cost the batch its results.
+    let dir = TempDir::new();
+    std::fs::create_dir(dir.path().join("project")).unwrap();
+    dir.write("shared/q.rq", "");
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    let seen = engine
+        .resolve_input("../shared/q.rq", None, &mut mounts)
+        .unwrap();
+    let command = engine
+        .command_with_mounts(&strings(&["--", &seen]), false, None, &mounts)
+        .unwrap();
+
+    let host = dir.path().join("shared").join("q.rq");
+    assert_eq!(seen, container_path(&host));
+    assert!(volumes(&command).contains(&format!("{}:{seen}:ro", host.display())));
+    assert_eq!(
+        engine
+            .resolve_input("inside.rq", None, &mut mounts)
+            .unwrap(),
+        "inside.rq"
+    );
+}
+
+#[test]
+fn docker_hands_a_missing_input_to_the_engine_to_report() {
+    // The engine reports it as unreadable, as a local engine does; mounting it would make Docker
+    // create an empty directory in its place.
+    let dir = TempDir::new();
+    std::fs::create_dir(dir.path().join("project")).unwrap();
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+    let missing = dir.path().join("nowhere").join("q.rq");
+
+    let seen = engine
+        .resolve_input(missing.to_str().unwrap(), None, &mut mounts)
+        .unwrap();
+
+    assert_eq!(seen, container_path(&missing));
+    assert_eq!(mounts, Vec::<Mount>::new());
+}
+
+#[test]
+fn docker_mounts_an_input_only_once_when_a_mount_already_shows_it() {
+    let dir = TempDir::new();
+    std::fs::create_dir(dir.path().join("project")).unwrap();
+    dir.write("profiles/shapes.ttl", "");
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    engine
+        .resolve_schema("../profiles", None, &mut mounts)
+        .unwrap();
+    let seen = engine
+        .resolve_input("../profiles/shapes.ttl", None, &mut mounts)
+        .unwrap();
+
+    assert_eq!(mounts.len(), 1);
+    assert_eq!(
+        seen,
+        container_path(&dir.path().join("profiles").join("shapes.ttl"))
+    );
 }
 
 #[test]

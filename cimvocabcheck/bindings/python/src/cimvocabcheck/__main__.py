@@ -74,8 +74,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 def docker_arguments(engine: DockerEngine, args: Sequence[str], mounts: list[Mount]) -> list[str]:
     """``args`` with every path in them rewritten to where the Docker engine sees it.
 
-    A config or schema outside the working directory is mounted, adding to ``mounts``; an input
-    outside it is refused, as the library refuses it, rather than reported as unreadable.
+    A config, schema or input outside the working directory is mounted, adding to ``mounts``, as
+    the library does. A directory option (``init --dir``) outside it is refused: the engine
+    writes there, and the mounts are read-only.
 
     Raises:
         UnreachablePathError: A path cannot be reached from inside the container.
@@ -102,7 +103,7 @@ def docker_arguments(engine: DockerEngine, args: Sequence[str], mounts: list[Mou
                 command = arg
                 out.append(arg)
             else:
-                out.append(engine.resolve_path(arg))
+                out.append(engine.resolve_input(arg, None, mounts))
             positional = True
         elif arg == "--":
             inputs_only = True

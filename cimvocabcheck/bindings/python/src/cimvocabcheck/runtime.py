@@ -232,6 +232,10 @@ class Engine:
         """Rewrites a schema path; the Docker engine may mount it instead of refusing it."""
         return self.resolve_path(path, cwd)
 
+    def resolve_input(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
+        """Rewrites an input path; the Docker engine may mount it instead of refusing it."""
+        return self.resolve_path(path, cwd)
+
     def environment(self, env: Mapping[str, str] | None = None) -> dict[str, str] | None:
         """The environment to spawn this engine with: ``env``, or this process's when ``None``.
 
@@ -304,9 +308,10 @@ class BinaryEngine(Engine):
 class DockerEngine(Engine):
     """The published container image, with the working directory mounted at its WORKDIR.
 
-    Inputs are therefore addressed relative to the working directory. That is what the report
-    contract asks for anyway — the paths in a report are the paths that were passed in, and CI
-    annotations only line up when they are repository-relative.
+    Inputs inside it are addressed relative to it, which is what the report contract asks for
+    anyway: CI annotations only line up when paths are repository-relative. Anything else the
+    engine has to read (an input, a schema, a config) is mounted read-only under
+    :data:`CONTAINER_HOST_DIR`, and results come back under the names the caller used.
     """
 
     kind = "docker"
@@ -383,6 +388,29 @@ class DockerEngine(Engine):
         host = self._outside(path, cwd)
         if host is None:
             return self.resolve_path(path, cwd)
+        container = container_path(host)
+        _add_mount(host, container, self._mount(cwd), mounts)
+        return container
+
+    def resolve_input(self, path: str, cwd: Path | None, mounts: list[Mount]) -> str:
+        """Like :meth:`resolve_path`, but an input outside the working directory is reachable too.
+
+        It is mounted read-only at its :func:`container_path`, like a schema, so a batch behaves as
+        with a local engine: one input elsewhere does not cost the rest their results. One that
+        does not exist is handed over unmounted, where the engine reports it as unreadable, as a
+        local engine does; binding it would make Docker create an empty directory in its place.
+        """
+        if path == "-":
+            return path
+        try:
+            return self.resolve_path(path, cwd)
+        except UnreachablePathError:
+            pass
+        lexical = Path(os.path.abspath(Path(cwd or self.cwd) / path))
+        try:
+            host = lexical.resolve(strict=True)
+        except OSError:
+            return container_path(lexical)
         container = container_path(host)
         _add_mount(host, container, self._mount(cwd), mounts)
         return container

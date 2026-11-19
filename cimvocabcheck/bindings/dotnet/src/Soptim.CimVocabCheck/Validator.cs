@@ -270,13 +270,16 @@ public static class Validator
         var engine = options.ResolveEngine();
         var directory = options.WorkingDirectory;
 
-        var resolvedInputs = inputs.Select(input => engine.ResolvePath(input, directory)).ToList();
         var mounts = new List<VolumeMount>();
         var resolved = options with
         {
             Schema = [.. options.Schema.Select(path => engine.ResolveSchema(path, directory, mounts))],
             Config = options.Config is null ? null : engine.ResolveConfig(options.Config, directory, mounts),
         };
+
+        // After the schemas and the config, so an input inside a directory mounted for them is
+        // reached through that mount rather than mounted a second time.
+        var resolvedInputs = inputs.Select(input => engine.ResolveInput(input, directory, mounts)).ToList();
 
         var arguments = BuildArguments(resolvedInputs, resolved);
         var command = engine.BuildCommand(arguments, standardInput is not null, directory, mounts);

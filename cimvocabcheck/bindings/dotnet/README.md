@@ -122,16 +122,23 @@ environment names is not installed (`LANG=en_US.UTF-8` without the locale packag
 `locale -a`): the C library then falls back to C for every category, so the engine gets
 `LC_ALL=C.UTF-8`.
 
-The Docker fallback mounts the working directory at the image's `/work`, so inputs must live
-inside it — an input outside it is refused rather than silently unreadable. A schema or config
-file outside it is mounted read-only instead, at `/host` followed by its host path, and so is
-an `opencgmes.jsonc` above the working directory, which is then passed as `--config` unless the
-call names its own schema source, so a run from a subdirectory sees the same config a local
-engine would. The schema paths a config names are mounted the same way wherever they lead, so
-its relative paths work as they do on the host; one that would land on a directory of the image
-itself (`../usr`, from a config in the working directory) is refused. `CIMVOCABCHECK_DOCKER_IMAGE`
-pins a tag and `CIMVOCABCHECK_NO_DOCKER=1` takes it out of the chain. The first run pulls the
-image, and an `Endpoint` on `localhost` is then the *container's* localhost.
+The Docker fallback mounts the working directory at the image's `/work` and passes inputs inside
+it relative to it. Everything else it has to read is mounted read-only at `/host` followed by its
+host path, and results still come back under the names you passed:
+
+- an input, schema or config file outside the working directory, so a batch behaves as it does
+  with a local engine. An input that does not exist is passed on and reported as
+  `UNREADABLE_INPUT`;
+- an `opencgmes.jsonc` above the working directory, which is then passed as `--config` unless the
+  call names its own schema source, so a run from a subdirectory sees the same config a local
+  engine would;
+- the schema paths a config names, wherever they lead, so its relative paths work as they do on
+  the host. One that would land on a directory of the image itself (`../usr`, from a config in
+  the working directory) is refused.
+
+`CIMVOCABCHECK_DOCKER_IMAGE` pins a tag and `CIMVOCABCHECK_NO_DOCKER=1` takes it out of the chain.
+The first run pulls the image, and an `Endpoint` on `localhost` is then the *container's*
+localhost.
 
 ## Exceptions
 
@@ -141,6 +148,7 @@ image, and an `Endpoint` on `localhost` is then the *container's* localhost.
 | `ToolException` | the engine reported a usage/config failure (exit `2`), or failed outright |
 | `ReportParseException` | output was not a report of the contract major this package targets |
 | `EngineTimeoutException` | `Timeout` elapsed |
+| `UnreachablePathException` | a path the Docker engine cannot reach: a schema or config outside the working directory that does not exist, a Windows path a config names, or one that would land on a directory of the image itself |
 
 `ToolException` carries `Arguments`, `ExitCode`, `StandardOutput` and `StandardError`.
 

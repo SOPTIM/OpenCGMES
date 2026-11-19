@@ -44,6 +44,20 @@ public class CimVocabCheckException : Exception
 }
 
 /// <summary>
+/// A path lies where the engine cannot read it, such as a Windows path a config names for the
+/// Docker engine, or one that would land on a directory of the engine's own image.
+/// </summary>
+public sealed class UnreachablePathException : CimVocabCheckException
+{
+    /// <summary>Creates the exception.</summary>
+    /// <param name="message">Which path, and what to do about it.</param>
+    public UnreachablePathException(string message)
+        : base(message)
+    {
+    }
+}
+
+/// <summary>
 /// No CIMVocabCheck engine could be discovered.
 /// </summary>
 public sealed class EngineNotFoundException : CimVocabCheckException

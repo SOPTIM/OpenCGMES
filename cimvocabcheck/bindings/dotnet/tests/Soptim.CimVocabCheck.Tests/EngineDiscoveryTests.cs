@@ -395,7 +395,7 @@ public sealed class EngineDiscoveryTests
         Directory.CreateDirectory(project);
         var engine = new DockerEngine("cvc:test", "docker", project);
 
-        var error = Assert.Throws<CimVocabCheckException>(
+        var error = Assert.Throws<UnreachablePathException>(
             () => engine.ResolvePath(Path.Combine(directory.Path, "elsewhere", "q.rq"), null));
 
         Assert.Contains("outside the working directory", error.Message, StringComparison.Ordinal);
@@ -436,7 +436,7 @@ public sealed class EngineDiscoveryTests
         // Lexically inside, so it is passed through: Docker follows the link inside the container
         // and finds nothing, which the engine reports. Only a path no spelling puts inside is refused.
         Assert.Equal("escape/q.rq", engine.ResolvePath(Path.Combine(escape, "q.rq"), null));
-        Assert.Throws<CimVocabCheckException>(
+        Assert.Throws<UnreachablePathException>(
             () => engine.ResolvePath(Path.Combine(elsewhere, "q.rq"), null));
     }
 
@@ -602,6 +602,58 @@ public sealed class EngineDiscoveryTests
     }
 
     [Fact]
+    public void DockerMountsAnInputOutsideTheWorkingDirectory()
+    {
+        // As a local engine would read it: one input elsewhere must not cost the batch its results.
+        using var directory = new TempDir();
+        Directory.CreateDirectory(Path.Combine(directory.Path, "project"));
+        directory.Write("shared/q.rq", "");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "project"));
+        var mounts = new List<VolumeMount>();
+
+        var seen = engine.ResolveInput("../shared/q.rq", null, mounts);
+        var command = engine.BuildCommand(["--", seen], false, null, mounts);
+
+        var host = Path.Combine(directory.Path, "shared", "q.rq");
+        Assert.Equal(DockerEngine.ContainerPath(host), seen);
+        Assert.Contains($"{host}:{seen}:ro", command);
+        Assert.Equal("inside.rq", engine.ResolveInput("inside.rq", null, mounts));
+    }
+
+    [Fact]
+    public void DockerHandsAMissingInputToTheEngineToReport()
+    {
+        // The engine reports it as unreadable, as a local engine does; mounting it would make
+        // Docker create an empty directory in its place.
+        using var directory = new TempDir();
+        Directory.CreateDirectory(Path.Combine(directory.Path, "project"));
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "project"));
+        var mounts = new List<VolumeMount>();
+        var missing = Path.Combine(directory.Path, "nowhere", "q.rq");
+
+        var seen = engine.ResolveInput(missing, null, mounts);
+
+        Assert.Equal(DockerEngine.ContainerPath(missing), seen);
+        Assert.Empty(mounts);
+    }
+
+    [Fact]
+    public void DockerMountsAnInputOnlyOnceWhenAMountAlreadyShowsIt()
+    {
+        using var directory = new TempDir();
+        Directory.CreateDirectory(Path.Combine(directory.Path, "project"));
+        directory.Write("profiles/shapes.ttl", "");
+        var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "project"));
+        var mounts = new List<VolumeMount>();
+
+        engine.ResolveSchema("../profiles", null, mounts);
+        var seen = engine.ResolveInput("../profiles/shapes.ttl", null, mounts);
+
+        Assert.Single(mounts);
+        Assert.Equal(DockerEngine.ContainerPath(Path.Combine(directory.Path, "profiles", "shapes.ttl")), seen);
+    }
+
+    [Fact]
     public void DockerStillRefusesAMissingSchemaOutsideTheWorkingDirectory()
     {
         // Binding a path that does not exist makes Docker create an empty directory there.
@@ -610,7 +662,7 @@ public sealed class EngineDiscoveryTests
         var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "project"));
         var mounts = new List<VolumeMount>();
 
-        var error = Assert.Throws<CimVocabCheckException>(
+        var error = Assert.Throws<UnreachablePathException>(
             () => engine.ResolveSchema("../nowhere", null, mounts));
 
         Assert.Contains("outside the working directory", error.Message, StringComparison.Ordinal);
@@ -797,7 +849,7 @@ public sealed class EngineDiscoveryTests
         directory.Write("usr/a.rdf", "");
         var engine = new DockerEngine("cvc:test", "docker", Path.Combine(directory.Path, "proj"));
 
-        var error = Assert.Throws<CimVocabCheckException>(() => engine.BuildCommand(["--", "q.rq"], false, null));
+        var error = Assert.Throws<UnreachablePathException>(() => engine.BuildCommand(["--", "q.rq"], false, null));
 
         Assert.Contains("/usr", error.Message, StringComparison.Ordinal);
     }

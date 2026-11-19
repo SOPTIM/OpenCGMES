@@ -95,10 +95,18 @@ def test_the_shim_rewrites_every_spelling_of_an_option_value(tmp_path, docker, g
     assert engine_arguments(argv) == [f"{flag}{mirror}/opencgmes.jsonc", "q.rq"]
 
 
-def test_the_shim_refuses_an_input_outside_the_working_directory(tmp_path, docker, capsys):
+def test_the_shim_mounts_an_input_outside_the_working_directory(tmp_path, docker):
     (tmp_path / "elsewhere.rq").write_text("", encoding="utf-8")
 
-    code, argv = docker("../elsewhere.rq")
+    _, argv = docker("../elsewhere.rq")
+
+    host = (tmp_path / "elsewhere.rq").resolve()
+    assert f"{host}:{runtime.container_path(host)}:ro" in argv
+    assert engine_arguments(argv) == [runtime.container_path(host)]
+
+
+def test_the_shim_refuses_a_directory_to_write_outside_the_working_directory(docker, capsys):
+    code, argv = docker("init", "--dir", "..")
 
     assert code == 2
     assert argv is None

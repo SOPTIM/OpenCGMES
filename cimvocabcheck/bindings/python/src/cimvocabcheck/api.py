@@ -222,14 +222,16 @@ def _validate(
 ) -> Report:
     resolved = engine if isinstance(engine, Engine) else discover(engine, env=env, cwd=cwd)
     here = Path(cwd) if cwd is not None else None
-    engine_inputs = [resolved.resolve_path(path, here) for path in inputs]
     mounts: list[Mount] = []
+    schemas = [resolved.resolve_schema(path, here, mounts) for path in _as_paths(schema)]
+    engine_config = (
+        resolved.resolve_config(os.fspath(config), here, mounts) if config is not None else None
+    )
+    engine_inputs = [resolved.resolve_input(path, here, mounts) for path in inputs]
     args = build_args(
         engine_inputs,
-        schema=[resolved.resolve_schema(path, here, mounts) for path in _as_paths(schema)],
-        config=(
-            resolved.resolve_config(os.fspath(config), here, mounts) if config is not None else None
-        ),
+        schema=schemas,
+        config=engine_config,
         endpoint=endpoint,
         strict_endpoint=strict_endpoint,
         profiles=list(profiles),

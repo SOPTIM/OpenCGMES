@@ -108,7 +108,7 @@ environment names is not installed (`LANG=en_US.UTF-8` without the locale packag
 `LC_ALL=C.UTF-8`.
 
 The Docker fallback
-mounts the working directory at the image's `/work`, so inputs must live inside it — see the
+mounts the working directory at the image's `/work` and anything else it has to read under `/host` — see the
 [Python page](/cimvocabcheck/python#finding-an-engine) for the shared details, which are the same
 for every binding.
 
@@ -121,6 +121,7 @@ for every binding.
 | `Tool` | the engine reported a usage/config failure (exit `2`), or failed outright |
 | `ReportParse` | output was not a report of the contract major this crate targets |
 | `Timeout` | the engine did not finish in time |
+| `UnreachablePath` | a path the Docker engine cannot reach: a schema or config outside the working directory that does not exist, a Windows path a config names, or one that would land on a directory of the image itself |
 
 `Error::failure()` returns the command, exit code, stdout and stderr.
 

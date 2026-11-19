@@ -345,10 +345,6 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
     let engine = options.resolve_engine()?;
     let cwd = options.cwd.as_deref();
 
-    let mut resolved = Vec::with_capacity(inputs.len());
-    for input in inputs {
-        resolved.push(engine.resolve_path(input, cwd)?);
-    }
     let mut mounts = Vec::new();
     let mut effective = options.clone();
     effective.schema = options
@@ -368,6 +364,12 @@ fn run(inputs: &[String], stdin_text: Option<&str>, options: &Options) -> Result
         )?)),
         None => None,
     };
+    // After the schemas and the config, so an input inside a directory mounted for them is
+    // reached through that mount rather than mounted a second time.
+    let mut resolved = Vec::with_capacity(inputs.len());
+    for input in inputs {
+        resolved.push(engine.resolve_input(input, cwd, &mut mounts)?);
+    }
 
     let args = build_args(&resolved, &effective);
     let command = engine.command_with_mounts(&args, stdin_text.is_some(), cwd, &mounts)?;

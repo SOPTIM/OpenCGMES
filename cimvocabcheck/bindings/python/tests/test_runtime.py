@@ -631,6 +631,50 @@ def test_docker_mounts_schemas_outside_the_working_directory_where_the_host_has_
         assert f"{host}:{runtime.container_path(host)}:ro" in command
 
 
+def test_docker_mounts_an_input_outside_the_working_directory(tmp_path):
+    """As a local engine would read it: one input elsewhere must not cost the batch its results."""
+    (tmp_path / "project").mkdir()
+    (tmp_path / "shared").mkdir()
+    (tmp_path / "shared" / "q.rq").write_text("", encoding="utf-8")
+    engine = DockerEngine(docker="docker", cwd=tmp_path / "project")
+    mounts: list[runtime.Mount] = []
+
+    seen = engine.resolve_input("../shared/q.rq", None, mounts)
+    command = engine.command(["--", seen], mounts=mounts)
+
+    host = (tmp_path / "shared" / "q.rq").resolve()
+    assert seen == runtime.container_path(host)
+    assert f"{host}:{seen}:ro" in command
+    assert engine.resolve_input("inside.rq", None, mounts) == "inside.rq"
+
+
+def test_docker_hands_a_missing_input_to_the_engine_to_report(tmp_path):
+    """The engine reports it as unreadable, as a local engine does; mounting it would make Docker
+    create an empty directory in its place."""
+    (tmp_path / "project").mkdir()
+    engine = DockerEngine(docker="docker", cwd=tmp_path / "project")
+    mounts: list[runtime.Mount] = []
+
+    seen = engine.resolve_input(str(tmp_path / "nowhere" / "q.rq"), None, mounts)
+
+    assert seen == runtime.container_path(tmp_path / "nowhere" / "q.rq")
+    assert mounts == []
+
+
+def test_docker_mounts_an_input_only_once_when_a_mount_already_shows_it(tmp_path):
+    (tmp_path / "project").mkdir()
+    (tmp_path / "profiles").mkdir()
+    (tmp_path / "profiles" / "shapes.ttl").write_text("", encoding="utf-8")
+    engine = DockerEngine(docker="docker", cwd=tmp_path / "project")
+    mounts: list[runtime.Mount] = []
+
+    engine.resolve_schema("../profiles", None, mounts)
+    seen = engine.resolve_input("../profiles/shapes.ttl", None, mounts)
+
+    assert len(mounts) == 1
+    assert seen == runtime.container_path((tmp_path / "profiles" / "shapes.ttl").resolve())
+
+
 def test_docker_still_refuses_a_missing_schema_outside_the_working_directory(tmp_path):
     """Binding a path that does not exist makes Docker create an empty directory there."""
     (tmp_path / "project").mkdir()
