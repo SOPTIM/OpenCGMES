@@ -26,9 +26,11 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import importlib.metadata
 import json
 import os
 import posixpath
+import re
 import shutil
 import subprocess
 import uuid
@@ -41,8 +43,40 @@ from .errors import EngineNotFoundError, UnreachablePathError
 #: Executable the engine installs as, looked up on ``PATH``.
 BINARY_NAME = "cimvocabcheck"
 
-#: Image used by the Docker fallback; override with ``CIMVOCABCHECK_DOCKER_IMAGE``.
-DEFAULT_IMAGE = "ghcr.io/soptim/cimvocabcheck-cli:latest"
+#: Where the engine's container images are published.
+IMAGE_REPOSITORY = "ghcr.io/soptim/cimvocabcheck-cli"
+
+#: The image tag of the engine that is built from ``main``, which a development build tracks.
+EDGE_TAG = "edge"
+
+_RELEASE_VERSION = re.compile(r"(\d+\.\d+\.\d+)(?:rc(\d+))?")
+
+
+def image_tag_for(version: str) -> str:
+    """The engine image a binding of ``version`` runs: the engine it was released with.
+
+    Bindings share the engine's release train, so a release or release candidate has an image
+    of the same version (PEP 440 ``1.2.0rc1`` is the image's ``1.2.0-rc.1``). A development build
+    tracks ``main``, whose image is ``edge``. Never ``latest``: that would change the engine under
+    an unchanged binding, and one day hand it a contract major it cannot read.
+    """
+    release = _RELEASE_VERSION.fullmatch(version)
+    if release is None:
+        return EDGE_TAG
+    number, candidate = release.groups()
+    return number if candidate is None else f"{number}-rc.{candidate}"
+
+
+def _own_version() -> str:
+    try:
+        return importlib.metadata.version("cimvocabcheck")
+    except importlib.metadata.PackageNotFoundError:  # run from a source tree, not installed
+        return "0.0.0.dev0"
+
+
+#: Image used by the Docker fallback: the one matching this binding's version (see
+#: :func:`image_tag_for`); override with ``CIMVOCABCHECK_DOCKER_IMAGE``.
+DEFAULT_IMAGE = f"{IMAGE_REPOSITORY}:{image_tag_for(_own_version())}"
 
 #: Where the Docker fallback mounts the working directory — the image's own WORKDIR.
 CONTAINER_WORKDIR = "/work"

@@ -36,8 +36,46 @@ use crate::error::{Error, Result};
 /// Executable the engine installs as, looked up on `PATH`.
 pub const BINARY_NAME: &str = "cimvocabcheck";
 
-/// Image used by the Docker fallback; override with `CIMVOCABCHECK_DOCKER_IMAGE`.
-pub const DEFAULT_IMAGE: &str = "ghcr.io/soptim/cimvocabcheck-cli:latest";
+/// Where the engine's container images are published.
+pub const IMAGE_REPOSITORY: &str = "ghcr.io/soptim/cimvocabcheck-cli";
+
+/// The image tag of the engine that is built from `main`, which a development build tracks.
+pub const EDGE_TAG: &str = "edge";
+
+/// Image used by the Docker fallback: the one matching this crate's version (see
+/// [`image_tag_for`]); override with `CIMVOCABCHECK_DOCKER_IMAGE`.
+#[must_use]
+pub fn default_image() -> &'static str {
+    static IMAGE: OnceLock<String> = OnceLock::new();
+    IMAGE.get_or_init(|| {
+        format!(
+            "{IMAGE_REPOSITORY}:{}",
+            image_tag_for(env!("CARGO_PKG_VERSION"))
+        )
+    })
+}
+
+/// The engine image a crate of `version` runs: the engine it was released with.
+///
+/// The bindings share the engine's release train, so a release (`1.2.0`) or release candidate
+/// (`1.2.0-rc.1`) has an image of the same version. A development build (`1.2.1-dev`, or the
+/// unstamped `0.0.0` of a checkout) tracks `main`, whose image is [`EDGE_TAG`]. Never `latest`:
+/// that would change the engine under an unchanged crate, and one day hand it a contract major
+/// it cannot read.
+#[must_use]
+pub fn image_tag_for(version: &str) -> &str {
+    let (number, candidate) = match version.split_once("-rc.") {
+        Some((number, candidate)) => (number, Some(candidate)),
+        None => (version, None),
+    };
+    let numeric = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    let parts: Vec<&str> = number.split('.').collect();
+    let release = parts.len() == 3 && parts.iter().all(|part| numeric(part));
+    if !release || number == "0.0.0" || !candidate.map_or(true, numeric) {
+        return EDGE_TAG;
+    }
+    version
+}
 
 /// Where the Docker fallback mounts the working directory — the image's own `WORKDIR`.
 pub const CONTAINER_WORKDIR: &str = "/work";
@@ -1037,7 +1075,7 @@ pub fn discover(options: &Discovery) -> Result<Engine> {
 
     let image = get(ENV_IMAGE)
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| DEFAULT_IMAGE.to_owned());
+        .unwrap_or_else(|| default_image().to_owned());
     let disabled = options.no_docker || truthy(get(ENV_NO_DOCKER).as_deref());
     searched.push(format!(
         "the Docker image {image} ({})",
@@ -1220,6 +1258,32 @@ fn truthy(value: Option<&str>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_docker_image_matches_the_crates_own_version() {
+        for (version, tag) in [
+            ("1.2.0", "1.2.0"),
+            ("1.2.0-rc.1", "1.2.0-rc.1"),
+            ("1.2.0-rc.12", "1.2.0-rc.12"),
+            ("1.2.1-dev", EDGE_TAG),
+            ("0.0.0", EDGE_TAG),
+            ("1.2", EDGE_TAG),
+            ("1.2.0-rc.", EDGE_TAG),
+        ] {
+            assert_eq!(image_tag_for(version), tag, "{version}");
+        }
+    }
+
+    #[test]
+    fn the_default_image_is_the_one_for_this_crate() {
+        let expected = image_tag_for(env!("CARGO_PKG_VERSION"));
+
+        assert_eq!(
+            default_image().strip_prefix(&format!("{IMAGE_REPOSITORY}:")),
+            Some(expected)
+        );
+        assert!(!default_image().ends_with(":latest"));
+    }
 
     /// An environment, and the variable expected to be set to [`UTF8_LOCALE`].
     #[cfg(unix)]

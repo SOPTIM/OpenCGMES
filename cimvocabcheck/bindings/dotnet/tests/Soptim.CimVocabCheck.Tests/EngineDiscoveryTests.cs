@@ -14,6 +14,7 @@
 //
 //    SPDX-License-Identifier: Apache-2.0
 
+using System.Reflection;
 using static Soptim.CimVocabCheck.Tests.TestSupport;
 
 namespace Soptim.CimVocabCheck.Tests;
@@ -155,6 +156,28 @@ public sealed class EngineDiscoveryTests
             }));
 
         Assert.Contains("Python shim", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("1.2.0", "1.2.0")]
+    [InlineData("1.2.0-rc.1", "1.2.0-rc.1")]
+    [InlineData("1.2.0-rc.12", "1.2.0-rc.12")]
+    [InlineData("1.2.1-dev", Engine.EdgeTag)]
+    [InlineData("0.0.0", Engine.EdgeTag)]
+    [InlineData("1.2", Engine.EdgeTag)]
+    [InlineData("1.2.0-rc.", Engine.EdgeTag)]
+    public void TheDockerImageMatchesThePackagesOwnVersion(string version, string tag) =>
+        Assert.Equal(tag, Engine.ImageTagFor(version));
+
+    [Fact]
+    public void TheDefaultImageIsTheOneForThisPackage()
+    {
+        var version = typeof(Engine).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()!
+            .InformationalVersion.Split('+')[0];
+
+        Assert.Equal($"{Engine.ImageRepository}:{Engine.ImageTagFor(version)}", Engine.DefaultImage);
+        Assert.DoesNotContain(":latest", Engine.DefaultImage, StringComparison.Ordinal);
     }
 
     [Fact]

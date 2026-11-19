@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import os
 import posixpath
@@ -247,6 +248,28 @@ def test_docker_is_the_last_resort(tmp_path):
     assert isinstance(engine, DockerEngine)
     assert engine.docker == str(docker)
     assert engine.image == runtime.DEFAULT_IMAGE
+
+
+@pytest.mark.parametrize(
+    ("version", "tag"),
+    [
+        ("1.2.0", "1.2.0"),
+        ("1.2.0rc1", "1.2.0-rc.1"),
+        ("1.2.0rc12", "1.2.0-rc.12"),
+        ("1.2.1.dev0", "edge"),
+        ("0.0.0.dev0", "edge"),
+    ],
+)
+def test_the_docker_image_matches_the_bindings_own_version(version, tag):
+    """Never ``latest``: that changes the engine under an unchanged binding."""
+    assert runtime.image_tag_for(version) == tag
+
+
+def test_the_default_image_is_the_one_for_this_binding():
+    expected = runtime.image_tag_for(importlib.metadata.version("cimvocabcheck"))
+
+    assert runtime.DEFAULT_IMAGE.removeprefix(runtime.IMAGE_REPOSITORY + ":") == expected
+    assert not runtime.DEFAULT_IMAGE.endswith(":latest")
 
 
 def test_docker_can_be_switched_off(tmp_path):

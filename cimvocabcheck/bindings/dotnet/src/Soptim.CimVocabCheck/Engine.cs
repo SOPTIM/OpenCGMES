@@ -15,6 +15,7 @@
 //    SPDX-License-Identifier: Apache-2.0
 
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
@@ -33,8 +34,49 @@ public abstract class Engine
     /// <summary>Executable the engine installs as, looked up on <c>PATH</c>.</summary>
     public const string BinaryName = "cimvocabcheck";
 
-    /// <summary>Image used by the Docker fallback.</summary>
-    public const string DefaultImage = "ghcr.io/soptim/cimvocabcheck-cli:latest";
+    /// <summary>Where the engine's container images are published.</summary>
+    public const string ImageRepository = "ghcr.io/soptim/cimvocabcheck-cli";
+
+    /// <summary>The image tag of the engine built from <c>main</c>, which a development build tracks.</summary>
+    public const string EdgeTag = "edge";
+
+    /// <summary>
+    /// Image used by the Docker fallback: the one matching this package's version (see
+    /// <see cref="ImageTagFor"/>); override with <c>CIMVOCABCHECK_DOCKER_IMAGE</c>.
+    /// </summary>
+    public static string DefaultImage { get; } =
+        $"{ImageRepository}:{ImageTagFor(PackageVersion())}";
+
+    /// <summary>The engine image a package of <paramref name="version"/> runs: the engine it was released with.</summary>
+    /// <remarks>
+    /// The bindings share the engine's release train, so a release (<c>1.2.0</c>) or release
+    /// candidate (<c>1.2.0-rc.1</c>) has an image of the same version. A development build
+    /// (<c>1.2.1-dev</c>, or the unstamped <c>0.0.0</c> of a checkout) tracks <c>main</c>, whose
+    /// image is <see cref="EdgeTag"/>. Never <c>latest</c>: that would change the engine under an
+    /// unchanged package, and one day hand it a contract major it cannot read.
+    /// </remarks>
+    /// <param name="version">A package version, as NuGet spells it.</param>
+    /// <returns>The image tag.</returns>
+    public static string ImageTagFor(string version)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+        var separator = version.IndexOf("-rc.", StringComparison.Ordinal);
+        var number = separator < 0 ? version : version[..separator];
+        var parts = number.Split('.');
+        var release = parts.Length == 3 && parts.All(IsNumber) && number != "0.0.0";
+        var candidate = separator < 0 || IsNumber(version[(separator + 4)..]);
+        return release && candidate ? version : EdgeTag;
+
+        static bool IsNumber(string part) => part.Length > 0 && part.All(char.IsAsciiDigit);
+    }
+
+    /// <summary>This package's version, without the source revision the SDK appends.</summary>
+    private static string PackageVersion()
+    {
+        var informational = typeof(Engine).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        return informational?.Split('+')[0] ?? "0.0.0";
+    }
 
     /// <summary>Where the Docker fallback mounts the working directory.</summary>
     public const string ContainerWorkdir = "/work";

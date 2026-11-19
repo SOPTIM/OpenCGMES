@@ -112,7 +112,7 @@ filter, rather than discarding findings you cannot then recover.
 | 1 | `ValidationOptions.Engine` / `EnginePath` | an `Engine`, or a path to a JAR or binary |
 | 2 | `$CIMVOCABCHECK_JAR`, then `$CIMVOCABCHECK_BIN` | a fat JAR (run with `java`), or an executable |
 | 3 | `cimvocabcheck` on `PATH` | |
-| 4 | `docker run ghcr.io/soptim/cimvocabcheck-cli:latest` | last resort |
+| 4 | `docker run ghcr.io/soptim/cimvocabcheck-cli:<tag>` | last resort, with the engine image of the binding's own version: `:1.2.0` for 1.2.0, `:1.2.0-rc.1` for a release candidate, `:edge` (built from `main`) for a development build. Never `:latest`, which would change the engine under an unchanged binding |
 
 A JAR engine needs a **JRE 21 or newer**, found via `JAVA_HOME` or `PATH`.
 A local engine is never started under an ASCII-only locale: when the effective one (`LC_ALL`,

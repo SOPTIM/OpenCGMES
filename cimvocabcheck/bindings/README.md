@@ -53,6 +53,6 @@ meaningful on a machine with no JRE and authoritative on one with a built CLI. C
 `CIMVOCABCHECK_TESTS_REQUIRE_ENGINE=1`, which turns that skip into a failure, and points
 `CIMVOCABCHECK_JAR` at a freshly built fat JAR.
 
-Note that discovery can otherwise fall through to `ghcr.io/soptim/cimvocabcheck-cli:latest`,
-which is the *published* image and therefore lags this checkout; the suites probe the engine and
-skip rather than reporting a wall of contract failures.
+Note that discovery can otherwise fall through to the Docker image. From a checkout that is
+`ghcr.io/soptim/cimvocabcheck-cli:edge`, the image last built from `main`, which can lag this
+checkout; the suites probe the engine and skip rather than reporting a wall of contract failures.
