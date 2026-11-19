@@ -130,7 +130,10 @@ public sealed class ModelTests
         using var schema = JsonDocument.Parse(File.ReadAllText(path!));
 
         var published = schema.RootElement
-            .GetProperty("definitions").GetProperty("code").GetProperty("enum")
+            .GetProperty("definitions").GetProperty("code").GetProperty("anyOf")
+            .EnumerateArray()
+            .Single(branch => branch.TryGetProperty("enum", out _))
+            .GetProperty("enum")
             .EnumerateArray().Select(value => value.GetString()!).ToList();
 
         Assert.Equal(published, Code.All);

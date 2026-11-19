@@ -109,8 +109,12 @@ def test_known_codes_cover_the_published_enum():
         ).read_text(encoding="utf-8")
     )
 
-    assert set(Code.ALL) == set(schema["definitions"]["code"]["enum"])
-    assert set(Severity.ALL) == set(schema["definitions"]["severity"]["enum"])
+    def documented(definition: str) -> set[str]:
+        branches = schema["definitions"][definition]["anyOf"]
+        return {value for branch in branches for value in branch.get("enum", ())}
+
+    assert set(Code.ALL) == documented("code")
+    assert set(Severity.ALL) == documented("severity")
 
 
 def test_missing_required_field_names_where_it_was_missing():

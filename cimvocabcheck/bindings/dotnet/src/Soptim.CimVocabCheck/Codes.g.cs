@@ -46,7 +46,9 @@ public static class Contract
 }
 
 /// <summary>
-/// Severity after --strictness has been applied.
+/// Severity after --strictness has been applied. New severities are added in minor contract versions and are
+/// always less severe than ERROR, so consumers must treat an unrecognised severity as a non-blocking finding;
+/// a file's "valid" flag stays authoritative.
 /// </summary>
 /// <remarks>
 /// Constants rather than an enum: the contract adds members in minor versions and obliges a consumer to
@@ -76,6 +78,7 @@ public static class Severity
 /// Stable identifier of the rule that triggered — the key automation should switch on. The catalogue is
 /// documented at https://opencgmes.soptim.de/cimvocabcheck/validation-checks. New codes are added in minor
 /// contract versions, so consumers must treat an unrecognised code as a generic finding rather than an error.
+/// The list documents the codes known to this contract version; it does not close the set.
 /// </summary>
 /// <remarks>
 /// Constants rather than an enum: the contract adds members in minor versions and obliges a consumer to
@@ -94,6 +97,9 @@ public static class Code
 
     /// <summary>The <c>UNKNOWN_VOCABULARY_TERM</c> code.</summary>
     public const string UnknownVocabularyTerm = "UNKNOWN_VOCABULARY_TERM";
+
+    /// <summary>The <c>NON_STANDARD_HEADER_TERM</c> code.</summary>
+    public const string NonStandardHeaderTerm = "NON_STANDARD_HEADER_TERM";
 
     /// <summary>The <c>GRAPH_NOT_CONFIGURED</c> code.</summary>
     public const string GraphNotConfigured = "GRAPH_NOT_CONFIGURED";
@@ -121,6 +127,9 @@ public static class Code
 
     /// <summary>The <c>INVALID_CARDINALITY</c> code.</summary>
     public const string InvalidCardinality = "INVALID_CARDINALITY";
+
+    /// <summary>The <c>INVALID_CONSTRAINT_PARAMETER</c> code.</summary>
+    public const string InvalidConstraintParameter = "INVALID_CONSTRAINT_PARAMETER";
 
     /// <summary>The <c>INVALID_ENUM_VALUE</c> code.</summary>
     public const string InvalidEnumValue = "INVALID_ENUM_VALUE";
@@ -153,6 +162,7 @@ public static class Code
         UnknownClass,
         UnknownProperty,
         UnknownVocabularyTerm,
+        NonStandardHeaderTerm,
         GraphNotConfigured,
         UnsupportedDynamicProperty,
         QueryImpliedType,
@@ -162,6 +172,7 @@ public static class Code
         DatatypeIncompatibleWithRange,
         ClassIncompatibleWithRange,
         InvalidCardinality,
+        InvalidConstraintParameter,
         InvalidEnumValue,
         InvalidValueRange,
         UnknownTermInExpression,

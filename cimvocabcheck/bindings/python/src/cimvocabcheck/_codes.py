@@ -44,7 +44,10 @@ SCHEMA_ID = (
 
 
 class Severity:
-    """Severity after --strictness has been applied."""
+    """Severity after --strictness has been applied. New severities are added in minor contract
+    versions and are always less severe than ERROR, so consumers must treat an unrecognised
+    severity as a non-blocking finding; a file's "valid" flag stays authoritative.
+    """
 
     ERROR = "ERROR"
     WARN = "WARN"
@@ -61,13 +64,15 @@ class Code:
     """Stable identifier of the rule that triggered — the key automation should switch on. The
     catalogue is documented at https://opencgmes.soptim.de/cimvocabcheck/validation-checks.
     New codes are added in minor contract versions, so consumers must treat an unrecognised
-    code as a generic finding rather than an error.
+    code as a generic finding rather than an error. The list documents the codes known to this
+    contract version; it does not close the set.
     """
 
     SYNTAX_ERROR = "SYNTAX_ERROR"
     UNKNOWN_CLASS = "UNKNOWN_CLASS"
     UNKNOWN_PROPERTY = "UNKNOWN_PROPERTY"
     UNKNOWN_VOCABULARY_TERM = "UNKNOWN_VOCABULARY_TERM"
+    NON_STANDARD_HEADER_TERM = "NON_STANDARD_HEADER_TERM"
     GRAPH_NOT_CONFIGURED = "GRAPH_NOT_CONFIGURED"
     UNSUPPORTED_DYNAMIC_PROPERTY = "UNSUPPORTED_DYNAMIC_PROPERTY"
     QUERY_IMPLIED_TYPE = "QUERY_IMPLIED_TYPE"
@@ -77,6 +82,7 @@ class Code:
     DATATYPE_INCOMPATIBLE_WITH_RANGE = "DATATYPE_INCOMPATIBLE_WITH_RANGE"
     CLASS_INCOMPATIBLE_WITH_RANGE = "CLASS_INCOMPATIBLE_WITH_RANGE"
     INVALID_CARDINALITY = "INVALID_CARDINALITY"
+    INVALID_CONSTRAINT_PARAMETER = "INVALID_CONSTRAINT_PARAMETER"
     INVALID_ENUM_VALUE = "INVALID_ENUM_VALUE"
     INVALID_VALUE_RANGE = "INVALID_VALUE_RANGE"
     UNKNOWN_TERM_IN_EXPRESSION = "UNKNOWN_TERM_IN_EXPRESSION"
@@ -91,6 +97,7 @@ class Code:
         UNKNOWN_CLASS,
         UNKNOWN_PROPERTY,
         UNKNOWN_VOCABULARY_TERM,
+        NON_STANDARD_HEADER_TERM,
         GRAPH_NOT_CONFIGURED,
         UNSUPPORTED_DYNAMIC_PROPERTY,
         QUERY_IMPLIED_TYPE,
@@ -100,6 +107,7 @@ class Code:
         DATATYPE_INCOMPATIBLE_WITH_RANGE,
         CLASS_INCOMPATIBLE_WITH_RANGE,
         INVALID_CARDINALITY,
+        INVALID_CONSTRAINT_PARAMETER,
         INVALID_ENUM_VALUE,
         INVALID_VALUE_RANGE,
         UNKNOWN_TERM_IN_EXPRESSION,

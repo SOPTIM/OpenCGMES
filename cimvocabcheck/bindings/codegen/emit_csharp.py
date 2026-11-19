@@ -242,7 +242,7 @@ def _serializer_context(contract: Contract) -> list[str]:
         "",
         "/// <summary>",
         "/// Source-generated serialization metadata, so reading a report needs no reflection",
-        f"/// and the package stays trimming- and AOT-friendly. Rooted at <see cref=\"{root}\"/>;",
+        f'/// and the package stays trimming- and AOT-friendly. Rooted at <see cref="{root}"/>;',
         "/// the nested types come with it.",
         "/// </summary>",
         "[JsonSourceGenerationOptions(",

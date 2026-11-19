@@ -42,13 +42,16 @@ from ._ergonomics import AnnotationMixin, FileResultMixin, ReportMixin
 class Annotation(AnnotationMixin):
     """One finding. Position and term are present whenever the engine could resolve them."""
 
-    #: Severity after --strictness has been applied. See :class:`Severity` for the values known to
-    #: this binding.
+    #: Severity after --strictness has been applied. New severities are added in minor contract
+    #: versions and are always less severe than ERROR, so consumers must treat an unrecognised
+    #: severity as a non-blocking finding; a file's "valid" flag stays authoritative. See
+    #: :class:`Severity` for the values known to this binding.
     severity: str
     #: Stable identifier of the rule that triggered — the key automation should switch on. The
     #: catalogue is documented at https://opencgmes.soptim.de/cimvocabcheck/validation-checks. New
     #: codes are added in minor contract versions, so consumers must treat an unrecognised code as a
-    #: generic finding rather than an error. See :class:`Code` for the values known to this binding.
+    #: generic finding rather than an error. The list documents the codes known to this contract
+    #: version; it does not close the set. See :class:`Code` for the values known to this binding.
     code: str
     #: Human-readable rendering. Not stable across releases — key automation off "code", never off
     #: this text.
@@ -217,9 +220,11 @@ class Summary:
 class Report(ReportMixin):
     """The document CIMVocabCheck writes with --format json. This is the published integration
     contract: non-Java consumers generate their result types from this schema. Within contract
-    major version 1, fields, output formats and diagnostic codes are only ever ADDED — nothing
-    is renamed or removed — so a consumer must ignore properties and enum members it does not
-    know. Breaking changes require a new major (a new file,
+    major version 1, fields, output formats, rule codes and severities are only ever ADDED —
+    nothing is renamed or removed — so a consumer must ignore properties it does not know and
+    tolerate codes and severities it does not know. The "code" and "severity" lists below are
+    open: they document the values known to this version, and a report from a newer engine may
+    contain others. Breaking changes require a new major (a new file,
     cimvocabcheck-report-2.schema.json). The SARIF report (--format sarif) follows the OASIS
     SARIF 2.1.0 schema instead and is not described here.
     """

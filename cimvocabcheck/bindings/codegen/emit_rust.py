@@ -130,12 +130,12 @@ def rust_const(name: str, value: str) -> list[str]:
     return [f"    pub const {name}: &'static str =", f"        {value};"]
 
 
-def rust_array(declaration: str, items: list[str]) -> list[str]:
-    """Emits an array the way rustfmt would: inline while it fits, one item per line otherwise."""
-    one_line = f"    {declaration} = [{', '.join(items)}];"
+def rust_slice(declaration: str, items: list[str]) -> list[str]:
+    """Emits a slice the way rustfmt would: inline while it fits, one item per line otherwise."""
+    one_line = f"    {declaration} = &[{', '.join(items)}];"
     if len(one_line) <= LINE_LENGTH:
         return [one_line]
-    return [f"    {declaration} = ["] + [f"        {item}," for item in items] + ["    ];"]
+    return [f"    {declaration} = &["] + [f"        {item}," for item in items] + ["    ];"]
 
 
 def codes_module(contract: Contract) -> str:
@@ -167,9 +167,11 @@ def codes_module(contract: Contract) -> str:
             out.append(f"    /// The `{member}` {group.name.lower()}.")
             out += rust_const(member, literal(member))
         out.append("")
+        # A slice, not an array: an array's length is part of its type, so every added member
+        # would be a breaking change.
         out.append(f"    /// Every {group.name.lower()} this binding knows, in schema order.")
-        out += rust_array(
-            f"pub const ALL: [&'static str; {len(group.members)}]",
+        out += rust_slice(
+            "pub const ALL: &'static [&'static str]",
             [f"Self::{member}" for member in group.members],
         )
         out.append("}")
@@ -213,7 +215,7 @@ def _klass(klass: Klass) -> list[str]:
         attribute = field_attribute(f)
         # rename_all covers the ordinary case; say it explicitly when it would not round-trip.
         if camel(rust_name) != f.json_name:
-            rename = f'rename = {literal(f.json_name)}'
+            rename = f"rename = {literal(f.json_name)}"
             attribute = (
                 f"#[serde({rename})]"
                 if attribute is None

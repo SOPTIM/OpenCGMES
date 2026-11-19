@@ -120,9 +120,12 @@ fn known_codes_cover_the_published_enum() {
     };
     let schema: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
 
-    let published: Vec<&str> = schema["definitions"]["code"]["enum"]
+    let published: Vec<&str> = schema["definitions"]["code"]["anyOf"]
         .as_array()
         .unwrap()
+        .iter()
+        .find_map(|branch| branch["enum"].as_array())
+        .expect("the code list documents its known values in an enum branch")
         .iter()
         .map(|v| v.as_str().unwrap())
         .collect();

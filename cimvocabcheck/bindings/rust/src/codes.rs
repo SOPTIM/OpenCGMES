@@ -30,7 +30,9 @@ pub const SCHEMA_ID: &str = concat!(
     "cimvocabcheck-report-1.schema.json",
 );
 
-/// Severity after --strictness has been applied.
+/// Severity after --strictness has been applied. New severities are added in minor contract
+/// versions and are always less severe than ERROR, so consumers must treat an unrecognised severity
+/// as a non-blocking finding; a file's "valid" flag stays authoritative.
 /// Constants rather than an enum: the contract adds members in minor versions and obliges a
 /// consumer to tolerate one it does not know.
 pub struct Severity;
@@ -46,13 +48,14 @@ impl Severity {
     pub const INFO: &'static str = "INFO";
 
     /// Every severity this binding knows, in schema order.
-    pub const ALL: [&'static str; 3] = [Self::ERROR, Self::WARN, Self::INFO];
+    pub const ALL: &'static [&'static str] = &[Self::ERROR, Self::WARN, Self::INFO];
 }
 
 /// Stable identifier of the rule that triggered — the key automation should switch on. The
 /// catalogue is documented at <https://opencgmes.soptim.de/cimvocabcheck/validation-checks>. New
 /// codes are added in minor contract versions, so consumers must treat an unrecognised code as a
-/// generic finding rather than an error.
+/// generic finding rather than an error. The list documents the codes known to this contract
+/// version; it does not close the set.
 /// Constants rather than an enum: the contract adds members in minor versions and obliges a
 /// consumer to tolerate one it does not know.
 pub struct Code;
@@ -69,6 +72,9 @@ impl Code {
 
     /// The `UNKNOWN_VOCABULARY_TERM` code.
     pub const UNKNOWN_VOCABULARY_TERM: &'static str = "UNKNOWN_VOCABULARY_TERM";
+
+    /// The `NON_STANDARD_HEADER_TERM` code.
+    pub const NON_STANDARD_HEADER_TERM: &'static str = "NON_STANDARD_HEADER_TERM";
 
     /// The `GRAPH_NOT_CONFIGURED` code.
     pub const GRAPH_NOT_CONFIGURED: &'static str = "GRAPH_NOT_CONFIGURED";
@@ -97,6 +103,9 @@ impl Code {
     /// The `INVALID_CARDINALITY` code.
     pub const INVALID_CARDINALITY: &'static str = "INVALID_CARDINALITY";
 
+    /// The `INVALID_CONSTRAINT_PARAMETER` code.
+    pub const INVALID_CONSTRAINT_PARAMETER: &'static str = "INVALID_CONSTRAINT_PARAMETER";
+
     /// The `INVALID_ENUM_VALUE` code.
     pub const INVALID_ENUM_VALUE: &'static str = "INVALID_ENUM_VALUE";
 
@@ -123,11 +132,12 @@ impl Code {
     pub const UNREADABLE_INPUT: &'static str = "UNREADABLE_INPUT";
 
     /// Every code this binding knows, in schema order.
-    pub const ALL: [&'static str; 21] = [
+    pub const ALL: &'static [&'static str] = &[
         Self::SYNTAX_ERROR,
         Self::UNKNOWN_CLASS,
         Self::UNKNOWN_PROPERTY,
         Self::UNKNOWN_VOCABULARY_TERM,
+        Self::NON_STANDARD_HEADER_TERM,
         Self::GRAPH_NOT_CONFIGURED,
         Self::UNSUPPORTED_DYNAMIC_PROPERTY,
         Self::QUERY_IMPLIED_TYPE,
@@ -137,6 +147,7 @@ impl Code {
         Self::DATATYPE_INCOMPATIBLE_WITH_RANGE,
         Self::CLASS_INCOMPATIBLE_WITH_RANGE,
         Self::INVALID_CARDINALITY,
+        Self::INVALID_CONSTRAINT_PARAMETER,
         Self::INVALID_ENUM_VALUE,
         Self::INVALID_VALUE_RANGE,
         Self::UNKNOWN_TERM_IN_EXPRESSION,

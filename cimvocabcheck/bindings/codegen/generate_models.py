@@ -78,7 +78,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    contract = contract_ir.load(args.schema)
+    try:
+        contract = contract_ir.load(args.schema)
+    except contract_ir.SchemaError as e:
+        print(f"error: {args.schema}: {e}", file=sys.stderr)
+        return 2
     targets = args.target or sorted(TARGETS)
 
     stale: list[str] = []

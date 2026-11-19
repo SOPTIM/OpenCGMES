@@ -19,9 +19,23 @@ contract rather than an implementation detail.
 
 All of them are written to **stdout** — redirect them to a file. A one-line human summary goes to
 stderr so a CI log still shows the outcome, and the [exit code](/cimvocabcheck/cli#exit-codes)
-(`0` clean, `1` findings, `2` usage error) is unchanged by the format.
+(`0` clean, `1` findings, `2` usage, configuration or internal error — no report) is unchanged by
+the format.
 
 ## The JSON report
+
+A query that looks for state-variable data in a graph [scoped](/cimvocabcheck/configuration#namedgraphs)
+to the Equipment profile, with the CGMES 3.0 Equipment and StateVariables profiles loaded:
+
+```sparql title="queries/voltages.rq"
+PREFIX cim: <http://iec.ch/TC57/CIM100#>
+SELECT ?voltage WHERE {
+  GRAPH <urn:uuid:equipment> { ?voltage a cim:SvVoltage }
+}
+```
+
+`cim:SvVoltage` is spelled correctly but belongs to StateVariables, so the finding carries the
+profile it does exist in:
 
 ```json
 {
@@ -30,17 +44,18 @@ stderr so a CI log still shows the outcome, and the [exit code](/cimvocabcheck/c
   "summary": { "files": 1, "valid": 0, "invalid": 1, "errors": 1, "warnings": 0, "infos": 0 },
   "results": [
     {
-      "file": "queries/line-segments.rq",
+      "file": "queries/voltages.rq",
       "valid": false,
       "annotations": [
         {
           "severity": "ERROR",
           "code": "UNKNOWN_CLASS",
           "line": 3,
-          "column": 12,
-          "term": "http://iec.ch/TC57/CIM100#ACLineSegmentt",
-          "message": "Class <...> does not exist in profile [Equipment].",
-          "foundInOtherProfiles": ["http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0"]
+          "column": 43,
+          "term": "http://iec.ch/TC57/CIM100#SvVoltage",
+          "graph": "urn:uuid:equipment",
+          "message": "Class <http://iec.ch/TC57/CIM100#SvVoltage> does not exist in graph <urn:uuid:equipment> / selected profile [CoreEquipment-EU/3.0]. Exists in profile [StateVariables-EU/3.0].",
+          "foundInOtherProfiles": ["http://iec.ch/TC57/ns/CIM/StateVariables-EU/3.0"]
         }
       ]
     }
@@ -56,10 +71,10 @@ stderr so a CI log still shows the outcome, and the [exit code](/cimvocabcheck/c
 | `summary.errors` / `warnings` / `infos` | Finding counts **for this document** — i.e. after the `--verbose` filter, so they always account for exactly what `results` contains |
 | `results[].file` | The input as passed on the command line, or `<stdin>` for stdin — invoke with repository-relative paths |
 | `results[].valid` | Decided before filtering, so it does not change with `--verbose` |
-| `annotations[].severity` | `ERROR`, `WARN`, `INFO`, after strictness |
+| `annotations[].severity` | `ERROR`, `WARN`, `INFO`, after strictness; tolerate others (see [Compatibility](#compatibility)) |
 | `annotations[].code` | The [rule code](/cimvocabcheck/validation-checks) — key automation off this, never off `message` |
 | `annotations[].line` / `column` | 1-based, when resolvable; columns count UTF-16 code units. Findings inside embedded SPARQL point at their line in the Turtle source |
-| `annotations[].term` | The offending IRI, when the finding is about one term |
+| `annotations[].term` | The offending IRI, when the finding is about one term. Reported verbatim, so it may contain non-ASCII characters (`cim:Übertrager`): an IRI, not necessarily a URI |
 | `annotations[].graph` | Named graph the finding occurred in, under [per-graph scoping](/cimvocabcheck/configuration#namedgraphs) |
 | `annotations[].message` | Human-readable; **not** stable across releases |
 | `annotations[].foundInOtherProfiles` | For `UNKNOWN_CLASS`/`UNKNOWN_PROPERTY`: profiles where the term *does* exist — the "wrong profile in scope" hint — in IRI order |
@@ -73,14 +88,21 @@ The report is published as a JSON Schema (draft-07) at
 Generate your binding's result types from it rather than hand-writing them; the file name carries
 the contract **major**, so a future incompatible contract arrives as a new file next to this one.
 
+The `code` and `severity` lists are **open**: each is an `anyOf` of the values known to this
+version and a plain string. A report from a newer 1.x engine therefore still validates, and a
+generator that follows the schema produces a string with documented values, not a closed enum
+that would reject the next new code. CIMVocabCheck's own test suite validates the CLI's real
+output against this file.
+
 ## Compatibility
 
 | Change | Contract bump | Consumer obligation |
 | --- | --- | --- |
 | New optional field | minor | Ignore unknown fields |
 | New [rule code](/cimvocabcheck/validation-checks) | minor | Treat an unrecognised code as a generic finding — never as an error |
+| New severity, always less severe than `ERROR` | minor | Treat an unrecognised severity as non-blocking; `valid` and the exit code stay authoritative |
 | New output format | minor | — |
-| Rename/remove a field, rename a code, change what a code means | **major** | New schema file, announced in the release notes |
+| Rename/remove a field, rename a code, change what a code means, a severity that blocks like `ERROR` | **major** | New schema file, announced in the release notes |
 
 A consumer should accept any report whose `contractVersion` major matches the one it was written
 against. Message texts and the *set* of findings can change in any release — that is the tool
@@ -131,8 +153,8 @@ other language:
 - **Batch.** Loading a CGMES profile set costs about a second; validating a query after that costs
   almost nothing. Pass every input to one invocation instead of spawning per file.
 - **Pass argv, not a shell string** — paths contain spaces.
-- **Treat exit code `2` as a tool/config failure**, not as "invalid input": stdout holds no report
-  in that case.
+- **Treat exit code `2` as a usage, configuration or internal failure**, not as "invalid input":
+  stdout holds no report in that case.
 - **Pin the contract, not the wording.** Switch on `code`, tolerate codes you do not know, and
   ignore fields you do not know.
 - **Generate the result type from the schema** rather than hand-writing it, and regenerate on every

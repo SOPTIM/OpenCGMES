@@ -165,6 +165,17 @@ jobs:
         working-directory: .
         run: python3 cimvocabcheck/bindings/codegen/generate_models.py --check
 
+      # --check only proves today's schema; these feed the generator schema changes and
+      # constructs it must refuse rather than mis-generate.
+      - name: Test the model generator
+        working-directory: .
+        run: python3 -m unittest discover -s cimvocabcheck/bindings/codegen/tests -v
+
+      - name: Lint the model generator
+        run: |
+          ruff check --config pyproject.toml ../codegen
+          ruff format --config pyproject.toml --check ../codegen
+
       - name: Test against a real engine
         env:
           CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
