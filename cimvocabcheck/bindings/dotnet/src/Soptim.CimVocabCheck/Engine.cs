@@ -333,7 +333,7 @@ public abstract class Engine
         }
 
         searched.Add($"'{BinaryName}' on PATH");
-        var onPath = Which(BinaryName, options);
+        var onPath = OnPath(BinaryName, options).FirstOrDefault(candidate => !IsPythonShim(candidate));
         if (onPath is not null)
         {
             return new BinaryEngine(onPath);
@@ -390,12 +390,75 @@ public abstract class Engine
         // Checked against this process's directory, so pinned to it: the engine may run in another.
         path = System.IO.Path.GetFullPath(path);
 
-        return Path.GetExtension(path).Equals(".jar", StringComparison.OrdinalIgnoreCase)
-            ? new JarEngine(path, FindJava(options))
-            : new BinaryEngine(path);
+        if (Path.GetExtension(path).Equals(".jar", StringComparison.OrdinalIgnoreCase))
+        {
+            return new JarEngine(path, FindJava(options));
+        }
+
+        if (IsPythonShim(path))
+        {
+            throw new EngineNotFoundException(
+                $"{origin} points at {path}, which is the cimvocabcheck Python shim, not an engine. "
+                + "Point it at the engine's own launcher or native binary.");
+        }
+
+        return new BinaryEngine(path);
     }
 
-    private static string? Which(string name, EngineDiscovery options)
+    /// <summary>
+    /// Text every copy of the Python binding's console script carries: pip and uv write it into
+    /// the generated script, and on Windows into the zip appended to the launcher <c>.exe</c>.
+    /// No engine contains it.
+    /// </summary>
+    private static readonly byte[] PythonShimMarker = "cimvocabcheck.__main__"u8.ToArray();
+
+    /// <summary>How much of each end of a candidate is searched for the marker.</summary>
+    private const int ShimScanBytes = 64 * 1024;
+
+    /// <summary>
+    /// Whether <paramref name="path"/> is the Python binding's <c>cimvocabcheck</c> console script
+    /// rather than an engine.
+    /// </summary>
+    /// <remarks>
+    /// That script is on <c>PATH</c> wherever the Python package is installed, and it runs a
+    /// discovery of its own: taking it for the engine would rewrite result paths for Docker behind
+    /// this package's back, and leave its container running when a timeout kills only the script.
+    /// Recognised by content, as the Python binding does, because the directories it is installed
+    /// into are where engines get installed too. Both ends are read because a Windows launcher
+    /// carries its script in a zip appended to the executable.
+    /// </remarks>
+    private static bool IsPythonShim(string path)
+    {
+        try
+        {
+            using var file = File.OpenRead(path);
+            var head = new byte[(int)Math.Min(ShimScanBytes, file.Length)];
+            file.ReadExactly(head);
+            if (head.AsSpan().IndexOf(PythonShimMarker) >= 0)
+            {
+                return true;
+            }
+
+            var start = Math.Max(head.Length, file.Length - ShimScanBytes);
+            var tail = new byte[file.Length - start];
+            file.Seek(start, SeekOrigin.Begin);
+            file.ReadExactly(tail);
+            return tail.AsSpan().IndexOf(PythonShimMarker) >= 0;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static string? Which(string name, EngineDiscovery options) =>
+        OnPath(name, options).FirstOrDefault();
+
+    /// <summary>
+    /// Every <c>PATH</c> entry holding a file called <paramref name="name"/>, the first match per
+    /// directory. On Windows the usual executable extensions are tried first, as <c>cmd</c> does.
+    /// </summary>
+    private static IEnumerable<string> OnPath(string name, EngineDiscovery options)
     {
         var pathVariable = options.GetEnvironmentVariable("PATH") ?? string.Empty;
         var extensions = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -409,17 +472,14 @@ public abstract class Engine
                 continue;
             }
 
-            foreach (var extension in extensions)
+            var found = extensions
+                .Select(extension => Path.Combine(directory, name + extension))
+                .FirstOrDefault(File.Exists);
+            if (found is not null)
             {
-                var candidate = Path.Combine(directory, name + extension);
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
+                yield return found;
             }
         }
-
-        return null;
     }
 
     private static bool Truthy(string? value) =>

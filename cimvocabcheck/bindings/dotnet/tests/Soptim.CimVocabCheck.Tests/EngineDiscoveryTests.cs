@@ -75,6 +75,88 @@ public sealed class EngineDiscoveryTests
         Assert.Equal(binary, Assert.IsType<BinaryEngine>(engine).Path);
     }
 
+    /// <summary>A copy of the Python binding's console script, as pip and uv generate it.</summary>
+    private static string PythonShim(TempDir directory, string where)
+    {
+        directory.Write(
+            System.IO.Path.Combine(where, Engine.BinaryName),
+            "#!/usr/bin/python3\nimport sys\nfrom cimvocabcheck.__main__ import main\nsys.exit(main())\n");
+        return System.IO.Path.Combine(directory.Path, where, Engine.BinaryName);
+    }
+
+    [Fact]
+    public void ThePythonBindingsConsoleScriptIsNeverTakenForTheEngine()
+    {
+        // It runs a discovery of its own: results would come back under the names it rewrote for
+        // Docker, and a timeout would kill the script but not the container it started.
+        using var directory = new TempDir();
+        var shim = PythonShim(directory, "venv");
+
+        Assert.Throws<EngineNotFoundException>(
+            () => Engine.Discover(new EngineDiscovery
+            {
+                Environment = new Dictionary<string, string> { ["PATH"] = System.IO.Path.GetDirectoryName(shim)! },
+                NoDocker = true,
+            }));
+    }
+
+    [Fact]
+    public void AConsoleScriptIsSkippedButAnEngineAfterItIsFound()
+    {
+        using var directory = new TempDir();
+        var shim = PythonShim(directory, "venv");
+        directory.Write(System.IO.Path.Combine("opt", Engine.BinaryName), "#!/bin/sh\nexit 0\n");
+        var binary = System.IO.Path.Combine(directory.Path, "opt", Engine.BinaryName);
+        var path = string.Join(
+            System.IO.Path.PathSeparator,
+            System.IO.Path.GetDirectoryName(shim),
+            System.IO.Path.GetDirectoryName(binary));
+
+        var engine = Engine.Discover(new EngineDiscovery
+        {
+            Environment = new Dictionary<string, string> { ["PATH"] = path },
+            NoDocker = true,
+        });
+
+        Assert.Equal(binary, Assert.IsType<BinaryEngine>(engine).Path);
+    }
+
+    [Fact]
+    public void AWindowsLauncherIsRecognisedByTheScriptAppendedToIt()
+    {
+        using var directory = new TempDir();
+        var launcher = new byte[256 * 1024]
+            .Concat("PK\u0003\u0004__main__.py from cimvocabcheck.__main__ import main"u8.ToArray())
+            .ToArray();
+        File.WriteAllBytes(System.IO.Path.Combine(directory.Path, Engine.BinaryName), launcher);
+
+        Assert.Throws<EngineNotFoundException>(
+            () => Engine.Discover(new EngineDiscovery
+            {
+                Environment = new Dictionary<string, string> { ["PATH"] = directory.Path },
+                NoDocker = true,
+            }));
+    }
+
+    [Fact]
+    public void AnEngineVariablePointingAtThePythonShimIsRefused()
+    {
+        using var directory = new TempDir();
+        var shim = PythonShim(directory, "venv");
+
+        var error = Assert.Throws<EngineNotFoundException>(
+            () => Engine.Discover(new EngineDiscovery
+            {
+                Environment = new Dictionary<string, string>
+                {
+                    ["PATH"] = string.Empty,
+                    [Engine.BinaryVariable] = shim,
+                },
+            }));
+
+        Assert.Contains("Python shim", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DockerIsTheLastResort()
     {
