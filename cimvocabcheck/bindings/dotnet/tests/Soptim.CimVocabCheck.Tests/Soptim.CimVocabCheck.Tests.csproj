@@ -5,7 +5,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!--
+        Every framework the package targets: each build compiles against its own framework's
+        libraries (System.Text.Json among them), so passing on one says nothing about the other.
+    -->
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <!-- Test fixtures name themselves; the documentation gate is for the shipped package. -->
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

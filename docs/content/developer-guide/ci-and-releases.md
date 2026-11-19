@@ -57,7 +57,8 @@ graph TD
 ### CIMVocabCheck CI (`cimvocabcheck-ci.yml`)
 - **lint** — compiler-warnings-as-errors, then Spotless/Checkstyle/SpotBugs/PMD (no tests, for fast feedback).
 - **build-test** — checks out **submodules recursively** and runs `mvn -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am clean verify` (which also builds cimxml). This is the authoritative run, including the ENTSO-E integration tests and coverage gates.
-- **python-binding** / **rust-binding** / **dotnet-binding** — each builds the CLI fat JAR and runs that binding's suite against it with `CIMVOCABCHECK_TESTS_REQUIRE_ENGINE=1`, so an engine-backed suite cannot silently start skipping. They also lint, type-check, verify the generated model still matches the schema, and dry-run the package build.
+- **cli-jar** — builds the CLI fat JAR once and hands it to the three binding jobs as an artifact.
+- **python-binding** / **rust-binding** / **dotnet-binding** — each runs that binding's suite against the CLI fat JAR with `CIMVOCABCHECK_TESTS_REQUIRE_ENGINE=1`, so an engine-backed suite cannot silently start skipping, on **Linux and Windows**. The .NET tests run on every framework the package targets (`net8.0` and `net10.0`). On Linux they also lint, type-check, verify the generated model still matches the schema, test the model generator, check the oldest supported Python and Rust, and dry-run the package build.
 - **sbom** — regenerates the Maven SBOM and enforces the license allow-list + drift check (see below).
 - **publish-snapshot** — on push to `main`, installs cimxml locally then deploys **`cimvocabcheck-core`** as a `-SNAPSHOT` to GitHub Packages. (The CLI and LSP are fat-JAR tools and are not deployed to registries.)
 - **publish-edge-image** — on push to `main`, calls the reusable `docker-publish.yml` to build and push `ghcr.io/<owner>/cimvocabcheck-cli:edge`, so there is always a fresh schema-less CLI image to test against.
