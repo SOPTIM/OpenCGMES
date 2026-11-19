@@ -136,7 +136,9 @@ override usable in CI — a hint you deliberately turned down to `info` would ot
 the build under `pedantic`, and a check you pinned to `error` would vanish under `permissive`.
 
 An unknown code or severity is a configuration error: the CLI reports it and exits, and the
-language server logs a warning and ignores the whole `rules` block.
+language server logs a warning and ignores the whole `rules` block. The same goes for the two
+[input failures](/cimvocabcheck/validation-checks#input-failures), `UNREADABLE_INPUT` and
+`ENGINE_FAILURE`: they report an input that was not validated, which always fails.
 
 ### `namedGraphs`
 

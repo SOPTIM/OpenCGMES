@@ -77,7 +77,7 @@ Schema resolution mirrors the editors: `--config`/`--schema`/`--endpoint`, else 
 | Code | Meaning |
 | --- | --- |
 | `0` | Valid — no errors |
-| `1` | Validation found errors — including an input that could not be read, which is reported as an `UNREADABLE_INPUT` error on that file while the other inputs are still validated |
+| `1` | Validation found errors — including an input that could not be read or that the engine failed on, which is reported as an [input failure](/cimvocabcheck/validation-checks#input-failures) on that file while the other inputs are still validated |
 | `2` | Usage, configuration or internal error — no report was produced (e.g. `--strict-endpoint` with no schema graphs) |
 
 This makes it a drop-in CI gate:

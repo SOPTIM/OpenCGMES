@@ -13,8 +13,9 @@ This is the **canonical catalogue** of the diagnostic codes CIMVocabCheck emits.
 Each finding carries a **severity** (`ERROR`, `WARN`, `INFO`), a **code**, a human-readable
 **message**, and — where resolvable — a **line/column** and the offending **term**. How severities
 map to pass/fail is controlled by [`strictness`](/cimvocabcheck/configuration#strictness); the
-severity of an individual code can be overridden (or the code switched off) with
-[`rules`](/cimvocabcheck/configuration#rules).
+severity of an individual check can be overridden (or the check switched off) with
+[`rules`](/cimvocabcheck/configuration#rules). The two [input failures](#input-failures) are the
+exception: they say an input was not validated at all, and no setting changes that.
 
 The codes are a published contract: new ones are only ever added, never renamed or repurposed, and
 they are enumerated in the machine-readable [report contract](/cimvocabcheck/report-contract).
@@ -47,7 +48,9 @@ message text, which changes freely between releases.
 | `CARDINALITY_INCOMPATIBLE_WITH_MULTIPLICITY` | WARN | SHACL | `sh:minCount`/`sh:maxCount` cannot be satisfied given the property's declared CIM `cims:multiplicity` |
 | `PROJECTED_VARIABLE_UNBOUND` | WARN | Variables | A `SELECT`/`DESCRIBE`/`CONSTRUCT`-template variable appears nowhere in the query body |
 | `UNUSED_VARIABLE` | WARN | Variables | A variable bound in a triple pattern, `BIND`, or `VALUES` is never used anywhere else |
-| `UNREADABLE_INPUT` | ERROR | Input | An input file could not be read (missing, unreadable, or a name the platform cannot encode); the other inputs are still validated |
+
+Plus the two [input failures](#input-failures), `UNREADABLE_INPUT` and `ENGINE_FAILURE`, which are
+not checks.
 
 :::note The "exists in another profile" hint
 When a class or property does not exist in the *selected* profiles but **does** exist in another
@@ -267,6 +270,31 @@ closed-namespace *typo* in class position (e.g. `sh:Fooo`) or in a `sh:path` (e.
 is still reported, as `UNKNOWN_VOCABULARY_TERM`. Embedded SPARQL (`sh:sparql`, `sh:target`,
 `sh:validator`, `sh:rule`) is extracted and validated with the full SPARQL check set; its findings
 are mapped back to positions in the Turtle source.
+
+## Input failures
+
+Every code above is a finding **about an input's content**. These two say instead that **an input
+was not validated at all**, so the CLI reported nothing about its content:
+
+| Code | Triggers when |
+| --- | --- |
+| `UNREADABLE_INPUT` | An input file could not be read: it is missing or unreadable, or its name cannot be encoded on this platform |
+| `ENGINE_FAILURE` | CIMVocabCheck failed while validating the input. That is a bug in the tool, not in the input; stderr names the file and carries the stack trace to report |
+
+They behave differently from the checks:
+
+- **They are always `ERROR`**, so the input is invalid and the run exits `1`. A file that was never
+  checked must not pass a CI gate. [`strictness`](/cimvocabcheck/configuration#strictness) does not
+  change that, `permissive` included.
+- **They cannot be configured.** Naming one in [`rules`](/cimvocabcheck/configuration#rules) is a
+  configuration error, not a silent no-op.
+- **They are the only finding that input gets.** It has no position and no term.
+- **The rest of the batch is unaffected.** Every other input is still validated and reported,
+  which matters when one call validates a whole project, as the language bindings do.
+
+They appear in every report format like any other finding, so they show up in GitLab Code Quality
+and GitHub code scanning too. Automation that only needs to know whether an input was validated can
+check for these two codes.
 
 ## See also
 

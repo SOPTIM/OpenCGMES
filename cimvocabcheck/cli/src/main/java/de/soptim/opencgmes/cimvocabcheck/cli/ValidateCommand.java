@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
@@ -402,11 +403,37 @@ public class ValidateCommand implements Callable<Integer> {
         results.add(unreadable(source, e));
         continue;
       }
+      String read = text;
       results.add(
-          inSourceOrder(
-              validateOne(schema, api, namedGraphScope, severities, input, source, text)));
+          guarded(
+              source,
+              () ->
+                  inSourceOrder(
+                      validateOne(schema, api, namedGraphScope, severities, input, source, read))));
     }
     return results;
+  }
+
+  /**
+   * Runs one input's validation, turning a crash into an {@code ENGINE_FAILURE} result for that
+   * input. The bindings pass a whole batch to one call, so an input that trips a bug must not cost
+   * every other input its result. stderr names the input and carries the stack trace, so the bug
+   * can be reported with the file that caused it.
+   */
+  @SuppressWarnings("PMD.AvoidCatchingGenericException")
+  static FileResult guarded(String source, Supplier<FileResult> validation) {
+    try {
+      return validation.get();
+    } catch (RuntimeException | StackOverflowError e) {
+      System.err.println("Error: internal failure while validating " + source + ": " + e);
+      e.printStackTrace(System.err);
+      return notValidated(
+          source,
+          SparqlValidationCode.ENGINE_FAILURE,
+          "Internal error while validating this input: "
+              + e
+              + ". This is a bug in CIMVocabCheck; please report it.");
+    }
   }
 
   /**
@@ -428,24 +455,21 @@ public class ValidateCommand implements Callable<Integer> {
         r.source(), r.valid(), r.annotations().stream().sorted(SOURCE_ORDER).toList());
   }
 
-  /**
-   * The result for an input that could not be read. Not subject to the severity policy: a file that
-   * was never checked must not pass a gate because a strictness level hides its findings.
-   */
   private static FileResult unreadable(String source, IOException e) {
     String reason =
         e instanceof NoSuchFileException ? "no such file" : String.valueOf(e.getMessage());
+    return notValidated(
+        source, SparqlValidationCode.UNREADABLE_INPUT, "Cannot read input: " + reason);
+  }
+
+  /**
+   * The result for an input that was not validated. Not subject to the severity policy: a file that
+   * was never checked must not pass a gate because a strictness level hides its findings.
+   */
+  private static FileResult notValidated(String source, SparqlValidationCode code, String message) {
     var annotation =
         new SparqlValidationAnnotation(
-            SparqlValidationSeverity.ERROR,
-            null,
-            null,
-            "Cannot read input: " + reason,
-            SparqlValidationCode.UNREADABLE_INPUT,
-            null,
-            null,
-            null,
-            null);
+            SparqlValidationSeverity.ERROR, null, null, message, code, null, null, null, null);
     return new FileResult(source, false, List.of(annotation));
   }
 

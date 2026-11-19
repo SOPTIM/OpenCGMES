@@ -155,6 +155,9 @@ public static class Code
     /// <summary>The <c>UNREADABLE_INPUT</c> code.</summary>
     public const string UnreadableInput = "UNREADABLE_INPUT";
 
+    /// <summary>The <c>ENGINE_FAILURE</c> code.</summary>
+    public const string EngineFailure = "ENGINE_FAILURE";
+
     /// <summary>Every code this binding knows, in schema order.</summary>
     public static readonly IReadOnlyList<string> All =
     [
@@ -181,5 +184,6 @@ public static class Code
         ProjectedVariableUnbound,
         UnusedVariable,
         UnreadableInput,
+        EngineFailure,
     ];
 }

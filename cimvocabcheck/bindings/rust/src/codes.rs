@@ -131,6 +131,9 @@ impl Code {
     /// The `UNREADABLE_INPUT` code.
     pub const UNREADABLE_INPUT: &'static str = "UNREADABLE_INPUT";
 
+    /// The `ENGINE_FAILURE` code.
+    pub const ENGINE_FAILURE: &'static str = "ENGINE_FAILURE";
+
     /// Every code this binding knows, in schema order.
     pub const ALL: &'static [&'static str] = &[
         Self::SYNTAX_ERROR,
@@ -156,5 +159,6 @@ impl Code {
         Self::PROJECTED_VARIABLE_UNBOUND,
         Self::UNUSED_VARIABLE,
         Self::UNREADABLE_INPUT,
+        Self::ENGINE_FAILURE,
     ];
 }

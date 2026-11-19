@@ -24,6 +24,10 @@ import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import de.soptim.opencgmes.cimvocabcheck.cli.output.FileResult;
+import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationAnnotation;
+import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationCode;
+import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -143,6 +147,71 @@ public class ValidateCommandTest {
     String missing = tmp.getRoot().toPath().resolve("missing.rq").toString();
 
     assertEquals(1, exitOf("--config", config.toString(), "--strictness", "permissive", missing));
+  }
+
+  @Test
+  public void aRuleForAnInputFailureIsAConfigurationError() throws Exception {
+    Path config =
+        write(
+            "opencgmes.jsonc", "{\"cimvocabcheck\": {\"rules\": {\"UNREADABLE_INPUT\": \"off\"}}}");
+    String missing = tmp.getRoot().toPath().resolve("missing.rq").toString();
+
+    assertEquals(2, exitOf("--config", config.toString(), missing));
+    assertTrue(
+        runCapturingStderr("--config", config.toString(), missing)
+            .contains("'UNREADABLE_INPUT' cannot be set in 'rules'"));
+  }
+
+  @Test
+  public void aCrashOnOneInputIsReportedOnThatInput() {
+    PrintStream originalErr = System.err;
+    var errors = new ByteArrayOutputStream();
+    System.setErr(new PrintStream(errors, true, StandardCharsets.UTF_8));
+    FileResult result;
+    try {
+      result =
+          ValidateCommand.guarded(
+              "queries/q.rq",
+              () -> {
+                throw new IllegalStateException("boom");
+              });
+    } finally {
+      System.setErr(originalErr);
+    }
+
+    assertFalse(result.valid());
+    assertEquals("queries/q.rq", result.source());
+    SparqlValidationAnnotation finding = result.annotations().get(0);
+    assertEquals(SparqlValidationCode.ENGINE_FAILURE, finding.code());
+    assertEquals(SparqlValidationSeverity.ERROR, finding.severity());
+    assertTrue(finding.message(), finding.message().contains("boom"));
+    String stderr = errors.toString(StandardCharsets.UTF_8);
+    assertTrue("stderr names the input: " + stderr, stderr.contains("queries/q.rq"));
+  }
+
+  @Test
+  public void aQueryTooDeepForTheParserDoesNotCostTheRestOfTheBatch() throws Exception {
+    Path config = write("opencgmes.jsonc", "{\"cimvocabcheck\": {}}");
+    int depth = 50_000;
+    Path deep =
+        write(
+            "deep.rq",
+            "SELECT * WHERE { ?s ?p ?o FILTER("
+                + "(".repeat(depth)
+                + "?o"
+                + ")".repeat(depth)
+                + ") }");
+    Path clean = write("clean.rq", "SELECT * WHERE { ?s ?p ?o }");
+    String[] args = {
+      "--config", config.toString(), "--format", "json", deep.toString(), clean.toString()
+    };
+
+    JsonNode results = new ObjectMapper().readTree(run(args)).path("results");
+
+    assertEquals(1, exitOf(args));
+    assertEquals(2, results.size());
+    assertEquals("SYNTAX_ERROR", results.get(0).path("annotations").get(0).path("code").asText());
+    assertTrue("the next input is still validated", results.get(1).path("valid").asBoolean());
   }
 
   // ---- syntax-only SPARQL, valid input, output formats ------------------------------------

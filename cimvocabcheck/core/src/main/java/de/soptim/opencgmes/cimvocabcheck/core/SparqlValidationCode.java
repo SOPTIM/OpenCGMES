@@ -120,7 +120,23 @@ public enum SparqlValidationCode {
   /**
    * An input could not be read at all — it does not exist, is not readable, or its name cannot be
    * represented in the platform's file name encoding. Reported against that input alone, so one bad
-   * path does not cost the rest of a batch its results.
+   * path does not cost the rest of a batch its results. An {@linkplain #isInputFailure() input
+   * failure}.
    */
-  UNREADABLE_INPUT
+  UNREADABLE_INPUT,
+  /**
+   * The engine failed while validating an input — a bug in CIMVocabCheck, not a problem in the
+   * input. Reported against that input alone, like {@link #UNREADABLE_INPUT}, so the rest of a
+   * batch still gets its results. An {@linkplain #isInputFailure() input failure}.
+   */
+  ENGINE_FAILURE;
+
+  /**
+   * Whether this code says an input was <em>not validated</em>, rather than something about its
+   * content. Such a finding is always an error and is exempt from {@code rules} and strictness: an
+   * input that was never checked must not pass a gate because a severity setting hides it.
+   */
+  public boolean isInputFailure() {
+    return this == UNREADABLE_INPUT || this == ENGINE_FAILURE;
+  }
 }
