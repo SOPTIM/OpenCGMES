@@ -24,6 +24,11 @@ import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.networknt.schema.ExecutionContext;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationCode;
 import de.soptim.opencgmes.cimvocabcheck.core.SparqlValidationSeverity;
 import java.io.ByteArrayOutputStream;
@@ -36,6 +41,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,10 +51,11 @@ import picocli.CommandLine;
 
 /**
  * Pins the machine-readable report contract that non-Java consumers bind to: the JSON document's
- * envelope and self-consistency, the SARIF log's shape, and the published JSON Schema staying in
- * step with the codes the engine can actually emit.
+ * envelope and self-consistency, the real output against the published JSON Schema, the SARIF log's
+ * shape, and the schema staying in step with the codes the engine can actually emit.
  *
- * <p>Every fixture runs against an empty config, i.e. in syntax-only mode, so the contract is
+ * <p>Most fixtures run against an empty config, i.e. in syntax-only mode. The fields that only a
+ * loaded schema produces come from two one-class profiles written by the test, so the contract is
  * exercised without depending on a profile library being present.
  */
 public class ReportContractTest {
@@ -70,6 +77,25 @@ public class ReportContractTest {
 
   /** Clean in syntax-only mode — every variable is projected. */
   private static final String CLEAN_QUERY = "SELECT * WHERE { ?s ?p ?o }";
+
+  /**
+   * Two profiles of one class each. A query that scopes a graph to the first and uses the second's
+   * classes gets UNKNOWN_CLASS findings that name the graph and the profile the class is in. The
+   * second class has a non-ASCII name, as CIM extensions do; its IRI is not a valid URI.
+   */
+  private static final String EQ_PROFILE = profile("EQ", "Breaker");
+
+  private static final String SV_PROFILE = profile("SV", "SvVoltage", "Übertrager");
+
+  private static final String EQ_GRAPH = "http://example.org/graph/eq";
+
+  private static final String WRONG_PROFILE_QUERY =
+      "PREFIX cim: <http://iec.ch/TC57/CIM100#>\n"
+          + "SELECT * WHERE {\n"
+          + "  GRAPH <"
+          + EQ_GRAPH
+          + "> { ?v a cim:SvVoltage . ?t a cim:Übertrager }\n"
+          + "}\n";
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -132,7 +158,55 @@ public class ReportContractTest {
         report.path("results").get(0).path("valid").asBoolean());
   }
 
+  @Test
+  public void aClassFromAnotherProfileNamesThatProfileAndTheGraph() throws Exception {
+    JsonNode report = MAPPER.readTree(runWithProfiles(write("q.rq", WRONG_PROFILE_QUERY)));
+
+    List<JsonNode> annotations = annotationsOf(report);
+    JsonNode finding =
+        annotations.stream()
+            .filter(a -> a.path("term").asText().endsWith("#SvVoltage"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no finding for cim:SvVoltage: " + report));
+
+    assertEquals("UNKNOWN_CLASS", finding.path("code").asText());
+    assertEquals(EQ_GRAPH, finding.path("graph").asText());
+    assertEquals(
+        "the hint names the profile the class does exist in",
+        List.of("http://example.org/SV/1.0"),
+        MAPPER.convertValue(finding.path("foundInOtherProfiles"), List.class));
+  }
+
   // ---- published JSON Schema ---------------------------------------------------------------
+
+  /**
+   * What the CLI writes is checked against the schema the bindings are generated from, formats
+   * included. A field renamed in {@code JsonFormatter} would otherwise leave every build green and
+   * every binding silently reading nothing.
+   */
+  @Test
+  public void everyJsonReportTheCliWritesMatchesThePublishedSchema() throws Exception {
+    Path broken = write("broken.rq", BROKEN_QUERY);
+    Path warning = write("warning.rq", WARNING_QUERY);
+    Path clean = write("clean.rq", CLEAN_QUERY);
+    Path missing = tmp.getRoot().toPath().resolve("missing.rq");
+
+    assertMatchesSchema(run("--format", "json", broken, warning, clean));
+    assertMatchesSchema(run("--format", "json", "--verbose", broken, warning, clean, missing));
+    assertMatchesSchema(run("--format", "json", "--strictness", "pedantic", "--verbose", warning));
+    assertMatchesSchema(runWithProfiles(write("wrong-profile.rq", WRONG_PROFILE_QUERY)));
+  }
+
+  @Test
+  public void theSchemaCheckRejectsAReportThatBreaksTheContract() throws Exception {
+    JsonNode report = MAPPER.readTree(runWithProfiles(write("q.rq", WRONG_PROFILE_QUERY)));
+    var annotation = (ObjectNode) annotationsOf(report).getFirst();
+    annotation.remove("message");
+
+    assertFalse(
+        "a report missing a required field must not pass",
+        reportSchema().validate(report, ASSERT_FORMATS).isEmpty());
+  }
 
   @Test
   public void publishedSchemaEnumeratesExactlyTheCodesTheEngineCanEmit() throws Exception {
@@ -232,6 +306,69 @@ public class ReportContractTest {
 
   // ---- helpers -----------------------------------------------------------------------------
 
+  /** Draft-07 treats {@code format} as an annotation unless asked; the contract means it. */
+  private static final Consumer<ExecutionContext> ASSERT_FORMATS =
+      context -> context.executionConfig(config -> config.formatAssertionsEnabled(true));
+
+  private static Schema reportSchema() throws Exception {
+    return SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7)
+        .getSchema(Files.readString(schemaFile(), StandardCharsets.UTF_8));
+  }
+
+  private static void assertMatchesSchema(String json) throws Exception {
+    var errors = reportSchema().validate(MAPPER.readTree(json), ASSERT_FORMATS);
+    assertTrue(
+        "the report must match the published schema: " + errors + "\n" + json, errors.isEmpty());
+  }
+
+  /** A CIM profile the schema loader accepts, declaring {@code classes} in the CIM100 namespace. */
+  private static String profile(String keyword, String... classes) {
+    var rdf =
+        new StringBuilder(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\""
+                + " xmlns:cim=\"http://iec.ch/TC57/CIM100#\""
+                + " xmlns:dcat=\"http://www.w3.org/ns/dcat#\">\n"
+                + "  <rdf:Description rdf:about=\"http://example.org/"
+                + keyword
+                + "#Ontology\">\n"
+                + "    <rdf:type rdf:resource=\"http://www.w3.org/2002/07/owl#Ontology\"/>\n"
+                + "    <dcat:keyword>"
+                + keyword
+                + "</dcat:keyword>\n"
+                + "    <owl:versionIRI xmlns:owl=\"http://www.w3.org/2002/07/owl#\""
+                + " rdf:resource=\"http://example.org/"
+                + keyword
+                + "/1.0\"/>\n"
+                + "  </rdf:Description>\n");
+    for (String name : classes) {
+      rdf.append("  <rdf:Description rdf:about=\"http://iec.ch/TC57/CIM100#")
+          .append(name)
+          .append("\">\n")
+          .append("    <rdf:type rdf:resource=\"http://www.w3.org/2000/01/rdf-schema#Class\"/>\n")
+          .append("  </rdf:Description>\n");
+    }
+    return rdf.append("</rdf:RDF>\n").toString();
+  }
+
+  /** Runs the CLI against both profiles, with the EQ graph scoped to the EQ profile. */
+  private String runWithProfiles(Object... args) throws Exception {
+    Path project = tmp.newFolder().toPath();
+    Files.createDirectory(project.resolve("profiles"));
+    Files.writeString(project.resolve("profiles/eq.rdf"), EQ_PROFILE, StandardCharsets.UTF_8);
+    Files.writeString(project.resolve("profiles/sv.rdf"), SV_PROFILE, StandardCharsets.UTF_8);
+    Path profileConfig =
+        Files.writeString(
+            project.resolve("opencgmes.jsonc"),
+            "{\"cimvocabcheck\": {\"schemasDirectory\": \"profiles\", \"namedGraphs\": {\""
+                + EQ_GRAPH
+                + "\": [\"http://example.org/EQ/1.0\"]}}}",
+            StandardCharsets.UTF_8);
+    var argv = new ArrayList<Object>(List.of("--format", "json", "--verbose"));
+    argv.addAll(List.of(args));
+    return runWith(profileConfig, argv.toArray());
+  }
+
   private static List<JsonNode> annotationsOf(JsonNode report) {
     var annotations = new ArrayList<JsonNode>();
     for (JsonNode result : report.path("results")) {
@@ -249,9 +386,20 @@ public class ReportContractTest {
     return Arrays.stream(values).map(Enum::name).collect(Collectors.toCollection(TreeSet::new));
   }
 
+  /**
+   * The values an open list documents: the {@code enum} branch of {@code anyOf: [{enum}, {type:
+   * string}]}. Fails if the list is closed, since a closed list rejects every report a newer engine
+   * writes.
+   */
   private static Set<String> enumValues(JsonNode schema, String definition) {
+    JsonNode branches = schema.path("definitions").path(definition).path("anyOf");
     var values = new TreeSet<String>();
-    schema.path("definitions").path(definition).path("enum").forEach(v -> values.add(v.asText()));
+    boolean open = false;
+    for (JsonNode branch : branches) {
+      branch.path("enum").forEach(v -> values.add(v.asText()));
+      open |= branch.size() == 1 && "string".equals(branch.path("type").asText());
+    }
+    assertTrue(definition + " must accept values it does not list: " + branches, open);
     return values;
   }
 
@@ -275,7 +423,11 @@ public class ReportContractTest {
 
   /** Runs the CLI against the empty config; {@code Path} arguments are passed as their path. */
   private String run(Object... args) {
-    var argv = new ArrayList<String>(List.of("--config", config.toString()));
+    return runWith(config, args);
+  }
+
+  private static String runWith(Path configFile, Object... args) {
+    var argv = new ArrayList<String>(List.of("--config", configFile.toString()));
     Arrays.stream(args).map(String::valueOf).forEach(argv::add);
 
     PrintStream originalOut = System.out;

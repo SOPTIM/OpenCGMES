@@ -54,6 +54,7 @@
         <ver.slf4j>2.0.20</ver.slf4j>
         <ver.log4j2>2.26.1</ver.log4j2>
         <ver.junit4>4.13.2</ver.junit4>
+        <ver.json-schema-validator>2.0.8</ver.json-schema-validator>
 
         <ver.plugin.compiler>3.16.0</ver.plugin.compiler>
         <ver.plugin.surefire>3.6.1</ver.plugin.surefire>
@@ -122,6 +123,13 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${ver.junit4}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Checks the real JSON report against the published contract schema -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>${ver.json-schema-validator}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
