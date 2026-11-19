@@ -144,6 +144,13 @@ Repeated findings with the same file, code and term are told apart by their orde
 the file. Every report lists a file's findings in source order — by line, then column — so that
 order is the same on every run over the same input.
 
+:::note Upgrading from 1.2 or earlier
+Up to CIMVocabCheck 1.2, Code Quality fingerprints included the line and column. The first
+pipeline after upgrading therefore shows every existing finding as resolved and reported again,
+once; from then on they stay stable across edits above them. SARIF output is new since then, so
+it is not affected.
+:::
+
 ## Writing a binding
 
 There are three already — [Python](/cimvocabcheck/python), [.NET](/cimvocabcheck/dotnet) and
