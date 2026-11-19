@@ -90,13 +90,28 @@ impl TempDir {
     }
 
     /// Writes an executable that behaves like an engine, for tests that must not need a JVM.
-    #[cfg(unix)]
+    ///
+    /// It is a shell script, so only Unix can run it. Elsewhere it is still a file of that name,
+    /// which is all that discovery looks for; tests that run it are Unix-only.
     pub fn script(&self, name: &str, body: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
         let path = self.0.join(name);
         fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("write the script");
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("make it executable");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
+                .expect("make it executable");
+        }
         path
+    }
+
+    /// A copy of the Python binding's console script, as pip and uv generate it.
+    pub fn python_shim(&self, directory: &str) -> PathBuf {
+        fs::create_dir_all(self.0.join(directory)).expect("create the script directory");
+        self.script(
+            &format!("{directory}/cimvocabcheck"),
+            "import sys\nfrom cimvocabcheck.__main__ import main\nsys.exit(main())",
+        )
     }
 }
 

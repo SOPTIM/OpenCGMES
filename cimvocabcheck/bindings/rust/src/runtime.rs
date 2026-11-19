@@ -1031,7 +1031,7 @@ pub fn discover(options: &Discovery) -> Result<Engine> {
     }
 
     searched.push(format!("{BINARY_NAME:?} on PATH"));
-    if let Some(path) = which(BINARY_NAME, &path_var) {
+    if let Some(path) = on_path(BINARY_NAME, &path_var).find(|path| !is_python_shim(path)) {
         return Ok(Engine::Binary { path });
     }
 
@@ -1089,9 +1089,69 @@ fn engine_for_path(
             java: find_java(get)?,
         });
     }
+    if is_python_shim(path) {
+        return Err(Error::EngineNotFound {
+            message: format!(
+                "{origin} points at {}, which is the cimvocabcheck Python shim, not an engine. \
+                 Point it at the engine's own launcher or native binary.",
+                path.display()
+            ),
+            searched: Vec::new(),
+        });
+    }
     Ok(Engine::Binary {
         path: path.to_path_buf(),
     })
+}
+
+/// Text every copy of the Python binding's console script carries: pip and uv write it into the
+/// generated script, and on Windows into the zip appended to the launcher `.exe`. No engine
+/// contains it.
+const PYTHON_SHIM_MARKER: &[u8] = b"cimvocabcheck.__main__";
+
+/// How much of each end of a candidate is searched for [`PYTHON_SHIM_MARKER`].
+const SHIM_SCAN_BYTES: u64 = 64 * 1024;
+
+/// Whether `path` is the Python binding's `cimvocabcheck` console script rather than an engine.
+///
+/// That script is on `PATH` wherever the Python package is installed, and it runs a discovery of
+/// its own: taking it for the engine would rewrite result paths for Docker behind this crate's
+/// back and leave its container running when a timeout kills only the script. Recognised by
+/// content, as the Python binding does, because the directories it is installed into are where
+/// engines get installed too. Both ends are read because a Windows launcher carries its script in
+/// a zip appended to the executable.
+fn is_python_shim(path: &Path) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut head = Vec::new();
+    if file
+        .by_ref()
+        .take(SHIM_SCAN_BYTES)
+        .read_to_end(&mut head)
+        .is_err()
+    {
+        return false;
+    }
+    if contains(&head, PYTHON_SHIM_MARKER) {
+        return true;
+    }
+    let Ok(size) = file.seek(SeekFrom::End(0)) else {
+        return false;
+    };
+    let start = size.saturating_sub(SHIM_SCAN_BYTES).max(head.len() as u64);
+    let mut tail = Vec::new();
+    file.seek(SeekFrom::Start(start)).is_ok()
+        && file.read_to_end(&mut tail).is_ok()
+        && contains(&tail, PYTHON_SHIM_MARKER)
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
 }
 
 /// Locates a Java launcher for the JAR engines: `JAVA_HOME` first, then `PATH`.
@@ -1115,19 +1175,24 @@ pub(crate) fn find_java(get: &impl Fn(&str) -> Option<String>) -> Result<PathBuf
 ///
 /// On Windows the name is tried with the usual executable extensions first, as `cmd` does.
 fn which(name: &str, path_var: &str) -> Option<PathBuf> {
-    let extensions: &[&str] = if cfg!(windows) {
+    on_path(name, path_var).next()
+}
+
+/// Every entry of `path_var` holding an executable called `name`, the first match per directory.
+fn on_path<'a>(name: &'a str, path_var: &'a str) -> impl Iterator<Item = PathBuf> + 'a {
+    let extensions: &'static [&'static str] = if cfg!(windows) {
         &[".exe", ".cmd", ".bat", ""]
     } else {
         &[""]
     };
     env::split_paths(path_var)
         .filter(|directory| !directory.as_os_str().is_empty())
-        .flat_map(|directory| {
+        .filter_map(move |directory| {
             extensions
                 .iter()
-                .map(move |extension| directory.join(format!("{name}{extension}")))
+                .map(|extension| directory.join(format!("{name}{extension}")))
+                .find(|candidate| is_executable(candidate))
         })
-        .find(|candidate| is_executable(candidate))
 }
 
 #[cfg(unix)]
@@ -1157,9 +1222,11 @@ mod tests {
     use super::*;
 
     /// An environment, and the variable expected to be set to [`UTF8_LOCALE`].
+    #[cfg(unix)]
     type LocaleCase<'a> = (&'a [(&'a str, &'a str)], Option<&'a str>);
 
     /// What `locale -a` lists on a machine with one locale beyond the built-in ones.
+    #[cfg(unix)]
     fn installed() -> BTreeSet<String> {
         ["C", "C.utf8", "POSIX", "en_US.utf8"]
             .iter()
@@ -1167,6 +1234,7 @@ mod tests {
             .collect()
     }
 
+    #[cfg(unix)]
     fn vars(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs
             .iter()

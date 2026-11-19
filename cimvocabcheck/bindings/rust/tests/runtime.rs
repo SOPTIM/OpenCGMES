@@ -78,6 +78,65 @@ fn an_engine_on_path_is_used_when_the_environment_is_silent() {
 }
 
 #[test]
+fn the_python_bindings_console_script_is_never_taken_for_the_engine() {
+    // It runs a discovery of its own: results would come back under the names it rewrote for
+    // Docker, and a timeout would kill the script but not the container it started.
+    let dir = TempDir::new();
+    let scripts = dir.python_shim("venv");
+
+    let error = discover(&Discovery::new().no_docker(true).env(env(&[(
+        "PATH",
+        scripts.parent().unwrap().to_str().unwrap(),
+    )])))
+    .expect_err("the shim is not an engine");
+
+    assert!(matches!(error, Error::EngineNotFound { .. }), "{error}");
+}
+
+#[test]
+fn a_console_script_is_skipped_but_an_engine_after_it_is_found() {
+    let dir = TempDir::new();
+    let scripts = dir.python_shim("venv");
+    std::fs::create_dir(dir.path().join("opt")).unwrap();
+    let binary = dir.script("opt/cimvocabcheck", "exit 0");
+    let path = std::env::join_paths([scripts.parent().unwrap(), binary.parent().unwrap()]).unwrap();
+
+    let engine = discover(&Discovery::new().env(env(&[("PATH", path.to_str().unwrap())])))
+        .expect("the engine after the shim");
+
+    assert_eq!(engine, Engine::binary(binary));
+}
+
+#[test]
+fn a_windows_launcher_is_recognised_by_the_script_appended_to_it() {
+    let dir = TempDir::new();
+    let mut launcher = vec![0u8; 256 * 1024];
+    launcher.extend_from_slice(b"PK\x03\x04__main__.py from cimvocabcheck.__main__ import main");
+    let path = dir.script("cimvocabcheck", "");
+    std::fs::write(&path, launcher).unwrap();
+
+    let error = discover(
+        &Discovery::new()
+            .no_docker(true)
+            .env(env(&[("PATH", dir.path().to_str().unwrap())])),
+    )
+    .expect_err("the launcher is the shim, not an engine");
+
+    assert!(matches!(error, Error::EngineNotFound { .. }), "{error}");
+}
+
+#[test]
+fn an_engine_variable_pointing_at_the_python_shim_is_refused() {
+    let dir = TempDir::new();
+    let shim = dir.python_shim("venv");
+
+    let error = discover(&Discovery::new().env(env(&[(ENV_BIN, shim.to_str().unwrap())])))
+        .expect_err("the shim is not an engine");
+
+    assert!(error.to_string().contains("Python shim"), "{error}");
+}
+
+#[test]
 fn docker_is_the_last_resort() {
     let dir = TempDir::new();
     let docker = dir.script("docker", "exit 0");
@@ -427,6 +486,7 @@ fn an_input_named_like_a_flag_does_not_suppress_the_config() {
     assert!(command.contains(&format!("{}/opencgmes.jsonc", container_path(dir.path()))));
 }
 
+#[cfg(unix)]
 type LocaleCase<'a> = (&'a [(&'a str, &'a str)], Option<&'a str>);
 
 #[cfg(unix)]
