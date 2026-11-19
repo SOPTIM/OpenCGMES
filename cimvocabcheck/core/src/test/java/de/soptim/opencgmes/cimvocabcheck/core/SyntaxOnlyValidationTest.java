@@ -54,6 +54,20 @@ public class SyntaxOnlyValidationTest {
   }
 
   @Test
+  public void aQueryNestedTooDeeplyForTheParserIsASyntaxErrorNotACrash() {
+    int depth = 50_000;
+    String query =
+        "SELECT * WHERE { ?s ?p ?o FILTER(" + "(".repeat(depth) + "?o" + ")".repeat(depth) + ") }";
+
+    var result = SparqlValidationApi.checkSyntaxOnly(query);
+
+    assertEquals(1, result.annotations().size());
+    var annotation = result.annotations().get(0);
+    assertEquals(SparqlValidationCode.SYNTAX_ERROR, annotation.code());
+    assertTrue(annotation.message(), annotation.message().contains("nested too deeply"));
+  }
+
+  @Test
   public void builtInPrefixesAreNotMisreportedAsSyntaxErrors() {
     // cim: is a built-in default prefix; using it without an explicit PREFIX line must not
     // be flagged as a syntax error by the fallback.
