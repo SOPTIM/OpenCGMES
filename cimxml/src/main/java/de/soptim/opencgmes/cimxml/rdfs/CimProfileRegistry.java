@@ -139,6 +139,29 @@ public interface CimProfileRegistry {
   Map<Node, PropertyInfo> getHeaderPropertiesAndDatatypes(String cimNamespace);
 
   /**
+   * Get all types, including classes, primitives, enums, and CimDatatypes for the given set of
+   * profile IRIs. The set may contain profile IRIs for multiple ontologies. Throws an
+   * IllegalArgumentException if one of the profile IRIs is not registered.
+   *
+   * @param owlVersionIris A set of profile IRIs as found in the model header.
+   * @return A map of types and their associated TypeInfos. The map is thread-safe for
+   *     reading. Returns an empty map if one of the profile IRIs is not registered.
+   */
+  Map<Node, TypeInfo> getTypeInfoMap(Set<Node> owlVersionIris);
+
+  /**
+   * Get all types, including classes, primitives, enums, and CimDatatypes for the given set of
+   * profile IRIs. The set may contain profile IRIs for multiple ontologies. Throws an
+   * IllegalArgumentException if no header profile has been registered for the given CIM version.
+   *
+   * @param cimNamespace The 'cim' namespace for which the header profile should be used.
+   * @return A map of types and their associated TypeInfos. The map is thread-safe for
+   *     reading. Returns an empty map if no header profile is registered for the given 'cim'
+   *     namespace.
+   */
+  Map<Node, TypeInfo> getHeaderTypeInfoMap(String cimNamespace);
+
+  /**
    * Get a mapping of primitive type names to RDF datatypes for all registered profiles. This
    * includes primitive types from all registered ontologies.
    *
@@ -186,6 +209,36 @@ public interface CimProfileRegistry {
    */
   record PropertyInfo(Node rdfType, Node property, Node cimDatatype, RDFDatatype primitiveType,
                       Node referenceType) {
+
+  }
+
+  /**
+   * Information about a CIM type.
+   *
+   * <p>This record encapsulates all metadata needed to properly parse and validate
+   * a CIM type:</p>
+   *
+   * <ul>
+   *   <li><b>classUri</b>: The class URI</li>
+   *   <li><b>superClass</b>: The class this type derives from (if any)</li>
+   *   <li><b>isConcrete</b>: Whether the type is concrete (instantiable)</li>
+   *   <li><b>isDescription</b>: Whether the type is stereotyped with "Description",
+   *   i.e. adds information to a type defined in another profile</li>
+   *   <li><b>isEnum</b>: Whether the type is an enum</li>
+   *   <li><b>isCimDatatype</b>: Whether the type is a CIMDatatype</li>
+   *   <li><b>isPrimitive</b>: Whether the type is a Primitive</li>
+   * </ul>
+   *
+   * @param classUri      The class uri
+   * @param superClass    The class this type derives from (may be null)
+   * @param isConcrete    Whether the type is concrete
+   * @param isDescription Whether the type is stereotyped with "Description"
+   * @param isEnum        Whether the type is an enum
+   * @param isCimDatatype Whether the type is a CIMDatatype
+   * @param isPrimitive   Whether the type is a Primitive
+   */
+  record TypeInfo(Node classUri, Node superClass, boolean isConcrete, boolean isDescription,
+                  boolean isEnum, boolean isCimDatatype, boolean isPrimitive) {
 
   }
 }

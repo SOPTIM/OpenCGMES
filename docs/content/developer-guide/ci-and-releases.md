@@ -13,7 +13,7 @@ OpenCGMES ships its three products on **three independent CI/release trains**. E
 | --- | --- | --- | --- | --- |
 | **CIMXML** | `cimxml-ci.yml` | `cimxml-release.yml` | `cimxml-vX.Y.Z` | Maven Central + GitHub Packages JAR; GitHub Release |
 | **CIMVocabCheck** | `cimvocabcheck-ci.yml` | `cimvocabcheck-release.yml` | `cimvocabcheck-vX.Y.Z` | `cimvocabcheck-core` to Maven Central + GitHub Packages; core/cli/lsp JARs on the GitHub Release; `cimvocabcheck-cli` image to GHCR; the Python, .NET and Rust bindings to PyPI, NuGet and crates.io |
-| **CIMNotebook** | `cimnotebook-ci.yml` | `cimnotebook-release.yml` | `cimnotebook-vX.Y.Z` | VSIX + IntelliJ zip on the GitHub Release; plugin to JetBrains Marketplace |
+| **CIMNotebook** | `cimnotebook-ci.yml` | `cimnotebook-release.yml` | `cimnotebook-vX.Y.Z` | VSIX + IntelliJ zip on the GitHub Release; extension to the Visual Studio Marketplace + Open VSX; plugin to JetBrains Marketplace |
 
 Each CI workflow is scoped by path filters, so it only runs when files it owns change (CIMVocabCheck and CIMNotebook CI also trigger on `cimxml/**` and the shared scripts, because they build against CIMXML).
 
@@ -40,7 +40,7 @@ graph TD
     REL --> CENTRAL["Maven Central<br/>signed (GPG)"]
     REL --> GHPKG["GitHub Packages<br/>release"]
     REL --> GHREL["GitHub Release<br/>draft + binaries"]
-    REL --> MKT["JetBrains Marketplace<br/>(CIMNotebook only)"]
+    REL --> MKT["VS Marketplace · Open VSX<br/>JetBrains Marketplace<br/>(CIMNotebook only)"]
 
     classDef ci fill:#009EE0,stroke:#14162B,color:#fff;
     classDef rel fill:#E74890,stroke:#14162B,color:#fff;
@@ -75,7 +75,7 @@ Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's 
 - **CIMXML release** — publishes a **GPG-signed** JAR to **Maven Central** (Sonatype Central Portal, `-Pcentral-release`), publishes the release to **GitHub Packages**, and creates a **draft GitHub Release** with the JAR attached.
 - **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**, and publishes the three [language bindings](/cimvocabcheck/python) to **PyPI**, **NuGet** and **crates.io**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
 - **CIMVocabCheck release candidate** — a tag `cimvocabcheck-vX.Y.Z-rc.N` runs the same workflow as a pre-release: the GitHub Release is marked as a pre-release, the image gets `:X.Y.Z-rc.N` but not `:latest`, and the bindings go out as `X.Y.ZrcN` on PyPI and `X.Y.Z-rc.N` on NuGet and crates.io, which installers skip unless asked for. Maven Central and GitHub Packages are skipped, because Central never deletes a version. RC tags are ignored by `compute-version.sh`, so they never become the base of the next snapshot or the version the docs and CIMNotebook pin.
-- **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
+- **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, publishes that same VSIX to the **Visual Studio Marketplace** and **Open VSX**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
 
 :::note Cross-product dependency pinning at release time
 CI builds use each component's own in-repo SNAPSHOT version. Releases instead pin cross-product
@@ -99,6 +99,8 @@ required reviewers, wait timer or tag restriction.
 | `PyPI Deployment` | `cimvocabcheck` (Python) | **OIDC trusted publishing** — no stored credential |
 | `NuGet Deployment` | `Soptim.CimVocabCheck` | **OIDC trusted publishing** — plus the `NUGET_USER` variable |
 | `crates.io Deployment` | `cimvocabcheck` (Rust) | **OIDC trusted publishing** — no stored credential |
+| `Visual Studio Marketplace Deployment` | `cimnotebook` (VS Code) | **OIDC trusted publishing** — no stored credential |
+| `Open VSX Registry Deployment` | `cimnotebook` (VS Code) | **OIDC trusted publishing** — no stored credential |
 
 GitHub Packages and GHCR need no environment — they use the workflow's own `GITHUB_TOKEN`.
 
@@ -138,6 +140,15 @@ publish steps are also idempotent — `skip-existing` on PyPI, `--skip-duplicate
 crates.io version probe that also avoids minting a credential when there is nothing to push — so
 re-running a release that failed half way is safe. PyPI uploads additionally carry
 [PEP 740](https://peps.python.org/pep-0740/) attestations, which trusted publishing signs.
+:::
+
+:::info Trusted publishing for the VS Code registries
+The Visual Studio Marketplace and Open VSX jobs authenticate with **OIDC trusted publishing**, so
+no registry token is stored in the repository. Each registry holds a policy that names this
+repository, `cimnotebook-release.yml` and the job's GitHub environment
+(`Visual Studio Marketplace Deployment`, `Open VSX Registry Deployment`). Renaming the workflow file
+or an environment breaks publishing until the policy is updated. Both jobs skip a version the
+registry already has, so re-running a partially failed release is safe.
 :::
 
 ## Versioning

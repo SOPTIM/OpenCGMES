@@ -105,6 +105,26 @@ public final class Shacl {
   /** {@code sh:maxCount} — maximum cardinality of the value nodes. */
   public static final Node MAX_COUNT = NodeFactory.createURI(NS + "maxCount");
 
+  /** {@code sh:qualifiedValueShape} — the shape a counted subset of the value nodes conforms to. */
+  public static final Node QUALIFIED_VALUE_SHAPE =
+      NodeFactory.createURI(NS + "qualifiedValueShape");
+
+  /**
+   * {@code sh:qualifiedMinCount} — minimum number of value nodes conforming to the qualified shape.
+   */
+  public static final Node QUALIFIED_MIN_COUNT = NodeFactory.createURI(NS + "qualifiedMinCount");
+
+  /**
+   * {@code sh:qualifiedMaxCount} — maximum number of value nodes conforming to the qualified shape.
+   */
+  public static final Node QUALIFIED_MAX_COUNT = NodeFactory.createURI(NS + "qualifiedMaxCount");
+
+  /** {@code sh:minLength} — minimum string length of the value nodes. */
+  public static final Node MIN_LENGTH = NodeFactory.createURI(NS + "minLength");
+
+  /** {@code sh:maxLength} — maximum string length of the value nodes. */
+  public static final Node MAX_LENGTH = NodeFactory.createURI(NS + "maxLength");
+
   /** {@code sh:nodeKind} — expected RDF node kind. */
   public static final Node NODE_KIND = NodeFactory.createURI(NS + "nodeKind");
 

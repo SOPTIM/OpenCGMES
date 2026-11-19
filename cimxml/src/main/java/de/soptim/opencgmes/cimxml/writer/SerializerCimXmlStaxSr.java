@@ -18,9 +18,13 @@
 
 package de.soptim.opencgmes.cimxml.writer;
 
+import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry;
+import de.soptim.opencgmes.cimxml.rdfs.CimProfileRegistry.TypeInfo;
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import org.apache.jena.graph.Graph;
@@ -41,12 +45,16 @@ class SerializerCimXmlStaxSr {
   private static final String cimxmlStandard = "iec61970-552";
   private static final String cimxmlVersionString = "version=\"2.0\"";
   private static final String about = "about";
+  private static final String id = "ID";
 
   private final XMLStreamWriter xmlStreamWriter;
   private final CimDatasetGraph cimDatasetGraph;
   private final Map<String, String> prefixMap;
   private final boolean sorted;
   private final ErrorHandler errorHandler;
+  private final boolean rdfIdAware;
+  private final Map<Node, TypeInfo> typeInfoMap;
+  private final Set<Node> typesNotFound;
 
   private boolean isDifferenceModel;
   private Graph currentGraph;
@@ -61,13 +69,23 @@ class SerializerCimXmlStaxSr {
       CimDatasetGraph cimDatasetGraph,
       PrefixMap prefixMap,
       boolean sorted,
-      ErrorHandler errorHandler) {
+      ErrorHandler errorHandler,
+      CimProfileRegistry cimProfileRegistry) {
     this.xmlStreamWriter = xmlStreamWriter;
     this.cimDatasetGraph = cimDatasetGraph;
     this.prefixMap =
         prefixMap == null ? cimDatasetGraph.prefixes().getMapping() : prefixMap.getMapping();
     this.sorted = sorted;
     this.errorHandler = errorHandler;
+    var registryPresent = cimProfileRegistry != null;
+    var profiles = registryPresent ? cimDatasetGraph.getModelHeader().getProfiles() : null;
+    if (registryPresent && profiles.isEmpty()) {
+      warn("There are no profiles specified in the model. Type information cannot be retrieved "
+          + "from the registry and rdf:about will be used for all subjects.");
+    }
+    this.rdfIdAware = registryPresent && !profiles.isEmpty();
+    this.typeInfoMap = rdfIdAware ? cimProfileRegistry.getTypeInfoMap(profiles) : null;
+    this.typesNotFound = rdfIdAware ? new HashSet<>() : null;
   }
 
   void serialize() throws XMLStreamException {
@@ -146,18 +164,36 @@ class SerializerCimXmlStaxSr {
   }
 
   // Section 7.2.3.5 Definition element
-  // Only supports rdf:about variant
+  // Uses rdf:about variant by default
   private void writeDefinitionElement(Triple typeTriple) {
     try {
       var typeNode = typeTriple.getObject();
       var subjectNode = typeTriple.getSubject();
-      xmlStreamWriter.writeStartElement(typeNode.getNameSpace(), typeNode.getLocalName());
-      xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
+      writeDefinitionElementStartElement(typeNode, subjectNode);
       writeProperties(subjectNode);
       xmlStreamWriter.writeEndElement();
     } catch (XMLStreamException e) {
       error(e.getMessage());
     }
+  }
+
+  private void writeDefinitionElementStartElement(Node typeNode, Node subjectNode)
+      throws XMLStreamException {
+    xmlStreamWriter.writeStartElement(typeNode.getNameSpace(), typeNode.getLocalName());
+    if (rdfIdAware && !typesNotFound.contains(typeNode)) {
+      var typeInfo = typeInfoMap.get(typeNode);
+      if (typeInfo == null) {
+        warn("The type URI " + typeNode.getURI() + " was not found in the CimProfileRegistry."
+            + " Instances of this type will be printed as rdf:about.");
+        typesNotFound.add(typeNode);
+      } else if (!typeInfo.isDescription() && subjectNode.getURI().startsWith(baseUri)) {
+        xmlStreamWriter.writeAttribute(
+            rdfUri, id, replaceUrnUuidWithUnderscore(subjectNode.getURI()));
+        return;
+      }
+    }
+    xmlStreamWriter.writeAttribute(rdfUri, about, replaceUrnUuidWithHash(subjectNode.getURI()));
+
   }
 
   // Section 7.2.3.6 Description element
@@ -293,6 +329,10 @@ class SerializerCimXmlStaxSr {
 
   private static String replaceUrnUuidWithHash(String uri) {
     return uri.replace(baseUri, "#_");
+  }
+
+  private static String replaceUrnUuidWithUnderscore(String uri) {
+    return uri.replace(baseUri, "_");
   }
 
   private void warn(String message) {

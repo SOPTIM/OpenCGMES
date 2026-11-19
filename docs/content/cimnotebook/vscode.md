@@ -31,6 +31,10 @@ command line:
 code --install-extension soptim-ag.cimnotebook
 ```
 
+VS Code–compatible editors that use the Open VSX Registry instead, such as VSCodium, Cursor or
+Eclipse Theia, get the same extension from
+[**Open VSX**](https://open-vsx.org/extension/soptim-ag/cimnotebook).
+
 Alternatively, install from a packaged `.vsix`:
 
 ```bash
