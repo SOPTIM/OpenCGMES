@@ -166,7 +166,10 @@ generator, not the model. Conveniences live in `Ergonomics.cs` and survive regen
 python3 ../codegen/generate_models.py --target csharp           # after a contract change
 python3 ../codegen/generate_models.py --target csharp --check   # what CI runs
 dotnet test                                                     # engine tests skip without one
-CIMVOCABCHECK_JAR=../../cli/target/cimvocabcheck-cli-*.jar dotnet test
+# Against a locally built engine (mvn -pl cimvocabcheck/cli -am package, from the repo root).
+# The glob must expand before the assignment, and an absolute path survives a cwd change.
+export CIMVOCABCHECK_JAR="$(ls "$PWD"/../../cli/target/cimvocabcheck-cli-*.jar)"
+CIMVOCABCHECK_TESTS_REQUIRE_ENGINE=1 dotnet test   # fails, rather than skips, without the engine
 ```
 
 ## License

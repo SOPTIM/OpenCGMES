@@ -156,7 +156,10 @@ python3 ../codegen/generate_models.py --target rust            # regenerate afte
 python3 ../codegen/generate_models.py --target rust --check    # what CI runs
 cargo clippy --all-targets && cargo fmt -- --check
 cargo test                                                     # engine tests skip without an engine
-CIMVOCABCHECK_JAR=../../cli/target/cimvocabcheck-cli-*.jar cargo test
+# Against a locally built engine (mvn -pl cimvocabcheck/cli -am package, from the repo root).
+# The glob must expand before the assignment, and an absolute path survives a cwd change.
+export CIMVOCABCHECK_JAR="$(ls "$PWD"/../../cli/target/cimvocabcheck-cli-*.jar)"
+CIMVOCABCHECK_TESTS_REQUIRE_ENGINE=1 cargo test   # fails, rather than skips, without the engine
 ```
 
 ## License
