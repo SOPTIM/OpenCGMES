@@ -71,7 +71,7 @@ graph TD
 
 ## Release trains (tag push)
 
-Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's release workflow. Every release workflow first **validates the tag format** and derives the release version from it.
+Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's release workflow. Every release workflow first **validates the tag format** and derives the release version from it. The CIMVocabCheck release also rejects leading zeros (`v01.2.3`), which some of its registries would normalise and crates.io would reject.
 
 - **CIMXML release** — publishes a **GPG-signed** JAR to **Maven Central** (Sonatype Central Portal, `-Pcentral-release`), publishes the release to **GitHub Packages**, and creates a **draft GitHub Release** with the JAR attached.
 - **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**, and publishes the three [language bindings](/cimvocabcheck/python) to **PyPI**, **NuGet** and **crates.io**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
@@ -105,9 +105,11 @@ required reviewers, wait timer or tag restriction.
 
 GitHub Packages and GHCR need no environment — they use the workflow's own `GITHUB_TOKEN`.
 
-Requiring a reviewer on these environments turns a tag push into a two-step release: the build
-and the tests run, then the publish waits for approval. That is worth doing, because none of
-these registries lets you take a published version back.
+Requiring a reviewer on these environments is worth doing, because none of these registries lets
+you take a published version back. An environment's approval is requested before its job starts.
+For the bindings that comes after the build and the tests (see below), so the reviewer approves
+something that has already passed; the Maven Central job builds inside its environment, so its
+approval comes first.
 
 ### Trusted publishing
 
@@ -134,13 +136,25 @@ NuGet additionally needs the repository (or environment) **variable** `NUGET_USE
 nuget.org account that owns the policy. It is not a credential; the job checks it is set so a
 missing value fails by name rather than inside the token exchange.
 
-:::note Binding releases re-test before they publish
-Each binding job rebuilds the CLI fat JAR **from the tag being released** and runs that binding's
-suite against it before uploading anything. A tag can point at a commit CI never saw. The
-publish steps are also idempotent — `skip-existing` on PyPI, `--skip-duplicate` on NuGet, and a
-crates.io version probe that also avoids minting a credential when there is nothing to push — so
-re-running a release that failed half way is safe. PyPI uploads additionally carry
-[PEP 740](https://peps.python.org/pep-0740/) attestations, which trusted publishing signs.
+:::note Bindings are built and tested before anything can publish
+One **`build-bindings`** job, without `id-token` and outside every environment, builds the CLI fat
+JAR **from the tag being released**, runs all three binding suites against it (a tag can point at
+a commit CI never saw), and uploads the Python distributions, the NuGet package and the crate as
+artifacts. The three **publish** jobs `need` it and only upload those artifacts. So:
+
+- nothing that runs a dependency's code (pip, NuGet and cargo packages and their build scripts,
+  the Maven build, the test suites) runs in a job that can mint a registry credential, as PyPA
+  recommends for trusted publishing;
+- a binding that fails to build or test stops all three publishes, instead of leaving the release
+  half-published and needing a new tag.
+
+cargo can only publish from a source tree, so the crates.io job packages the tag again with
+`--no-verify`, which compiles nothing, and publishes only if the result is byte-identical to the
+crate that was tested. The publish steps are also idempotent — `skip-existing` on PyPI,
+`--skip-duplicate` on NuGet, and a crates.io version probe that also avoids minting a credential
+when there is nothing to push — so re-running a release that failed half way is safe. PyPI
+uploads additionally carry [PEP 740](https://peps.python.org/pep-0740/) attestations, which
+trusted publishing signs.
 :::
 
 :::info Trusted publishing for the VS Code registries
