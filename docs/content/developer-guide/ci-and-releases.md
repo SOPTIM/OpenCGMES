@@ -97,9 +97,9 @@ required reviewers, wait timer or tag restriction.
 | Environment | Publishes | Authentication |
 | --- | --- | --- |
 | `Maven Central Deployment` | `cimvocabcheck-core`, `cimxml` | secrets: `CENTRAL_PORTAL_USERNAME`, `CENTRAL_PORTAL_PASSWORD`, `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE` |
-| `PyPI Deployment` | `cimvocabcheck` (Python) | **OIDC trusted publishing** — no stored credential |
-| `NuGet Deployment` | `Soptim.CimVocabCheck` | **OIDC trusted publishing** — plus the `NUGET_USER` variable |
-| `crates.io Deployment` | `cimvocabcheck` (Rust) | **OIDC trusted publishing** — no stored credential |
+| `Pypi` | `cimvocabcheck` (Python) | **OIDC trusted publishing** — no stored credential |
+| `nuget` | `Soptim.CimVocabCheck` | **OIDC trusted publishing** — plus the `NUGET_USER` variable |
+| `crates` | `cimvocabcheck` (Rust) | **OIDC trusted publishing** — no stored credential |
 | `Visual Studio Marketplace Deployment` | `cimnotebook` (VS Code) | **OIDC trusted publishing** — no stored credential |
 | `Open VSX Registry Deployment` | `cimnotebook` (VS Code) | **OIDC trusted publishing** — no stored credential |
 
@@ -128,13 +128,16 @@ Register one policy per registry, all pointing at `cimvocabcheck-release.yml`:
 
 | Registry | Where | What to enter |
 | --- | --- | --- |
-| PyPI | project → Publishing | owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `PyPI Deployment` |
-| NuGet.org | account → Trusted Publishing | policy owner (the account that owns `Soptim.CimVocabCheck`), repository owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `NuGet Deployment` |
-| crates.io | crate → Settings → Trusted Publishing | repository `SOPTIM/OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `crates.io Deployment` |
+| PyPI | project → Publishing | owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `Pypi` |
+| NuGet.org | account → Trusted Publishing | policy owner (the user or organization that owns `Soptim.CimVocabCheck`), repository owner `SOPTIM`, repository `OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `nuget` |
+| crates.io | crate → Settings → Trusted Publishing | repository `SOPTIM/OpenCGMES`, workflow `cimvocabcheck-release.yml`, environment `crates` |
 
-NuGet additionally needs the repository (or environment) **variable** `NUGET_USER`, the
-nuget.org account that owns the policy. It is not a credential; the job checks it is set so a
-missing value fails by name rather than inside the token exchange.
+NuGet additionally needs the repository (or `nuget` environment) **variable** `NUGET_USER`: the
+nuget.org **username** (profile name, not the email address) of the person who created the
+policy. It names a user even when an organization owns the policy, since the `NuGet/login` action
+takes a user. That person must stay a member of the owning organization: nuget.org deactivates an
+organization's policy when the user who created it leaves. `NUGET_USER` is not a credential; the
+job checks it is set so a missing value fails by name rather than inside the token exchange.
 
 :::note Bindings are built and tested before anything can publish
 One **`build-bindings`** job, without `id-token` and outside every environment, builds the CLI fat

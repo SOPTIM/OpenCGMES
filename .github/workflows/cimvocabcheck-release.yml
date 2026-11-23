@@ -360,7 +360,7 @@ jobs:
       - build-bindings
     runs-on: ubuntu-latest
     environment:
-      name: PyPI Deployment
+      name: Pypi
       url: https://pypi.org/project/cimvocabcheck/${{ needs.validate-tag.outputs.pypi_version }}/
     permissions:
       contents: read
@@ -388,7 +388,7 @@ jobs:
       - build-bindings
     runs-on: ubuntu-latest
     environment:
-      name: NuGet Deployment
+      name: nuget
       url: https://www.nuget.org/packages/Soptim.CimVocabCheck/${{ needs.validate-tag.outputs.release_version }}
     permissions:
       contents: read
@@ -447,7 +447,7 @@ jobs:
       - build-bindings
     runs-on: ubuntu-latest
     environment:
-      name: crates.io Deployment
+      name: crates
       url: https://crates.io/crates/cimvocabcheck/${{ needs.validate-tag.outputs.release_version }}
     permissions:
       contents: read
