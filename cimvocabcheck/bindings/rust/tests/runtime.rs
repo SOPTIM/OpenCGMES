@@ -542,7 +542,7 @@ fn docker_mounts_an_explicit_config_outside_the_working_directory() {
         )
         .unwrap();
 
-    let directory = dir.path().canonicalize().unwrap();
+    let directory = dir.path().to_path_buf();
     let mirror = container_path(&directory);
     assert_eq!(config, format!("{mirror}/opencgmes.jsonc"));
     assert!(
@@ -568,7 +568,7 @@ fn docker_mounts_schemas_outside_the_working_directory_where_the_host_has_them()
         .command_with_mounts(&[], false, None, &mounts)
         .unwrap();
 
-    let root = dir.path().canonicalize().unwrap();
+    let root = dir.path().to_path_buf();
     let outside = [root.join("profiles"), root.join("more/b.rdf")];
     assert_eq!(
         schemas,
@@ -747,7 +747,7 @@ fn docker_mounts_the_schemas_an_explicit_config_names_outside_its_directory() {
         )
         .unwrap();
 
-    let root = dir.path().canonicalize().unwrap();
+    let root = dir.path().to_path_buf();
     for (path, host) in [
         ("../schemas/cgmes3", "schemas/cgmes3"),
         ("../extra/x.rdf", "extra/x.rdf"),
@@ -896,6 +896,21 @@ fn container_paths_mirror_the_host_path_under_one_directory() {
     assert_eq!(
         container_path(std::path::Path::new("/srv/repo/profiles")),
         "/host/srv/repo/profiles"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn docker_mounts_a_verbatim_working_directory_without_its_prefix() {
+    // What `canonicalize` returns on Windows; `docker -v` rejects the `\\?\` prefix.
+    let dir = TempDir::new();
+    let verbatim = PathBuf::from(format!(r"\\?\{}", dir.path().display()));
+
+    let command = docker_in(verbatim).command(&[], false, None).unwrap();
+
+    assert!(
+        volumes(&command).contains(&format!("{}:/work", dir.path().display())),
+        "{command:?}"
     );
 }
 

@@ -62,10 +62,16 @@ impl TempDir {
         );
         let path = std::env::temp_dir().join(unique);
         fs::create_dir_all(&path).expect("create a temp directory");
-        Self(
-            path.canonicalize()
-                .expect("canonicalize the temp directory"),
-        )
+        let canonical = path
+            .canonicalize()
+            .expect("canonicalize the temp directory");
+        // Spelled the way callers spell paths: without the `\\?\` prefix `canonicalize` adds
+        // on Windows.
+        let stripped = canonical
+            .to_string_lossy()
+            .strip_prefix(r"\\?\")
+            .map(PathBuf::from);
+        Self(stripped.unwrap_or(canonical))
     }
 
     pub fn path(&self) -> &Path {

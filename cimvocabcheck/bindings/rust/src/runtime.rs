@@ -608,14 +608,15 @@ impl Engine {
     ///
     /// An engine is discovered once and may then be used from several working directories, so
     /// the mount cannot be frozen at discovery time. Made absolute lexically rather than
-    /// canonicalized: on Windows `canonicalize` yields a `\\?\` path that `docker -v` rejects.
+    /// canonicalized, and without the `\\?\` prefix `canonicalize` adds on Windows, which
+    /// `docker -v` rejects: a caller may well pass a directory it canonicalized itself.
     fn mount(&self, cwd: Option<&Path>) -> PathBuf {
         let base = match (cwd, self) {
             (Some(path), _) => path.to_path_buf(),
             (None, Self::Docker { cwd, .. }) => cwd.clone(),
             (None, _) => PathBuf::from("."),
         };
-        normalize(&absolute(&base))
+        normalize(&absolute(&without_verbatim_prefix(base)))
     }
 }
 
@@ -914,13 +915,16 @@ fn file_name(path: &Path) -> String {
 /// `path`, made absolute and with its symlinks resolved, when it exists. Without the `\\?\`
 /// prefix `canonicalize` adds on Windows, which `docker -v` rejects.
 fn existing(path: &Path) -> Option<PathBuf> {
-    let canonical = path.canonicalize().ok()?;
-    let spelled = canonical.to_string_lossy();
-    Some(
-        spelled
-            .strip_prefix(r"\\?\")
-            .map_or(canonical.clone(), PathBuf::from),
-    )
+    path.canonicalize().ok().map(without_verbatim_prefix)
+}
+
+/// `path` without the `\\?\` prefix of a Windows verbatim path, which `docker -v` rejects.
+fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let stripped = path
+        .to_string_lossy()
+        .strip_prefix(r"\\?\")
+        .map(PathBuf::from);
+    stripped.unwrap_or(path)
 }
 
 fn posix_parent(path: &str) -> &str {
