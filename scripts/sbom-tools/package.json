@@ -5,6 +5,9 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@cyclonedx/cyclonedx-library": "10.5.1",
-    "@cyclonedx/cyclonedx-npm": "7.0.1"
+    "@cyclonedx/cyclonedx-npm": "7.0.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "ajv-formats-draft2019": "1.6.1"
   }
 }

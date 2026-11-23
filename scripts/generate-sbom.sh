@@ -163,9 +163,12 @@ if want vscode; then
     ( cd "${SBOM_TOOLS_DIR}" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error )
     # --omit dev: only what esbuild bundles into the VSIX. --package-lock-only:
     # resolve from the committed lockfile (no install needed). --output-reproducible:
-    # no serial number / timestamp.
+    # no serial number / timestamp. --validate: since cyclonedx-npm 7 the schema
+    # validator (ajv) is an optional peer that is silently skipped when absent, so
+    # demand it; the peers are pinned in scripts/sbom-tools. --spec-version: keep the
+    # same CycloneDX spec as the Maven and Gradle BOMs instead of the tool's default.
     ( cd "${REPO_ROOT}/cimnotebook/vscode" && "${SBOM_TOOLS_DIR}/node_modules/.bin/cyclonedx-npm" \
-        --omit dev --package-lock-only --output-reproducible \
+        --omit dev --package-lock-only --output-reproducible --validate --spec-version 1.6 \
         --output-format JSON --output-file "${NB_SBOM_DIR}/vscode/bom.json" )
 
     canonicalize_bom "${NB_SBOM_DIR}/vscode/bom.json"
