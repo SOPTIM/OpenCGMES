@@ -51,9 +51,14 @@ def bare_env(tmp_path):
     return {"PATH": str(tmp_path / "empty"), "JAVA_HOME": ""}
 
 
+#: What an executable is called on this platform. Discovery never runs these stand-ins, so on
+#: Windows an ``.exe`` that is not a real program is enough to be found.
+EXE = ".exe" if os.name == "nt" else ""
+
+
 def executable(path, name):
     path.mkdir(parents=True, exist_ok=True)
-    binary = path / name
+    binary = path / f"{name}{EXE}"
     binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     binary.chmod(0o755)
     return binary
@@ -104,9 +109,13 @@ def test_an_engine_on_path_is_used_when_the_environment_is_silent(tmp_path, bare
 
 
 def shim(path, name="cimvocabcheck"):
-    """A copy of this package's console script, as pip and uv generate it."""
+    """A copy of this package's console script, as pip and uv generate it.
+
+    On Windows the installers write a launcher ``.exe`` with the script appended instead, so there
+    the stand-in is an ``.exe`` that carries the same marker.
+    """
     path.mkdir(parents=True, exist_ok=True)
-    script = path / name
+    script = path / f"{name}{EXE}"
     script.write_text(
         f"#!{sys.executable}\n"
         "import sys\n"
@@ -246,7 +255,8 @@ def test_docker_is_the_last_resort(tmp_path):
     engine = discover(env={"PATH": str(tmp_path / "bin")}, cwd=tmp_path)
 
     assert isinstance(engine, DockerEngine)
-    assert engine.docker == str(docker)
+    # Windows' lookup spells the extension as PATHEXT does (.EXE).
+    assert os.path.normcase(engine.docker) == os.path.normcase(docker)
     assert engine.image == runtime.DEFAULT_IMAGE
 
 
@@ -303,7 +313,7 @@ def test_a_configured_engine_that_does_not_exist_says_so(bare_env):
     with pytest.raises(EngineNotFoundError) as raised:
         discover(env=dict(bare_env, CIMVOCABCHECK_JAR="/nowhere/engine.jar"))
 
-    assert "/nowhere/engine.jar" in str(raised.value)
+    assert str(Path("/nowhere/engine.jar")) in str(raised.value)
 
 
 def test_a_jar_without_a_java_launcher_explains_the_requirement(tmp_path, bare_env):
@@ -388,6 +398,7 @@ def test_a_relative_engine_path_is_pinned_to_where_it_was_found(tmp_path, bare_e
     assert engine.jar == tmp_path / "engine.jar"
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the stand-in docker is a shell script")
 def test_a_killed_docker_run_removes_its_container(tmp_path):
     """Killing ``docker run`` stops the client only; the container would keep running."""
     log = tmp_path / "docker.log"
@@ -566,6 +577,7 @@ def test_a_locale_is_trusted_when_the_installed_ones_cannot_be_listed(monkeypatc
     }
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows takes no locale from the environment")
 def test_installed_locales_are_read_from_the_locale_command(tmp_path, monkeypatch):
     executable(tmp_path, "locale").write_text(
         "#!/bin/sh\nprintf 'C\\nC.utf8\\nPOSIX\\nen_US.utf8\\n'\n", encoding="utf-8"
