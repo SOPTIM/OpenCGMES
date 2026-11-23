@@ -569,7 +569,7 @@ fn docker_mounts_schemas_outside_the_working_directory_where_the_host_has_them()
         .unwrap();
 
     let root = dir.path().to_path_buf();
-    let outside = [root.join("profiles"), root.join("more/b.rdf")];
+    let outside = [root.join("profiles"), root.join("more").join("b.rdf")];
     assert_eq!(
         schemas,
         [
