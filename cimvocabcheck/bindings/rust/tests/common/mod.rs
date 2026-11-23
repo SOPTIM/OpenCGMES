@@ -111,6 +111,18 @@ impl TempDir {
         path
     }
 
+    /// An executable that discovery finds but never runs: on Windows an empty `.exe`, the first
+    /// extension the lookup tries there; elsewhere a script that exits 0.
+    pub fn executable(&self, name: &str) -> PathBuf {
+        if cfg!(windows) {
+            let path = self.0.join(format!("{name}.exe"));
+            fs::write(&path, b"").expect("write the executable");
+            path
+        } else {
+            self.script(name, "exit 0")
+        }
+    }
+
     /// A copy of the Python binding's console script, as pip and uv generate it.
     pub fn python_shim(&self, directory: &str) -> PathBuf {
         fs::create_dir_all(self.0.join(directory)).expect("create the script directory");

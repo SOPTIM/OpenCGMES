@@ -37,7 +37,7 @@ fn an_explicit_jar_path_beats_everything_else() {
     let dir = TempDir::new();
     let jar = dir.path().join("engine.jar");
     std::fs::write(&jar, b"").unwrap();
-    let java = dir.script("java", "exit 0");
+    let java = dir.executable("java");
 
     let engine = discover(
         &Discovery::new()
@@ -54,8 +54,8 @@ fn the_jar_environment_variable_comes_before_path() {
     let dir = TempDir::new();
     let jar = dir.path().join("engine.jar");
     std::fs::write(&jar, b"").unwrap();
-    dir.script("java", "exit 0");
-    dir.script("cimvocabcheck", "exit 0");
+    dir.executable("java");
+    dir.executable("cimvocabcheck");
 
     let engine = discover(&Discovery::new().env(env(&[
         ("PATH", dir.path().to_str().unwrap()),
@@ -69,7 +69,7 @@ fn the_jar_environment_variable_comes_before_path() {
 #[test]
 fn an_engine_on_path_is_used_when_the_environment_is_silent() {
     let dir = TempDir::new();
-    let binary = dir.script("cimvocabcheck", "exit 0");
+    let binary = dir.executable("cimvocabcheck");
 
     let engine = discover(&Discovery::new().env(env(&[("PATH", dir.path().to_str().unwrap())])))
         .expect("the engine on PATH");
@@ -98,7 +98,7 @@ fn a_console_script_is_skipped_but_an_engine_after_it_is_found() {
     let dir = TempDir::new();
     let scripts = dir.python_shim("venv");
     std::fs::create_dir(dir.path().join("opt")).unwrap();
-    let binary = dir.script("opt/cimvocabcheck", "exit 0");
+    let binary = dir.executable("opt/cimvocabcheck");
     let path = std::env::join_paths([scripts.parent().unwrap(), binary.parent().unwrap()]).unwrap();
 
     let engine = discover(&Discovery::new().env(env(&[("PATH", path.to_str().unwrap())])))
@@ -112,7 +112,7 @@ fn a_windows_launcher_is_recognised_by_the_script_appended_to_it() {
     let dir = TempDir::new();
     let mut launcher = vec![0u8; 256 * 1024];
     launcher.extend_from_slice(b"PK\x03\x04__main__.py from cimvocabcheck.__main__ import main");
-    let path = dir.script("cimvocabcheck", "");
+    let path = dir.executable("cimvocabcheck");
     std::fs::write(&path, launcher).unwrap();
 
     let error = discover(
@@ -139,7 +139,7 @@ fn an_engine_variable_pointing_at_the_python_shim_is_refused() {
 #[test]
 fn docker_is_the_last_resort() {
     let dir = TempDir::new();
-    let docker = dir.script("docker", "exit 0");
+    let docker = dir.executable("docker");
 
     let engine = discover(
         &Discovery::new()
@@ -157,7 +157,7 @@ fn docker_is_the_last_resort() {
 #[test]
 fn docker_can_be_switched_off() {
     let dir = TempDir::new();
-    dir.script("docker", "exit 0");
+    dir.executable("docker");
 
     let error = discover(&Discovery::new().env(env(&[
         ("PATH", dir.path().to_str().unwrap()),
@@ -171,7 +171,7 @@ fn docker_can_be_switched_off() {
 #[test]
 fn the_docker_image_is_overridable() {
     let dir = TempDir::new();
-    dir.script("docker", "exit 0");
+    dir.executable("docker");
 
     let engine = discover(
         &Discovery::new()

@@ -105,6 +105,23 @@ internal sealed class TempDir : IDisposable
         return path;
     }
 
+    /// <summary>An executable that discovery finds but never runs.</summary>
+    /// <remarks>
+    /// On Windows an empty <c>.exe</c>, the first extension the lookup tries there, so discovery is
+    /// tested on Windows too; elsewhere a script that exits 0.
+    /// </remarks>
+    public string Executable(string name)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var path = System.IO.Path.Combine(Path, name + ".exe");
+            File.WriteAllText(path, string.Empty);
+            return path;
+        }
+
+        return Script(name, "exit 0");
+    }
+
     /// <summary>An engine that ignores its arguments and returns what the test told it to.</summary>
     public Engine Scripted(string name, string stdout, string stderr = "", int exitCode = 0)
     {

@@ -36,11 +36,10 @@ public sealed class EngineDiscoveryTests
     [Fact]
     public void AnExplicitJarPathBeatsEverythingElse()
     {
-        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
         using var directory = new TempDir();
         var jar = Path.Combine(directory.Path, "engine.jar");
         File.WriteAllText(jar, string.Empty);
-        var java = directory.Script("java", "exit 0");
+        var java = directory.Executable("java");
 
         var engine = Engine.Discover(Discovery(directory) with { EnginePath = jar });
 
@@ -52,12 +51,11 @@ public sealed class EngineDiscoveryTests
     [Fact]
     public void TheJarEnvironmentVariableComesBeforePath()
     {
-        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
         using var directory = new TempDir();
         var jar = Path.Combine(directory.Path, "engine.jar");
         File.WriteAllText(jar, string.Empty);
-        directory.Script("java", "exit 0");
-        directory.Script("cimvocabcheck", "exit 0");
+        directory.Executable("java");
+        directory.Executable("cimvocabcheck");
 
         var engine = Engine.Discover(Discovery(directory, (Engine.JarVariable, jar)));
 
@@ -67,9 +65,8 @@ public sealed class EngineDiscoveryTests
     [Fact]
     public void AnEngineOnPathIsUsedWhenTheEnvironmentIsSilent()
     {
-        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
         using var directory = new TempDir();
-        var binary = directory.Script("cimvocabcheck", "exit 0");
+        var binary = directory.Executable("cimvocabcheck");
 
         var engine = Engine.Discover(Discovery(directory));
 
@@ -183,9 +180,8 @@ public sealed class EngineDiscoveryTests
     [Fact]
     public void DockerIsTheLastResort()
     {
-        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
         using var directory = new TempDir();
-        var docker = directory.Script("docker", "exit 0");
+        var docker = directory.Executable("docker");
 
         var engine = Engine.Discover(Discovery(directory));
 
@@ -197,9 +193,8 @@ public sealed class EngineDiscoveryTests
     [Fact]
     public void DockerCanBeSwitchedOff()
     {
-        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
         using var directory = new TempDir();
-        directory.Script("docker", "exit 0");
+        directory.Executable("docker");
 
         Assert.Throws<EngineNotFoundException>(
             () => Engine.Discover(Discovery(directory, (Engine.NoDockerVariable, "1"))));
@@ -208,9 +203,8 @@ public sealed class EngineDiscoveryTests
     [Fact]
     public void TheDockerImageIsOverridable()
     {
-        Assert.SkipUnless(CanScript, "the fixtures are shell scripts");
         using var directory = new TempDir();
-        directory.Script("docker", "exit 0");
+        directory.Executable("docker");
 
         var engine = Engine.Discover(
             Discovery(directory, (Engine.ImageVariable, "example.org/cvc:edge")));
