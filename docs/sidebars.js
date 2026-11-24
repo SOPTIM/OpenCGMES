@@ -35,6 +35,12 @@ const sidebars = {
     'cimvocabcheck/limitations',
   ],
 
+  cimxmlCliSidebar: [
+    'cimxml-cli/overview',
+    'cimxml-cli/usage',
+    'cimxml-cli/input',
+  ],
+
   cimnotebookSidebar: [
     'cimnotebook/overview',
     'cimnotebook/vscode',

@@ -5,21 +5,22 @@ sidebar_position: 5
 
 # CI & Releases
 
-OpenCGMES ships its three products on **three independent CI/release trains**. Each product has its own `-ci` workflow (build, test, lint, publish SNAPSHOTs) and its own `-release` workflow (signed artifacts, triggered by a tag), so a change to one product never forces a release of another. Beyond the six product workflows, two more round out the repository's `.github/workflows/`: a reusable Docker-image publisher shared by the CIMVocabCheck train, and the docs site's own deploy workflow. This page describes the trains, the versioning scripts that feed them, and the supply-chain gates. See [Building](/developer-guide/building) for the underlying build commands.
+OpenCGMES ships its four products on **four independent CI/release trains**. Each product has its own `-ci` workflow (build, test, lint, publish SNAPSHOTs) and its own `-release` workflow (signed artifacts, triggered by a tag), so a change to one product never forces a release of another. Beyond the eight product workflows, two more round out the repository's `.github/workflows/`: a reusable Docker-image publisher shared by the CIMVocabCheck and cimxml2jsonld trains, and the docs site's own deploy workflow. This page describes the trains, the versioning scripts that feed them, and the supply-chain gates. See [Building](/developer-guide/building) for the underlying build commands.
 
-## The eight workflows at a glance
+## The ten workflows at a glance
 
 | Product | CI workflow | Release workflow | Release tag | Released artifacts |
 | --- | --- | --- | --- | --- |
 | **CIMXML** | `cimxml-ci.yml` | `cimxml-release.yml` | `cimxml-vX.Y.Z` | Maven Central + GitHub Packages JAR; GitHub Release |
 | **CIMVocabCheck** | `cimvocabcheck-ci.yml` | `cimvocabcheck-release.yml` | `cimvocabcheck-vX.Y.Z` | `cimvocabcheck-core` to Maven Central + GitHub Packages; core/cli/lsp JARs on the GitHub Release; `cimvocabcheck-cli` image to GHCR |
+| **cimxml2jsonld** | `cimxml-cli-ci.yml` | `cimxml-cli-release.yml` | `cimxml-cli-vX.Y.Z` | distribution ZIP + fat JAR on the GitHub Release; `cimxml-cli` image to GHCR |
 | **CIMNotebook** | `cimnotebook-ci.yml` | `cimnotebook-release.yml` | `cimnotebook-vX.Y.Z` | VSIX + IntelliJ zip on the GitHub Release; extension to the Visual Studio Marketplace + Open VSX; plugin to JetBrains Marketplace |
 
-Each CI workflow is scoped by path filters, so it only runs when files it owns change (CIMVocabCheck and CIMNotebook CI also trigger on `cimxml/**` and the shared scripts, because they build against CIMXML).
+Each CI workflow is scoped by path filters, so it only runs when files it owns change (CIMVocabCheck, cimxml2jsonld and CIMNotebook CI also trigger on `cimxml/**` and the shared scripts, because they build against CIMXML).
 
-Two workflows sit outside the three-train table:
+Two workflows sit outside the train table:
 
-- **`docker-publish.yml`** — a reusable (`workflow_call`) workflow, not triggered directly, that builds the schema-less `cimvocabcheck-cli` image and pushes it to GHCR. `cimvocabcheck-ci.yml` calls it on every push to `main` to publish the `:edge` tag; `cimvocabcheck-release.yml` calls it on a `cimvocabcheck-vX.Y.Z` tag to publish `:X.Y.Z` and `:latest`. See [CLI → Docker](/cimvocabcheck/cli#docker) for the image itself.
+- **`docker-publish.yml`** — a reusable (`workflow_call`) workflow, not triggered directly, that builds a CLI image and pushes it to GHCR; its `component` input selects the schema-less `cimvocabcheck-cli` image (default) or the `cimxml-cli` image. The CI workflows call it on every push to `main` to publish the `:edge` tag; the release workflows call it on a release tag to publish `:X.Y.Z` and `:latest`. See [CIMVocabCheck CLI → Docker](/cimvocabcheck/cli#docker) and the [cimxml2jsonld Docker image](/cimxml-cli/usage#docker) for the images.
 - **`deploy-docs.yml`** — builds and deploys this documentation site (Docusaurus) to GitHub Pages. It triggers on pushes to `main` that touch `docs/**` (or the workflow file itself), and also builds — but does not deploy — on pull requests touching the same paths, so a docs PR gets a build check without publishing.
 
 ## How the trains flow
@@ -61,6 +62,12 @@ graph TD
 - **publish-snapshot** — on push to `main`, installs cimxml locally then deploys **`cimvocabcheck-core`** as a `-SNAPSHOT` to GitHub Packages. (The CLI and LSP are fat-JAR tools and are not deployed to registries.)
 - **publish-edge-image** — on push to `main`, calls the reusable `docker-publish.yml` to build and push `ghcr.io/<owner>/cimvocabcheck-cli:edge`, so there is always a fresh schema-less CLI image to test against.
 
+### cimxml2jsonld CI (`cimxml-cli-ci.yml`)
+- **lint**: compiler-warnings-as-errors, then Spotless/Checkstyle/SpotBugs/PMD.
+- **build-test**: checks out **submodules recursively** and runs `mvn -pl cimxml-cli -am clean verify`, including the integration tests with ENTSO-E data (ReliCapGrid and the application profiles library).
+- **sbom**: the same Maven SBOM drift check as CIMVocabCheck CI, because `cimxml-cli` is part of the aggregate Maven SBOM.
+- **publish-edge-image**: on push to `main`, publishes `ghcr.io/<owner>/cimxml-cli:edge`.
+
 ### CIMNotebook CI (`cimnotebook-ci.yml`)
 - **typecheck-vscode** — ESLint, Prettier check, and TypeScript type-check (`npm run lint` / `format:check` / `compile`).
 - **build-vsix** — sets versions, builds the LSP fat JAR from in-repo source, copies it into the extension, then `npm run bundle` + `vsce package`; uploads the VSIX as a build artifact.
@@ -73,6 +80,7 @@ Pushing an annotated tag in the form `<product>-vX.Y.Z` triggers that product's 
 
 - **CIMXML release** — publishes a **GPG-signed** JAR to **Maven Central** (Sonatype Central Portal, `-Pcentral-release`), publishes the release to **GitHub Packages**, and creates a **draft GitHub Release** with the JAR attached.
 - **CIMVocabCheck release** — publishes signed **`cimvocabcheck-core`** to Maven Central and GitHub Packages, creates a draft GitHub Release with the **core, cli, and lsp** fat JARs attached, and calls the reusable `docker-publish.yml` to push the **`cimvocabcheck-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**. It pins the cimxml dependency to a released version (resolved from the newest `cimxml-v*` tag) so Maven Central never sees a SNAPSHOT reference.
+- **cimxml2jsonld release**: builds the fat JAR and the distribution ZIP (start scripts in `bin/`), attaches both to a **draft GitHub Release** and pushes the **`cimxml-cli`** image to GHCR tagged **`:X.Y.Z` and `:latest`**. It is not published to Maven Central. Like CIMVocabCheck it pins cimxml to the newest `cimxml-v*` tag.
 - **CIMNotebook release** — creates a draft GitHub Release with the **VSIX and IntelliJ zip**, publishes that same VSIX to the **Visual Studio Marketplace** and **Open VSX**, and publishes the plugin to the **JetBrains Marketplace** (`gradle publishPlugin`). Unlike CI, a release bundles the LSP at the **latest released cimvocabcheck version** (resolved from the newest `cimvocabcheck-v*` tag), mirroring how it pins its other dependencies.
 
 :::note Cross-product dependency pinning at release time
@@ -99,7 +107,7 @@ registry already has, so re-running a partially failed release is safe.
 Two scripts under `scripts/` derive and apply versions from Git state, so versions are never hand-edited in poms for a release.
 
 ### `compute-version.sh <component> [--released]`
-Prints the Maven version for `cimxml`, `cimvocabcheck`, or `cimnotebook`:
+Prints the Maven version for `cimxml`, `cimvocabcheck`, `cimnotebook`, or `cimxml-cli`:
 
 - On a tagged release push (`<component>-vX.Y.Z`) → prints `X.Y.Z`.
 - On any other ref → finds the last `<component>-v*` tag **reachable from `HEAD`** (`git tag
@@ -111,10 +119,10 @@ Prints the Maven version for `cimxml`, `cimvocabcheck`, or `cimnotebook`:
   matters: it ignores tags that are not ancestors of the commit being released, so a release never
   pins to a version that does not exist in its own history.
 
-### `set-versions.sh <cimxml> [<cimvocabcheck>] [<cimnotebook>]`
-Applies the computed versions across every build file: the cimxml pom; the cimvocabcheck core/cli/lsp poms and their inter-module dependency properties (`ver.cimxml`, `ver.cimvocabcheck-core`); and the cimnotebook plugin versions (`pluginVersion` in `gradle.properties`, `version` in `package.json`). The Gradle and npm toolchains strip the `-SNAPSHOT` suffix because they don't use Maven snapshot conventions. A cimnotebook build still needs a cimvocabcheck version because it bundles the LSP fat JAR.
+### `set-versions.sh <cimxml> [<cimvocabcheck>] [<cimnotebook>] [<cimxml-cli>]`
+Applies the computed versions across every build file: the cimxml pom; the cimvocabcheck core/cli/lsp poms and their inter-module dependency properties (`ver.cimxml`, `ver.cimvocabcheck-core`); the cimnotebook plugin versions (`pluginVersion` in `gradle.properties`, `version` in `package.json`); and the cimxml-cli pom with its `ver.cimxml` property. Pass empty strings to skip the trains before the one you need, e.g. `set-versions.sh 1.0.1 "" "" 0.1.0`. The Gradle and npm toolchains strip the `-SNAPSHOT` suffix because they don't use Maven snapshot conventions. A cimnotebook build still needs a cimvocabcheck version because it bundles the LSP fat JAR.
 
-The three trains are versioned **independently** — `cimvocabcheck` and `cimnotebook` carry separate version numbers.
+The trains are versioned **independently** — `cimvocabcheck`, `cimnotebook` and `cimxml-cli` carry separate version numbers.
 
 ## Supply chain (SBOM + licenses)
 
@@ -122,7 +130,7 @@ Each release-able toolchain ships a committed **CycloneDX 1.6 SBOM** and a **THI
 
 | SBOM | Location | Owned by | Covers |
 | --- | --- | --- | --- |
-| Maven | `cimvocabcheck/sbom/maven/` | `cimvocabcheck-ci` | cimxml + cimvocabcheck core/cli/lsp and shipped deps |
+| Maven | `cimvocabcheck/sbom/maven/` | `cimvocabcheck-ci`, `cimxml-cli-ci` | cimxml + cimvocabcheck core/cli/lsp + cimxml-cli and shipped deps |
 | VS Code | `cimnotebook/sbom/vscode/` | `cimnotebook-ci` | shipped npm deps |
 | IntelliJ | `cimnotebook/sbom/intellij/` | `cimnotebook-ci` | IntelliJ Platform (2024.2) + LSP4IJ compile deps |
 

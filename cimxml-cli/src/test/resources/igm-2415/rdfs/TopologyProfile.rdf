@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written mini IGM for the cimxml-cli tests (CGMES 2.4.15 style, not real ENTSO-E data).
+  Copyright (c) 2026 SOPTIM AG, SPDX-License-Identifier: Apache-2.0
+-->
+<rdf:RDF
+    xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+    xmlns:entsoe="http://entsoe.eu/CIM/SchemaExtension/3/1#"
+    xml:base="http://iec.ch/TC57/2013/CIM-schema-cim16">
+  <rdf:Description rdf:about="http://entsoe.eu/CIM/SchemaExtension/3/1#TopologyVersion">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label xml:lang="en">TopologyVersion</rdfs:label>
+    <cims:stereotype>Entsoe</cims:stereotype>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://entsoe.eu/CIM/SchemaExtension/3/1#TopologyVersion.shortName">
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+    <rdfs:label xml:lang="en">shortName</rdfs:label>
+    <rdfs:domain rdf:resource="http://entsoe.eu/CIM/SchemaExtension/3/1#TopologyVersion"/>
+    <cims:dataType rdf:resource="#String"/>
+    <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">TP</cims:isFixed>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://entsoe.eu/CIM/SchemaExtension/3/1#TopologyVersion.entsoeURI">
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+    <rdfs:label xml:lang="en">entsoeURI</rdfs:label>
+    <rdfs:domain rdf:resource="http://entsoe.eu/CIM/SchemaExtension/3/1#TopologyVersion"/>
+    <cims:dataType rdf:resource="#String"/>
+    <cims:isFixed rdf:datatype="http://www.w3.org/2001/XMLSchema#string">http://entsoe.eu/CIM/Topology/4/1</cims:isFixed>
+  </rdf:Description>
+  <rdf:Description rdf:about="#TopologicalNode">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label xml:lang="en">TopologicalNode</rdfs:label>
+    <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#concrete"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="#TopologicalNode.description">
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+    <rdfs:label xml:lang="en">description</rdfs:label>
+    <rdfs:domain rdf:resource="#TopologicalNode"/>
+    <cims:dataType rdf:resource="#String"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="#String">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label xml:lang="en">String</rdfs:label>
+    <cims:stereotype>Primitive</cims:stereotype>
+  </rdf:Description>
+  <rdf:Description rdf:about="#Float">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label xml:lang="en">Float</rdfs:label>
+    <cims:stereotype>Primitive</cims:stereotype>
+  </rdf:Description>
+</rdf:RDF>

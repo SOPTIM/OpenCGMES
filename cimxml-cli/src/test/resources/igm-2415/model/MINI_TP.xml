@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written mini IGM for the cimxml-cli tests (CGMES 2.4.15 style, not real ENTSO-E data).
+  Copyright (c) 2026 SOPTIM AG, SPDX-License-Identifier: Apache-2.0
+-->
+<rdf:RDF
+    xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+    xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <md:FullModel rdf:about="urn:uuid:46728ad9-5fb2-543b-b068-f9f7bd55b1b7">
+    <md:Model.profile>http://entsoe.eu/CIM/Topology/4/1</md:Model.profile>
+  </md:FullModel>
+  <cim:TopologicalNode rdf:ID="_36141ac3-513b-51b4-ba25-79bf115362fd">
+    <cim:TopologicalNode.description>Node 1</cim:TopologicalNode.description>
+  </cim:TopologicalNode>
+</rdf:RDF>

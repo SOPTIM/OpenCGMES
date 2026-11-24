@@ -26,6 +26,7 @@ on:
       - "cimvocabcheck/core/pom.xml"
       - "cimvocabcheck/cli/pom.xml"
       - "cimvocabcheck/lsp/pom.xml"
+      - "cimxml-cli/pom.xml"
       - "cimnotebook/vscode/package.json"
       - "cimnotebook/vscode/package-lock.json"
       - "cimnotebook/intellij/build.gradle.kts"
@@ -68,6 +69,7 @@ jobs:
             cimvocabcheck/core/pom.xml
             cimvocabcheck/cli/pom.xml
             cimvocabcheck/lsp/pom.xml
+            cimxml-cli/pom.xml
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

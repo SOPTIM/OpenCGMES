@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+  SpotBugs exclusion filter for the cimxml-cli module.
+
+  Keep suppressions narrow and justified. The EI_EXPOSE_REP / CT_CONSTRUCTOR_THROW
+  exclusions mirror the policy of the cimxml and cimvocabcheck modules.
+-->
+<FindBugsFilter>
+  <Match>
+    <!-- Simple argument checks in constructors are fine. -->
+    <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+  </Match>
+  <Match>
+    <!-- Exposing internal representation is intentional where it is done. -->
+    <Bug pattern="EI_EXPOSE_REP"/>
+  </Match>
+  <Match>
+    <!-- See EI_EXPOSE_REP above. -->
+    <Bug pattern="EI_EXPOSE_REP2"/>
+  </Match>
+</FindBugsFilter>

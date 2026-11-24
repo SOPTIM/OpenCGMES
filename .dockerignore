@@ -1,5 +1,6 @@
-# Keep the Docker build context small and the build reproducible. The CimVocabCheck CLI image
-# (cimvocabcheck/Dockerfile) builds from source and only needs cimxml/ + cimvocabcheck/ sources.
+# Keep the Docker build context small and the build reproducible. The CLI images
+# (cimvocabcheck/Dockerfile, cimxml-cli/Dockerfile) build from source and only need cimxml/ plus
+# their own module.
 
 .git
 .github
@@ -18,6 +19,7 @@ scripts
 # The large ENTSO-E application-profiles submodule is test data, not needed to build the CLI.
 cimvocabcheck/core/testing
 cimvocabcheck/sbom
+cimxml-cli/testing
 
 # Local build / report scratch.
 *.log

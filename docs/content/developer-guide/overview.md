@@ -5,17 +5,18 @@ sidebar_position: 1
 
 # Repository Overview
 
-OpenCGMES is a single Git repository that ships three independent products — [CIMXML](/cimxml/overview), [CIMVocabCheck](/cimvocabcheck/overview), and [CIMNotebook](/cimnotebook/overview) — built from a mix of Maven, npm, and Gradle modules. This page maps the repository layout and shows how the modules depend on one another, so you know where each piece lives before you start [building](/developer-guide/building).
+OpenCGMES is a single Git repository that ships four independent products — [CIMXML](/cimxml/overview), [CIMVocabCheck](/cimvocabcheck/overview), [cimxml2jsonld](/cimxml-cli/overview), and [CIMNotebook](/cimnotebook/overview) — built from a mix of Maven, npm, and Gradle modules. This page maps the repository layout and shows how the modules depend on one another, so you know where each piece lives before you start [building](/developer-guide/building).
 
-## The three products
+## The four products
 
 | Product | What it is | Where it lives | Build tool |
 | --- | --- | --- | --- |
 | **CIMXML** | IEC 61970-552 CIMXML parser library (Apache Jena) | `cimxml/` | Maven |
 | **CIMVocabCheck** | Static SPARQL/SHACL validation: library, CLI, and the **CIMLangServer** LSP | `cimvocabcheck/core`, `cimvocabcheck/cli`, `cimvocabcheck/lsp` | Maven |
+| **cimxml2jsonld** | CLI converting the CIMXML files of one IGM into a JSON-LD dataset | `cimxml-cli/` | Maven |
 | **CIMNotebook** | Editor integrations: a VS Code extension and an IntelliJ plugin | `cimnotebook/vscode`, `cimnotebook/intellij` | npm / Gradle |
 
-The products are layered: CIMVocabCheck builds on CIMXML's profile-aware RDF foundation, and CIMNotebook bundles the CIMVocabCheck language server (`cimvocabcheck-lsp.jar`) inside each editor integration.
+The products are layered: CIMVocabCheck and cimxml2jsonld build on CIMXML's profile-aware RDF foundation, and CIMNotebook bundles the CIMVocabCheck language server (`cimvocabcheck-lsp.jar`) inside each editor integration.
 
 ## Module and dependency graph
 
@@ -26,6 +27,7 @@ graph TD
     CORE["cimvocabcheck/core<br/>static validation library (Maven)"]
     CLI["cimvocabcheck/cli<br/>CLI fat JAR (Maven)"]
     LSP["cimvocabcheck/lsp<br/>CIMLangServer fat JAR (Maven)"]
+    XCLI["cimxml-cli<br/>cimxml2jsonld fat JAR (Maven)"]
     VSC["cimnotebook/vscode<br/>VS Code extension (npm)"]
     IJ["cimnotebook/intellij<br/>IntelliJ plugin (Gradle)"]
 
@@ -34,6 +36,8 @@ graph TD
     CIMXML --> CORE
     CORE --> CLI
     CORE --> LSP
+    ROOT --> XCLI
+    CIMXML --> XCLI
     LSP -. "bundles cimvocabcheck-lsp.jar" .-> VSC
     LSP -. "bundles cimvocabcheck-lsp.jar" .-> IJ
 
@@ -42,10 +46,10 @@ graph TD
     classDef agg fill:#14162B,stroke:#14162B,color:#fff;
     class ROOT agg;
     class CIMXML,CORE lib;
-    class CLI,LSP,VSC,IJ tool;
+    class CLI,LSP,XCLI,VSC,IJ tool;
 ```
 
-The root `pom.xml` is an **aggregator-only reactor**: its `<modules>` are `cimxml` and `cimvocabcheck` (which in turn aggregates `core`, `cli`, and `lsp`). It exists purely so a developer can build everything from the repository root with one command. The child modules deliberately do **not** declare the root as their Maven `<parent>` — each module keeps its own version, dependencies, and release profile, so the per-module release workflows that invoke `mvn -f cimxml/pom.xml ...` keep working unchanged.
+The root `pom.xml` is an **aggregator-only reactor**: its `<modules>` are `cimxml`, `cimvocabcheck` (which in turn aggregates `core`, `cli`, and `lsp`), and `cimxml-cli`. It exists purely so a developer can build everything from the repository root with one command. The child modules deliberately do **not** declare the root as their Maven `<parent>` — each module keeps its own version, dependencies, and release profile, so the per-module release workflows that invoke `mvn -f cimxml/pom.xml ...` keep working unchanged.
 
 :::note CIMNotebook is not in the Maven reactor
 The VS Code extension (npm) and IntelliJ plugin (Gradle) are **not** Maven modules, so `mvn install` at the root does not build them. They are built separately and each bundles the LSP fat JAR — see [Building](/developer-guide/building).
@@ -61,12 +65,13 @@ The VS Code extension (npm) and IntelliJ plugin (Gradle) are **not** Maven modul
 | `cimvocabcheck/core/` | Validation library (`cimvocabcheck-core`); the ENTSO-E submodule lives under `core/testing/entsoe/` |
 | `cimvocabcheck/cli/` | Command-line tool (`cimvocabcheck-cli`, shaded fat JAR) |
 | `cimvocabcheck/lsp/` | CIMLangServer LSP 3.17 server (`cimvocabcheck-lsp`, fat JAR) |
-| `cimvocabcheck/sbom/` | Committed Maven SBOM + THIRD-PARTY attribution |
+| `cimvocabcheck/sbom/` | Committed Maven SBOM + THIRD-PARTY attribution (covers all Maven modules) |
+| `cimxml-cli/` | cimxml2jsonld (`cimxml-cli`, fat JAR + distribution ZIP); the ReliCapGrid submodule lives under `testing/` |
 | `cimnotebook/vscode/` | VS Code extension (TypeScript / npm) |
 | `cimnotebook/intellij/` | IntelliJ plugin (Kotlin / Gradle) |
 | `cimnotebook/sbom/` | Committed VS Code + IntelliJ SBOMs + attribution |
 | `scripts/` | Versioning (`compute-version.sh`, `set-versions.sh`), supply-chain (`generate-sbom.sh`, `check-sbom-licenses.py`), and license-header (`license-headers.sh`) scripts |
-| `.github/workflows/` | Eight workflows: one `-ci` and one `-release` per product, plus the reusable `docker-publish.yml` and the docs site's `deploy-docs.yml` — see [CI & releases](/developer-guide/ci-and-releases) |
+| `.github/workflows/` | Ten workflows: one `-ci` and one `-release` per product, plus the reusable `docker-publish.yml` and the docs site's `deploy-docs.yml` — see [CI & releases](/developer-guide/ci-and-releases) |
 | `docs/` | This Docusaurus documentation site |
 | `QueryAndValidationUI/` | The upcoming web application — in development, not yet public; see its `README.md` for a description and current screenshots |
 | `LICENSE` / `CONTRIBUTING.md` | Apache 2.0 license; contribution guide |
@@ -75,5 +80,5 @@ The VS Code extension (npm) and IntelliJ plugin (Gradle) are **not** Maven modul
 
 - [Building](/developer-guide/building) — prerequisites, the submodule, and how to build each artifact.
 - [Testing](/developer-guide/testing) — running tests and the ENTSO-E integration suite.
-- [CI & releases](/developer-guide/ci-and-releases) — the three independent CI/release trains.
+- [CI & releases](/developer-guide/ci-and-releases) — the four independent CI/release trains.
 - [Contributing](/developer-guide/contributing) — fork/branch/PR workflow.

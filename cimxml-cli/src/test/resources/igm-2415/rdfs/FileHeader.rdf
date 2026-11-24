@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-written mini IGM for the cimxml-cli tests (CGMES 2.4.15 style, not real ENTSO-E data).
+  Copyright (c) 2026 SOPTIM AG, SPDX-License-Identifier: Apache-2.0
+-->
+<rdf:RDF
+    xmlns:cims="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:cim="http://iec.ch/TC57/2013/CIM-schema-cim16#"
+    xmlns:md="http://iec.ch/TC57/61970-552/ModelDescription/1#"
+    xml:base="http://iec.ch/TC57/2013/CIM-schema-cim16">
+  <rdf:Description rdf:about="#Package_FileHeaderProfile">
+    <rdf:type rdf:resource="http://iec.ch/TC57/1999/rdf-schema-extensions-19990926#ClassCategory"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://iec.ch/TC57/61970-552/ModelDescription/1#Model">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label xml:lang="en">Model</rdfs:label>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://iec.ch/TC57/61970-552/ModelDescription/1#Model.profile">
+    <rdf:type rdf:resource="http://www.w3.org/1999/02/22-rdf-syntax-ns#Property"/>
+    <cims:stereotype rdf:resource="http://iec.ch/TC57/NonStandard/UML#attribute"/>
+    <rdfs:domain rdf:resource="http://iec.ch/TC57/61970-552/ModelDescription/1#Model"/>
+    <cims:dataType rdf:resource="http://entsoe.eu/CIM/SchemaExtension/3/1#URI"/>
+  </rdf:Description>
+  <rdf:Description rdf:about="http://entsoe.eu/CIM/SchemaExtension/3/1#URI">
+    <rdf:type rdf:resource="http://www.w3.org/2000/01/rdf-schema#Class"/>
+    <rdfs:label xml:lang="en">URI</rdfs:label>
+    <cims:stereotype>Primitive</cims:stereotype>
+  </rdf:Description>
+</rdf:RDF>

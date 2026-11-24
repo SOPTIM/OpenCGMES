@@ -42,6 +42,18 @@
       "groupSlug": "cimvocabcheck-major"
     },
     {
+      "matchFileNames": ["cimxml-cli/**"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "cimxml-cli non-major dependencies",
+      "groupSlug": "cimxml-cli-non-major"
+    },
+    {
+      "matchFileNames": ["cimxml-cli/**"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "cimxml-cli major dependencies",
+      "groupSlug": "cimxml-cli-major"
+    },
+    {
       "matchFileNames": ["cimnotebook/**"],
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "cimnotebook non-major dependencies",

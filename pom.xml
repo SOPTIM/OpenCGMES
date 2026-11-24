@@ -56,6 +56,7 @@
     <modules>
         <module>cimxml</module>
         <module>cimvocabcheck</module>
+        <module>cimxml-cli</module>
     </modules>
 
     <properties>
@@ -85,7 +86,7 @@
         Running them from the root reactor lets the inter-module SNAPSHOT deps
         (cimvocabcheck-core -> cimxml) resolve from the reactor without a prior install,
         and produces a single aggregate view of everything the CIMVocabCheck toolchain
-        ships (cimxml + cimvocabcheck-core/cli/lsp and all of their transitive deps).
+        ships (cimxml + cimvocabcheck-core/cli/lsp + cimxml-cli and all of their transitive deps).
     -->
     <build>
         <plugins>
