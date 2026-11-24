@@ -84,7 +84,7 @@
 
         <!-- Utilities -->
         <ver.commons-io>2.22.0</ver.commons-io>
-        <ver.commons-lang3>3.21.0</ver.commons-lang3>
+        <ver.commons-lang3>3.22.0</ver.commons-lang3>
 
         <!-- Logging -->
         <ver.slf4j>2.0.20</ver.slf4j>
@@ -114,7 +114,7 @@
         <ver.plugin.cyclonedx-maven-plugin>2.9.3</ver.plugin.cyclonedx-maven-plugin>
         <ver.plugin.jacoco-maven-plugin>0.8.16</ver.plugin.jacoco-maven-plugin>
         <ver.plugin.maven-pmd-plugin>3.28.0</ver.plugin.maven-pmd-plugin>
-        <ver.plugin.license-maven-plugin>2.7.1</ver.plugin.license-maven-plugin>
+        <ver.plugin.license-maven-plugin>2.9.0</ver.plugin.license-maven-plugin>
         <ver.plugin.checkstyle>14.4.0</ver.plugin.checkstyle>
     </properties>
 
