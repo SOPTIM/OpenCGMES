@@ -49,6 +49,7 @@ import {
     connectionLabel,
     effectiveStandardVocabulary,
     numberSettingDescription,
+    rdfArchitectDescription,
     schemasDirectoryDescription,
     standardVocabularyDescription,
     standardVocabularyValueToWrite,
@@ -80,6 +81,7 @@ const OPEN_CONFIG_COMMAND = "cimnotebook.config.openFile";
 const EDIT_STRICTNESS_COMMAND = "cimnotebook.config.editStrictness";
 const EDIT_STANDARD_VOCABULARY_COMMAND = "cimnotebook.config.editStandardVocabulary";
 const EDIT_SCHEMAS_DIRECTORY_COMMAND = "cimnotebook.config.editSchemasDirectory";
+const EDIT_RDF_ARCHITECT_COMMAND = "cimnotebook.config.editRdfArchitect";
 const ADD_SCHEMA_FILE_COMMAND = "cimnotebook.config.addSchemaFile";
 const REMOVE_SCHEMA_FILE_COMMAND = "cimnotebook.config.removeSchemaFile";
 const EDIT_QUERY_TIMEOUT_COMMAND = "cimnotebook.config.editQueryTimeout";
@@ -176,6 +178,7 @@ type ValidationNode =
     | { kind: "strictness"; description: string }
     | { kind: "standardVocabulary"; description: string }
     | { kind: "schemasDirectory"; description: string }
+    | { kind: "rdfArchitect"; description: string }
     | { kind: "schemasParent"; files: SchemaFileNode[] }
     | SchemaFileNode;
 
@@ -206,9 +209,14 @@ class ValidationProvider implements vscode.TreeDataProvider<ValidationNode> {
             },
             {
                 kind: "schemasDirectory",
-                description: schemasDirectoryDescription(model.schemasDirectory, files.length),
+                description: schemasDirectoryDescription(
+                    model.schemasDirectory,
+                    files.length,
+                    model.rdfArchitect,
+                ),
             },
             { kind: "schemasParent", files },
+            { kind: "rdfArchitect", description: rdfArchitectDescription(model.rdfArchitect) },
         ];
     }
 
@@ -231,6 +239,12 @@ class ValidationProvider implements vscode.TreeDataProvider<ValidationNode> {
                     command: EDIT_SCHEMAS_DIRECTORY_COMMAND,
                     contextValue: "schemasDirectory",
                     icon: "folder",
+                });
+            case "rdfArchitect":
+                return leaf("RDFArchitect model", node.description, {
+                    command: EDIT_RDF_ARCHITECT_COMMAND,
+                    contextValue: "rdfArchitect",
+                    icon: "type-hierarchy",
                 });
             case "schemasParent": {
                 const item = new vscode.TreeItem(
@@ -340,6 +354,9 @@ function registerCommands(context: vscode.ExtensionContext, refresh: () => Promi
         ),
         vscode.commands.registerCommand(EDIT_SCHEMAS_DIRECTORY_COMMAND, () =>
             editSchemasDirectory().then(refresh),
+        ),
+        vscode.commands.registerCommand(EDIT_RDF_ARCHITECT_COMMAND, () =>
+            editRdfArchitect().then(refresh),
         ),
         vscode.commands.registerCommand(ADD_SCHEMA_FILE_COMMAND, () =>
             addSchemaFile().then(refresh),
@@ -623,6 +640,27 @@ async function editSchemasDirectory(): Promise<void> {
     }
     await updateConfig(state, (m) => {
         m.schemasDirectory = value?.trim() ? value.trim() : undefined;
+    });
+}
+
+/**
+ * Edits `cimvocabcheck.rdfArchitect`: the workspace validates against a model curated in
+ * RDFArchitect instead of against schema files. A bare dataset name is read from the RDFArchitect
+ * view open in the editor, as it is edited; a link pins a fixed source and needs no view.
+ */
+async function editRdfArchitect(): Promise<void> {
+    const state = await readConfig();
+    const typed = await vscode.window.showInputBox({
+        title: "RDFArchitect model (dataset name, or a ?dataset=/?snapshot= link)",
+        prompt: "Leave empty to validate against schema files instead.",
+        value: state.model.rdfArchitect ?? "",
+        placeHolder: "cgmes-3.0",
+    });
+    if (typed === undefined) {
+        return;
+    }
+    await updateConfig(state, (m) => {
+        m.rdfArchitect = typed.trim() ? typed.trim() : undefined;
     });
 }
 

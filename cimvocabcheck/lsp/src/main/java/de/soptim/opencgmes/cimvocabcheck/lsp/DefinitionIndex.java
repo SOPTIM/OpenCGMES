@@ -79,15 +79,33 @@ final class DefinitionIndex {
   private static final Pattern FRAGMENT_PATTERN =
       Pattern.compile("#([A-Za-z][A-Za-z0-9._-]*)(?:[\"'>\\s;,])");
 
-  private final Map<Node, Location> locations;
+  /**
+   * Every declaration of a term, one per profile that declares it, in the schema's profile order.
+   *
+   * <p>A CIM term is routinely declared in several profiles — {@code cim:ACLineSegment} appears in
+   * Equipment, and again wherever else it is used. All of them are kept so go-to-definition can
+   * offer the choice instead of silently landing in whichever profile came first.
+   */
+  private final Map<Node, List<Location>> locations;
 
-  private DefinitionIndex(Map<Node, Location> locations) {
+  private DefinitionIndex(Map<Node, List<Location>> locations) {
     this.locations = Collections.unmodifiableMap(locations);
   }
 
-  /** Returns the declaration {@link Location} for {@code term}, or empty if not indexed. */
+  /**
+   * Returns the first declaration {@link Location} for {@code term}, or empty if not indexed. Used
+   * where a single location is all that can be shown (workspace symbols).
+   */
   Optional<Location> locationOf(Node term) {
-    return Optional.ofNullable(locations.get(term));
+    return locationsOf(term).stream().findFirst();
+  }
+
+  /**
+   * Returns every declaration of {@code term} — one per profile declaring it — or an empty list if
+   * it is not indexed. Editors show a chooser when there is more than one.
+   */
+  List<Location> locationsOf(Node term) {
+    return locations.getOrDefault(term, List.of());
   }
 
   /**
@@ -124,9 +142,10 @@ final class DefinitionIndex {
     if (!local.toLowerCase(Locale.ROOT).contains(query)) {
       return;
     }
-    Location loc = locations.get(term);
     Either<Location, WorkspaceSymbolLocation> locEither =
-        loc != null ? Either.forLeft(loc) : Either.forRight(new WorkspaceSymbolLocation(""));
+        locationOf(term)
+            .<Either<Location, WorkspaceSymbolLocation>>map(Either::forLeft)
+            .orElseGet(() -> Either.forRight(new WorkspaceSymbolLocation("")));
     out.add(new WorkspaceSymbol(local, kind, locEither));
   }
 
@@ -155,7 +174,7 @@ final class DefinitionIndex {
       }
     }
 
-    var locations = new LinkedHashMap<Node, Location>();
+    var locations = new LinkedHashMap<Node, List<Location>>();
 
     for (Node cls : index.allClasses()) {
       if (!locations.containsKey(cls)) {
@@ -180,17 +199,24 @@ final class DefinitionIndex {
     return new DefinitionIndex(locations);
   }
 
+  /**
+   * Records a location for every profile that declares {@code term} and whose file has the
+   * fragment. Two profiles sharing one file (or declaring the term on the same line) contribute
+   * once — a chooser offering the same place twice would be noise.
+   */
   private static void findLocation(
       Node term,
       List<VersionIri> profiles,
       Map<VersionIri, Path> sourcePaths,
       Map<Path, Map<String, Integer>> fileFragments,
-      Map<Node, Location> out) {
+      Map<Node, List<Location>> out) {
     String local = localName(term.getURI());
     if (local.isEmpty()) {
       return;
     }
-    for (VersionIri v : profiles) {
+    var found = new ArrayList<Location>();
+    var seen = new LinkedHashSet<String>();
+    for (VersionIri v : orderedProfiles(profiles)) {
       Path file = sourcePaths.get(v);
       if (file == null) {
         continue;
@@ -200,13 +226,14 @@ final class DefinitionIndex {
         continue;
       }
       Integer lineNo = fragments.get(local);
-      if (lineNo != null) {
+      if (lineNo != null && seen.add(file + ":" + lineNo)) {
         String fileUri = file.toUri().toString();
-        out.put(
-            term,
+        found.add(
             new Location(fileUri, new Range(new Position(lineNo, 0), new Position(lineNo, 0))));
-        return;
       }
+    }
+    if (!found.isEmpty()) {
+      out.put(term, List.copyOf(found));
     }
   }
 
@@ -240,6 +267,18 @@ final class DefinitionIndex {
     var result = new LinkedHashMap<>(references);
     result.putAll(declarations);
     return result;
+  }
+
+  /**
+   * The profiles of a term, in a stable order.
+   *
+   * <p>The schema index holds its profiles in an immutable map, whose iteration order is not the
+   * order they were added in — so which profile "comes first" would otherwise vary between JVM
+   * runs, and with it both the entry a chooser preselects and the single location reported to
+   * callers that want one. Sorting by version IRI makes it the same every time.
+   */
+  static List<VersionIri> orderedProfiles(List<VersionIri> profiles) {
+    return profiles.stream().sorted(Comparator.comparing(VersionIri::iri)).toList();
   }
 
   static String localName(String iri) {

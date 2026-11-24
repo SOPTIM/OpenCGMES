@@ -54,6 +54,7 @@ export interface ConfigModel {
     standardVocabulary?: string;
     schemasDirectory?: string;
     schemas?: string[];
+    rdfArchitect?: string;
     // "cimnotebook" section
     queryTimeoutSeconds?: number;
     maxRows?: number;
@@ -72,6 +73,7 @@ export function parseConfigModel(text: string): ConfigModel {
         standardVocabulary: asString(vocab["standardVocabulary"]),
         schemasDirectory: asString(vocab["schemasDirectory"]),
         schemas: asStringArray(vocab["schemas"]),
+        rdfArchitect: asString(vocab["rdfArchitect"]),
         queryTimeoutSeconds: asNumber(notebook["queryTimeoutSeconds"]),
         maxRows: asNumber(notebook["maxRows"]),
         connections: asConnections(notebook["connections"]),
@@ -113,6 +115,11 @@ export function applyConfigModel(text: string, model: ConfigModel): string {
         ["cimvocabcheck", "schemas"],
         undefinedIfEmpty(model.schemas),
         !sameJson(undefinedIfEmpty(model.schemas), before.schemas),
+    );
+    set(
+        ["cimvocabcheck", "rdfArchitect"],
+        emptyToUndefined(model.rdfArchitect),
+        emptyToUndefined(model.rdfArchitect) !== before.rdfArchitect,
     );
     set(
         ["cimnotebook", "queryTimeoutSeconds"],

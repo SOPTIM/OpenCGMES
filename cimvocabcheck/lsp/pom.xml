@@ -45,6 +45,7 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.build.timestamp.format>yyyy-MM-dd HH:mm'Z'</maven.build.timestamp.format>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
@@ -184,8 +185,19 @@
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
+                                <!--
+                                    The version and build time travel in the manifest so the
+                                    running server can name itself in its LSP "initialize" answer.
+                                    Which server a bundled JAR actually is has been guessed at once
+                                    too often; the editors show this, so it need not be guessed.
+                                -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>de.soptim.opencgmes.cimvocabcheck.lsp.Main</mainClass>
+                                    <manifestEntries>
+                                        <Implementation-Title>CIMLangServer</Implementation-Title>
+                                        <Implementation-Version>${project.version}</Implementation-Version>
+                                        <Build-Time>${maven.build.timestamp}</Build-Time>
+                                    </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ApacheLicenseResourceTransformer"/>

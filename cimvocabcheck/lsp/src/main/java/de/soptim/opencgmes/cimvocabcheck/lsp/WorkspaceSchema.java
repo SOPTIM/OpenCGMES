@@ -41,6 +41,8 @@ import org.apache.jena.graph.Node;
  * @param definitionIndex the source-navigation index
  * @param namedGraphScope the per-graph profile scope from {@code namedGraphs}
  * @param checkStandardVocab whether standard-vocabulary typo checking is enabled
+ * @param profileGraphs profile version IRI → the named graph declaring it, for a schema read from
+ *     RDFArchitect; empty for a file-backed one, which has a {@code definitionIndex} instead
  */
 record WorkspaceSchema(
     SparqlValidationApi api,
@@ -48,7 +50,19 @@ record WorkspaceSchema(
     RuleSeverities rules,
     DefinitionIndex definitionIndex,
     Map<Node, Collection<VersionIri>> namedGraphScope,
-    boolean checkStandardVocab) {
+    boolean checkStandardVocab,
+    Map<VersionIri, String> profileGraphs) {
+
+  /** A workspace schema whose terms live in files, not in named graphs. */
+  WorkspaceSchema(
+      SparqlValidationApi api,
+      StrictnessLevel level,
+      RuleSeverities rules,
+      DefinitionIndex definitionIndex,
+      Map<Node, Collection<VersionIri>> namedGraphScope,
+      boolean checkStandardVocab) {
+    this(api, level, rules, definitionIndex, namedGraphScope, checkStandardVocab, Map.of());
+  }
 
   /** Canonical constructor; defaults {@code rules} to {@link RuleSeverities#NONE}. */
   WorkspaceSchema {
@@ -57,6 +71,6 @@ record WorkspaceSchema(
 
   /** Adapts this workspace schema to a {@link ResolvedSchema} for the document-validation path. */
   ResolvedSchema toResolvedSchema() {
-    return new ResolvedSchema(api, level, rules, namedGraphScope, definitionIndex);
+    return new ResolvedSchema(api, level, rules, namedGraphScope, definitionIndex, profileGraphs);
   }
 }
