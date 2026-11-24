@@ -34,4 +34,9 @@ public record FileResult(
   public long warnCount() {
     return annotations.stream().filter(a -> a.severity() == SparqlValidationSeverity.WARN).count();
   }
+
+  /** Returns the number of INFO-severity annotations. */
+  public long infoCount() {
+    return annotations.stream().filter(a -> a.severity() == SparqlValidationSeverity.INFO).count();
+  }
 }

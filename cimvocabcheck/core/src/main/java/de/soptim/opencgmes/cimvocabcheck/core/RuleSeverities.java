@@ -65,8 +65,9 @@ public final class RuleSeverities {
    * Parses a raw {@code code → severity} map as read from the config file. A {@code null} or empty
    * map yields {@link #NONE}.
    *
-   * @throws IllegalArgumentException if a key is not a known validation code or a value is not one
-   *     of {@code off}, {@code info}, {@code warn}, {@code error}
+   * @throws IllegalArgumentException if a key is not a known validation code, names an {@linkplain
+   *     SparqlValidationCode#isInputFailure() input failure}, or a value is not one of {@code off},
+   *     {@code info}, {@code warn}, {@code error}
    */
   public static RuleSeverities parse(Map<String, String> raw) {
     if (raw == null || raw.isEmpty()) {
@@ -122,11 +123,20 @@ public final class RuleSeverities {
   }
 
   private static SparqlValidationCode parseCode(String key) {
+    SparqlValidationCode code;
     try {
-      return SparqlValidationCode.valueOf(key.trim().toUpperCase(Locale.ROOT));
+      code = SparqlValidationCode.valueOf(key.trim().toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException("Unknown validation code '" + key + "' in 'rules'.", e);
     }
+    if (code.isInputFailure()) {
+      throw new IllegalArgumentException(
+          "'"
+              + key
+              + "' cannot be set in 'rules': it reports an input that was not validated, which"
+              + " always fails.");
+    }
+    return code;
   }
 
   /** Returns the configured severity, or {@code null} for {@code off}. */

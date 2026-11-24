@@ -109,6 +109,270 @@ jobs:
         run: |
           mvn -B -ntp -pl cimvocabcheck/core,cimvocabcheck/cli,cimvocabcheck/lsp -am clean verify
 
+  # ---- CLI fat JAR for the binding suites ----------------------------------
+  # Built once (analysis gates are the Java jobs') and handed to every binding job, on every OS.
+  cli-jar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          cache-dependency-path: |
+            pom.xml
+            cimxml/pom.xml
+            cimvocabcheck/core/pom.xml
+            cimvocabcheck/cli/pom.xml
+
+      - name: Build the CLI fat JAR
+        run: |
+          mvn -B -ntp -pl cimvocabcheck/cli -am package \
+            -DskipTests -Djacoco.skip=true -Dcheckstyle.skip=true -Dspotbugs.skip=true \
+            -Dpmd.skip=true -Dcpd.skip=true -Dlicense.skip=true -Dspotless.check.skip=true
+          cp cimvocabcheck/cli/target/cimvocabcheck-cli-*.jar cimvocabcheck-cli.jar
+
+      - name: Upload the CLI fat JAR
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cimvocabcheck-cli-jar
+          path: cimvocabcheck-cli.jar
+          if-no-files-found: error
+
+  # ---- Python binding ------------------------------------------------------
+  # Runs the suite against the CLI JAR on Linux and Windows. CIMVOCABCHECK_TESTS_REQUIRE_ENGINE
+  # fails engine-backed tests instead of skipping them. Lint, the generator and packaging do not
+  # depend on the OS, so they run on Linux only.
+  python-binding:
+    needs: cli-jar
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: cimvocabcheck/bindings/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the CLI fat JAR
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cimvocabcheck-cli-jar
+          path: ${{ runner.temp }}/engine
+
+      - name: Point the suite at it
+        run: echo "CIMVOCABCHECK_JAR=${RUNNER_TEMP}/engine/cimvocabcheck-cli.jar" >> "${GITHUB_ENV}"
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install the binding and its tooling
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Lint
+        if: runner.os == 'Linux'
+        run: ruff check .
+
+      - name: Format check
+        if: runner.os == 'Linux'
+        run: ruff format --check .
+
+      - name: Type-check
+        if: runner.os == 'Linux'
+        run: mypy
+
+      # FAILS if the model no longer matches the schema it is generated from, i.e. someone
+      # changed the report contract without regenerating. One generator serves every binding, so
+      # this checks all three at once: python3 cimvocabcheck/bindings/codegen/generate_models.py
+      - name: Verify every binding's generated model matches the published schema
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: python3 cimvocabcheck/bindings/codegen/generate_models.py --check
+
+      # --check only proves today's schema; these feed the generator schema changes and
+      # constructs it must refuse rather than mis-generate.
+      - name: Test the model generator
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: python3 -m unittest discover -s cimvocabcheck/bindings/codegen/tests -v
+
+      - name: Lint the model generator
+        if: runner.os == 'Linux'
+        run: |
+          ruff check --config pyproject.toml ../codegen
+          ruff format --config pyproject.toml --check ../codegen
+
+      - name: Test against a real engine
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: python -m pytest
+
+      # The same build and metadata check the release runs before it uploads. The stray
+      # directory stands in for anything a developer leaves next to the package that git does
+      # not ignore (a virtualenv not called .venv): it must not end up in the sdist.
+      - name: Package dry run
+        if: runner.os == 'Linux'
+        run: |
+          pip install build==1.6.1 twine==7.0.0
+          mkdir -p stray-env/lib/tests && touch stray-env/LICENSE stray-env/lib/tests/test_stray.py
+          python -m build --outdir dist .
+          twine check --strict dist/*
+          if tar tzf dist/*.tar.gz | grep stray-env; then
+            echo "::error::The sdist picked up files from outside the package" >&2
+            exit 1
+          fi
+
+      # The run above only proves 3.13; this is the floor the package claims in requires-python.
+      # No engine here (what differs between interpreters is the wrapper, not the engine) and the
+      # container fallback is taken out of the way so the step cannot start pulling an image.
+      - name: Setup the oldest supported Python
+        if: runner.os == 'Linux'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Test on the oldest supported Python
+        if: runner.os == 'Linux'
+        env:
+          CIMVOCABCHECK_JAR: ""
+          CIMVOCABCHECK_NO_DOCKER: "1"
+        run: pip install -e ".[test]" && python -m pytest
+
+  # ---- Rust binding --------------------------------------------------------
+  # Rust is preinstalled on the runner images, so there is no toolchain action to pin here.
+  rust-binding:
+    needs: cli-jar
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: cimvocabcheck/bindings/rust
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the CLI fat JAR
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cimvocabcheck-cli-jar
+          path: ${{ runner.temp }}/engine
+
+      - name: Point the suite at it
+        run: echo "CIMVOCABCHECK_JAR=${RUNNER_TEMP}/engine/cimvocabcheck-cli.jar" >> "${GITHUB_ENV}"
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      # On every OS: code under #[cfg(unix)] / #[cfg(windows)] only meets the lints there.
+      - name: Lint
+        run: cargo clippy --all-targets -- -D warnings
+
+      # rustfmt covers the generated sources too: the generator emits formatted output so that
+      # `--check` on either tool stays meaningful.
+      - name: Format check
+        if: runner.os == 'Linux'
+        run: cargo fmt -- --check
+
+      - name: Test against a real engine
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: cargo test
+
+      # The run above only proves the runner's stable Rust; this is the floor the crate claims in
+      # Cargo.toml's rust-version, read from there so the two cannot disagree. --locked, so a
+      # dependency update that raises the floor fails here rather than for a user.
+      - name: Test on the oldest supported Rust
+        if: runner.os == 'Linux'
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: |
+          msrv="$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)"
+          test -n "${msrv}" || { echo "::error::Cargo.toml declares no rust-version" >&2; exit 1; }
+          rustup toolchain install "${msrv}" --profile minimal --no-self-update
+          cargo "+${msrv}" test --locked
+
+      - name: Verify the crate packages
+        if: runner.os == 'Linux'
+        run: cargo package --no-verify
+
+  # ---- .NET binding --------------------------------------------------------
+  # The tests target every framework the package does (net8.0 and net10.0), so both SDKs.
+  dotnet-binding:
+    needs: cli-jar
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: cimvocabcheck/bindings/dotnet
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the CLI fat JAR
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: cimvocabcheck-cli-jar
+          path: ${{ runner.temp }}/engine
+
+      - name: Point the suite at it
+        run: echo "CIMVOCABCHECK_JAR=${RUNNER_TEMP}/engine/cimvocabcheck-cli.jar" >> "${GITHUB_ENV}"
+
+      - name: Setup Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # Warnings are errors here (Directory.Build.props), so this is the lint gate too.
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Test against a real engine, on every target framework
+        env:
+          CIMVOCABCHECK_TESTS_REQUIRE_ENGINE: "1"
+        run: dotnet test --configuration Release --no-build
+
+      - name: Verify the package builds
+        if: runner.os == 'Linux'
+        run: dotnet pack src/Soptim.CimVocabCheck/Soptim.CimVocabCheck.csproj --configuration Release --no-build
+
   # ---- SBOM (maven) + license compliance -----------------------------------
   # Covers the Java library/CLI/LSP and their shipped Maven dependencies. The
   # CIMNotebook plugin SBOMs are generated/checked in cimnotebook-ci.
@@ -152,6 +416,9 @@ jobs:
       - lint
       - build-test
       - sbom
+      - python-binding
+      - rust-binding
+      - dotnet-binding
     runs-on: ubuntu-latest
     permissions:
       contents: read

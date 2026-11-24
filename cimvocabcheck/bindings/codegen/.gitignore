@@ -1,0 +1,3 @@
+# The emitters are imported as plain modules by generate_models.py.
+__pycache__/
+*.py[cod]

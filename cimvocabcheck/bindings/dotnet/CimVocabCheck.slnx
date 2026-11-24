@@ -1,0 +1,12 @@
+<!--
+    Copyright (c) 2026 SOPTIM AG
+    SPDX-License-Identifier: Apache-2.0
+-->
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Soptim.CimVocabCheck/Soptim.CimVocabCheck.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Soptim.CimVocabCheck.Tests/Soptim.CimVocabCheck.Tests.csproj" />
+  </Folder>
+</Solution>

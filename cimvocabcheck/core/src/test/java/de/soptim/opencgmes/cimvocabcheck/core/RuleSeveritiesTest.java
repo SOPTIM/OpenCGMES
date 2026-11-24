@@ -21,6 +21,7 @@ package de.soptim.opencgmes.cimvocabcheck.core;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,24 @@ public class RuleSeveritiesTest {
   @Test(expected = IllegalArgumentException.class)
   public void unknownSeverityRejected() {
     RuleSeverities.parse(Map.of("PROPERTY_MAY_BE_ABSENT", "quiet"));
+  }
+
+  /** An input that was not validated always fails, so a setting for it would be silently void. */
+  @Test
+  public void anInputFailureCannotBeConfigured() {
+    for (SparqlValidationCode code : SparqlValidationCode.values()) {
+      if (!code.isInputFailure()) {
+        continue;
+      }
+      for (String value : new String[] {"off", "error"}) {
+        try {
+          RuleSeverities.parse(Map.of(code.name(), value));
+          fail(code + " = " + value + " must be rejected");
+        } catch (IllegalArgumentException e) {
+          assertTrue(e.getMessage(), e.getMessage().contains(code.name()));
+        }
+      }
+    }
   }
 
   // ---- apply ------------------------------------------------------------------------------

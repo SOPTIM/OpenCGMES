@@ -1,0 +1,13 @@
+# Python build and tool artifacts. The generated model (src/cimvocabcheck/_model.py,
+# _codes.py) is deliberately NOT ignored: it is committed so the package builds without
+# running the generator, and CI checks it against the schema.
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage

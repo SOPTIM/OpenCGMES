@@ -127,7 +127,9 @@ public enum StrictnessLevel {
           UNKNOWN_VOCABULARY_TERM,
           INVALID_CARDINALITY,
           INVALID_CONSTRAINT_PARAMETER,
-          INVALID_VALUE_RANGE ->
+          INVALID_VALUE_RANGE,
+          UNREADABLE_INPUT,
+          ENGINE_FAILURE ->
           true;
       default -> false;
     };

@@ -1,0 +1,4 @@
+# Cargo build output. The repository root already ignores "target/"; this keeps the crate
+# self-contained if it is ever extracted. The generated model (src/model.rs, src/codes.rs) is
+# deliberately NOT ignored — it is committed, and CI checks it against the schema.
+/target/

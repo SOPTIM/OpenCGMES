@@ -275,9 +275,9 @@ public final class SparqlQueryAnalyzer {
       return UpdateFactory.create(updateString, RELATIVE_IRI_BASE);
     } catch (QueryParseException e) {
       throw new InvalidQueryException(
-          e.getMessage(), e, safeLine(e.getLine()), safeCol(e.getColumn()));
+          messageOf(e), e, safeLine(e.getLine()), safeCol(e.getColumn()));
     } catch (QueryException e) {
-      throw new InvalidQueryException(e.getMessage(), e);
+      throw new InvalidQueryException(messageOf(e), e);
     }
   }
 
@@ -289,10 +289,25 @@ public final class SparqlQueryAnalyzer {
       return QueryFactory.create(queryString, RELATIVE_IRI_BASE);
     } catch (QueryParseException e) {
       throw new InvalidQueryException(
-          e.getMessage(), e, safeLine(e.getLine()), safeCol(e.getColumn()));
+          messageOf(e), e, safeLine(e.getLine()), safeCol(e.getColumn()));
     } catch (QueryException e) {
-      throw new InvalidQueryException(e.getMessage(), e);
+      throw new InvalidQueryException(messageOf(e), e);
     }
+  }
+
+  /**
+   * The exception's message, or a description of its cause when it has none. Jena reports a parser
+   * stack overflow — a query nested a few thousand levels deep — as a parse exception without a
+   * message, and every finding needs one.
+   */
+  private static String messageOf(QueryException e) {
+    if (e.getMessage() != null) {
+      return e.getMessage();
+    }
+    if (e.getCause() instanceof StackOverflowError) {
+      return "The query is nested too deeply for the SPARQL parser.";
+    }
+    return e.getCause() != null ? e.getCause().toString() : e.getClass().getSimpleName();
   }
 
   private static Integer safeLine(int line) {

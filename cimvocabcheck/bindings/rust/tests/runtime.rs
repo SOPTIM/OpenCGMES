@@ -1,0 +1,924 @@
+//    Copyright (c) 2026 SOPTIM AG
+//
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//    you may not use this file except in compliance with the License.
+//    You may obtain a copy of the License at
+//
+//        http://www.apache.org/licenses/LICENSE-2.0
+//
+//    Unless required by applicable law or agreed to in writing, software
+//    distributed under the License is distributed on an "AS IS" BASIS,
+//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//    See the License for the specific language governing permissions and
+//    limitations under the License.
+//
+//    SPDX-License-Identifier: Apache-2.0
+
+//! Engine discovery: the order, and the message when it comes up empty.
+
+mod common;
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use cimvocabcheck::runtime::{container_path, Mount, ENV_BIN, ENV_IMAGE, ENV_JAR, ENV_NO_DOCKER};
+use cimvocabcheck::{discover, Discovery, Engine, Error};
+use common::{bare_env, TempDir};
+
+fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    pairs
+        .iter()
+        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+        .collect()
+}
+
+#[test]
+fn an_explicit_jar_path_beats_everything_else() {
+    let dir = TempDir::new();
+    let jar = dir.path().join("engine.jar");
+    std::fs::write(&jar, b"").unwrap();
+    let java = dir.executable("java");
+
+    let engine = discover(
+        &Discovery::new()
+            .engine_path(jar.clone())
+            .env(env(&[("PATH", dir.path().to_str().unwrap())])),
+    )
+    .expect("the configured jar");
+
+    assert_eq!(engine, Engine::jar(jar, java));
+}
+
+#[test]
+fn the_jar_environment_variable_comes_before_path() {
+    let dir = TempDir::new();
+    let jar = dir.path().join("engine.jar");
+    std::fs::write(&jar, b"").unwrap();
+    dir.executable("java");
+    dir.executable("cimvocabcheck");
+
+    let engine = discover(&Discovery::new().env(env(&[
+        ("PATH", dir.path().to_str().unwrap()),
+        (ENV_JAR, jar.to_str().unwrap()),
+    ])))
+    .expect("the configured jar");
+
+    assert!(matches!(engine, Engine::Jar { .. }), "{engine:?}");
+}
+
+#[test]
+fn an_engine_on_path_is_used_when_the_environment_is_silent() {
+    let dir = TempDir::new();
+    let binary = dir.executable("cimvocabcheck");
+
+    let engine = discover(&Discovery::new().env(env(&[("PATH", dir.path().to_str().unwrap())])))
+        .expect("the engine on PATH");
+
+    assert_eq!(engine, Engine::binary(binary));
+}
+
+#[test]
+fn the_python_bindings_console_script_is_never_taken_for_the_engine() {
+    // It runs a discovery of its own: results would come back under the names it rewrote for
+    // Docker, and a timeout would kill the script but not the container it started.
+    let dir = TempDir::new();
+    let scripts = dir.python_shim("venv");
+
+    let error = discover(&Discovery::new().no_docker(true).env(env(&[(
+        "PATH",
+        scripts.parent().unwrap().to_str().unwrap(),
+    )])))
+    .expect_err("the shim is not an engine");
+
+    assert!(matches!(error, Error::EngineNotFound { .. }), "{error}");
+}
+
+#[test]
+fn a_console_script_is_skipped_but_an_engine_after_it_is_found() {
+    let dir = TempDir::new();
+    let scripts = dir.python_shim("venv");
+    std::fs::create_dir(dir.path().join("opt")).unwrap();
+    let binary = dir.executable("opt/cimvocabcheck");
+    let path = std::env::join_paths([scripts.parent().unwrap(), binary.parent().unwrap()]).unwrap();
+
+    let engine = discover(&Discovery::new().env(env(&[("PATH", path.to_str().unwrap())])))
+        .expect("the engine after the shim");
+
+    assert_eq!(engine, Engine::binary(binary));
+}
+
+#[test]
+fn a_windows_launcher_is_recognised_by_the_script_appended_to_it() {
+    let dir = TempDir::new();
+    let mut launcher = vec![0u8; 256 * 1024];
+    launcher.extend_from_slice(b"PK\x03\x04__main__.py from cimvocabcheck.__main__ import main");
+    let path = dir.executable("cimvocabcheck");
+    std::fs::write(&path, launcher).unwrap();
+
+    let error = discover(
+        &Discovery::new()
+            .no_docker(true)
+            .env(env(&[("PATH", dir.path().to_str().unwrap())])),
+    )
+    .expect_err("the launcher is the shim, not an engine");
+
+    assert!(matches!(error, Error::EngineNotFound { .. }), "{error}");
+}
+
+#[test]
+fn an_engine_variable_pointing_at_the_python_shim_is_refused() {
+    let dir = TempDir::new();
+    let shim = dir.python_shim("venv");
+
+    let error = discover(&Discovery::new().env(env(&[(ENV_BIN, shim.to_str().unwrap())])))
+        .expect_err("the shim is not an engine");
+
+    assert!(error.to_string().contains("Python shim"), "{error}");
+}
+
+#[test]
+fn docker_is_the_last_resort() {
+    let dir = TempDir::new();
+    let docker = dir.executable("docker");
+
+    let engine = discover(
+        &Discovery::new()
+            .env(env(&[("PATH", dir.path().to_str().unwrap())]))
+            .cwd(dir.path().to_path_buf()),
+    )
+    .expect("the docker fallback");
+
+    match engine {
+        Engine::Docker { docker: found, .. } => assert_eq!(found, docker),
+        other => panic!("expected the docker fallback, got {other:?}"),
+    }
+}
+
+#[test]
+fn docker_can_be_switched_off() {
+    let dir = TempDir::new();
+    dir.executable("docker");
+
+    let error = discover(&Discovery::new().env(env(&[
+        ("PATH", dir.path().to_str().unwrap()),
+        (ENV_NO_DOCKER, "1"),
+    ])))
+    .expect_err("docker was taken out of the chain");
+
+    assert!(matches!(error, Error::EngineNotFound { .. }), "{error}");
+}
+
+#[test]
+fn the_docker_image_is_overridable() {
+    let dir = TempDir::new();
+    dir.executable("docker");
+
+    let engine = discover(
+        &Discovery::new()
+            .env(env(&[
+                ("PATH", dir.path().to_str().unwrap()),
+                (ENV_IMAGE, "example.org/cvc:edge"),
+            ]))
+            .cwd(dir.path().to_path_buf()),
+    )
+    .expect("the docker fallback");
+
+    assert!(engine
+        .command(&[], false, None)
+        .unwrap()
+        .contains(&"example.org/cvc:edge".to_owned()));
+}
+
+#[test]
+fn failure_names_everything_that_was_tried() {
+    let error =
+        discover(&Discovery::new().env(bare_env()).no_docker(true)).expect_err("nothing to find");
+
+    let message = error.to_string();
+    for expected in [ENV_JAR, ENV_BIN, "on PATH", "Docker"] {
+        assert!(message.contains(expected), "{message}");
+    }
+}
+
+#[test]
+fn a_configured_engine_that_does_not_exist_says_so() {
+    let error =
+        discover(&Discovery::new().env(env(&[("PATH", ""), (ENV_JAR, "/nowhere/engine.jar")])))
+            .expect_err("the jar is not there");
+
+    assert!(error.to_string().contains("/nowhere/engine.jar"), "{error}");
+}
+
+#[test]
+fn a_jar_without_a_java_launcher_explains_the_requirement() {
+    let dir = TempDir::new();
+    let jar = dir.path().join("engine.jar");
+    std::fs::write(&jar, b"").unwrap();
+
+    let error =
+        discover(&Discovery::new().engine_path(jar).env(bare_env())).expect_err("there is no java");
+
+    assert!(error.to_string().contains("JRE 21"), "{error}");
+}
+
+// ---- The Docker engine's path handling --------------------------------------------------------
+
+#[test]
+fn docker_mounts_the_working_directory_and_addresses_inputs_inside_it() {
+    let dir = TempDir::new();
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
+
+    let command = engine
+        .command(&["-f".into(), "json".into()], false, None)
+        .unwrap();
+
+    assert_eq!(&command[..3], ["docker", "run", "--rm"]);
+    assert!(command.contains(&format!("{}:/work", dir.path().display())));
+    assert_eq!(
+        command[command.iter().position(|a| a == "-w").unwrap() + 1],
+        "/work"
+    );
+    assert_eq!(
+        engine.resolve_path("queries/q.rq", None).unwrap(),
+        "queries/q.rq"
+    );
+    assert_eq!(
+        engine
+            .resolve_path(dir.path().join("queries/q.rq").to_str().unwrap(), None)
+            .unwrap(),
+        "queries/q.rq"
+    );
+}
+
+#[test]
+fn docker_keeps_stdin_open_only_when_it_is_used() {
+    let dir = TempDir::new();
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
+
+    assert!(engine
+        .command(&["-".into()], true, None)
+        .unwrap()
+        .contains(&"-i".to_owned()));
+    assert!(!engine
+        .command(&["q.rq".into()], false, None)
+        .unwrap()
+        .contains(&"-i".to_owned()));
+}
+
+#[test]
+fn docker_uses_the_working_directory_of_the_call_not_of_its_discovery() {
+    // An engine is discovered once and then used from several directories.
+    let discovered_in = TempDir::new();
+    let called_from = TempDir::new();
+    let engine = Engine::docker("cvc:test", "docker", discovered_in.path().to_path_buf());
+
+    let command = engine
+        .command(&[], false, Some(called_from.path()))
+        .unwrap();
+
+    assert!(command.contains(&format!("{}:/work", called_from.path().display())));
+}
+
+#[test]
+fn docker_refuses_a_path_it_could_not_mount() {
+    let dir = TempDir::new();
+    let engine = Engine::docker("cvc:test", "docker", dir.path().join("project"));
+    std::fs::create_dir_all(dir.path().join("project")).unwrap();
+
+    let error = engine
+        .resolve_path(dir.path().join("elsewhere/q.rq").to_str().unwrap(), None)
+        .expect_err("outside the mount");
+
+    assert!(
+        error.to_string().contains("outside the working directory"),
+        "{error}"
+    );
+}
+
+#[test]
+fn local_engines_pass_paths_through_untouched() {
+    let engine = Engine::binary(PathBuf::from("/opt/cvc"));
+
+    assert_eq!(
+        engine.resolve_path("../shared/q.rq", None).unwrap(),
+        "../shared/q.rq"
+    );
+}
+
+#[test]
+fn docker_addresses_the_working_directory_itself() {
+    let dir = TempDir::new();
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
+
+    assert_eq!(engine.resolve_path(".", None).unwrap(), ".");
+    assert_eq!(
+        engine
+            .resolve_path(dir.path().to_str().unwrap(), None)
+            .unwrap(),
+        "."
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn docker_accepts_an_absolute_path_spelled_through_a_symlink() {
+    let dir = TempDir::new();
+    let real = dir.path().join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let docker = |cwd: &std::path::Path| Engine::docker("cvc:test", "docker", cwd.to_path_buf());
+
+    for (cwd, input) in [(&link, &link), (&link, &real), (&real, &link)] {
+        assert_eq!(
+            docker(cwd)
+                .resolve_path(input.join("q.rq").to_str().unwrap(), None)
+                .unwrap(),
+            "q.rq",
+            "cwd {} input {}",
+            cwd.display(),
+            input.display()
+        );
+    }
+    // Mounted as given: the daemon follows the link itself.
+    assert!(docker(&link)
+        .command(&[], false, None)
+        .unwrap()
+        .contains(&format!("{}:/work", link.display())));
+}
+
+#[test]
+fn docker_names_every_run_so_a_killed_one_can_be_removed() {
+    let dir = TempDir::new();
+    let engine = Engine::docker("cvc:test", "docker", dir.path().to_path_buf());
+    let name = |command: Vec<String>| {
+        command[command.iter().position(|arg| arg == "--name").unwrap() + 1].clone()
+    };
+
+    assert_ne!(
+        name(engine.command(&[], false, None).unwrap()),
+        name(engine.command(&[], false, None).unwrap())
+    );
+}
+
+#[test]
+fn a_relative_engine_path_is_pinned_to_where_it_was_found() {
+    // The engine may run in another directory, where the relative path means something else.
+    // Tests run in the crate directory, so its manifest is a relative path that exists.
+    let engine = discover(
+        &Discovery::new()
+            .engine_path(PathBuf::from("Cargo.toml"))
+            .env(bare_env()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        engine,
+        Engine::binary(std::env::current_dir().unwrap().join("Cargo.toml"))
+    );
+}
+
+fn docker_in(cwd: PathBuf) -> Engine {
+    Engine::docker("cvc:test", "docker", cwd)
+}
+
+fn strings(args: &[&str]) -> Vec<String> {
+    args.iter().map(|&arg| arg.to_owned()).collect()
+}
+
+#[test]
+fn docker_mounts_a_config_that_lies_above_the_working_directory() {
+    // Inside the container the engine's upward search stops at the mount, so it would miss the
+    // config and silently check syntax only.
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("queries/q.rq", "ASK {}");
+
+    let command = docker_in(dir.path().join("queries"))
+        .command(&strings(&["--format", "json", "--", "q.rq"]), false, None)
+        .unwrap();
+
+    let mirror = container_path(dir.path());
+    assert!(command.contains(&format!("{}:{mirror}:ro", dir.path().display())));
+    let image = command.iter().position(|a| a == "cvc:test").unwrap();
+    assert_eq!(
+        command[image + 1..],
+        strings(&[
+            "--config",
+            &format!("{mirror}/opencgmes.jsonc"),
+            "--format",
+            "json",
+            "--",
+            "q.rq"
+        ])
+    );
+}
+
+#[test]
+fn docker_prefers_the_jsonc_config_like_the_engine_does() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.json", "{}");
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/q.rq", "ASK {}");
+
+    let command = docker_in(dir.path().join("sub"))
+        .command(&strings(&["q.rq"]), false, None)
+        .unwrap();
+
+    assert!(command.contains(&format!("{}/opencgmes.jsonc", container_path(dir.path()))));
+}
+
+#[test]
+fn docker_leaves_a_config_inside_the_mount_to_the_engine() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/opencgmes.json", "{}");
+
+    for cwd in [dir.path().to_path_buf(), dir.path().join("sub")] {
+        let command = docker_in(cwd)
+            .command(&strings(&["q.rq"]), false, None)
+            .unwrap();
+        assert!(!command.contains(&"--config".to_owned()), "{command:?}");
+        assert!(
+            !command.iter().any(|part| part.ends_with(":ro")),
+            "{command:?}"
+        );
+    }
+}
+
+#[test]
+fn docker_does_not_add_a_config_when_the_call_names_a_schema_source() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/q.rq", "ASK {}");
+
+    for flags in [
+        &["--config", "x.jsonc"][..],
+        &["--config=x.jsonc"],
+        &["-cx.jsonc"],
+        &["--schema", "profiles"],
+        &["-s", "profiles"],
+        &["--endpoint=http://h/q"],
+        &["-e", "http://h/q"],
+    ] {
+        let mut args = strings(flags);
+        args.extend(strings(&["--", "q.rq"]));
+        let command = docker_in(dir.path().join("sub"))
+            .command(&args, false, None)
+            .unwrap();
+        assert!(
+            !command.contains(&format!("{}/opencgmes.jsonc", container_path(dir.path()))),
+            "{flags:?}"
+        );
+    }
+}
+
+#[test]
+fn an_input_named_like_a_flag_does_not_suppress_the_config() {
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("sub/q.rq", "ASK {}");
+
+    let command = docker_in(dir.path().join("sub"))
+        .command(&strings(&["--", "-s.rq"]), false, None)
+        .unwrap();
+
+    assert!(command.contains(&format!("{}/opencgmes.jsonc", container_path(dir.path()))));
+}
+
+#[cfg(unix)]
+type LocaleCase<'a> = (&'a [(&'a str, &'a str)], Option<&'a str>);
+
+#[cfg(unix)]
+#[test]
+fn a_local_engine_never_runs_under_an_ascii_only_locale() {
+    let jar = Engine::jar("cli.jar", "java");
+    let binary = Engine::binary("cimvocabcheck");
+    // The environment, and the variable expected to be set to C.UTF-8.
+    // Only locales every C library has, so the answer does not depend on what this machine has
+    // installed; the unit tests in the crate cover locales that are named but missing.
+    let cases: [LocaleCase; 7] = [
+        (&[], Some("LC_CTYPE")),
+        (&[("LANG", "C")], Some("LC_CTYPE")),
+        (&[("LANG", "POSIX")], Some("LC_CTYPE")),
+        (&[("LC_ALL", "C"), ("LANG", "C.UTF-8")], Some("LC_ALL")),
+        (&[("LC_CTYPE", "C"), ("LANG", "C")], Some("LC_CTYPE")),
+        (&[("LANG", "C.UTF-8")], None),
+        (&[("LC_CTYPE", "C.utf8"), ("LANG", "C")], None),
+    ];
+    for (pairs, expected) in cases {
+        let vars = env(pairs);
+        let expected = expected.map(|variable| (variable, "C.UTF-8"));
+        assert_eq!(jar.locale_override(Some(&vars)), expected, "{pairs:?}");
+        assert_eq!(binary.locale_override(Some(&vars)), expected, "{pairs:?}");
+    }
+}
+
+#[test]
+fn the_docker_client_keeps_the_callers_locale() {
+    let engine = Engine::docker("cvc:test", "docker", ".");
+
+    assert_eq!(engine.locale_override(Some(&env(&[("LANG", "C")]))), None);
+}
+
+#[test]
+fn docker_mounts_an_explicit_config_outside_the_working_directory() {
+    // The same config the engine would discover from there; naming it must not be refused.
+    let dir = TempDir::new();
+    dir.write("opencgmes.jsonc", "{}");
+    dir.write("queries/q.rq", "ASK {}");
+    let engine = docker_in(dir.path().join("queries"));
+    let mut mounts = Vec::new();
+
+    let config = engine
+        .resolve_config("../opencgmes.jsonc", None, &mut mounts)
+        .expect("mounted, not refused");
+    let command = engine
+        .command_with_mounts(
+            &strings(&["--config", &config, "--", "q.rq"]),
+            false,
+            None,
+            &mounts,
+        )
+        .unwrap();
+
+    let directory = dir.path().to_path_buf();
+    let mirror = container_path(&directory);
+    assert_eq!(config, format!("{mirror}/opencgmes.jsonc"));
+    assert!(
+        command.contains(&format!("{}:{mirror}:ro", directory.display())),
+        "{command:?}"
+    );
+}
+
+#[test]
+fn docker_mounts_schemas_outside_the_working_directory_where_the_host_has_them() {
+    let dir = TempDir::new();
+    dir.write("profiles/a.rdf", "");
+    dir.write("more/b.rdf", "");
+    dir.write("project/profiles/inside.rdf", "");
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    let schemas: Vec<String> = ["../profiles", "../more/b.rdf", "profiles/inside.rdf"]
+        .iter()
+        .map(|path| engine.resolve_schema(path, None, &mut mounts).unwrap())
+        .collect();
+    let command = engine
+        .command_with_mounts(&[], false, None, &mounts)
+        .unwrap();
+
+    let root = dir.path().to_path_buf();
+    let outside = [root.join("profiles"), root.join("more").join("b.rdf")];
+    assert_eq!(
+        schemas,
+        [
+            container_path(&outside[0]),
+            container_path(&outside[1]),
+            "profiles/inside.rdf".to_owned()
+        ]
+    );
+    for host in outside {
+        let volume = format!("{}:{}:ro", host.display(), container_path(&host));
+        assert!(command.contains(&volume), "{volume} in {command:?}");
+    }
+}
+
+#[test]
+fn docker_mounts_an_input_outside_the_working_directory() {
+    // As a local engine would read it: one input elsewhere must not cost the batch its results.
+    let dir = TempDir::new();
+    std::fs::create_dir(dir.path().join("project")).unwrap();
+    dir.write("shared/q.rq", "");
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    let seen = engine
+        .resolve_input("../shared/q.rq", None, &mut mounts)
+        .unwrap();
+    let command = engine
+        .command_with_mounts(&strings(&["--", &seen]), false, None, &mounts)
+        .unwrap();
+
+    let host = dir.path().join("shared").join("q.rq");
+    assert_eq!(seen, container_path(&host));
+    assert!(volumes(&command).contains(&format!("{}:{seen}:ro", host.display())));
+    assert_eq!(
+        engine
+            .resolve_input("inside.rq", None, &mut mounts)
+            .unwrap(),
+        "inside.rq"
+    );
+}
+
+#[test]
+fn docker_hands_a_missing_input_to_the_engine_to_report() {
+    // The engine reports it as unreadable, as a local engine does; mounting it would make Docker
+    // create an empty directory in its place.
+    let dir = TempDir::new();
+    std::fs::create_dir(dir.path().join("project")).unwrap();
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+    let missing = dir.path().join("nowhere").join("q.rq");
+
+    let seen = engine
+        .resolve_input(missing.to_str().unwrap(), None, &mut mounts)
+        .unwrap();
+
+    assert_eq!(seen, container_path(&missing));
+    assert_eq!(mounts, Vec::<Mount>::new());
+}
+
+#[test]
+fn docker_mounts_an_input_only_once_when_a_mount_already_shows_it() {
+    let dir = TempDir::new();
+    std::fs::create_dir(dir.path().join("project")).unwrap();
+    dir.write("profiles/shapes.ttl", "");
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    engine
+        .resolve_schema("../profiles", None, &mut mounts)
+        .unwrap();
+    let seen = engine
+        .resolve_input("../profiles/shapes.ttl", None, &mut mounts)
+        .unwrap();
+
+    assert_eq!(mounts.len(), 1);
+    assert_eq!(
+        seen,
+        container_path(&dir.path().join("profiles").join("shapes.ttl"))
+    );
+}
+
+#[test]
+fn docker_still_refuses_a_missing_schema_outside_the_working_directory() {
+    // Binding a path that does not exist makes Docker create an empty directory there.
+    let dir = TempDir::new();
+    std::fs::create_dir_all(dir.path().join("project")).unwrap();
+    let engine = docker_in(dir.path().join("project"));
+    let mut mounts = Vec::new();
+
+    let error = engine
+        .resolve_schema("../nowhere", None, &mut mounts)
+        .expect_err("refused");
+
+    assert!(matches!(error, Error::UnreachablePath(_)), "{error}");
+    assert_eq!(mounts, []);
+}
+
+/// The host path the container sees at `container`, going by the `-v` mounts in `command`.
+fn seen_as(command: &[String], container: &str) -> Option<PathBuf> {
+    let mut best: Option<(&str, &str)> = None;
+    for pair in command.windows(2) {
+        if pair[0] != "-v" {
+            continue;
+        }
+        let volume = pair[1].strip_suffix(":ro").unwrap_or(&pair[1]);
+        let (host, target) = volume.rsplit_once(':').unwrap();
+        let covers = container == target || container.starts_with(&format!("{target}/"));
+        if covers && best.map_or(true, |(_, b)| target.len() > b.len()) {
+            best = Some((host, target));
+        }
+    }
+    let (host, target) = best?;
+    let rest = container[target.len()..].trim_start_matches('/');
+    Some(if rest.is_empty() {
+        PathBuf::from(host)
+    } else {
+        PathBuf::from(host).join(rest)
+    })
+}
+
+/// Where the engine resolves `path` from the config it was handed, inside the container.
+fn where_the_engine_looks(config: &str, path: &str) -> String {
+    let mut segments: Vec<&str> = config.split('/').filter(|s| !s.is_empty()).collect();
+    segments.pop();
+    for segment in path.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                segments.pop();
+            }
+            other => segments.push(other),
+        }
+    }
+    format!("/{}", segments.join("/"))
+}
+
+fn volumes(command: &[String]) -> Vec<String> {
+    command
+        .windows(2)
+        .filter(|pair| pair[0] == "-v")
+        .map(|pair| pair[1].clone())
+        .collect()
+}
+
+#[test]
+fn docker_mounts_the_schemas_an_explicit_config_names_outside_its_directory() {
+    // The config's relative paths are resolved against the config, which on the host lead out of
+    // the directory mounted for it.
+    let dir = TempDir::new();
+    dir.write(
+        "conf/opencgmes.jsonc",
+        r#"{
+          // shared between projects
+          "cimvocabcheck": {
+            "schemasDirectory": "../schemas/cgmes3",
+            "schemas": ["../extra/x.rdf",],
+          },
+        }"#,
+    );
+    dir.write("schemas/cgmes3/a.rdf", "");
+    dir.write("extra/x.rdf", "");
+    dir.write("proj/q.rq", "ASK {}");
+    let engine = docker_in(dir.path().join("proj"));
+    let mut mounts = Vec::new();
+
+    let config = engine
+        .resolve_config("../conf/opencgmes.jsonc", None, &mut mounts)
+        .unwrap();
+    let command = engine
+        .command_with_mounts(
+            &strings(&["--config", &config, "--", "q.rq"]),
+            false,
+            None,
+            &mounts,
+        )
+        .unwrap();
+
+    let root = dir.path().to_path_buf();
+    for (path, host) in [
+        ("../schemas/cgmes3", "schemas/cgmes3"),
+        ("../extra/x.rdf", "extra/x.rdf"),
+    ] {
+        let looked_at = where_the_engine_looks(&config, path);
+        assert_eq!(
+            seen_as(&command, &looked_at),
+            Some(root.join(host)),
+            "{command:?}"
+        );
+    }
+}
+
+#[test]
+fn docker_mounts_the_schemas_a_discovered_config_names_outside_its_directory() {
+    let dir = TempDir::new();
+    dir.write(
+        "repo/opencgmes.jsonc",
+        r#"{"cimvocabcheck": {"schemasDirectory": "../profiles"}}"#,
+    );
+    dir.write("profiles/a.rdf", "");
+    dir.write("repo/queries/q.rq", "ASK {}");
+
+    let command = docker_in(dir.path().join("repo/queries"))
+        .command(&strings(&["--", "q.rq"]), false, None)
+        .unwrap();
+
+    let config = &command[command.iter().position(|a| a == "--config").unwrap() + 1];
+    let looked_at = where_the_engine_looks(config, "../profiles");
+    assert_eq!(
+        seen_as(&command, &looked_at),
+        Some(dir.path().join("profiles"))
+    );
+}
+
+#[test]
+fn docker_mounts_what_a_config_in_the_working_directory_names_outside_it() {
+    // The engine finds this config itself, at the mount, and resolves its paths from there.
+    let dir = TempDir::new();
+    dir.write(
+        "proj/opencgmes.jsonc",
+        r#"{"cimvocabcheck": {"schemasDirectory": "../shared"}}"#,
+    );
+    dir.write("shared/a.rdf", "");
+
+    let command = docker_in(dir.path().join("proj"))
+        .command(&strings(&["--", "q.rq"]), false, None)
+        .unwrap();
+
+    assert!(!command.contains(&"--config".to_owned()));
+    let looked_at = where_the_engine_looks("/work/opencgmes.jsonc", "../shared");
+    assert_eq!(
+        seen_as(&command, &looked_at),
+        Some(dir.path().join("shared"))
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn docker_mounts_an_absolute_schema_path_a_config_names_where_it_is() {
+    let dir = TempDir::new();
+    let absolute = dir.path().join("abs");
+    std::fs::create_dir_all(&absolute).unwrap();
+    dir.write(
+        "proj/opencgmes.jsonc",
+        &format!(
+            r#"{{"cimvocabcheck": {{"schemasDirectory": "{}"}}}}"#,
+            absolute.display()
+        ),
+    );
+
+    let command = docker_in(dir.path().join("proj"))
+        .command(&strings(&["--", "q.rq"]), false, None)
+        .unwrap();
+
+    assert_eq!(
+        seen_as(&command, &absolute.display().to_string()),
+        Some(absolute)
+    );
+}
+
+#[test]
+fn docker_adds_nothing_for_config_paths_inside_the_working_directory() {
+    let dir = TempDir::new();
+    dir.write(
+        "opencgmes.jsonc",
+        r#"{"cimvocabcheck": {"schemasDirectory": "profiles"}}"#,
+    );
+    dir.write("profiles/a.rdf", "");
+
+    let command = docker_in(dir.path().to_path_buf())
+        .command(&strings(&["--", "q.rq"]), false, None)
+        .unwrap();
+
+    assert_eq!(
+        volumes(&command),
+        [format!("{}:/work", dir.path().display())]
+    );
+}
+
+#[test]
+fn a_config_whose_paths_cannot_be_used_is_left_to_the_engine() {
+    // The engine reports a missing schema or a broken config itself; binding a missing path would
+    // make Docker create an empty directory in its place.
+    for text in [
+        r#"{"cimvocabcheck": {"schemasDirectory": "../missing"}}"#,
+        "{ this is not json",
+        r#"{"cimvocabcheck": {"schemasDirectory": 3, "schemas": "x"}}"#,
+        "[]",
+    ] {
+        let dir = TempDir::new();
+        dir.write("proj/opencgmes.jsonc", text);
+
+        let command = docker_in(dir.path().join("proj"))
+            .command(&strings(&["--", "q.rq"]), false, None)
+            .unwrap();
+
+        let workdir = format!("{}:/work", dir.path().join("proj").display());
+        assert_eq!(volumes(&command), [workdir], "{text}");
+    }
+}
+
+#[test]
+fn docker_refuses_a_config_path_it_would_have_to_mount_over_the_image() {
+    // `../usr` from a config at `/work` is the container's own `/usr`.
+    let dir = TempDir::new();
+    dir.write(
+        "proj/opencgmes.jsonc",
+        r#"{"cimvocabcheck": {"schemasDirectory": "../usr"}}"#,
+    );
+    dir.write("usr/a.rdf", "");
+
+    let error = docker_in(dir.path().join("proj"))
+        .command(&strings(&["--", "q.rq"]), false, None)
+        .expect_err("refused");
+
+    assert!(
+        matches!(&error, Error::UnreachablePath(message) if message.contains("/usr")),
+        "{error}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn container_paths_mirror_the_host_path_under_one_directory() {
+    assert_eq!(
+        container_path(std::path::Path::new("/srv/repo/profiles")),
+        "/host/srv/repo/profiles"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn docker_mounts_a_verbatim_working_directory_without_its_prefix() {
+    // What `canonicalize` returns on Windows; `docker -v` rejects the `\\?\` prefix.
+    let dir = TempDir::new();
+    let verbatim = PathBuf::from(format!(r"\\?\{}", dir.path().display()));
+
+    let command = docker_in(verbatim).command(&[], false, None).unwrap();
+
+    assert!(
+        volumes(&command).contains(&format!("{}:/work", dir.path().display())),
+        "{command:?}"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn container_paths_give_a_windows_drive_a_directory_of_its_own() {
+    assert_eq!(
+        container_path(std::path::Path::new(r"C:\repo\profiles")),
+        "/host/C/repo/profiles"
+    );
+}

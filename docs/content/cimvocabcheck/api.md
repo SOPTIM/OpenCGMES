@@ -75,6 +75,10 @@ vocabulary typos) used when no schema resolves; the two-arg overload honors the
 
 ## Result types
 
+These are the Java types. Consumers in other languages read the CLI's machine-readable
+[report contract](/cimvocabcheck/report-contract) instead, which projects the same findings onto a
+versioned JSON document.
+
 ### `SparqlValidationResult`
 
 ```java

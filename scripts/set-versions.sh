@@ -5,7 +5,7 @@
 #
 #   cimxml-version        - Maven version for cimxml (e.g. 1.0.2-SNAPSHOT or 1.0.1)
 #   cimvocabcheck-version - Maven version for the cimvocabcheck modules: core / cli / lsp
-#                           (e.g. 0.2.1-SNAPSHOT or 0.2.1). Omit to skip them.
+#                           (e.g. 0.2.1-SNAPSHOT, 0.2.1-rc.1 or 0.2.1). Omit to skip them.
 #   cimnotebook-version   - Version for the cimnotebook editor plugins: the IntelliJ plugin
 #                           (gradle.properties) and the VS Code extension (package.json).
 #                           Omit to skip them.
@@ -51,6 +51,35 @@ if [[ -n "${CIMVOCABCHECK_VERSION}" ]]; then
             ${VERSIONS_PLUGIN}:set-property -Dproperty=ver.cimvocabcheck-core \
             -DnewVersion="${CIMVOCABCHECK_VERSION}" -DgenerateBackupPoms=false
     done
+
+    # Language bindings: same train as the engine they wrap, so a binding and an engine that
+    # share a minor are known to have been generated against the same report contract. Each
+    # ecosystem spells a pre-release differently, and none of them spell it "-SNAPSHOT".
+    BINDINGS="${REPO_ROOT}/cimvocabcheck/bindings"
+    PLAIN_VERSION="${CIMVOCABCHECK_VERSION%-SNAPSHOT}"
+
+    # Python (PEP 440): a developmental release sorts before the release it leads to, which is
+    # what -SNAPSHOT means. X.Y.Z-SNAPSHOT -> X.Y.Z.dev0, X.Y.Z-rc.N -> X.Y.ZrcN
+    PY_VERSION="${PLAIN_VERSION/-rc./rc}"
+    if [[ "${PLAIN_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
+        PY_VERSION="${PY_VERSION}.dev0"
+    fi
+    sed -i "s/^version = \".*\"/version = \"${PY_VERSION}\"/" \
+        "${BINDINGS}/python/pyproject.toml"
+
+    # Rust (SemVer): a pre-release is a -suffix, and "-SNAPSHOT" is already valid SemVer, but
+    # cargo sorts it below every other pre-release tag; -dev keeps the same meaning and the same
+    # spelling as the other two. X.Y.Z-SNAPSHOT -> X.Y.Z-dev
+    RS_VERSION="${PLAIN_VERSION}"
+    if [[ "${RS_VERSION}" != "${CIMVOCABCHECK_VERSION}" ]]; then
+        RS_VERSION="${RS_VERSION}-dev"
+    fi
+    sed -i "0,/^version = \".*\"/s//version = \"${RS_VERSION}\"/" \
+        "${BINDINGS}/rust/Cargo.toml"
+
+    # .NET (NuGet, SemVer 2.0): same pre-release spelling as the crate.
+    sed -i "s|<Version>.*</Version>|<Version>${RS_VERSION}</Version>|" \
+        "${BINDINGS}/dotnet/Directory.Build.props"
 fi
 
 # --- cimnotebook plugin versions (IntelliJ + VS Code) ---

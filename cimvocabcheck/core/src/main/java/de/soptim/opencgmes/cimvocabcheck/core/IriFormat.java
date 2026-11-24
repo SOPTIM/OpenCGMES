@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimvocabcheck.core;
 
 import java.util.Collection;
+import java.util.Comparator;
 import org.apache.jena.graph.Node;
 
 /**
@@ -46,11 +47,14 @@ public final class IriFormat {
     return prev >= 0 ? iri.substring(prev + 1) : iri.substring(last + 1);
   }
 
-  /** Appends {@code [profile1, profile2, …]} (each {@link #shortIri shortened}) to {@code msg}. */
+  /**
+   * Appends {@code [profile1, profile2, …]} (each {@link #shortIri shortened}) to {@code msg}, in
+   * IRI order, so a message reads the same whatever collection the profiles came in.
+   */
   public static void appendIris(StringBuilder msg, Collection<VersionIri> profiles) {
     msg.append('[');
     boolean first = true;
-    for (VersionIri v : profiles) {
+    for (VersionIri v : profiles.stream().sorted(Comparator.comparing(VersionIri::iri)).toList()) {
       if (!first) {
         msg.append(", ");
       }
