@@ -19,6 +19,7 @@
 package de.soptim.opencgmes.cimreader.core.loader;
 
 import de.soptim.opencgmes.cimreader.core.source.ModelSource;
+import de.soptim.opencgmes.cimxml.CimHeaderVocabulary;
 import de.soptim.opencgmes.cimxml.graph.FastDeltaGraph;
 import de.soptim.opencgmes.cimxml.parser.CimXmlParser;
 import de.soptim.opencgmes.cimxml.sparql.core.CimDatasetGraph;
@@ -32,6 +33,7 @@ import java.util.Optional;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.GraphUtil;
 import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.graph.GraphFactory;
 
@@ -41,11 +43,15 @@ public abstract class BaseGraphLoadStrategy implements LoadStrategy {
 
   protected abstract int selectReferenceIndex(List<ModelSource> sources);
 
+  public static final Node HEADER_GRAPH = NodeFactory.createURI("urn:opencgmes:headers");
+
   @Override
   public DatasetGraph load(List<List<ModelSource>> headerSources) throws IOException {
     CimXmlParser parser = new CimXmlParser();
     Map<Node, Graph> cache = new HashMap<>();
     Map<Node, ModelSource> byModelId = buildByModelIdMap(headerSources);
+    var headerGraph = GraphFactory.createDefaultGraph();
+
     var dataset = new LinkedCimDatasetGraph();
     for (var sources : headerSources) {
       if (!sources.isEmpty()) {
@@ -53,24 +59,26 @@ public abstract class BaseGraphLoadStrategy implements LoadStrategy {
         var referenceSource = sources.get(referenceIndex);
         var referenceGraph = toFullGraph(parse(referenceSource, parser), byModelId, cache, parser);
         dataset.addGraph(referenceSource.header().getModel(), referenceGraph);
+        addHeader(headerGraph, referenceSource);
         var currentReferenceGraph = referenceGraph;
         for (int i = referenceIndex - 1; i >= 0; i--) {
           currentReferenceGraph = addGraph(parser, cache, byModelId, dataset, sources,
-              currentReferenceGraph, i);
+              currentReferenceGraph, i, headerGraph);
         }
         currentReferenceGraph = referenceGraph;
         for (int i = referenceIndex + 1; i < sources.size(); i++) {
           currentReferenceGraph = addGraph(parser, cache, byModelId, dataset, sources,
-              currentReferenceGraph, i);
+              currentReferenceGraph, i, headerGraph);
         }
       }
     }
+    dataset.addGraph(HEADER_GRAPH, headerGraph);
     return dataset;
   }
 
   private Graph addGraph(CimXmlParser parser, Map<Node, Graph> cache,
       Map<Node, ModelSource> byModelId, DatasetGraph dataset, List<ModelSource> sources,
-      Graph currentReferenceGraph, int i) throws IOException {
+      Graph currentReferenceGraph, int i, Graph headerGraph) throws IOException {
     var source = sources.get(i);
     var cached = cache.get(source.header().getModel());
     var graph = cached == null ? toFullGraph(parse(source, parser), byModelId, cache, parser)
@@ -82,6 +90,7 @@ public abstract class BaseGraphLoadStrategy implements LoadStrategy {
     } else {
       dataset.addGraph(source.header().getModel(), deltaGraph.get());
     }
+    addHeader(headerGraph, source);
     return currentReferenceGraph;
   }
 
@@ -151,4 +160,20 @@ public abstract class BaseGraphLoadStrategy implements LoadStrategy {
     return Optional.of(new FastDeltaGraph(baseGraph, additions, deletions));
   }
 
+  private void addHeader(Graph headerGraph, ModelSource source) {
+    var header = source.header();
+    var model = header.getModel();
+    if (header.getModelingAuthoritySet() != null) {
+      headerGraph.add(model, CimHeaderVocabulary.PREDICATE_MODELING_AUTHORITY_SET,
+          header.getModelingAuthoritySet());
+    }
+    if (header.getScenarioTime() != null) {
+      headerGraph.add(model, CimHeaderVocabulary.PREDICATE_SCENARIO_TIME,
+          header.getScenarioTime());
+    }
+    if (header.getProfiles() != null) {
+      header.getProfiles().forEach(
+          profile -> headerGraph.add(model, CimHeaderVocabulary.PREDICATE_PROFILE, profile));
+    }
+  }
 }
