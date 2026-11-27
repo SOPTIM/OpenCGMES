@@ -75,7 +75,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Main dependencies -->
-        <ver.jena>6.2.0</ver.jena>
+        <ver.jena>6.3.0</ver.jena>
 
         <!-- XML -->
         <ver.stax2-api>4.3.2</ver.stax2-api>
@@ -92,8 +92,8 @@
 
         <!-- Testing -->
         <ver.junit4>4.13.2</ver.junit4>
-        <ver.mockito>5.24.0</ver.mockito>
-        <ver.awaitility>4.3.0</ver.awaitility>
+        <ver.mockito>5.25.0</ver.mockito>
+        <ver.awaitility>4.4.0</ver.awaitility>
 
         <!-- Plugins -->
         <ver.plugin.compiler>3.16.0</ver.plugin.compiler>
@@ -114,7 +114,7 @@
         <ver.plugin.cyclonedx-maven-plugin>2.9.3</ver.plugin.cyclonedx-maven-plugin>
         <ver.plugin.jacoco-maven-plugin>0.8.16</ver.plugin.jacoco-maven-plugin>
         <ver.plugin.maven-pmd-plugin>3.28.0</ver.plugin.maven-pmd-plugin>
-        <ver.plugin.license-maven-plugin>2.9.0</ver.plugin.license-maven-plugin>
+        <ver.plugin.license-maven-plugin>2.10.0</ver.plugin.license-maven-plugin>
         <ver.plugin.checkstyle>14.4.0</ver.plugin.checkstyle>
     </properties>
 
