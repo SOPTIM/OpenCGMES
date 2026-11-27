@@ -1,0 +1,7 @@
+query:
+  import:
+    load-strategy: "FIRST_GRAPH"
+    path: "C:\\TestData"
+  execution:
+    timeout: 30s
+    max-results: 10000
