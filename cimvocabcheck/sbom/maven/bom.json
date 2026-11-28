@@ -824,6 +824,67 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/com.github.ben-manes.caffeine/caffeine@3.3.1?type=jar",
+      "group" : "com.github.ben-manes.caffeine",
+      "name" : "caffeine",
+      "version" : "3.3.1",
+      "description" : "A high performance caching library",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "a3e4b1a786869a2c6f840a9f341bd1d0"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "5a27a5d1b7bf7e796b4d90644c53c6c8336bfb09"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "1f916d052a3f8c0c10951f343f043f176ff2d3c2f9e380e15f0be673c5e67c48"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "6cd5efc3f2d4aa58b1f0f68503347a730594a9d308290e94a1cd2a01a1ab0755447e305b08370ed6b66311583e6728c6358c139808cd0a3db4801db7311f9675"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "a2e11cf101a2c9b7dfdbb52931f20abb88a73825ecc51519f10ea15988d537df8d9e0ec3425c76545e7692b203a9bb02"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "30e62dd97bb68761ea50656699564cfb15b4bddead8fcbb446cb02df19309c7ad89366c2d0be56276f7eebce87e50ce5"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "1271090fb51f73b66ab8bd2567a92b3a28ff3ebd7b88b215ebfaef584ac873db"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "8954f39878ac43b450cd41f310bc55405b984bf29060bdb0cefcf35e688fc76865ee9db232c59e9c079ee45e7714c56e7545f03f440e4b4f080cc2406056f32c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/com.github.ben-manes.caffeine/caffeine@3.3.1?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://github.com/ben-manes/caffeine"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/ben-manes/caffeine"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/com.google.code.gson/gson@2.14.0?type=jar",
       "group" : "com.google.code.gson",
       "name" : "gson",
@@ -873,6 +934,72 @@
         }
       ],
       "purl" : "pkg:maven/com.google.code.gson/gson@2.14.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://github.com/google/gson"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://github.com/google/gson/issues"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/google/gson/"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/com.google.code.gson/gson@2.15.0?type=jar",
+      "group" : "com.google.code.gson",
+      "name" : "gson",
+      "version" : "2.15.0",
+      "description" : "Gson JSON library",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "4e7fd0c4d1b60fa0997ad421ea23f946"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "3c8f3903bd90f774de74f126be756bbc1408abcb"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "96d3dd843dc2911de01cdabcd50064cb9e860353102a0a78c96fd833d396fc7d"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "63132e39102cd80877a6b61f84d74a39f480ba12db1f1ace86ab8a8b0f98ce26dd43b0830f40496f32700df0156ba3dfe4af4df1565726350107140305287c07"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "122d53a04f3b8622d473109161a2a17217fdf3e53d94a3faa63e68a0277e181fdbce7b89ab1229cb010cbe809b0ac7da"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "f7d22b38b084a4874b9caa6f3f2ae9975cc9c28a83e5a9de1d24ff0c1ac589c05fecc39a2081683d267a8203c6f1dd30"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "570f9a3aa28e8f1837706c999216cecb43d9665b97e356c70f5d10c6ac7ae416"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "e7835b1e85abbc1d2fa3a94602df39a0558cd36b6708378e448cb62dd93d22e11a5a24a7025d161c0367e54bbd2542ccdc41d9ad607c499011596e74d29d0c2c"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0",
+            "url" : "https://www.apache.org/licenses/LICENSE-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/com.google.code.gson/gson@2.15.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -952,6 +1079,68 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/com.google.errorprone/error_prone_annotations@2.50.0?type=jar",
+      "publisher" : "Google LLC",
+      "group" : "com.google.errorprone",
+      "name" : "error_prone_annotations",
+      "version" : "2.50.0",
+      "description" : "Error Prone is a static analysis tool for Java that catches common programming mistakes at compile-time.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "1ded1848cfd4f5167e00824faf9c4d3b"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "74ba43e49ab1184d41634af2ef0047e82c4064b0"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "4667724877f1d37a689202da191e23efa7657c62eef93ccdac406eccfe5cdd0a"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "f867b1a1fbc057fcfc37c2fa86082f5965ad6a1c45373eac6cfa6ec058cedbf7b348ab4f3d4fea2d4d105ecc401c14f24d9b16f344507e126a221d50532cb8b2"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "2986b161379c30e9805f3bcff197d7861b8c0690a021e2d7464707e57028b1953d24eefd1a36722f3c04665190b3cb48"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "597fe452ff7e21149da3c537b61d8e1b17df792f67bcd80fbccd6647acca571a94fa8bbcf4840826a37814bb2ef0249a"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "5447d9786f79d7dc20e8f75ac93f3a05181f3707faf6e91696dd326cdd5f5754"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "b51065218c88f5ce0b94e6607dee42d6c01aeb69a87b6e1c656dd406f2196cc999150ce87f56fbeeecbed7e1e354ed285589fa560012e9fb5858a97dc17d2129"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/com.google.errorprone/error_prone_annotations@2.50.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://errorprone.info/error_prone_annotations"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/google/error-prone/error_prone_annotations"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/com.google.protobuf/protobuf-java@4.35.1?type=jar",
       "group" : "com.google.protobuf",
       "name" : "protobuf-java",
@@ -1001,6 +1190,72 @@
         }
       ],
       "purl" : "pkg:maven/com.google.protobuf/protobuf-java@4.35.1?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://developers.google.com/protocol-buffers/protobuf-java/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/protocolbuffers/protobuf/protobuf-java"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/com.google.protobuf/protobuf-java@4.36.2?type=jar",
+      "group" : "com.google.protobuf",
+      "name" : "protobuf-java",
+      "version" : "4.36.2",
+      "description" : "Core Protocol Buffers library. Protocol Buffers are a way of encoding structured data in an efficient yet extensible format.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "617a916997991c4d4e287b5f86870e66"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "dbc5fbfc3936fb569a910679e971842a556a4d3d"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "0773e72eaf375e1285df330575bfec5bda5da674d544d0e142a17f89c8f754da"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "884b623537e8c05dea7bab426e786d7026476977cdad407d5686e10150f2bc116b8014b5099c1fec5212082b339b18d530e50788ff77f534bafab30000760694"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "8eba320e587e5f2ecf25be8e2dcd14c5234be7e34fc2a647dc136fda04d3762df0ee9483894714fd8195793c969a0f6d"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "a8066e8676d14e79f4005c01ff31d6747d7d9ffa8a36df0a1f8c65e2b46980c7cc3f3280d72e0478784a886b85e7be67"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "a8bc7bd265f16bf1b41e82b93d9397d03bbc3896f0ddd1f138b2388f7b8e033d"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "3494204dacf621c2dace984b2253916434e9b2ed8dbdd277b1b3f044bffeaee051f1262cccd3969551da87af42d61261bdf16a2c8670aa3a57448e2eee8d72f5"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "BSD-3-Clause",
+            "url" : "https://opensource.org/licenses/BSD-3-Clause"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/com.google.protobuf/protobuf-java@4.36.2?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -1068,6 +1323,85 @@
         }
       ],
       "purl" : "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://commons.apache.org/proper/commons-codec/"
+        },
+        {
+          "type" : "build-system",
+          "url" : "https://github.com/apache/commons-codec/actions"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://issues.apache.org/jira/browse/CODEC"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://mail-archives.apache.org/mod_mbox/commons-user/"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/apache/commons-codec"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/commons-codec/commons-codec@1.23.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "commons-codec",
+      "name" : "commons-codec",
+      "version" : "1.23.0",
+      "description" : "The Apache Commons Codec component contains encoders and decoders for formats such as Base16, Base32, Base64, digest, and Hexadecimal. In addition to these widely used encoders and decoders, the codec package also maintains a collection of phonetic encoding utilities.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "dc0c1fa739a6cfc59d948ebe371af90a"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "11adf2daaeb941e80599a3e8010d63aed995f509"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "47504a3ce71d73a1b0af07675546b8d8c5af87f82ef12b6381f9eb3c17dd5a5b"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "fdbda49825afd3eef86987155865f74f71b51f88c9145df12a473b209f52a70d4e84a5f3c19648f42c9b8a5989bcdf4a0976df0a42b85fa3dbb5b52841a350ff"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "de1caffb821f8bfa44fe0570bf8dbf308e07d23f254c9c4f15825a167f70a6e22fc9f5c9df03f2e56d261f94b3cb3859"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "7abb2ae4ad494c6732fea2d9c4eabc267223f70a8a3164b10297437809b82f4e2d90383f282b5c4999c5e0acaf9c9594"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "fe24f5492b702edf2dae5b3cb5ebb7a2661e5a4c02fd15dd95dd22bcea8373e7"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "e5395d37af0ec14b84f8e122d89b0276e74a32389c1c88f3a3b69753eab2d5051b7236fc230396105b06faa0af7406d10392e7f6ab8a15d0586cdd45b0a872c9"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0",
+            "url" : "https://www.apache.org/licenses/LICENSE-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/commons-codec/commons-codec@1.23.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -1425,6 +1759,85 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.commons/commons-collections4@4.6.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.commons",
+      "name" : "commons-collections4",
+      "version" : "4.6.0",
+      "description" : "The Apache Commons Collections package contains types that extend and augment the Java Collections Framework.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "a5eb5df0e00b5bd4141ae277a4a79335"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "e3f46a0753e01b8397363ba0edbfb6ec38dedf0a"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "4e0d0896bac5356cead277bac0283f09813e14417e3e84e0c86b573b54d218a3"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "76fc3fe1e6926d25f73493595bca77441cf725843c394ed0783c117c4cb9d6d843ca48c60ca1298fcc70c3f0561ea8c2a190749b75ed6b56b286c33f7b2e68a2"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "86410414852843ecc833d5c9621465934275a07de2d655531915db6fda60324570f93e693d805bd9253b91455dc4559b"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "73567085cbd5b9358bbfd945ea53496a83db008d6591dcf62afa9b958b2c6f49d3df65910ec034566f6ac9f85203e708"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "06b33d314b2939264a6d315af71c916e00f17bde6412c533cccb7ccf6e5cb94e"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "8b3d996784c2978bfc9e5b61340ca0505817514abe54676b22ebd7e36b191ff96ec6978108b8757395fc5d348d36bec45ad24f2e6a9d35ad725299b606dbe24e"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0",
+            "url" : "https://www.apache.org/licenses/LICENSE-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.commons/commons-collections4@4.6.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://commons.apache.org/proper/commons-collections/"
+        },
+        {
+          "type" : "build-system",
+          "url" : "https://github.com/apache/commons-collections/actions"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://issues.apache.org/jira/browse/COLLECTIONS"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://mail-archives.apache.org/mod_mbox/commons-user/"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf?p=commons-collections.git"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/org.apache.commons/commons-compress@1.28.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.commons",
@@ -1583,85 +1996,6 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
-      "publisher" : "The Apache Software Foundation",
-      "group" : "org.apache.commons",
-      "name" : "commons-lang3",
-      "version" : "3.20.0",
-      "description" : "Apache Commons Lang, a package of Java utility classes for the classes that are in java.lang's hierarchy, or are considered to be so standard as to justify existence in java.lang. The code is tested using the latest revision of the JDK for supported LTS releases: 8, 11, 17, 21 and 25 currently. See https://github.com/apache/commons-lang/blob/master/.github/workflows/maven.yml Please ensure your build environment is up-to-date and kindly report any build issues.",
-      "scope" : "required",
-      "hashes" : [
-        {
-          "alg" : "MD5",
-          "content" : "4b29562ded527aa074e1d44f8646dac5"
-        },
-        {
-          "alg" : "SHA-1",
-          "content" : "65897b3e5731220962e659e001904af3c3cbeba9"
-        },
-        {
-          "alg" : "SHA-256",
-          "content" : "69e5c9fa35da7a51a5fd2099dfe56a2d8d32cf233e2f6d770e796146440263f4"
-        },
-        {
-          "alg" : "SHA-512",
-          "content" : "1c72db334ea44f932c35e602b78907865f5bab43e30c871c9be67c8184eaa778f32d7bc3ab525d5921cd28619d3f9babfd483f17de54f007ee07db2e074b0307"
-        },
-        {
-          "alg" : "SHA-384",
-          "content" : "77dd27c4d5e9372c002bd6878d2cfaaec3cf46dd57d65de63d7f2e09351344531cfa81a537b56628ac6db18adee7e484"
-        },
-        {
-          "alg" : "SHA3-384",
-          "content" : "3456de40eef224b3ad195d2f218dd28eacb0da07607aee7ead94bd8d54bd8311d51c28d4066db4bf8b69a2df48c415f5"
-        },
-        {
-          "alg" : "SHA3-256",
-          "content" : "36e3f71352fa14bc580db45a05b09b063392c6d39acf9e24ffa6a67bbc07a336"
-        },
-        {
-          "alg" : "SHA3-512",
-          "content" : "6ecbc05bb5cd3f7537078b0cf51b0a5f7189dfa60c22e5ec0d6b9e2fd3f7fa7566770b5da87e0c9929f48769933c3e3a473fd5cc7231672fca36ab1fee1f8670"
-        }
-      ],
-      "licenses" : [
-        {
-          "license" : {
-            "id" : "Apache-2.0",
-            "url" : "https://www.apache.org/licenses/LICENSE-2.0"
-          }
-        }
-      ],
-      "purl" : "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
-      "externalReferences" : [
-        {
-          "type" : "website",
-          "url" : "https://commons.apache.org/proper/commons-lang/"
-        },
-        {
-          "type" : "build-system",
-          "url" : "https://github.com/apache/commons-lang/actions"
-        },
-        {
-          "type" : "distribution-intake",
-          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
-        },
-        {
-          "type" : "issue-tracker",
-          "url" : "https://issues.apache.org/jira/browse/LANG"
-        },
-        {
-          "type" : "mailing-list",
-          "url" : "https://mail-archives.apache.org/mod_mbox/commons-user/"
-        },
-        {
-          "type" : "vcs",
-          "url" : "https://gitbox.apache.org/repos/asf/commons-lang.git"
-        }
-      ]
-    },
-    {
-      "type" : "library",
       "bom-ref" : "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.commons",
@@ -1815,6 +2149,80 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-arq@6.3.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.jena",
+      "name" : "jena-arq",
+      "version" : "6.3.0",
+      "description" : "SPARQL 1.1 query engine and RDF parsers for Apache Jena",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "1ddf15667bd726d61b7db83ace5fd2b8"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "3e80d451b6d95da012a41d2af404e632e6c602c6"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "00e6d572d4c565dc53bd4753139f32fd09212d0c715dec3276b639ec994e59b4"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "69b303aa38a5675a96a3dad9d8ba2a13f7d1376d77ab26a4cb14f65959e66a805bbc6b84176749eac53d18a786fb2b596f01577995c5c80713c9b8fb3f131168"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "c5a17fb86aab36e0c5c751cff443ff652674eb56facc95b48d9422080fa2f3a6ca20c8747b3c3b1e35805b025e9ab24e"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "12576fd5286a5b3735e59d072a1d45538fdc069a1ac0eba1d1bb3ac8817bf92f8bca04db929653be792237e053546bde"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "bf619c05e92cbaea7acc5bdbb48702d77dbd95af1f98f12c31ca6fe71c59aa5d"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "43a80a8d15318ea6f5a96fd6dd9e3700826903dc6a274a5bfcedd5f8b16f1c1283b21b7501cf8298f238126e7bb833f099fe84c9b6ae1d8b79de43cb63d15c98"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.jena/jena-arq@6.3.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jena.apache.org/jena-arq/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://github.com/apache/jena/issues"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://lists.apache.org/list.html?users@jena.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/jena.git/jena-arq"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/org.apache.jena/jena-base@6.2.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.jena",
@@ -1876,6 +2284,80 @@
         {
           "type" : "issue-tracker",
           "url" : "https://issues.apache.org/jira/browse/JENA"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://lists.apache.org/list.html?users@jena.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/jena.git/jena-base"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-base@6.3.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.jena",
+      "name" : "jena-base",
+      "version" : "6.3.0",
+      "description" : "This module contains non-RDF library code and the common system runtime.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "5dfaa5a19262c6fa3fce572009c9d86f"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "b5a8904e74431e854e1f154f62ec07a6e323c97d"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "145aea9d46a1b76d1cd4fe8d51a56d084f5ece3fa77400fd2b60d9f9bc90b18a"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "3c1dd11a00d8cdca1812bf9c3313bdfbfcc40000a9b16c6cfb2e3381406fd4385ec45bdc1ddd41f4357c8e4caf17c34c4a2634f20651847ab777eb1dad861fef"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "b18872fcc8cf13db6b7f74c0d04403b728ee6e3c8849c3b3bea48dfc5d2dbb65ed305223aad622ed4371c94473ae1ed3"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "33757db271f07ba8eebeb7a34130d9e54b69ff0c154cc28d5e27d2c65716272227d198bff4e61388c78a9b156a0fd459"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "26c1f731ea56215242d143acf4a37040c7540331217e8313b9459ed0b5cd9c65"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "108a3be6d0803634af9e8c18302f10813ee0cd3f39cfa3264a508f21177d14eb17d414aeb9daa74c4b3ff34dec10a9a5c7b88326aa9594be369fba144941241d"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.jena/jena-base@6.3.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jena.apache.org/jena-base/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://github.com/apache/jena/issues"
         },
         {
           "type" : "mailing-list",
@@ -1963,6 +2445,80 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-core@6.3.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.jena",
+      "name" : "jena-core",
+      "version" : "6.3.0",
+      "description" : "Jena is a Java framework for building Semantic Web applications. It provides a programmatic environment for RDF, RDFS and OWL, SPARQL and includes a rule-based inference engine.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "4234899301196d60440345e247f13a29"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "2a553dcf40c9f0d8996d47571c56ecd58e6a6ccd"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "17896eee704c2c98157e978979992011bbaff76dca2ace578c0e0523d1c6174f"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "d9e33c5531b630abc6d1e5dc53506e912c96cf4c509ba538cde539db428dd5dde95727bc51c9f555278ef09272dce9d2ef47f1d07cebebf182bfddf7aba5de14"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "6ecc8b77a9ebb75fd2e52231460af21e5498d6d335da25607eee5d3b936094e098a703025b81fa4b7a957c4dfac60a99"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "cfcefcd677e24e816601a21e143c15b4fd17f643bc44ec34071ab57342fcc1ff40473fb63241d015ac2b1cc6113dec16"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "68705ea77965136b59f5fe1265d4151903f2c435882ff0652175cae937d98c17"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "be60ae41d95d662e918616477e4df74db192819d679d301051abd6546797f0aa44d47196fc1464356951e502327f9553c59f978efde2213f970ea6dcf3d6589b"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.jena/jena-core@6.3.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jena.apache.org/jena-core/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://github.com/apache/jena/issues"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://lists.apache.org/list.html?users@jena.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/jena.git/jena-core"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/org.apache.jena/jena-iri3986@6.2.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.jena",
@@ -2024,6 +2580,80 @@
         {
           "type" : "issue-tracker",
           "url" : "https://issues.apache.org/jira/browse/JENA"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://lists.apache.org/list.html?users@jena.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/jena.git/jena-iri3986"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-iri3986@6.3.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.jena",
+      "name" : "jena-iri3986",
+      "version" : "6.3.0",
+      "description" : "The IRI module provides an implementation of the IRI and URI specifications (RFC 3987 and 3986).",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "0e1d7098c0373e9fe676cfef49594055"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "10c2283a62b3f6ee14c2195b150e88948cb0defb"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "88bbb1b7212cfea1e29192cd10297bcea3a6af29ec523325592420db352c05f2"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "39aee0ad75d9ae47fb7a78f7025affd84f32d7a9f227e3ef36a1516e6d9c152c333bbaef784ffed703a07301604c4c4c2bb1635f46704b554751fff95d9077a5"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "744a95cfa07b704a6e2ac3545a2492e7fd0614ba61b2cb36c9252e06add578b9d7d29b1512a3a4c609a0245c85df5560"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "1678d227bb4f97abf33d5502b2f67bbcf9e788bbf79a5251452369efed98feb78a77f0296ca5f50a949d6d4cf4d6e02c"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "a8121285a0742b7966595cf2f3070657083d64a2813cbedc88b55c826e7dd012"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "fd785074b1d816070155ea301a01a1b7dc9ffb0bbcc952c921a06ae0caed505bf20b1df5a398b903d8f903e44d27c8cd6a307564fb17340dfb3986816ad9b52f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.jena/jena-iri3986@6.3.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jena.apache.org/jena-iri3986/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://github.com/apache/jena/issues"
         },
         {
           "type" : "mailing-list",
@@ -2111,45 +2741,45 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-langtag@6.3.0?type=jar",
       "publisher" : "The Apache Software Foundation",
       "group" : "org.apache.jena",
-      "name" : "jena-shacl",
-      "version" : "6.2.0",
-      "description" : "SHACL engine for Apache Jena",
+      "name" : "jena-langtag",
+      "version" : "6.3.0",
+      "description" : "Implementation of RFC 5646 (BCP-47) Language tags",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "0432c3288a8277fa29b5478d6c231247"
+          "content" : "c506d5be19eba9812adbe97f04004907"
         },
         {
           "alg" : "SHA-1",
-          "content" : "9c2faf2cee6b3f5b8e88028b146cc4e5970e0f5c"
+          "content" : "4d805d2cfe49b71b2c09e669c3c1be7da4dd5f6c"
         },
         {
           "alg" : "SHA-256",
-          "content" : "4ca38c60f3c4f0473368d51e01977ac8d1d257ba8c0eb493dcfac855b620d904"
+          "content" : "725d23ed469ba0a8271d3a6326b7491e7044a462fb474cf057c1f4dd9779f099"
         },
         {
           "alg" : "SHA-512",
-          "content" : "4c78c59503c09754362bcd4d03e40263a65b35b6e79b588548ace252cceac1f15f7c11ba91507f69b05731791efb619d3800923e08312075ac7858d4e42230f5"
+          "content" : "91acc1fe848d283bb656bb6fa2783abc45a66a63bc7a2b18b42bdb77b4562055678b9aba4670574e357e877710df25b8b3fb6b3021a9388c3b7bcb022b1a7fad"
         },
         {
           "alg" : "SHA-384",
-          "content" : "24f121c3e9a99d864f124f34607417b471e06e31021eaa4a93767cd0f9f1db571dff8d640cb94bef2728fd2bf6a329b1"
+          "content" : "261cac934e6f07117cef3e6cb5fc25db5cf050870b8a96f520c6fa51aec1c32ed8f4ddab5a84b6a1d01369add14878cd"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "13c15800d03fb35c03a621764d2b94f705aaee6cb85112e9a0dafa7109f836847ed242f3f80b7d2ae9e26acfe205a77b"
+          "content" : "c166b9f4eb12e0ccd4fbe40e8235e4e818808e5d463277d2a2e50326594a1863ab831cb9b60fcc18ef4e91f4ab089510"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "ac16049afda3b87eaf1c42527cc1001ccd5d26d377e61b18a7b2a070d8cdd0c2"
+          "content" : "76f763dedaddad0a235dc0ce8691b6e90432297164c091aed2d2a01aea320fac"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "101517ecc3f42eb7ac6a439bc8928ab19f3194375634456b8f154b24de8ca013df35666ee684da39a6bd117f440b7f3dd88f2938f01fb98f72ac6e559b4f40ea"
+          "content" : "cf7080ce17ce7465f2cdf032c4c5f64c2699bdd6774ed0786218668fe48dbaa86bce1118f8b04b04666fd82e983b1041cbee307e0973b8bc71da70365dd35408"
         }
       ],
       "licenses" : [
@@ -2159,7 +2789,81 @@
           }
         }
       ],
-      "purl" : "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+      "purl" : "pkg:maven/org.apache.jena/jena-langtag@6.3.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jena.apache.org/jena-langtag/"
+        },
+        {
+          "type" : "distribution-intake",
+          "url" : "https://repository.apache.org/service/local/staging/deploy/maven2"
+        },
+        {
+          "type" : "issue-tracker",
+          "url" : "https://github.com/apache/jena/issues"
+        },
+        {
+          "type" : "mailing-list",
+          "url" : "https://lists.apache.org/list.html?users@jena.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://gitbox.apache.org/repos/asf/jena.git/jena-langtag"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.jena/jena-shacl@6.3.0?type=jar",
+      "publisher" : "The Apache Software Foundation",
+      "group" : "org.apache.jena",
+      "name" : "jena-shacl",
+      "version" : "6.3.0",
+      "description" : "SHACL engine for Apache Jena",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "f151dbe281d3de085d4837083fee9d0a"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "ec737511b800dc29ce153b77bc019b5d566c17b5"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "5afbac6b2887ce9a1859cc77abb30a2c08fd314d33d848c99f88d0a451f3e46c"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "004250c85b4e530de388083c7790fd0f9ea3b479e1447663e56cdad752c26a1766217018a81e1306399435532ea9458f00fb4584bbc91cb71aca408f8e333855"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "337c8c68fa057a2131e58d02f9790beb5a82be972db90bec3b60478dddfcccac7d3cf1f2468aa2e3f207fc235dfa5af2"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "a99566e535f2533dfec04fa5fe45e06da046d754f0d2bbe9e7f0bfe17badb1391d12cd68cf0d1ddb610e3002312b860d"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "d5cc441573964b71496f6d39de503e862db7d09eeab1af4df27ff2799b3f8570"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "9265a8f8aabf9b5c6226e9a10507262021afa56a2ef031feedbb8de41e8e86056b635e261cb5defafdbb91a592b25711f396f5e8c0f927b2da4552ef2cc9da7f"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.jena/jena-shacl@6.3.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2171,7 +2875,7 @@
         },
         {
           "type" : "issue-tracker",
-          "url" : "https://issues.apache.org/jira/browse/JENA"
+          "url" : "https://github.com/apache/jena/issues"
         },
         {
           "type" : "mailing-list",
@@ -2458,6 +3162,67 @@
         }
       ],
       "purl" : "pkg:maven/org.apache.thrift/libthrift@0.24.0?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "http://thrift.apache.org"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/apache/thrift"
+        }
+      ]
+    },
+    {
+      "type" : "library",
+      "bom-ref" : "pkg:maven/org.apache.thrift/libthrift@0.25.0?type=jar",
+      "group" : "org.apache.thrift",
+      "name" : "libthrift",
+      "version" : "0.25.0",
+      "description" : "Thrift is a software framework for scalable cross-language services development.",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "af5f27b6cc01afa1e2df87ac2c8d276a"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "4a606da5e64dae664d34bc3d3fcbecdf93c08cee"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "0d79412164e2f48dcaab541e23a324dac44ea4574c8aa4ea1261c72fc69e73c0"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "a6d9322645b1a5221c7e84231e05b612b104843b7bbd9b2e8a00862a977fae8c1a6d2128cb5eebcf8f3597c7d42a02493e7498003d82772faf9758c4aa58cfd0"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "d1ee66f9358e9cad05a1484894a1a1251c11dc94a3bcfefa910cbe8e5ce33c68418f32344b3d1b88803a8d7a50a160a9"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "23df2160a401007fd03643a686c31c104adaa2797392b2e8ac41b5829b7df5043dd0833191658e85125420d8b95ed927"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "da31fc082f929e12f66bd5f71cf0cf8a917e38a2d7e1db84d6cf6eede6e7034e"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "4a16b692e899d6070f1bcb9029830e7d7323705853b07f69bbbfa712e474f86db2e04b96e351d7f698dac1ea887d293701c898849bb67628f833f76ef1783b67"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.apache.thrift/libthrift@0.25.0?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
@@ -2797,6 +3562,67 @@
     },
     {
       "type" : "library",
+      "bom-ref" : "pkg:maven/org.jspecify/jspecify@1.0.1?type=jar",
+      "group" : "org.jspecify",
+      "name" : "jspecify",
+      "version" : "1.0.1",
+      "description" : "An artifact of well-named and well-specified annotations to power static analysis checks",
+      "scope" : "required",
+      "hashes" : [
+        {
+          "alg" : "MD5",
+          "content" : "d4fe1ea4d953b66fcb1d6043c22bffcf"
+        },
+        {
+          "alg" : "SHA-1",
+          "content" : "3d60fd98eb8ade73004f4195c37b6317e02cf3d7"
+        },
+        {
+          "alg" : "SHA-256",
+          "content" : "070d75f261fe4c5b8202508366715f7f2d4660f88c8ef7e6d3575e48c9683b66"
+        },
+        {
+          "alg" : "SHA-512",
+          "content" : "8f5ca6f5c25ee353bfbe3e5e5cd9847b3b3ed1e954a14a52c9aa016c673e02bfbc2e0f9308ad576c2a58720f8bf2139ad9883c7a881050fe96a2f87e2e623711"
+        },
+        {
+          "alg" : "SHA-384",
+          "content" : "f7c6aea402675ed6d9286e6107d4bf6c2d1f757f9fce4c74807cbd43d426569324cf4c7faed28dc777e90ddb3a63db68"
+        },
+        {
+          "alg" : "SHA3-384",
+          "content" : "d462ead4749cc7b404b1699aedf472664e9bb38db769f2ec78a6457d2d080602f673af8b3114724dd92ee2262f464c41"
+        },
+        {
+          "alg" : "SHA3-256",
+          "content" : "f9392a7b674c37a7617d7e5ab4a6197c235c0a036244eaf550291d6756c0f1c9"
+        },
+        {
+          "alg" : "SHA3-512",
+          "content" : "3154b4940937103d74b77eede7abc7034168dc986284ef00ab4e4d5b537ed6370c6856787ae50711e62906b3011243c9a656b659ddd025c1e6b828c44b980855"
+        }
+      ],
+      "licenses" : [
+        {
+          "license" : {
+            "id" : "Apache-2.0"
+          }
+        }
+      ],
+      "purl" : "pkg:maven/org.jspecify/jspecify@1.0.1?type=jar",
+      "externalReferences" : [
+        {
+          "type" : "website",
+          "url" : "https://jspecify.dev/"
+        },
+        {
+          "type" : "vcs",
+          "url" : "https://github.com/jspecify/jspecify/"
+        }
+      ]
+    },
+    {
+      "type" : "library",
       "bom-ref" : "pkg:maven/org.roaringbitmap/RoaringBitmap@1.6.15?type=jar",
       "group" : "org.roaringbitmap",
       "name" : "RoaringBitmap",
@@ -2862,68 +3688,66 @@
     },
     {
       "type" : "library",
-      "bom-ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.18?type=jar",
-      "publisher" : "QOS.ch",
-      "group" : "org.slf4j",
-      "name" : "jcl-over-slf4j",
-      "version" : "2.0.18",
-      "description" : "JCL 1.2 implemented over SLF4J",
+      "bom-ref" : "pkg:maven/org.roaringbitmap/RoaringBitmap@1.6.29?type=jar",
+      "group" : "org.roaringbitmap",
+      "name" : "RoaringBitmap",
+      "version" : "1.6.29",
+      "description" : "Roaring bitmaps are compressed bitmaps (also called bitsets) which tend to outperform conventional compressed bitmaps such as WAH or Concise.",
       "scope" : "required",
       "hashes" : [
         {
           "alg" : "MD5",
-          "content" : "889b3b36f33843d83ba84f7355c2150d"
+          "content" : "e1638a4dd8351df5a68e242c5f39ecd7"
         },
         {
           "alg" : "SHA-1",
-          "content" : "fb36c10c70e27bb427bb3cec86ac30bb83f667c7"
+          "content" : "15177cb10d919c035cd02b90930c682b3f96297c"
         },
         {
           "alg" : "SHA-256",
-          "content" : "ec5c36d57d2dbe100f84878f944575cb7871da32c7a115b8d7e0721277045d67"
+          "content" : "db39cb8c71709e22d6746fc6c7588f6531a7ead0e253f671d4942f8857a56eb3"
         },
         {
           "alg" : "SHA-512",
-          "content" : "6a2d26ab6873b25bab037f5620ce5a4a1c35cf79e89a09ff900d873877231bf117e35e9dfd05912c36be0b4a89a739c84ba20231fd0f74c1fcf14126c8846248"
+          "content" : "9652b999de6c8374e86cc378dd58b5bc1e9a08d5497e2e1d09900960a5847b79594fa3b9b2ce0dc8492c2c72151d5e4348daae1c6b47efedb7eac4170298535e"
         },
         {
           "alg" : "SHA-384",
-          "content" : "6c8413069e3d41c85ff74f94e0ea01553b2edaf8b589b390c6b3d935d4a6e256720ded91d98a5aeadb67920bc8c10f35"
+          "content" : "5b723138f1b39dd8e5e83b665cdc6f71ade348c9bda9e720b4a0eeda9c8fb6f32be6deeefc76ce3ed2cab9eeec30f422"
         },
         {
           "alg" : "SHA3-384",
-          "content" : "6fc21de57edba60d2f58e7907e051f70efc9d20729190d2dd0453a6bde313d764a96e1e392fe50042e09c2a1221067fb"
+          "content" : "8229d1a870ae02c5af2e2f30c76bdb9f786d1c18aee5804ec149bc4e0e3d26d890fde9fd7b0fb961a2fe252eecb4fb33"
         },
         {
           "alg" : "SHA3-256",
-          "content" : "4c3fbe65804bd4e70d9698c553819bd9866eec21b8ba4a4d01b89f4e8895ff24"
+          "content" : "fc78a8f0bd75e1b47bd2776eefc2176cd6a2f70d3993b0e5e43d0ca829492f3a"
         },
         {
           "alg" : "SHA3-512",
-          "content" : "d4fa671a7f0365d0dbe49b42fd5f354a6af2d22dbbcc7c1f5afbdba084845ea0aeabc112b89379988c7dcf57ab36350a39e436ddc45895ddf29f48082485c5b3"
+          "content" : "f5d46c7cc47630a7f4a1aa752dcab814eb3a5e6ebc29075e27a129b17cac50a54a6db982343dff653d1938cbf1001b9d08e96ffc87060af55c966269c1133a56"
         }
       ],
       "licenses" : [
         {
           "license" : {
-            "id" : "Apache-2.0",
-            "url" : "https://www.apache.org/licenses/LICENSE-2.0"
+            "id" : "Apache-2.0"
           }
         }
       ],
-      "purl" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.18?type=jar",
+      "purl" : "pkg:maven/org.roaringbitmap/RoaringBitmap@1.6.29?type=jar",
       "externalReferences" : [
         {
           "type" : "website",
-          "url" : "http://www.slf4j.org"
+          "url" : "https://github.com/RoaringBitmap/RoaringBitmap"
         },
         {
-          "type" : "distribution-intake",
-          "url" : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+          "type" : "issue-tracker",
+          "url" : "https://github.com/RoaringBitmap/RoaringBitmap/issues"
         },
         {
           "type" : "vcs",
-          "url" : "https://github.com/qos-ch/slf4j/slf4j-parent/jcl-over-slf4j"
+          "url" : "https://github.com/RoaringBitmap/RoaringBitmap"
         }
       ]
     },
@@ -3123,9 +3947,21 @@
       ]
     },
     {
+      "ref" : "pkg:maven/com.github.ben-manes.caffeine/caffeine@3.3.1?type=jar",
+      "dependsOn" : [
+        "pkg:maven/org.jspecify/jspecify@1.0.1?type=jar"
+      ]
+    },
+    {
       "ref" : "pkg:maven/com.google.code.gson/gson@2.14.0?type=jar",
       "dependsOn" : [
         "pkg:maven/com.google.errorprone/error_prone_annotations@2.48.0?type=jar"
+      ]
+    },
+    {
+      "ref" : "pkg:maven/com.google.code.gson/gson@2.15.0?type=jar",
+      "dependsOn" : [
+        "pkg:maven/com.google.errorprone/error_prone_annotations@2.50.0?type=jar"
       ]
     },
     {
@@ -3133,11 +3969,23 @@
       "dependsOn" : []
     },
     {
+      "ref" : "pkg:maven/com.google.errorprone/error_prone_annotations@2.50.0?type=jar",
+      "dependsOn" : []
+    },
+    {
       "ref" : "pkg:maven/com.google.protobuf/protobuf-java@4.35.1?type=jar",
       "dependsOn" : []
     },
     {
+      "ref" : "pkg:maven/com.google.protobuf/protobuf-java@4.36.2?type=jar",
+      "dependsOn" : []
+    },
+    {
       "ref" : "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
+      "dependsOn" : []
+    },
+    {
+      "ref" : "pkg:maven/commons-codec/commons-codec@1.23.0?type=jar",
       "dependsOn" : []
     },
     {
@@ -3160,7 +4008,7 @@
       "dependsOn" : [
         "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.23.0?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimxml@0.0.0-SNAPSHOT?type=jar",
-        "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar",
+        "pkg:maven/org.apache.jena/jena-arq@6.3.0?type=jar",
         "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
       ]
     },
@@ -3169,7 +4017,7 @@
       "dependsOn" : [
         "pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.23.0?type=jar",
         "pkg:maven/de.soptim.opencgmes/cimvocabcheck-core@0.0.0-SNAPSHOT?type=jar",
-        "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+        "pkg:maven/org.apache.jena/jena-shacl@6.3.0?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-core@2.26.1?type=jar",
         "pkg:maven/org.apache.logging.log4j/log4j-slf4j2-impl@2.26.1?type=jar",
         "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j@1.0.0?type=jar",
@@ -3205,6 +4053,10 @@
       "dependsOn" : []
     },
     {
+      "ref" : "pkg:maven/org.apache.commons/commons-collections4@4.6.0?type=jar",
+      "dependsOn" : []
+    },
+    {
       "ref" : "pkg:maven/org.apache.commons/commons-compress@1.28.0?type=jar",
       "dependsOn" : [
         "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
@@ -3218,10 +4070,6 @@
         "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar"
       ]
-    },
-    {
-      "ref" : "pkg:maven/org.apache.commons/commons-lang3@3.20.0?type=jar",
-      "dependsOn" : []
     },
     {
       "ref" : "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
@@ -3241,6 +4089,19 @@
       ]
     },
     {
+      "ref" : "pkg:maven/org.apache.jena/jena-arq@6.3.0?type=jar",
+      "dependsOn" : [
+        "pkg:maven/com.apicatalog/titanium-json-ld@1.7.0?type=jar",
+        "pkg:maven/com.google.code.gson/gson@2.15.0?type=jar",
+        "pkg:maven/com.google.protobuf/protobuf-java@4.36.2?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
+        "pkg:maven/org.apache.jena/jena-core@6.3.0?type=jar",
+        "pkg:maven/org.apache.thrift/libthrift@0.25.0?type=jar",
+        "pkg:maven/org.glassfish/jakarta.json@2.0.1?type=jar",
+        "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.20?type=jar"
+      ]
+    },
+    {
       "ref" : "pkg:maven/org.apache.jena/jena-base@6.2.0?type=jar",
       "dependsOn" : [
         "pkg:maven/com.github.andrewoma.dexx/collection@0.7?type=jar",
@@ -3248,6 +4109,20 @@
         "pkg:maven/commons-codec/commons-codec@1.22.0?type=jar",
         "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
         "pkg:maven/org.apache.commons/commons-collections4@4.5.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-compress@1.28.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-csv@1.14.1?type=jar",
+        "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
+        "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
+      ]
+    },
+    {
+      "ref" : "pkg:maven/org.apache.jena/jena-base@6.3.0?type=jar",
+      "dependsOn" : [
+        "pkg:maven/com.github.andrewoma.dexx/collection@0.7?type=jar",
+        "pkg:maven/com.github.ben-manes.caffeine/caffeine@3.3.1?type=jar",
+        "pkg:maven/commons-codec/commons-codec@1.23.0?type=jar",
+        "pkg:maven/commons-io/commons-io@2.22.0?type=jar",
+        "pkg:maven/org.apache.commons/commons-collections4@4.6.0?type=jar",
         "pkg:maven/org.apache.commons/commons-compress@1.28.0?type=jar",
         "pkg:maven/org.apache.commons/commons-csv@1.14.1?type=jar",
         "pkg:maven/org.apache.commons/commons-lang3@3.22.0?type=jar",
@@ -3264,7 +4139,20 @@
       ]
     },
     {
+      "ref" : "pkg:maven/org.apache.jena/jena-core@6.3.0?type=jar",
+      "dependsOn" : [
+        "pkg:maven/org.apache.jena/jena-base@6.3.0?type=jar",
+        "pkg:maven/org.apache.jena/jena-iri3986@6.3.0?type=jar",
+        "pkg:maven/org.apache.jena/jena-langtag@6.3.0?type=jar",
+        "pkg:maven/org.roaringbitmap/RoaringBitmap@1.6.29?type=jar"
+      ]
+    },
+    {
       "ref" : "pkg:maven/org.apache.jena/jena-iri3986@6.2.0?type=jar",
+      "dependsOn" : []
+    },
+    {
+      "ref" : "pkg:maven/org.apache.jena/jena-iri3986@6.3.0?type=jar",
       "dependsOn" : []
     },
     {
@@ -3272,9 +4160,13 @@
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.apache.jena/jena-shacl@6.2.0?type=jar",
+      "ref" : "pkg:maven/org.apache.jena/jena-langtag@6.3.0?type=jar",
+      "dependsOn" : []
+    },
+    {
+      "ref" : "pkg:maven/org.apache.jena/jena-shacl@6.3.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/org.apache.jena/jena-arq@6.2.0?type=jar"
+        "pkg:maven/org.apache.jena/jena-arq@6.3.0?type=jar"
       ]
     },
     {
@@ -3300,13 +4192,17 @@
       "dependsOn" : []
     },
     {
+      "ref" : "pkg:maven/org.apache.thrift/libthrift@0.25.0?type=jar",
+      "dependsOn" : []
+    },
+    {
       "ref" : "pkg:maven/org.codehaus.woodstox/stax2-api@4.3.2?type=jar",
       "dependsOn" : []
     },
     {
       "ref" : "pkg:maven/org.eclipse.lsp4j/org.eclipse.lsp4j.jsonrpc@1.0.0?type=jar",
       "dependsOn" : [
-        "pkg:maven/com.google.code.gson/gson@2.14.0?type=jar"
+        "pkg:maven/com.google.code.gson/gson@2.15.0?type=jar"
       ]
     },
     {
@@ -3324,14 +4220,16 @@
       "dependsOn" : []
     },
     {
+      "ref" : "pkg:maven/org.jspecify/jspecify@1.0.1?type=jar",
+      "dependsOn" : []
+    },
+    {
       "ref" : "pkg:maven/org.roaringbitmap/RoaringBitmap@1.6.15?type=jar",
       "dependsOn" : []
     },
     {
-      "ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.18?type=jar",
-      "dependsOn" : [
-        "pkg:maven/org.slf4j/slf4j-api@2.0.20?type=jar"
-      ]
+      "ref" : "pkg:maven/org.roaringbitmap/RoaringBitmap@1.6.29?type=jar",
+      "dependsOn" : []
     },
     {
       "ref" : "pkg:maven/org.slf4j/jcl-over-slf4j@2.0.20?type=jar",
