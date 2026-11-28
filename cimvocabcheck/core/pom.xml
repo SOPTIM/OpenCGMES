@@ -65,7 +65,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Main dependencies -->
-        <ver.jena>6.2.0</ver.jena>
+        <ver.jena>6.3.0</ver.jena>
         <ver.cimxml>0.0.0-SNAPSHOT</ver.cimxml>
         <ver.jackson>2.23.0</ver.jackson>
 
