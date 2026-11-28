@@ -30,8 +30,8 @@ dependencies = []
 [project.optional-dependencies]
 # Pinned like every other tool version in this repository, so a new lint rule lands as a Renovate
 # pull request rather than as a red build on an unrelated change.
-test = ["pytest==9.1.1"]
-lint = ["ruff==0.16.8", "mypy==2.3.1"]
+test = ["pytest==9.2.0"]
+lint = ["ruff==0.17.6", "mypy==2.4.1"]
 dev = ["cimvocabcheck[test,lint]"]
 
 [project.urls]

@@ -58,7 +58,7 @@
              jena-fuseki-main (test, in-process endpoint for notebook execution tests). The Jena
              core stack itself comes transitively via cimvocabcheck-core (${ver.jena} there);
              kept in sync manually. -->
-        <ver.jena>6.2.0</ver.jena>
+        <ver.jena>6.3.0</ver.jena>
 
         <ver.plugin.compiler>3.16.0</ver.plugin.compiler>
         <ver.plugin.surefire>3.6.1</ver.plugin.surefire>
